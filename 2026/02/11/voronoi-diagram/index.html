@@ -1,0 +1,242 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Voronoi 图生成器 - 计算几何的暴力之美 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Voronoi 图生成器 - 计算几何的暴力之美今天实现了经典的 Voronoi 图生成器，虽然使用暴力法（O(N×W×H)），但展示了计算几何的直观本质。 本项目代码已托管至 GitHub每日编程实践项目，记录每天的学习和实现。 https:&#x2F;&#x2F;github.com&#x2F;chiuhoukazusa&#x2F;daily-coding-practice&#x2F;tree&#x2F;main&#x2F;2026&#x2F;02&#x2F;02-11-voron">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Voronoi 图生成器 - 计算几何的暴力之美">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/02/11/voronoi-diagram/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="Voronoi 图生成器 - 计算几何的暴力之美今天实现了经典的 Voronoi 图生成器，虽然使用暴力法（O(N×W×H)），但展示了计算几何的直观本质。 本项目代码已托管至 GitHub每日编程实践项目，记录每天的学习和实现。 https:&#x2F;&#x2F;github.com&#x2F;chiuhoukazusa&#x2F;daily-coding-practice&#x2F;tree&#x2F;main&#x2F;2026&#x2F;02&#x2F;02-11-voron">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png">
+<meta property="article:published_time" content="2026-02-11T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-02-11T02:26:29.348Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="Voronoi Diagram">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="计算几何">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Voronoi 图生成器 - 计算几何的暴力之美",
+  "url": "https://chiuhoukazusa.github.io/2026/02/11/voronoi-diagram/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png",
+  "datePublished": "2026-02-11T02:00:00.000Z",
+  "dateModified": "2026-02-11T02:26:29.348Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/02/11/voronoi-diagram/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Voronoi 图生成器 - 计算几何的暴力之美',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">Voronoi 图生成器 - 计算几何的暴力之美</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Voronoi 图生成器 - 计算几何的暴力之美</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-02-11T02:00:00.000Z" title="发表于 2026-02-11 10:00:00">2026-02-11</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-02-11T02:26:29.348Z" title="更新于 2026-02-11 10:26:29">2026-02-11</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">每日编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Voronoi-图生成器-计算几何的暴力之美"><a href="#Voronoi-图生成器-计算几何的暴力之美" class="headerlink" title="Voronoi 图生成器 - 计算几何的暴力之美"></a>Voronoi 图生成器 - 计算几何的暴力之美</h1><p>今天实现了经典的 Voronoi 图生成器，虽然使用暴力法（O(N×W×H)），但展示了计算几何的直观本质。</p>
+<h2 id="本项目代码已托管至-GitHub"><a href="#本项目代码已托管至-GitHub" class="headerlink" title="本项目代码已托管至 GitHub"></a>本项目代码已托管至 GitHub</h2><p>每日编程实践项目，记录每天的学习和实现。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/02-11-voronoi-generator">https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/02-11-voronoi-generator</a></p>
+<hr>
+<h2 id="项目简介"><a href="#项目简介" class="headerlink" title="项目简介"></a>项目简介</h2><p><strong>Voronoi 图</strong>是计算几何中非常重要的一种空间划分方法，将平面划分为若干个区域，每个区域内点到该区域对应的种子点的距离比到其他种子点更近。</p>
+<ul>
+<li><strong>开发时间</strong>: 约 13 分钟</li>
+<li><strong>代码量</strong>: 75 行 C++</li>
+<li><strong>编译状态</strong>: ✅ 一次编译成功（0 错误，0 警告）</li>
+<li><strong>运行结果</strong>: ✅ 成功生成 800×600 像素的 Voronoi 图</li>
+</ul>
+<h2 id="技术要点"><a href="#技术要点" class="headerlink" title="技术要点"></a>技术要点</h2><h3 id="Voronoi-图算法"><a href="#Voronoi-图算法" class="headerlink" title="Voronoi 图算法"></a>Voronoi 图算法</h3><p><strong>暴力法实现</strong>（Brute-force）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; height; y++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; width; x++) &#123;</span><br><span class="line">        <span class="type">double</span> minDist = std::numeric_limits&lt;<span class="type">double</span>&gt;::<span class="built_in">max</span>();</span><br><span class="line">        <span class="type">int</span> closestSeed = <span class="number">-1</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; numSeeds; i++) &#123;</span><br><span class="line">            <span class="type">double</span> dx = x - seeds[i].x;</span><br><span class="line">            <span class="type">double</span> dy = y - seeds[i].y;</span><br><span class="line">            <span class="type">double</span> dist = dx * dx + dy * dy;  <span class="comment">// 平方距离（避免开方）</span></span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> (dist &lt; minDist) &#123;</span><br><span class="line">                minDist = dist;</span><br><span class="line">                closestSeed = i;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 使用最近种子点的颜色着色</span></span><br><span class="line">        image[y][x] = colors[closestSeed];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="技术特点"><a href="#技术特点" class="headerlink" title="技术特点"></a>技术特点</h3><ol>
+<li><strong>空间分割</strong>: 基于最近邻原则自动划分平面</li>
+<li><strong>效率取舍</strong>: 暴力法 O(N×W×H)，50个种子 × 800×600像素 &#x3D; 2400万次距离计算</li>
+<li><strong>颜色编码</strong>: 每个种子点有一个随机生成的颜色，相邻区域颜色不同</li>
+</ol>
+<h3 id="应用场景"><a href="#应用场景" class="headerlink" title="应用场景"></a>应用场景</h3><p><strong>Voronoi 图在实际中的用途广泛</strong>：<br>. <strong>游戏地图生成</strong>（Roguelike、策略游戏）<br>. <strong>程序化纹理合成</strong>（细胞状纹理、岩石纹理）<br>. <strong>空间优化问题</strong>（设施选址、服务区划分）<br>. <strong>程序化内容生成</strong>（地形、生物群落）</p>
+<h2 id="生成效果"><a href="#生成效果" class="headerlink" title="生成效果"></a>生成效果</h2><h3 id="Voronoi-图效果"><a href="#Voronoi-图效果" class="headerlink" title="Voronoi 图效果"></a>Voronoi 图效果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png" alt="Voronoi 图"></p>
+<p>图中清晰地展示了 50 个随机种子点划分的 800×600 空间，每个多边形区域内的所有点到该区域种子点的距离都比到其他种子点更近。</p>
+<h2 id="编译运行"><a href="#编译运行" class="headerlink" title="编译运行"></a>编译运行</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 编译</span></span><br><span class="line">g++ -std=c++11 -Wall -Wextra -lm voronoi.cpp -o voronoi</span><br><span class="line"></span><br><span class="line"><span class="comment"># 运行（生成 voronoi.png）</span></span><br><span class="line">./voronoi</span><br></pre></td></tr></table></figure>
+
+<h3 id="优化方向"><a href="#优化方向" class="headerlink" title="优化方向"></a>优化方向</h3><ol>
+<li><p><strong>性能优化</strong></p>
+<ul>
+<li>Fortune 算法 O(N log N)（线扫描法）</li>
+<li>增量构建算法</li>
+<li>空间分割加速（网格、四叉树）</li>
+</ul>
+</li>
+<li><p><strong>功能扩展</strong></p>
+<ul>
+<li>不同距离度量（曼哈顿、切比雪夫）</li>
+<li>加权 Voronoi 图</li>
+<li>更高维度扩展（3D Voronoi）</li>
+<li>Lloyd 松弛算法（生成更规则的多边形）</li>
+</ul>
+</li>
+<li><p><strong>可视化增强</strong></p>
+<ul>
+<li>种子点边界标记</li>
+<li>实时交互更新</li>
+<li>动画显示构建过程</li>
+</ul>
+</li>
+</ol>
+<h2 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h2><h3 id="随机种子点生成"><a href="#随机种子点生成" class="headerlink" title="随机种子点生成"></a>随机种子点生成</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::mt19937 <span class="title">rng</span><span class="params">(std::random_device&#123;&#125;())</span></span>;</span><br><span class="line"><span class="function">std::uniform_int_distribution&lt;<span class="type">int</span>&gt; <span class="title">distX</span><span class="params">(<span class="number">0</span>, width<span class="number">-1</span>)</span></span>;</span><br><span class="line"><span class="function">std::uniform_int_distribution&lt;<span class="type">int</span>&gt; <span class="title">distY</span><span class="params">(<span class="number">0</span>, height<span class="number">-1</span>)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; numSeeds; i++) &#123;</span><br><span class="line">    seeds.<span class="built_in">push_back</span>(Point&#123;<span class="built_in">distX</span>(rng), <span class="built_in">distY</span>(rng)&#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="图像生成与保存"><a href="#图像生成与保存" class="headerlink" title="图像生成与保存"></a>图像生成与保存</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> STB_IMAGE_WRITE_IMPLEMENTATION</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;stb_image_write.h&quot;</span></span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 生成图像数据</span></span><br><span class="line">    <span class="built_in">generateVoronoi</span>(image, seeds);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 保存为 PNG</span></span><br><span class="line">    <span class="built_in">stbi_write_png</span>(<span class="string">&quot;voronoi.png&quot;</span>, width, height, <span class="number">3</span>, image.<span class="built_in">data</span>(), width * <span class="number">3</span>);</span><br><span class="line">    </span><br><span class="line">    std::cout &lt;&lt; <span class="string">&quot;Voronoi 图已生成: voronoi.png&quot;</span> &lt;&lt; std::endl;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="技术栈"><a href="#技术栈" class="headerlink" title="技术栈"></a>技术栈</h2><ul>
+<li><strong>语言</strong>: C++11</li>
+<li><strong>随机数</strong>: Mersenne Twister 引擎 (std::mt19937)</li>
+<li><strong>图像处理</strong>: stb_image_write.h（单文件库）</li>
+<li><strong>编译选项</strong>: -Wall -Wextra（严格警告检查）</li>
+</ul>
+<h2 id="学习收获"><a href="#学习收获" class="headerlink" title="学习收获"></a>学习收获</h2><ol>
+<li><strong>理解了空间划分的本质</strong>：基于距离度量的区域分割</li>
+<li><strong>体验了算法复杂度的影响</strong>：暴力法虽然简单但运算量大</li>
+<li><strong>掌握了随机图案生成方法</strong>：可以扩展到更多程序化内容生成场景</li>
+<li><strong>学习了计算几何的直观实现</strong>：从数学概念到具体实现</li>
+</ol>
+<h2 id="下一步计划"><a href="#下一步计划" class="headerlink" title="下一步计划"></a>下一步计划</h2><ul>
+<li>实现 Fortune 算法（线性时间）</li>
+<li>扩展到 3D Voronoi 图</li>
+<li>应用于游戏地图生成系统</li>
+<li>研究 Lloyd 松弛算法的实现</li>
+</ul>
+<hr>
+<p><strong>技术参考</strong></p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Voronoi_diagram">Voronoi Diagram - Wikipedia</a></li>
+<li><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Fortune%27s_algorithm">Fortune’s Algorithm for Voronoi Diagrams</a></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/nothings/stb">stb 单文件库</a></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/02/11/voronoi-diagram/">https://chiuhoukazusa.github.io/2026/02/11/voronoi-diagram/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%AE%A1%E7%AE%97%E5%87%A0%E4%BD%95/">计算几何</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Voronoi-Diagram/">Voronoi Diagram</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/02/10/perlin-noise/" title="Perlin Noise 程序化纹理生成器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-noise-2026-02-10/output_marble.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Perlin Noise 程序化纹理生成器</div></div><div class="info-2"><div class="info-item-1">今天实现了经典的 Perlin Noise 算法，用于生成自然的程序化纹理。这是图形学中非常重要的技术，可以生成云层、大理石、木纹等多种自然纹理。   项目概述 项目名称: Perlin Noise 程序化纹理生成器 开发时间: 约 10 分钟 代码量: 230 行 C++ 编译状态: ✅ 一次编译成功（0 错误 0 警告） 运行结果: ✅ 成功生成 3 种纹理 项目地址: GitHub  技术要点Perlin Noise 算法Perlin Noise 是由 Ken Perlin 在 1983 年发明的噪声生成算法，它能产生连续、自然的随机值。核心特点：  梯度噪声: 基于网格点的随机梯度向量 平滑插值: 使用 fade 函数（6t⁵ - 15t⁴ + 10t³）确保连续性 可重复性: 使用排列表实现伪随机  Octave Noise（多层噪声）通过叠加不同频率和振幅的噪声层，创造出更复杂的细节： 123456789101112131415double octaveNoise(double x, double y, int octaves, double persistence)...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/10/perlin-noise/" title="Perlin Noise 程序化纹理生成器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-noise-2026-02-10/output_marble.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-10</div><div class="info-item-2">Perlin Noise 程序化纹理生成器</div></div><div class="info-2"><div class="info-item-1">今天实现了经典的 Perlin Noise 算法，用于生成自然的程序化纹理。这是图形学中非常重要的技术，可以生成云层、大理石、木纹等多种自然纹理。   项目概述 项目名称: Perlin Noise 程序化纹理生成器 开发时间: 约 10 分钟 代码量: 230 行 C++ 编译状态: ✅ 一次编译成功（0 错误 0 警告） 运行结果: ✅ 成功生成 3 种纹理 项目地址: GitHub  技术要点Perlin Noise 算法Perlin Noise 是由 Ken Perlin 在 1983 年发明的噪声生成算法，它能产生连续、自然的随机值。核心特点：  梯度噪声: 基于网格点的随机梯度向量 平滑插值: 使用 fade 函数（6t⁵ - 15t⁴ + 10t³）确保连续性 可重复性: 使用排列表实现伪随机  Octave Noise（多层噪声）通过叠加不同频率和振幅的噪声层，创造出更复杂的细节： 123456789101112131415double octaveNoise(double x, double y, int octaves, double persistence)...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2023/01/18/05-%E8%BD%BD%E5%85%A53D%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E4%B8%8E%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/" title="05.载入3D模型|模型加载、简单着色与纹理映射"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2023-01-18</div><div class="info-item-2">05.载入3D模型|模型加载、简单着色与纹理映射</div></div><div class="info-2"><div class="info-item-1">05.载入3D模型|模型加载、简单着色与纹理映射本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/05 前言在上一节的工作完成后，我们离渲染出一个正常的三维模型还剩下两步，纹理映射和着色，当然前提是得先把模型给加载了。 这一节先来尝试纹理映射和简单着色模型。 上一节我们说过要引入一个读取obj的头文件，但我觉得完全可以自己写一个简单的objloader，那就不引入了吧。 OBJ-MTL文件格式obj是最广泛使用的3维模型的格式，实际上obj只是一个纯文本文件，我们可以梳理出他的大致结构。而mtl也是一个纯文本文件，基本上和obj对应，会记录一些材质信息。 我们以games202的吉祥物为例来理解一下obj和mtl文件的结构： 1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   16   17   18   19   ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/08/09/01-%E4%B8%80%E5%88%87%E7%9A%84%E5%BC%80%E5%A7%8BBresenham%E7%AE%97%E6%B3%95%E7%BB%98%E5%88%B6%E7%BA%BF%E6%AE%B5/" title="01.一切的开始|Bresenham算法绘制线段"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-09</div><div class="info-item-2">01.一切的开始|Bresenham算法绘制线段</div></div><div class="info-2"><div class="info-item-1">01.一切的开始|Bresenham算法绘制线段本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/02 前言看着一片黑屏的渲染器和空空如也的cpp文件，我们可能无从下手，那就让我们回忆一下相关图形学知识。 我们都知道模型是由三角面构成的，三角面首先得有三角形，三角形又得有三条边。所以绘制线段就是我们要做的第一步。 绘制一条从(x0, y0)到(x1, y1)的线段因为我们是在像素上操作，所以我们就将传进来的这四个参数当做是int类型处理。 我们都知道直线拥有一个点斜式方程。 y&#x3D;kx+by &#x3D; kx + b y&#x3D;kx+b 我们能得到y的增量和x的增量之间的关系 △y&#x3D;k△x△y &#x3D; k△x △y&#x3D;k△x 那么我们让x每次增加一个像素的距离，这样每次△y就是一个固定的值，加上后让y再四舍五入到对应的像素点，把像素点画出来就行。 听起来很简...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/09/15/02-%E7%AE%80%E5%8D%953D%E6%95%B0%E5%AD%A6%E5%BA%93%E5%B0%81%E8%A3%85%E5%90%91%E9%87%8F%E7%B1%BB%E5%92%8C%E7%9F%A9%E9%98%B5%E7%B1%BB/" title="02.简单3D数学库|封装向量类和矩阵类"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-09-15</div><div class="info-item-2">02.简单3D数学库|封装向量类和矩阵类</div></div><div class="info-2"><div class="info-item-1">02.简单3D数学库|封装向量类和矩阵类本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/02 前言在上一节的工程中，给定两个点，我们已经做到成功画出一条唯一确定的线段了。但是为了我们以后方便，我们显然需要封装向量类和矩阵类。当然我们可以直接使用Eigen库来完成这个问题，Eigen库非常的好用，但是我更想自己写一个试试。我们要做的其实完全不复杂，仅仅是封装几个类，并且没有什么性能要求，不会涉及到使用一些指令集来进行加速。所有的一切都将只用一些比较简单的c++代码进行实现。 本节代码参考了一部分pbrt-v3的配套代码中的geometry.h文件中的实现方式和DirectXMath库的设计方式，来封装一些简单的涉及3d数学的类。以下是pbrt-v3的源码： https://github.com/mmp/pbrt-v3 我们需要做的pbrt-v3中的数学库实现相当细致，不仅仅只是封装了向量和矩阵，...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/08/09/00-%E5%9B%BE%E5%BD%A2%E5%AD%A6%E5%85%A5%E9%97%A8%E4%B9%8B%E9%87%8D%E6%96%B0%E9%80%A0%E8%BD%AE%E5%AD%90%E8%BD%AF%E4%BB%B6%E5%85%89%E6%A0%85%E5%99%A8/" title="00.图形学入门之重新造轮子|软件光栅器"><img class="cover" src="/chiuhou-tech-blog/images/Maria.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-09</div><div class="info-item-2">00.图形学入门之重新造轮子|软件光栅器</div></div><div class="info-2"><div class="info-item-1">00.图形学入门之重新造轮子|软件光栅器“纸上得来终觉浅，绝知此事要躬行。”图形学的理论知识相当多，但终归还是要落到代码上来，毕竟这是一门工程性质的学科，想检验自己的理论知识就去实现它。 为什么要做软件光栅？图形学理论实践我认为在一头冲进opengl、dx11&#x2F;12、vulkan这些之前，我们可以先来关注一下这些图形api都是怎么运作的。同时我也刚学完了games101的课程，目前还没接触太多高质量实时渲染相关的知识。我认为在此之前先给自己101的课程来一个总结，来一个实践更容易巩固自己的相关知识基础，并且把自己在101的作业中实现的功能都尽量在自己的渲染器里实现一遍。 C++工程能力锻炼这个也许是更重要的原因。理论学的再多也只是理论，就像你在大学里可能会学建筑力学、结构力学、工程地质学等等理论，但是如果不去工地上真真切切地戴着安全帽打一打灰，你也不可能成为一个优秀的工程师。这在所有工科都是通用的经验。C++素以复杂、难学出名，如果不去真的在写代码，很容易陷入“看啥啥简单”的陷阱。我自己的C++水平也非常的不乐观，所以我决定在项目中锻炼锻炼C++。 我们的目标我目前的想...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/10/16/04-%E5%9C%A8MVP%E4%B9%8B%E5%90%8E%E8%A3%81%E5%89%AA-%E4%B8%89%E8%A7%92%E5%BD%A2%E5%85%89%E6%A0%85%E5%8C%96%E4%B8%8E%E6%B7%B1%E5%BA%A6%E6%B5%8B%E8%AF%95-github/" title="04.在MVP之后|裁剪、三角形光栅化与深度测试"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-10-16</div><div class="info-item-2">04.在MVP之后|裁剪、三角形光栅化与深度测试</div></div><div class="info-2"><div class="info-item-1">04.在MVP之后|裁剪、三角形光栅化与深度测试本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/04 前言上一节中我们已经实现了一个简单的光栅化，但是这其实是完全不足够的，一个合理的三角形光栅化过程值得开一整节去叙述。 但这一节讲的将不仅仅是光栅化的过程，严格意义上讲，三角形光栅化基本上就是寻找三角形并且对一些属性插值的过程。但实际上图形渲染管线还有很多杂七杂八的步骤，我也将在这一节中进行讨论。 一般来说，MVP变换到光栅化，中间还应当有一个裁剪的步骤。而光栅化后就是着色，也是我们fragment shader工作的地方。着色后需要一个深度测试检测遮挡，用来判断哪些面是应该渲染的，当然着色后可能会有很多种不同的测试，但是我们这里先只讨论深度测试。 所有的测试都完成后会进入屏幕后处理阶段，可以做一些滤镜的效果，也可以做知名的RayMarching算法来构建诸如大气散射体积云等效果，当然也可以什么...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">6</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Voronoi-%E5%9B%BE%E7%94%9F%E6%88%90%E5%99%A8-%E8%AE%A1%E7%AE%97%E5%87%A0%E4%BD%95%E7%9A%84%E6%9A%B4%E5%8A%9B%E4%B9%8B%E7%BE%8E"><span class="toc-number">1.</span> <span class="toc-text">Voronoi 图生成器 - 计算几何的暴力之美</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%AC%E9%A1%B9%E7%9B%AE%E4%BB%A3%E7%A0%81%E5%B7%B2%E6%89%98%E7%AE%A1%E8%87%B3-GitHub"><span class="toc-number">1.1.</span> <span class="toc-text">本项目代码已托管至 GitHub</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%AE%80%E4%BB%8B"><span class="toc-number">1.2.</span> <span class="toc-text">项目简介</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E8%A6%81%E7%82%B9"><span class="toc-number">1.3.</span> <span class="toc-text">技术要点</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Voronoi-%E5%9B%BE%E7%AE%97%E6%B3%95"><span class="toc-number">1.3.1.</span> <span class="toc-text">Voronoi 图算法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E7%89%B9%E7%82%B9"><span class="toc-number">1.3.2.</span> <span class="toc-text">技术特点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.3.3.</span> <span class="toc-text">应用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%94%9F%E6%88%90%E6%95%88%E6%9E%9C"><span class="toc-number">1.4.</span> <span class="toc-text">生成效果</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Voronoi-%E5%9B%BE%E6%95%88%E6%9E%9C"><span class="toc-number">1.4.1.</span> <span class="toc-text">Voronoi 图效果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%96%E8%AF%91%E8%BF%90%E8%A1%8C"><span class="toc-number">1.5.</span> <span class="toc-text">编译运行</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.5.1.</span> <span class="toc-text">优化方向</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81"><span class="toc-number">1.6.</span> <span class="toc-text">核心代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%9A%8F%E6%9C%BA%E7%A7%8D%E5%AD%90%E7%82%B9%E7%94%9F%E6%88%90"><span class="toc-number">1.6.1.</span> <span class="toc-text">随机种子点生成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%BE%E5%83%8F%E7%94%9F%E6%88%90%E4%B8%8E%E4%BF%9D%E5%AD%98"><span class="toc-number">1.6.2.</span> <span class="toc-text">图像生成与保存</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E6%A0%88"><span class="toc-number">1.7.</span> <span class="toc-text">技术栈</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AD%A6%E4%B9%A0%E6%94%B6%E8%8E%B7"><span class="toc-number">1.8.</span> <span class="toc-text">学习收获</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5%E8%AE%A1%E5%88%92"><span class="toc-number">1.9.</span> <span class="toc-text">下一步计划</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/11/voronoi-diagram/" title="Voronoi 图生成器 - 计算几何的暴力之美"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Voronoi 图生成器 - 计算几何的暴力之美"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/11/voronoi-diagram/" title="Voronoi 图生成器 - 计算几何的暴力之美">Voronoi 图生成器 - 计算几何的暴力之美</a><time datetime="2026-02-11T02:00:00.000Z" title="发表于 2026-02-11 10:00:00">2026-02-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/10/perlin-noise/" title="Perlin Noise 程序化纹理生成器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-noise-2026-02-10/output_marble.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Perlin Noise 程序化纹理生成器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/10/perlin-noise/" title="Perlin Noise 程序化纹理生成器">Perlin Noise 程序化纹理生成器</a><time datetime="2026-02-10T02:00:00.000Z" title="发表于 2026-02-10 10:00:00">2026-02-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2023/01/18/05-%E8%BD%BD%E5%85%A53D%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E4%B8%8E%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/" title="05.载入3D模型|模型加载、简单着色与纹理映射"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="05.载入3D模型|模型加载、简单着色与纹理映射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2023/01/18/05-%E8%BD%BD%E5%85%A53D%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E4%B8%8E%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/" title="05.载入3D模型|模型加载、简单着色与纹理映射">05.载入3D模型|模型加载、简单着色与纹理映射</a><time datetime="2023-01-17T21:09:00.000Z" title="发表于 2023-01-18 05:09:00">2023-01-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2022/10/16/04-%E5%9C%A8MVP%E4%B9%8B%E5%90%8E%E8%A3%81%E5%89%AA-%E4%B8%89%E8%A7%92%E5%BD%A2%E5%85%89%E6%A0%85%E5%8C%96%E4%B8%8E%E6%B7%B1%E5%BA%A6%E6%B5%8B%E8%AF%95-github/" title="04.在MVP之后|裁剪、三角形光栅化与深度测试"><img src="/chiuhou-tech-blog/images/lianlian.jpg" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="04.在MVP之后|裁剪、三角形光栅化与深度测试"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2022/10/16/04-%E5%9C%A8MVP%E4%B9%8B%E5%90%8E%E8%A3%81%E5%89%AA-%E4%B8%89%E8%A7%92%E5%BD%A2%E5%85%89%E6%A0%85%E5%8C%96%E4%B8%8E%E6%B7%B1%E5%BA%A6%E6%B5%8B%E8%AF%95-github/" title="04.在MVP之后|裁剪、三角形光栅化与深度测试">04.在MVP之后|裁剪、三角形光栅化与深度测试</a><time datetime="2022-10-15T20:41:00.000Z" title="发表于 2022-10-16 04:41:00">2022-10-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2022/09/23/03-HelloTrianglesMVP%E5%8F%98%E6%8D%A2/" title="03.HelloTriangles|MVP变换"><img src="/chiuhou-tech-blog/images/Maria.jpg" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="03.HelloTriangles|MVP变换"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2022/09/23/03-HelloTrianglesMVP%E5%8F%98%E6%8D%A2/" title="03.HelloTriangles|MVP变换">03.HelloTriangles|MVP变换</a><time datetime="2022-09-23T03:32:00.000Z" title="发表于 2022-09-23 11:32:00">2022-09-23</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
