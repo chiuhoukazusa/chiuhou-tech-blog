@@ -1,0 +1,300 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Perlin噪声地形生成器 - 程序化地形技术实践 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程挑战：Perlin噪声地形生成今天实现了经典的Perlin噪声算法，用于生成自然的2D地形高度图。Perlin噪声是程序化内容生成中最基础也最重要的算法之一，广泛应用于游戏地形、纹理生成和视觉效果制作。 项目概述 实现语言：C++17 算法核心：2D Perlin Noise + Octave叠加 输出格式：512×512 和 1024×1024 PNG灰度高度图 开发时长：7分钟（一次性">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Perlin噪声地形生成器 - 程序化地形技术实践">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/02/16/daily-coding-perlin-terrain-2026-02-16/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程挑战：Perlin噪声地形生成今天实现了经典的Perlin噪声算法，用于生成自然的2D地形高度图。Perlin噪声是程序化内容生成中最基础也最重要的算法之一，广泛应用于游戏地形、纹理生成和视觉效果制作。 项目概述 实现语言：C++17 算法核心：2D Perlin Noise + Octave叠加 输出格式：512×512 和 1024×1024 PNG灰度高度图 开发时长：7分钟（一次性">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png">
+<meta property="article:published_time" content="2026-02-16T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-02-16T05:15:58.173Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="Perlin噪声">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="地形生成">
+<meta property="article:tag" content="程序化生成">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Perlin噪声地形生成器 - 程序化地形技术实践",
+  "url": "https://chiuhoukazusa.github.io/2026/02/16/daily-coding-perlin-terrain-2026-02-16/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png",
+  "datePublished": "2026-02-16T02:00:00.000Z",
+  "dateModified": "2026-02-16T05:15:58.173Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/02/16/daily-coding-perlin-terrain-2026-02-16/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Perlin噪声地形生成器 - 程序化地形技术实践',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">Perlin噪声地形生成器 - 程序化地形技术实践</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">Perlin噪声地形生成器 - 程序化地形技术实践</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-02-16T02:00:00.000Z" title="发表于 2026-02-16 10:00:00">2026-02-16</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-02-16T05:15:58.173Z" title="更新于 2026-02-16 13:15:58">2026-02-16</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">每日编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="每日编程挑战：Perlin噪声地形生成"><a href="#每日编程挑战：Perlin噪声地形生成" class="headerlink" title="每日编程挑战：Perlin噪声地形生成"></a>每日编程挑战：Perlin噪声地形生成</h2><p>今天实现了经典的<strong>Perlin噪声算法</strong>，用于生成自然的2D地形高度图。Perlin噪声是程序化内容生成中最基础也最重要的算法之一，广泛应用于游戏地形、纹理生成和视觉效果制作。</p>
+<h3 id="项目概述"><a href="#项目概述" class="headerlink" title="项目概述"></a>项目概述</h3><ul>
+<li><strong>实现语言</strong>：C++17</li>
+<li><strong>算法核心</strong>：2D Perlin Noise + Octave叠加</li>
+<li><strong>输出格式</strong>：512×512 和 1024×1024 PNG灰度高度图</li>
+<li><strong>开发时长</strong>：7分钟（一次性编译成功）</li>
+</ul>
+<h3 id="Perlin噪声算法原理"><a href="#Perlin噪声算法原理" class="headerlink" title="Perlin噪声算法原理"></a>Perlin噪声算法原理</h3><p>Perlin噪声由Ken Perlin在1983年发明，用于解决计算机图形学中自然纹理生成的问题。该算法的核心思想是在网格点上定义随机梯度向量，然后通过平滑插值计算任意点的噪声值。</p>
+<h4 id="算法流程"><a href="#算法流程" class="headerlink" title="算法流程"></a>算法流程</h4><ol>
+<li><p><strong>网格定位</strong></p>
+<ul>
+<li>将输入坐标映射到整数网格</li>
+<li>计算点在网格单元内的相对位置</li>
+</ul>
+</li>
+<li><p><strong>梯度向量</strong></p>
+<ul>
+<li>为每个网格点分配随机梯度向量</li>
+<li>计算输入点到四个角点的距离向量</li>
+<li>计算距离向量与梯度向量的点积</li>
+</ul>
+</li>
+<li><p><strong>平滑插值</strong></p>
+<ul>
+<li>使用fade函数对相对坐标进行平滑处理</li>
+<li>进行双线性插值得到最终噪声值</li>
+</ul>
+</li>
+</ol>
+<h3 id="核心代码实现"><a href="#核心代码实现" class="headerlink" title="核心代码实现"></a>核心代码实现</h3><h4 id="1-Perlin噪声基础函数"><a href="#1-Perlin噪声基础函数" class="headerlink" title="1. Perlin噪声基础函数"></a>1. Perlin噪声基础函数</h4><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">PerlinNoise</span> &#123;</span><br><span class="line"><span class="keyword">private</span>:</span><br><span class="line">    std::vector&lt;<span class="type">int</span>&gt; permutation;  <span class="comment">// 置换表</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Fade函数：6t^5 - 15t^4 + 10t^3</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">fade</span><span class="params">(<span class="type">double</span> t)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> t * t * t * (t * (t * <span class="number">6</span> - <span class="number">15</span>) + <span class="number">10</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 线性插值</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">lerp</span><span class="params">(<span class="type">double</span> t, <span class="type">double</span> a, <span class="type">double</span> b)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> a + t * (b - a);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 梯度函数（8个方向）</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">grad</span><span class="params">(<span class="type">int</span> hash, <span class="type">double</span> x, <span class="type">double</span> y)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="type">int</span> h = hash &amp; <span class="number">7</span>;</span><br><span class="line">        <span class="type">double</span> u = h &lt; <span class="number">4</span> ? x : y;</span><br><span class="line">        <span class="type">double</span> v = h &lt; <span class="number">4</span> ? y : x;</span><br><span class="line">        <span class="keyword">return</span> ((h &amp; <span class="number">1</span>) ? -u : u) + ((h &amp; <span class="number">2</span>) ? -v : v);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-2D噪声函数"><a href="#2-2D噪声函数" class="headerlink" title="2. 2D噪声函数"></a>2. 2D噪声函数</h4><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">noise</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 找到单位网格</span></span><br><span class="line">    <span class="type">int</span> X = <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(std::<span class="built_in">floor</span>(x)) &amp; <span class="number">255</span>;</span><br><span class="line">    <span class="type">int</span> Y = <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(std::<span class="built_in">floor</span>(y)) &amp; <span class="number">255</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 计算相对位置</span></span><br><span class="line">    x -= std::<span class="built_in">floor</span>(x);</span><br><span class="line">    y -= std::<span class="built_in">floor</span>(y);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 应用fade函数</span></span><br><span class="line">    <span class="type">double</span> u = <span class="built_in">fade</span>(x);</span><br><span class="line">    <span class="type">double</span> v = <span class="built_in">fade</span>(y);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 哈希四个角点</span></span><br><span class="line">    <span class="type">int</span> aa = permutation[permutation[X] + Y];</span><br><span class="line">    <span class="type">int</span> ab = permutation[permutation[X] + Y + <span class="number">1</span>];</span><br><span class="line">    <span class="type">int</span> ba = permutation[permutation[X + <span class="number">1</span>] + Y];</span><br><span class="line">    <span class="type">int</span> bb = permutation[permutation[X + <span class="number">1</span>] + Y + <span class="number">1</span>];</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 双线性插值</span></span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">lerp</span>(v,</span><br><span class="line">        <span class="built_in">lerp</span>(u, <span class="built_in">grad</span>(aa, x, y), <span class="built_in">grad</span>(ba, x - <span class="number">1</span>, y)),</span><br><span class="line">        <span class="built_in">lerp</span>(u, <span class="built_in">grad</span>(ab, x, y - <span class="number">1</span>), <span class="built_in">grad</span>(bb, x - <span class="number">1</span>, y - <span class="number">1</span>))</span><br><span class="line">    );</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-Octave叠加技术"><a href="#3-Octave叠加技术" class="headerlink" title="3. Octave叠加技术"></a>3. Octave叠加技术</h4><p>通过叠加多个不同频率和振幅的噪声层，可以生成更丰富的细节：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">octaveNoise</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y, <span class="type">int</span> octaves, <span class="type">double</span> persistence)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> total = <span class="number">0.0</span>;</span><br><span class="line">    <span class="type">double</span> frequency = <span class="number">1.0</span>;</span><br><span class="line">    <span class="type">double</span> amplitude = <span class="number">1.0</span>;</span><br><span class="line">    <span class="type">double</span> maxValue = <span class="number">0.0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; octaves; i++) &#123;</span><br><span class="line">        total += <span class="built_in">noise</span>(x * frequency, y * frequency) * amplitude;</span><br><span class="line">        maxValue += amplitude;</span><br><span class="line">        amplitude *= persistence;  <span class="comment">// 振幅衰减</span></span><br><span class="line">        frequency *= <span class="number">2.0</span>;          <span class="comment">// 频率加倍</span></span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> total / maxValue;  <span class="comment">// 归一化到[-1, 1]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键参数说明"><a href="#关键参数说明" class="headerlink" title="关键参数说明"></a>关键参数说明</h3><h4 id="scale（缩放因子）"><a href="#scale（缩放因子）" class="headerlink" title="scale（缩放因子）"></a>scale（缩放因子）</h4><ul>
+<li><strong>作用</strong>：控制噪声特征的大小</li>
+<li><strong>当前值</strong>：10.0</li>
+<li><strong>效果</strong>：值越大，地形特征越大，变化越平缓</li>
+</ul>
+<h4 id="octaves（叠加层数）"><a href="#octaves（叠加层数）" class="headerlink" title="octaves（叠加层数）"></a>octaves（叠加层数）</h4><ul>
+<li><strong>作用</strong>：控制细节层次的数量</li>
+<li><strong>当前值</strong>：6层</li>
+<li><strong>效果</strong>：层数越多，细节越丰富，但计算量增加</li>
+</ul>
+<h4 id="persistence（持久度）"><a href="#persistence（持久度）" class="headerlink" title="persistence（持久度）"></a>persistence（持久度）</h4><ul>
+<li><strong>作用</strong>：控制高频细节的衰减速度</li>
+<li><strong>当前值</strong>：0.5</li>
+<li><strong>效果</strong>：<ul>
+<li>值接近1：高频细节明显，地形粗糙</li>
+<li>值接近0：高频细节模糊，地形平滑</li>
+</ul>
+</li>
+</ul>
+<h3 id="数学细节"><a href="#数学细节" class="headerlink" title="数学细节"></a>数学细节</h3><h4 id="Fade函数推导"><a href="#Fade函数推导" class="headerlink" title="Fade函数推导"></a>Fade函数推导</h4><p>Ken Perlin在2002年提出的改进fade函数：</p>
+<p><strong>f(t) &#x3D; 6t⁵ - 15t⁴ + 10t³</strong></p>
+<p>这个函数的特点：</p>
+<ul>
+<li><strong>f(0) &#x3D; 0</strong>，<strong>f(1) &#x3D; 1</strong>（边界值正确）</li>
+<li><strong>f’(0) &#x3D; 0</strong>，<strong>f’(1) &#x3D; 0</strong>（一阶导数为零，保证C¹连续）</li>
+<li><strong>f’’(0) &#x3D; 0</strong>，<strong>f’’(1) &#x3D; 0</strong>（二阶导数为零，保证C²连续）</li>
+</ul>
+<p>这些性质确保了噪声在网格边界处的平滑过渡。</p>
+<h4 id="梯度向量选择"><a href="#梯度向量选择" class="headerlink" title="梯度向量选择"></a>梯度向量选择</h4><p>使用8个方向的单位梯度向量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(1, 0), (-1, 0), (0, 1), (0, -1)</span><br><span class="line">(1, 1), (-1, 1), (1, -1), (-1, -1)</span><br></pre></td></tr></table></figure>
+
+<p>通过哈希值选择梯度向量，保证随机性和可重复性。</p>
+<h3 id="可视化效果"><a href="#可视化效果" class="headerlink" title="可视化效果"></a>可视化效果</h3><p>生成的地形高度图使用灰度表示：</p>
+<ul>
+<li><strong>黑色区域（0）</strong>：低地、谷地</li>
+<li><strong>灰色区域（中间值）</strong>：平原、丘陵</li>
+<li><strong>白色区域（255）</strong>：高地、山峰</li>
+</ul>
+<p>通过多层octave叠加：</p>
+<ul>
+<li><strong>第1层</strong>：大尺度地形起伏（基础形状）</li>
+<li><strong>第2-3层</strong>：中等尺度的山丘和谷地</li>
+<li><strong>第4-6层</strong>：细节纹理和小尺度变化</li>
+</ul>
+<h3 id="性能分析"><a href="#性能分析" class="headerlink" title="性能分析"></a>性能分析</h3><ul>
+<li><strong>时间复杂度</strong>：O(n²) 其中n为图像边长</li>
+<li><strong>空间复杂度</strong>：O(1)（除了输出图像）</li>
+<li><strong>计算量</strong>：每像素约 8×octaves 次噪声采样</li>
+<li><strong>优化潜力</strong>：<ul>
+<li>SIMD向量化</li>
+<li>多线程并行生成</li>
+<li>GPU计算着色器加速</li>
+</ul>
+</li>
+</ul>
+<h3 id="实际应用场景"><a href="#实际应用场景" class="headerlink" title="实际应用场景"></a>实际应用场景</h3><h4 id="1-游戏地形生成"><a href="#1-游戏地形生成" class="headerlink" title="1. 游戏地形生成"></a>1. 游戏地形生成</h4><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Minecraft风格的无限地形</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; worldWidth; x++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> z = <span class="number">0</span>; z &lt; worldDepth; z++) &#123;</span><br><span class="line">        <span class="type">double</span> height = perlin.<span class="built_in">octaveNoise</span>(x * <span class="number">0.01</span>, z * <span class="number">0.01</span>, <span class="number">6</span>, <span class="number">0.5</span>);</span><br><span class="line">        <span class="type">int</span> blockHeight = <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;((height + <span class="number">1.0</span>) * <span class="number">64</span>);</span><br><span class="line">        <span class="built_in">generateColumn</span>(x, z, blockHeight);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-纹理生成"><a href="#2-纹理生成" class="headerlink" title="2. 纹理生成"></a>2. 纹理生成</h4><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 生成云层纹理</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; height; y++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; width; x++) &#123;</span><br><span class="line">        <span class="type">double</span> cloud = perlin.<span class="built_in">octaveNoise</span>(x * <span class="number">0.02</span>, y * <span class="number">0.02</span>, <span class="number">4</span>, <span class="number">0.6</span>);</span><br><span class="line">        pixels[y][x] = (cloud + <span class="number">1.0</span>) * <span class="number">0.5</span>;  <span class="comment">// 映射到[0, 1]</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-动态效果"><a href="#3-动态效果" class="headerlink" title="3. 动态效果"></a>3. 动态效果</h4><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 时间维度的动态噪声</span></span><br><span class="line"><span class="type">double</span> time = currentTime * <span class="number">0.1</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; height; y++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; width; x++) &#123;</span><br><span class="line">        <span class="type">double</span> wave = perlin.<span class="built_in">noise</span>(x * <span class="number">0.05</span>, y * <span class="number">0.05</span> + time);</span><br><span class="line">        <span class="built_in">animatePixel</span>(x, y, wave);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="扩展方向"><a href="#扩展方向" class="headerlink" title="扩展方向"></a>扩展方向</h3><h4 id="1-3D-Perlin噪声"><a href="#1-3D-Perlin噪声" class="headerlink" title="1. 3D Perlin噪声"></a>1. 3D Perlin噪声</h4><p>扩展到三维空间，用于体积云、3D地形等：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">noise</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y, <span class="type">double</span> z)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-Simplex噪声"><a href="#2-Simplex噪声" class="headerlink" title="2. Simplex噪声"></a>2. Simplex噪声</h4><p>Ken Perlin在2001年提出的改进算法，在高维空间性能更好。</p>
+<h4 id="3-地形着色"><a href="#3-地形着色" class="headerlink" title="3. 地形着色"></a>3. 地形着色</h4><p>根据高度映射不同颜色：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Color <span class="title">getTerrainColor</span><span class="params">(<span class="type">double</span> height)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (height &lt; <span class="number">0.3</span>) <span class="keyword">return</span> BLUE;      <span class="comment">// 水</span></span><br><span class="line">    <span class="keyword">if</span> (height &lt; <span class="number">0.4</span>) <span class="keyword">return</span> YELLOW;    <span class="comment">// 沙滩</span></span><br><span class="line">    <span class="keyword">if</span> (height &lt; <span class="number">0.7</span>) <span class="keyword">return</span> GREEN;     <span class="comment">// 草地</span></span><br><span class="line">    <span class="keyword">if</span> (height &lt; <span class="number">0.9</span>) <span class="keyword">return</span> BROWN;     <span class="comment">// 山地</span></span><br><span class="line">    <span class="keyword">return</span> WHITE;                        <span class="comment">// 雪山</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="4-导出3D网格"><a href="#4-导出3D网格" class="headerlink" title="4. 导出3D网格"></a>4. 导出3D网格</h4><p>将高度图转换为OBJ模型：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">exportToOBJ</span><span class="params">(<span class="type">const</span> std::vector&lt;std::vector&lt;<span class="type">double</span>&gt;&gt;&amp; heightMap)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 生成顶点</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; height; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; width; x++) &#123;</span><br><span class="line">            <span class="type">double</span> h = heightMap[y][x];</span><br><span class="line">            vertices.<span class="built_in">push_back</span>(&#123;x, h * maxHeight, y&#125;);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 生成三角形面...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="技术收获"><a href="#技术收获" class="headerlink" title="技术收获"></a>技术收获</h3><p>通过实现Perlin噪声算法，深入理解了：</p>
+<ol>
+<li><strong>程序化生成</strong>的核心思想和实现方法</li>
+<li><strong>噪声函数</strong>在图形学中的重要应用</li>
+<li><strong>频率域叠加</strong>（octave）产生复杂细节的原理</li>
+<li><strong>平滑插值函数</strong>的设计和数学性质</li>
+<li><strong>哈希置换表</strong>在随机数生成中的应用</li>
+</ol>
+<h3 id="开发经验"><a href="#开发经验" class="headerlink" title="开发经验"></a>开发经验</h3><p>这次实现的亮点：</p>
+<ul>
+<li><strong>一次性编译成功</strong>：代码结构清晰，逻辑正确</li>
+<li><strong>参数化设计</strong>：易于调整效果</li>
+<li><strong>高效实现</strong>：使用STB库简化PNG输出</li>
+<li><strong>可扩展性</strong>：为后续3D扩展留出接口</li>
+</ul>
+<h3 id="后续计划"><a href="#后续计划" class="headerlink" title="后续计划"></a>后续计划</h3><ol>
+<li><strong>实现3D Perlin噪声</strong>：支持体积生成</li>
+<li><strong>添加实时预览</strong>：使用OpenGL渲染</li>
+<li><strong>参数UI界面</strong>：实时调整查看效果</li>
+<li><strong>性能优化</strong>：GPU计算着色器加速</li>
+<li><strong>导出多种格式</strong>：OBJ、PLY、STL等</li>
+</ol>
+<hr>
+<p><strong>项目源码已托管至GitHub</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/github-daily-coding-practice/tree/main/2026/02/02-16-perlin-noise-terrain">github-daily-coding-practice&#x2F;2026&#x2F;02&#x2F;02-16-perlin-noise-terrain</a></p>
+<p><strong>图床链接</strong>：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png">perlin-terrain-2026-02-16&#x2F;terrain_512.png</a></p>
+<p><em>备注：本文为2026年2月16日”每日编程挑战”系列的第7篇文章。系列旨在通过每日小项目巩固计算机图形学和程序化生成基础知识。今天的项目实现了经典的Perlin噪声算法，为后续地形生成和纹理合成打下基础。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/02/16/daily-coding-perlin-terrain-2026-02-16/">https://chiuhoukazusa.github.io/2026/02/16/daily-coding-perlin-terrain-2026-02-16/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Perlin%E5%99%AA%E5%A3%B0/">Perlin噪声</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A8%8B%E5%BA%8F%E5%8C%96%E7%94%9F%E6%88%90/">程序化生成</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9C%B0%E5%BD%A2%E7%94%9F%E6%88%90/">地形生成</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/02/15/daily-coding-ray-sphere-intersection-2026-02-15/" title="光线追踪：球体相交检测实现 - 图形学每日挑战"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-02-15-ray-sphere/ray_sphere_intersection.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">光线追踪：球体相交检测实现 - 图形学每日挑战</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：光线与球体相交检测可视化今天完成了光线追踪中的基础计算——光线与球体相交检测。这是光线追踪算法中最核心的几何计算之一，通过检测光线与球体的交点，为后续的材质、光照和阴影计算奠定基础。 项目概述 实现语言：C++ (C++11标准) 算法核心：光线-球体相交的几何计算 输出格式：400×300像素PNG图像 场景内容：单个球体，多方向光线可视化  核心算法：光线-球体相交光线与球体的交点计算是光线追踪的基础问题。使用几何方法可以高效地计算交点。 数学公式推导设：  光线：R(t) &#x3D; O + t·d（O为原点，d为方向向量，t为参数） 球体：中心C，半径r，满足 ||P - C||² &#x3D; r²  将光线方程代入球体方程：||O + t·d - C||² &#x3D; r² 展开得：(O - C + t·d) · (O - C + t·d) &#x3D; r² 令 OC &#x3D; O - C，则：(OC + t·d) · (OC + t·d) &#x3D; r²OC·OC + 2t(OC·d) + t²(d·d) &#x3D; r² 整理得到一元...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/10/perlin-noise/" title="每日编程实践：Perlin 噪声程序化纹理生成"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin_clouds.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-10</div><div class="info-item-2">每日编程实践：Perlin 噪声程序化纹理生成</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Perlin 噪声程序化纹理生成🎯 项目概述在本项目中，我实现了一个经典的 Perlin 噪声生成器，用于创建自然的程序化纹理。Perlin 噪声由 Ken Perlin 于 1985 年发明，广泛应用于计算机图形学中的地形生成、云层模拟、水波效果等领域。 项目时间: 2026-02-10代码语言: C++代码行数: 230 行核心算法: Perlin Noise + Octave Noise Perlin 噪声原理Perlin 噪声通过以下步骤生成：  网格定义: 将空间划分为均匀的网格 梯度分配: 为每个网格点生成随机的梯度向量 平滑插值: 使用 fade 函数平滑插值网格点间的值 多层叠加: 通过 Octave Noise 添加多层次细节  核心数学实现Fade 函数（6t⁵ - 15t⁴ + 10t³）123double fade(double t) &#123;    return t * t * t * (t * (t * 6 - 15) + 10);&#125;  这个函数确保插值在网格边界处平滑过渡，避免出现明显的不连续性。 梯度计算123456d...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/14/daily-coding-bresenham-2026-02-14/" title="Bresenham直线绘制算法实践 - 图形学每日挑战"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/bresenham-2026-02-14/bresenham_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-14</div><div class="info-item-2">Bresenham直线绘制算法实践 - 图形学每日挑战</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：Bresenham直线算法实现今天完成了图形学中的一个经典算法——Bresenham直线绘制算法。这是早期的计算机图形显示中发明的算法，使用整数运算避免了浮点运算的性能开销。 项目概述 实现语言：C++17 算法核心：Bresenham整数直线算法 输出格式：800x600像素PNG图像 绘制内容：10条不同方向的直线  算法原理Bresenham算法的核心思想是使用整数误差项来决定像素点的选择。算法步骤如下：  计算dx &#x3D; |x₂ - x₁|, dy &#x3D; |y₂ - y₁| 判断步进方向：sx &#x3D; (x₁ &lt; x₂ ? 1 : -1), sy &#x3D; (y₁ &lt; y₂ ? 1 : -1) 初始化误差项：err &#x3D; dx - dy 循环绘制： 如果err² &gt; -dy，则err -&#x3D; dy，x₁ +&#x3D; sx 如果err² &lt; dx，则err +&#x3D; dx，y₁ +&#x3D; sy    1234567891011121314151617181920212223242...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/13/simple-ray-tracer-sphere-rendering/" title="每日编程实践：简单的光线追踪器渲染球体"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/ray-tracer-2026-02-13/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-13</div><div class="info-item-2">每日编程实践：简单的光线追踪器渲染球体</div></div><div class="info-2"><div class="info-item-1">每日编程实践：简单的光线追踪器渲染球体今天的目标是构建一个简单的光线追踪器来渲染一组球体场景，继续探索图形学中的光线追踪基础知识。   项目概述 项目名称: 简单的光线追踪器渲染球体 开发时间: 约15分钟 代码量: 143行 C++ 迭代次数: 1次（首次编译有小问题） 编译状态: ✅ 编译成功（0错误0警告） 运行结果: ✅ 成功生成600×400像素光线追踪图像 项目地址: GitHub - daily-coding-practice  技术要点光线追踪基本原理光线追踪的核心思想是从相机发射光线穿过每个像素，检测光线与场景中的物体是否相交，然后计算相交点的颜色。 三维向量运算实现光线追踪涉及大量的三维向量运算，为此需要实现基础的向量数学： 123456789struct Vec3 &#123;    float x, y, z;        Vec3 operator+(const Vec3&amp; v) const &#123; return Vec3(x + v.x, y + v.y, z + v.z); &#125;    Vec3 operator-(const...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/11/voronoi-diagram/" title="Voronoi 图生成器 - 计算几何的暴力之美"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-11</div><div class="info-item-2">Voronoi 图生成器 - 计算几何的暴力之美</div></div><div class="info-2"><div class="info-item-1">Voronoi 图生成器 - 计算几何的暴力之美今天实现了经典的 Voronoi 图生成器，虽然使用暴力法（O(N×W×H)），但展示了计算几何的直观本质。 本项目代码已托管至 GitHub每日编程实践项目，记录每天的学习和实现。 https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/02-11-voronoi-generator  项目简介Voronoi 图是计算几何中非常重要的一种空间划分方法，将平面划分为若干个区域，每个区域内点到该区域对应的种子点的距离比到其他种子点更近。  开发时间: 约 13 分钟 代码量: 75 行 C++ 编译状态: ✅ 一次编译成功（0 错误，0 警告） 运行结果: ✅ 成功生成 800×600 像素的 Voronoi 图  技术要点Voronoi 图算法暴力法实现（Brute-force）： 1234567891011121314151617181920for (int y = 0; y &lt; height; y++) &#123;    for (...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/08/09/00-%E5%9B%BE%E5%BD%A2%E5%AD%A6%E5%85%A5%E9%97%A8%E4%B9%8B%E9%87%8D%E6%96%B0%E9%80%A0%E8%BD%AE%E5%AD%90%E8%BD%AF%E4%BB%B6%E5%85%89%E6%A0%85%E5%99%A8/" title="00.图形学入门之重新造轮子|软件光栅器"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-09</div><div class="info-item-2">00.图形学入门之重新造轮子|软件光栅器</div></div><div class="info-2"><div class="info-item-1">00.图形学入门之重新造轮子|软件光栅器“纸上得来终觉浅，绝知此事要躬行。”图形学的理论知识相当多，但终归还是要落到代码上来，毕竟这是一门工程性质的学科，想检验自己的理论知识就去实现它。 为什么要做软件光栅？图形学理论实践我认为在一头冲进opengl、dx11&#x2F;12、vulkan这些之前，我们可以先来关注一下这些图形api都是怎么运作的。同时我也刚学完了games101的课程，目前还没接触太多高质量实时渲染相关的知识。我认为在此之前先给自己101的课程来一个总结，来一个实践更容易巩固自己的相关知识基础，并且把自己在101的作业中实现的功能都尽量在自己的渲染器里实现一遍。 C++工程能力锻炼这个也许是更重要的原因。理论学的再多也只是理论，就像你在大学里可能会学建筑力学、结构力学、工程地质学等等理论，但是如果不去工地上真真切切地戴着安全帽打一打灰，你也不可能成为一个优秀的工程师。这在所有工科都是通用的经验。C++素以复杂、难学出名，如果不去真的在写代码，很容易陷入“看啥啥简单”的陷阱。我自己的C++水平也非常的不乐观，所以我决定在项目中锻炼锻炼C++。 我们的目标我目前的想...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/09/23/03-HelloTrianglesMVP%E5%8F%98%E6%8D%A2/" title="03.HelloTriangles|MVP变换"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-09-23</div><div class="info-item-2">03.HelloTriangles|MVP变换</div></div><div class="info-2"><div class="info-item-1">03.HelloTriangles|MVP变换本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/03 前言在上一节中，我们实现了一个基本可用的3d数学库，我们马上就会使用到他们。 这一节中我们将实现渲染的第一个流程，MVP变换。这一节的目标就是实现games101的作业1的效果，我们将会传入跟101作业中一样的参数，并检验产生的三角形是否一致。 MVP变换并不是有了上一节的矩阵运算法则基础就一下子就可以讲清的，要理解MVP变换，要先了解矩阵与图形变换的关系。 本节引用的图片来自《Fundamentals of Computer Graphics Fifth Edition》和《Physically Based Rendering From Theorty To Implementation Third Edition》，下文将分别简述为虎书和PBRT-v3。 变换矩阵(Transformatio...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">15</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E6%8C%91%E6%88%98%EF%BC%9APerlin%E5%99%AA%E5%A3%B0%E5%9C%B0%E5%BD%A2%E7%94%9F%E6%88%90"><span class="toc-number">1.</span> <span class="toc-text">每日编程挑战：Perlin噪声地形生成</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E6%A6%82%E8%BF%B0"><span class="toc-number">1.1.</span> <span class="toc-text">项目概述</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Perlin%E5%99%AA%E5%A3%B0%E7%AE%97%E6%B3%95%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">Perlin噪声算法原理</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E6%B5%81%E7%A8%8B"><span class="toc-number">1.2.1.</span> <span class="toc-text">算法流程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.3.</span> <span class="toc-text">核心代码实现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-Perlin%E5%99%AA%E5%A3%B0%E5%9F%BA%E7%A1%80%E5%87%BD%E6%95%B0"><span class="toc-number">1.3.1.</span> <span class="toc-text">1. Perlin噪声基础函数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2D%E5%99%AA%E5%A3%B0%E5%87%BD%E6%95%B0"><span class="toc-number">1.3.2.</span> <span class="toc-text">2. 2D噪声函数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-Octave%E5%8F%A0%E5%8A%A0%E6%8A%80%E6%9C%AF"><span class="toc-number">1.3.3.</span> <span class="toc-text">3. Octave叠加技术</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E"><span class="toc-number">1.4.</span> <span class="toc-text">关键参数说明</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#scale%EF%BC%88%E7%BC%A9%E6%94%BE%E5%9B%A0%E5%AD%90%EF%BC%89"><span class="toc-number">1.4.1.</span> <span class="toc-text">scale（缩放因子）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#octaves%EF%BC%88%E5%8F%A0%E5%8A%A0%E5%B1%82%E6%95%B0%EF%BC%89"><span class="toc-number">1.4.2.</span> <span class="toc-text">octaves（叠加层数）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#persistence%EF%BC%88%E6%8C%81%E4%B9%85%E5%BA%A6%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">persistence（持久度）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E5%AD%A6%E7%BB%86%E8%8A%82"><span class="toc-number">1.5.</span> <span class="toc-text">数学细节</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Fade%E5%87%BD%E6%95%B0%E6%8E%A8%E5%AF%BC"><span class="toc-number">1.5.1.</span> <span class="toc-text">Fade函数推导</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A2%AF%E5%BA%A6%E5%90%91%E9%87%8F%E9%80%89%E6%8B%A9"><span class="toc-number">1.5.2.</span> <span class="toc-text">梯度向量选择</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E8%A7%86%E5%8C%96%E6%95%88%E6%9E%9C"><span class="toc-number">1.6.</span> <span class="toc-text">可视化效果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90"><span class="toc-number">1.7.</span> <span class="toc-text">性能分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.8.</span> <span class="toc-text">实际应用场景</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E6%B8%B8%E6%88%8F%E5%9C%B0%E5%BD%A2%E7%94%9F%E6%88%90"><span class="toc-number">1.8.1.</span> <span class="toc-text">1. 游戏地形生成</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E7%BA%B9%E7%90%86%E7%94%9F%E6%88%90"><span class="toc-number">1.8.2.</span> <span class="toc-text">2. 纹理生成</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%8A%A8%E6%80%81%E6%95%88%E6%9E%9C"><span class="toc-number">1.8.3.</span> <span class="toc-text">3. 动态效果</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%89%A9%E5%B1%95%E6%96%B9%E5%90%91"><span class="toc-number">1.9.</span> <span class="toc-text">扩展方向</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-3D-Perlin%E5%99%AA%E5%A3%B0"><span class="toc-number">1.9.1.</span> <span class="toc-text">1. 3D Perlin噪声</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-Simplex%E5%99%AA%E5%A3%B0"><span class="toc-number">1.9.2.</span> <span class="toc-text">2. Simplex噪声</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%9C%B0%E5%BD%A2%E7%9D%80%E8%89%B2"><span class="toc-number">1.9.3.</span> <span class="toc-text">3. 地形着色</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E5%AF%BC%E5%87%BA3D%E7%BD%91%E6%A0%BC"><span class="toc-number">1.9.4.</span> <span class="toc-text">4. 导出3D网格</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E6%94%B6%E8%8E%B7"><span class="toc-number">1.10.</span> <span class="toc-text">技术收获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%80%E5%8F%91%E7%BB%8F%E9%AA%8C"><span class="toc-number">1.11.</span> <span class="toc-text">开发经验</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%8E%E7%BB%AD%E8%AE%A1%E5%88%92"><span class="toc-number">1.12.</span> <span class="toc-text">后续计划</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Perlin噪声地形生成器 - 程序化地形技术实践"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践">Perlin噪声地形生成器 - 程序化地形技术实践</a><time datetime="2026-02-16T02:00:00.000Z" title="发表于 2026-02-16 10:00:00">2026-02-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/15/daily-coding-ray-sphere-intersection-2026-02-15/" title="光线追踪：球体相交检测实现 - 图形学每日挑战"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-02-15-ray-sphere/ray_sphere_intersection.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="光线追踪：球体相交检测实现 - 图形学每日挑战"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/15/daily-coding-ray-sphere-intersection-2026-02-15/" title="光线追踪：球体相交检测实现 - 图形学每日挑战">光线追踪：球体相交检测实现 - 图形学每日挑战</a><time datetime="2026-02-15T02:00:00.000Z" title="发表于 2026-02-15 10:00:00">2026-02-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/14/daily-coding-bresenham-2026-02-14/" title="Bresenham直线绘制算法实践 - 图形学每日挑战"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/bresenham-2026-02-14/bresenham_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Bresenham直线绘制算法实践 - 图形学每日挑战"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/14/daily-coding-bresenham-2026-02-14/" title="Bresenham直线绘制算法实践 - 图形学每日挑战">Bresenham直线绘制算法实践 - 图形学每日挑战</a><time datetime="2026-02-14T02:00:00.000Z" title="发表于 2026-02-14 10:00:00">2026-02-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/13/simple-ray-tracer-sphere-rendering/" title="每日编程实践：简单的光线追踪器渲染球体"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/ray-tracer-2026-02-13/output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践：简单的光线追踪器渲染球体"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/13/simple-ray-tracer-sphere-rendering/" title="每日编程实践：简单的光线追踪器渲染球体">每日编程实践：简单的光线追踪器渲染球体</a><time datetime="2026-02-13T02:00:00.000Z" title="发表于 2026-02-13 10:00:00">2026-02-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/11/voronoi-diagram/" title="Voronoi 图生成器 - 计算几何的暴力之美"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/voronoi-2026-02-11/voronoi.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Voronoi 图生成器 - 计算几何的暴力之美"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/11/voronoi-diagram/" title="Voronoi 图生成器 - 计算几何的暴力之美">Voronoi 图生成器 - 计算几何的暴力之美</a><time datetime="2026-02-11T02:00:00.000Z" title="发表于 2026-02-11 10:00:00">2026-02-11</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
