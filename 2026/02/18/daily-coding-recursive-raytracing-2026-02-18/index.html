@@ -1,0 +1,268 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践：递归光线追踪 - 镜面反射 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="递归光线追踪 - 镜面反射日期: 2026-02-18开发时间: 约15分钟迭代次数: 2次技术: 递归光线追踪、镜面反射、Phong光照、阴影 项目目标在之前的 Shadow Ray Tracing 基础上，实现递归光线追踪算法，支持镜面反射效果。通过不同的材质反射率，实现从完全漫反射到高度镜面的多样化材质表现。 核心算法1. 递归光线追踪1234567891011121314151617Vec">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践：递归光线追踪 - 镜面反射">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="递归光线追踪 - 镜面反射日期: 2026-02-18开发时间: 约15分钟迭代次数: 2次技术: 递归光线追踪、镜面反射、Phong光照、阴影 项目目标在之前的 Shadow Ray Tracing 基础上，实现递归光线追踪算法，支持镜面反射效果。通过不同的材质反射率，实现从完全漫反射到高度镜面的多样化材质表现。 核心算法1. 递归光线追踪1234567891011121314151617Vec">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png">
+<meta property="article:published_time" content="2026-02-18T03:35:00.000Z">
+<meta property="article:modified_time" content="2026-02-18T03:36:51.442Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="Phong光照">
+<meta property="article:tag" content="Ray Tracing">
+<meta property="article:tag" content="光线追踪">
+<meta property="article:tag" content="镜面反射">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践：递归光线追踪 - 镜面反射",
+  "url": "https://chiuhoukazusa.github.io/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png",
+  "datePublished": "2026-02-18T03:35:00.000Z",
+  "dateModified": "2026-02-18T03:36:51.442Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践：递归光线追踪 - 镜面反射',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践：递归光线追踪 - 镜面反射</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践：递归光线追踪 - 镜面反射</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-02-18T03:35:00.000Z" title="发表于 2026-02-18 11:35:00">2026-02-18</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-02-18T03:36:51.442Z" title="更新于 2026-02-18 11:36:51">2026-02-18</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a><i class="fas fa-angle-right post-meta-separator"></i><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="递归光线追踪-镜面反射"><a href="#递归光线追踪-镜面反射" class="headerlink" title="递归光线追踪 - 镜面反射"></a>递归光线追踪 - 镜面反射</h1><p><strong>日期</strong>: 2026-02-18<br><strong>开发时间</strong>: 约15分钟<br><strong>迭代次数</strong>: 2次<br><strong>技术</strong>: 递归光线追踪、镜面反射、Phong光照、阴影</p>
+<h2 id="项目目标"><a href="#项目目标" class="headerlink" title="项目目标"></a>项目目标</h2><p>在之前的 Shadow Ray Tracing 基础上，实现<strong>递归光线追踪</strong>算法，支持镜面反射效果。通过不同的材质反射率，实现从完全漫反射到高度镜面的多样化材质表现。</p>
+<h2 id="核心算法"><a href="#核心算法" class="headerlink" title="核心算法"></a>核心算法</h2><h3 id="1-递归光线追踪"><a href="#1-递归光线追踪" class="headerlink" title="1. 递归光线追踪"></a>1. 递归光线追踪</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">trace</span><span class="params">(<span class="type">const</span> Ray&amp; ray, <span class="type">const</span> Scene&amp; scene, <span class="type">int</span> depth)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (depth &lt;= <span class="number">0</span>) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="comment">// 递归深度限制</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// ... 计算直接光照（环境光 + 漫反射 + 镜面高光 + 阴影）...</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 递归反射</span></span><br><span class="line">    <span class="keyword">if</span> (material.reflectivity &gt; <span class="number">0.0</span>) &#123;</span><br><span class="line">        Vec3 reflect_dir = ray.direction.<span class="built_in">reflect</span>(normal);</span><br><span class="line">        <span class="function">Ray <span class="title">reflect_ray</span><span class="params">(hit_point + normal * <span class="number">1e-4</span>, reflect_dir)</span></span>;</span><br><span class="line">        Vec3 reflect_color = <span class="built_in">trace</span>(reflect_ray, scene, depth - <span class="number">1</span>);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 混合漫反射和镜面反射颜色</span></span><br><span class="line">        color = color * (<span class="number">1.0</span> - reflectivity) + reflect_color * reflectivity;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> color;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键技术点</strong>：</p>
+<ul>
+<li><strong>递归深度限制</strong>：防止无限递归（本项目最大深度5）</li>
+<li><strong>反射光线偏移</strong>：<code>hit_point + normal * 1e-4</code> 防止浮点误差自相交</li>
+<li><strong>能量守恒混合</strong>：<code>(1-r)</code> 部分漫反射 + <code>r</code> 部分反射</li>
+</ul>
+<h3 id="2-镜面反射向量"><a href="#2-镜面反射向量" class="headerlink" title="2. 镜面反射向量"></a>2. 镜面反射向量</h3><p>反射公式：<strong>R &#x3D; V - 2(V·N)N</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">reflect</span><span class="params">(<span class="type">const</span> Vec3&amp; normal)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> *<span class="keyword">this</span> - normal * (<span class="number">2.0</span> * <span class="keyword">this</span>-&gt;<span class="built_in">dot</span>(normal));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-材质系统"><a href="#3-材质系统" class="headerlink" title="3. 材质系统"></a>3. 材质系统</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Material</span> &#123;</span><br><span class="line">    Vec3 color;          <span class="comment">// 基础颜色</span></span><br><span class="line">    <span class="type">double</span> diffuse;      <span class="comment">// 漫反射系数 [0,1]</span></span><br><span class="line">    <span class="type">double</span> specular;     <span class="comment">// 高光系数 [0,1]</span></span><br><span class="line">    <span class="type">double</span> reflectivity; <span class="comment">// 反射率 [0,1]</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>场景材质配置</strong>：</p>
+<ul>
+<li>中心银球：<code>reflectivity = 0.8</code>（几乎完全镜面）</li>
+<li>左侧红球：<code>reflectivity = 0.4</code>（半透半反）</li>
+<li>右侧蓝球：<code>reflectivity = 0.2</code>（轻微反射）</li>
+<li>地面：<code>reflectivity = 0.0</code>（纯漫反射）</li>
+<li>顶部金球：<code>reflectivity = 0.6</code>（较强反射）</li>
+</ul>
+<h2 id="开发过程"><a href="#开发过程" class="headerlink" title="开发过程"></a>开发过程</h2><h3 id="迭代历史"><a href="#迭代历史" class="headerlink" title="迭代历史"></a>迭代历史</h3><table>
+<thead>
+<tr>
+<th>版本</th>
+<th>问题</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>v1</td>
+<td>编译错误：<code>Vec3 * Vec3</code> 未定义</td>
+<td>添加逐分量乘法运算符</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>✅ 编译通过，运行成功</td>
+<td>无需修改</td>
+</tr>
+</tbody></table>
+<p><strong>迭代次数</strong>: 2次<br><strong>首次错误原因</strong>: 颜色混合需要向量逐分量相乘，但只定义了标量乘法</p>
+<p><strong>修复方法</strong>:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Vec3 <span class="keyword">operator</span>*(<span class="type">const</span> Vec3&amp; v) <span class="type">const</span> &#123; </span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Vec3</span>(x * v.x, y * v.y, z * v.z); </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="效果展示"><a href="#效果展示" class="headerlink" title="效果展示"></a>效果展示</h2><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png" alt="递归光线追踪 - 镜面反射"></p>
+<p><strong>可观察到的效果</strong>：</p>
+<ul>
+<li>✅ 中心银球清晰反射其他球体</li>
+<li>✅ 金球和红球在银球表面形成倒影</li>
+<li>✅ 不同反射率材质对比明显</li>
+<li>✅ 阴影与反射正确交互</li>
+</ul>
+<h2 id="技术进步"><a href="#技术进步" class="headerlink" title="技术进步"></a>技术进步</h2><p>相比之前的 Shadow Ray Tracing 项目：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>之前</th>
+<th>现在</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>递归追踪</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>镜面反射</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>材质系统</td>
+<td>单一</td>
+<td>多样化反射率</td>
+</tr>
+<tr>
+<td>颜色混合</td>
+<td>基础</td>
+<td>向量逐分量运算</td>
+</tr>
+</tbody></table>
+<p><strong>完整光照模型</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">✅ 环境光 (Ambient)</span><br><span class="line">✅ 漫反射 (Diffuse)</span><br><span class="line">✅ 镜面高光 (Specular)</span><br><span class="line">✅ 阴影 (Shadow Ray)</span><br><span class="line">✅ 反射 (Reflection) ← 今日新增</span><br><span class="line">⏳ 折射 (Refraction) ← 下一步</span><br></pre></td></tr></table></figure>
+
+<h2 id="学习收获"><a href="#学习收获" class="headerlink" title="学习收获"></a>学习收获</h2><ol>
+<li><strong>递归算法的应用</strong> - 光线反射是经典的递归问题，理解了递归深度控制的重要性</li>
+<li><strong>能量守恒原理</strong> - 反射率决定了直接光照与反射光照的权重分配</li>
+<li><strong>数值稳定性技巧</strong> - 偏移量 <code>1e-4</code> 防止自相交，这是图形学中常见的数值技巧</li>
+<li><strong>性能权衡</strong> - 递归深度对渲染质量和速度有直接影响</li>
+</ol>
+<h2 id="下一步计划"><a href="#下一步计划" class="headerlink" title="下一步计划"></a>下一步计划</h2><ul>
+<li><input disabled="" type="checkbox"> <strong>折射效果</strong> - 实现透明材质（玻璃球）</li>
+<li><input disabled="" type="checkbox"> <strong>抗锯齿</strong> - 多重采样提升图像质量</li>
+<li><input disabled="" type="checkbox"> <strong>软阴影</strong> - 面光源代替点光源</li>
+<li><input disabled="" type="checkbox"> <strong>BVH加速</strong> - 优化光线求交性能</li>
+</ul>
+<h2 id="代码仓库"><a href="#代码仓库" class="headerlink" title="代码仓库"></a>代码仓库</h2><p>GitHub: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/18-recursive-raytracing-reflection">daily-coding-practice&#x2F;2026&#x2F;02&#x2F;18-recursive-raytracing-reflection</a></p>
+<hr>
+<p><strong>项目状态</strong>: ✅ 完成<br><strong>输出</strong>: 800×600 PNG图像<br><strong>渲染时间</strong>: 约2秒<br><strong>代码行数</strong>: 324行 C++</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/">https://chiuhoukazusa.github.io/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA/">光线追踪</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Phong%E5%85%89%E7%85%A7/">Phong光照</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Ray-Tracing/">Ray Tracing</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E9%95%9C%E9%9D%A2%E5%8F%8D%E5%B0%84/">镜面反射</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/shadow-ray-tracing-2026-02-17/shadow_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Shadow Ray Tracing - 光线追踪中的阴影算法实现</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：带阴影的光线追踪器今天实现了光线追踪中的阴影算法（Shadow Ray），并结合完整的Phong光照模型，创建了一个支持真实阴影效果的光线追踪渲染器。这是图形学渲染管线中的重要一步，为场景增加了深度感和真实感。 项目概述 实现语言：C++11 核心技术：Shadow Ray + Phong光照模型 + 多光源 输出格式：800×600 PNG图像 开发时长：10分钟（一次性编译成功）  什么是Shadow Ray？在光线追踪中，当主光线（Primary Ray）击中物体表面后，我们需要判断该点是否被其他物体遮挡。**Shadow Ray（阴影光线）**就是从交点向光源发射的一条测试光线。 算法原理12345671. 主光线击中物体表面，得到交点P2. 对场景中的每个光源L：   a. 从P向L发射一条Shadow Ray   b. 检查Shadow Ray在到达L之前是否击中其他物体   c. 如果击中 → P在阴影中（该光源不贡献光照）   d. 如果未击中 → P被照亮（计算该光源的光照贡献）3. 累加所有光源的贡献，得到最终颜色  代码实现1234567891...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/shadow-ray-tracing-2026-02-17/shadow_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-17</div><div class="info-item-2">Shadow Ray Tracing - 光线追踪中的阴影算法实现</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：带阴影的光线追踪器今天实现了光线追踪中的阴影算法（Shadow Ray），并结合完整的Phong光照模型，创建了一个支持真实阴影效果的光线追踪渲染器。这是图形学渲染管线中的重要一步，为场景增加了深度感和真实感。 项目概述 实现语言：C++11 核心技术：Shadow Ray + Phong光照模型 + 多光源 输出格式：800×600 PNG图像 开发时长：10分钟（一次性编译成功）  什么是Shadow Ray？在光线追踪中，当主光线（Primary Ray）击中物体表面后，我们需要判断该点是否被其他物体遮挡。**Shadow Ray（阴影光线）**就是从交点向光源发射的一条测试光线。 算法原理12345671. 主光线击中物体表面，得到交点P2. 对场景中的每个光源L：   a. 从P向L发射一条Shadow Ray   b. 检查Shadow Ray在到达L之前是否击中其他物体   c. 如果击中 → P在阴影中（该光源不贡献光照）   d. 如果未击中 → P被照亮（计算该光源的光照贡献）3. 累加所有光源的贡献，得到最终颜色  代码实现1234567891...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/13/simple-ray-tracer-sphere-rendering/" title="每日编程实践：简单的光线追踪器渲染球体"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/ray-tracer-2026-02-13/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-13</div><div class="info-item-2">每日编程实践：简单的光线追踪器渲染球体</div></div><div class="info-2"><div class="info-item-1">每日编程实践：简单的光线追踪器渲染球体今天的目标是构建一个简单的光线追踪器来渲染一组球体场景，继续探索图形学中的光线追踪基础知识。   项目概述 项目名称: 简单的光线追踪器渲染球体 开发时间: 约15分钟 代码量: 143行 C++ 迭代次数: 1次（首次编译有小问题） 编译状态: ✅ 编译成功（0错误0警告） 运行结果: ✅ 成功生成600×400像素光线追踪图像 项目地址: GitHub - daily-coding-practice  技术要点光线追踪基本原理光线追踪的核心思想是从相机发射光线穿过每个像素，检测光线与场景中的物体是否相交，然后计算相交点的颜色。 三维向量运算实现光线追踪涉及大量的三维向量运算，为此需要实现基础的向量数学： 123456789struct Vec3 &#123;    float x, y, z;        Vec3 operator+(const Vec3&amp; v) const &#123; return Vec3(x + v.x, y + v.y, z + v.z); &#125;    Vec3 operator-(const...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/08/09/00-%E5%9B%BE%E5%BD%A2%E5%AD%A6%E5%85%A5%E9%97%A8%E4%B9%8B%E9%87%8D%E6%96%B0%E9%80%A0%E8%BD%AE%E5%AD%90%E8%BD%AF%E4%BB%B6%E5%85%89%E6%A0%85%E5%99%A8/" title="00.图形学入门之重新造轮子|软件光栅器"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-08-09</div><div class="info-item-2">00.图形学入门之重新造轮子|软件光栅器</div></div><div class="info-2"><div class="info-item-1">00.图形学入门之重新造轮子|软件光栅器“纸上得来终觉浅，绝知此事要躬行。”图形学的理论知识相当多，但终归还是要落到代码上来，毕竟这是一门工程性质的学科，想检验自己的理论知识就去实现它。 为什么要做软件光栅？图形学理论实践我认为在一头冲进opengl、dx11&#x2F;12、vulkan这些之前，我们可以先来关注一下这些图形api都是怎么运作的。同时我也刚学完了games101的课程，目前还没接触太多高质量实时渲染相关的知识。我认为在此之前先给自己101的课程来一个总结，来一个实践更容易巩固自己的相关知识基础，并且把自己在101的作业中实现的功能都尽量在自己的渲染器里实现一遍。 C++工程能力锻炼这个也许是更重要的原因。理论学的再多也只是理论，就像你在大学里可能会学建筑力学、结构力学、工程地质学等等理论，但是如果不去工地上真真切切地戴着安全帽打一打灰，你也不可能成为一个优秀的工程师。这在所有工科都是通用的经验。C++素以复杂、难学出名，如果不去真的在写代码，很容易陷入“看啥啥简单”的陷阱。我自己的C++水平也非常的不乐观，所以我决定在项目中锻炼锻炼C++。 我们的目标我目前的想...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-16</div><div class="info-item-2">Perlin噪声地形生成器 - 程序化地形技术实践</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：Perlin噪声地形生成今天实现了经典的Perlin噪声算法，用于生成自然的2D地形高度图。Perlin噪声是程序化内容生成中最基础也最重要的算法之一，广泛应用于游戏地形、纹理生成和视觉效果制作。 项目概述 实现语言：C++17 算法核心：2D Perlin Noise + Octave叠加 输出格式：512×512 和 1024×1024 PNG灰度高度图 开发时长：7分钟（一次性编译成功）  Perlin噪声算法原理Perlin噪声由Ken Perlin在1983年发明，用于解决计算机图形学中自然纹理生成的问题。该算法的核心思想是在网格点上定义随机梯度向量，然后通过平滑插值计算任意点的噪声值。 算法流程 网格定位  将输入坐标映射到整数网格 计算点在网格单元内的相对位置   梯度向量  为每个网格点分配随机梯度向量 计算输入点到四个角点的距离向量 计算距离向量与梯度向量的点积   平滑插值  使用fade函数对相对坐标进行平滑处理 进行双线性插值得到最终噪声值    核心代码实现1. Perlin噪声基础函数123456789101112131415161718...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/10/16/04-%E5%9C%A8MVP%E4%B9%8B%E5%90%8E%E8%A3%81%E5%89%AA-%E4%B8%89%E8%A7%92%E5%BD%A2%E5%85%89%E6%A0%85%E5%8C%96%E4%B8%8E%E6%B7%B1%E5%BA%A6%E6%B5%8B%E8%AF%95-github/" title="04.在MVP之后|裁剪、三角形光栅化与深度测试"><img class="cover" src="/chiuhou-tech-blog/images/Maria.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-10-16</div><div class="info-item-2">04.在MVP之后|裁剪、三角形光栅化与深度测试</div></div><div class="info-2"><div class="info-item-1">04.在MVP之后|裁剪、三角形光栅化与深度测试本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/04 前言上一节中我们已经实现了一个简单的光栅化，但是这其实是完全不足够的，一个合理的三角形光栅化过程值得开一整节去叙述。 但这一节讲的将不仅仅是光栅化的过程，严格意义上讲，三角形光栅化基本上就是寻找三角形并且对一些属性插值的过程。但实际上图形渲染管线还有很多杂七杂八的步骤，我也将在这一节中进行讨论。 一般来说，MVP变换到光栅化，中间还应当有一个裁剪的步骤。而光栅化后就是着色，也是我们fragment shader工作的地方。着色后需要一个深度测试检测遮挡，用来判断哪些面是应该渲染的，当然着色后可能会有很多种不同的测试，但是我们这里先只讨论深度测试。 所有的测试都完成后会进入屏幕后处理阶段，可以做一些滤镜的效果，也可以做知名的RayMarching算法来构建诸如大气散射体积云等效果，当然也可以什么...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2023/01/18/05-%E8%BD%BD%E5%85%A53D%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E4%B8%8E%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/" title="05.载入3D模型|模型加载、简单着色与纹理映射"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2023-01-18</div><div class="info-item-2">05.载入3D模型|模型加载、简单着色与纹理映射</div></div><div class="info-2"><div class="info-item-1">05.载入3D模型|模型加载、简单着色与纹理映射本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/05 前言在上一节的工作完成后，我们离渲染出一个正常的三维模型还剩下两步，纹理映射和着色，当然前提是得先把模型给加载了。 这一节先来尝试纹理映射和简单着色模型。 上一节我们说过要引入一个读取obj的头文件，但我觉得完全可以自己写一个简单的objloader，那就不引入了吧。 OBJ-MTL文件格式obj是最广泛使用的3维模型的格式，实际上obj只是一个纯文本文件，我们可以梳理出他的大致结构。而mtl也是一个纯文本文件，基本上和obj对应，会记录一些材质信息。 我们以games202的吉祥物为例来理解一下obj和mtl文件的结构： 1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   16   17   18   19   ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">14</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">19</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E9%80%92%E5%BD%92%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA-%E9%95%9C%E9%9D%A2%E5%8F%8D%E5%B0%84"><span class="toc-number">1.</span> <span class="toc-text">递归光线追踪 - 镜面反射</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%9B%AE%E6%A0%87"><span class="toc-number">1.1.</span> <span class="toc-text">项目目标</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E7%AE%97%E6%B3%95"><span class="toc-number">1.2.</span> <span class="toc-text">核心算法</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E9%80%92%E5%BD%92%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. 递归光线追踪</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E9%95%9C%E9%9D%A2%E5%8F%8D%E5%B0%84%E5%90%91%E9%87%8F"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. 镜面反射向量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E6%9D%90%E8%B4%A8%E7%B3%BB%E7%BB%9F"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. 材质系统</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BC%80%E5%8F%91%E8%BF%87%E7%A8%8B"><span class="toc-number">1.3.</span> <span class="toc-text">开发过程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%AD%E4%BB%A3%E5%8E%86%E5%8F%B2"><span class="toc-number">1.3.1.</span> <span class="toc-text">迭代历史</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E5%B1%95%E7%A4%BA"><span class="toc-number">1.4.</span> <span class="toc-text">效果展示</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E8%BF%9B%E6%AD%A5"><span class="toc-number">1.5.</span> <span class="toc-text">技术进步</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AD%A6%E4%B9%A0%E6%94%B6%E8%8E%B7"><span class="toc-number">1.6.</span> <span class="toc-text">学习收获</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5%E8%AE%A1%E5%88%92"><span class="toc-number">1.7.</span> <span class="toc-text">下一步计划</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81%E4%BB%93%E5%BA%93"><span class="toc-number">1.8.</span> <span class="toc-text">代码仓库</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/" title="每日编程实践：递归光线追踪 - 镜面反射"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践：递归光线追踪 - 镜面反射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/" title="每日编程实践：递归光线追踪 - 镜面反射">每日编程实践：递归光线追踪 - 镜面反射</a><time datetime="2026-02-18T03:35:00.000Z" title="发表于 2026-02-18 11:35:00">2026-02-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/shadow-ray-tracing-2026-02-17/shadow_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Shadow Ray Tracing - 光线追踪中的阴影算法实现"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现">Shadow Ray Tracing - 光线追踪中的阴影算法实现</a><time datetime="2026-02-17T02:00:00.000Z" title="发表于 2026-02-17 10:00:00">2026-02-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Perlin噪声地形生成器 - 程序化地形技术实践"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践">Perlin噪声地形生成器 - 程序化地形技术实践</a><time datetime="2026-02-16T02:00:00.000Z" title="发表于 2026-02-16 10:00:00">2026-02-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/15/daily-coding-ray-sphere-intersection-2026-02-15/" title="光线追踪：球体相交检测实现 - 图形学每日挑战"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-02-15-ray-sphere/ray_sphere_intersection.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="光线追踪：球体相交检测实现 - 图形学每日挑战"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/15/daily-coding-ray-sphere-intersection-2026-02-15/" title="光线追踪：球体相交检测实现 - 图形学每日挑战">光线追踪：球体相交检测实现 - 图形学每日挑战</a><time datetime="2026-02-15T02:00:00.000Z" title="发表于 2026-02-15 10:00:00">2026-02-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/14/daily-coding-bresenham-2026-02-14/" title="Bresenham直线绘制算法实践 - 图形学每日挑战"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/bresenham-2026-02-14/bresenham_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Bresenham直线绘制算法实践 - 图形学每日挑战"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/14/daily-coding-bresenham-2026-02-14/" title="Bresenham直线绘制算法实践 - 图形学每日挑战">Bresenham直线绘制算法实践 - 图形学每日挑战</a><time datetime="2026-02-14T02:00:00.000Z" title="发表于 2026-02-14 10:00:00">2026-02-14</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
