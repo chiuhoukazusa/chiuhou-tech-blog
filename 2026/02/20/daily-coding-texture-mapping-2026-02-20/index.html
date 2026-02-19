@@ -1,0 +1,258 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 纹理映射光线追踪器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="纹理映射光线追踪器项目目标实现完整的球面UV映射和纹理采样系统，支持在光线追踪器中渲染带纹理的球体。 关键技术：  球面坐标到UV坐标的转换 程序化纹理生成（棋盘格） 材质系统（纹理&#x2F;纯色混合） 基于UV坐标的纹理采样  实现过程迭代历史 初始版本: 一次性实现完成 球面UV映射公式 (sphereUV) 棋盘格纹理生成 (checkerboardTexture) 材质系统 (hasTe">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 纹理映射光线追踪器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/02/20/daily-coding-texture-mapping-2026-02-20/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="纹理映射光线追踪器项目目标实现完整的球面UV映射和纹理采样系统，支持在光线追踪器中渲染带纹理的球体。 关键技术：  球面坐标到UV坐标的转换 程序化纹理生成（棋盘格） 材质系统（纹理&#x2F;纯色混合） 基于UV坐标的纹理采样  实现过程迭代历史 初始版本: 一次性实现完成 球面UV映射公式 (sphereUV) 棋盘格纹理生成 (checkerboardTexture) 材质系统 (hasTe">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E5%99%A8/texture_output.png">
+<meta property="article:published_time" content="2026-02-19T21:35:00.000Z">
+<meta property="article:modified_time" content="2026-02-19T21:35:56.502Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="光线追踪">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="纹理映射">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E5%99%A8/texture_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 纹理映射光线追踪器",
+  "url": "https://chiuhoukazusa.github.io/2026/02/20/daily-coding-texture-mapping-2026-02-20/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png",
+  "datePublished": "2026-02-19T21:35:00.000Z",
+  "dateModified": "2026-02-19T21:35:56.502Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/02/20/daily-coding-texture-mapping-2026-02-20/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 纹理映射光线追踪器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 纹理映射光线追踪器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 纹理映射光线追踪器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-02-19T21:35:00.000Z" title="发表于 2026-02-20 05:35:00">2026-02-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-02-19T21:35:56.502Z" title="更新于 2026-02-20 05:35:56">2026-02-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="纹理映射光线追踪器"><a href="#纹理映射光线追踪器" class="headerlink" title="纹理映射光线追踪器"></a>纹理映射光线追踪器</h1><h2 id="项目目标"><a href="#项目目标" class="headerlink" title="项目目标"></a>项目目标</h2><p>实现完整的<strong>球面UV映射</strong>和<strong>纹理采样</strong>系统，支持在光线追踪器中渲染带纹理的球体。</p>
+<p>关键技术：</p>
+<ul>
+<li>球面坐标到UV坐标的转换</li>
+<li>程序化纹理生成（棋盘格）</li>
+<li>材质系统（纹理&#x2F;纯色混合）</li>
+<li>基于UV坐标的纹理采样</li>
+</ul>
+<h2 id="实现过程"><a href="#实现过程" class="headerlink" title="实现过程"></a>实现过程</h2><h3 id="迭代历史"><a href="#迭代历史" class="headerlink" title="迭代历史"></a>迭代历史</h3><ol>
+<li><strong>初始版本</strong>: 一次性实现完成<ul>
+<li>球面UV映射公式 (<code>sphereUV</code>)</li>
+<li>棋盘格纹理生成 (<code>checkerboardTexture</code>)</li>
+<li>材质系统 (<code>hasTexture</code> 标志)</li>
+<li>量化验证通过</li>
+</ul>
+</li>
+</ol>
+<p><strong>为什么一次成功？</strong></p>
+<ul>
+<li>球面UV映射的数学公式已标准化</li>
+<li>使用成熟的反三角函数库</li>
+<li>严格的量化验证流程</li>
+</ul>
+<h2 id="核心代码"><a href="#核心代码" class="headerlink" title="核心代码"></a>核心代码</h2><h3 id="球面UV映射"><a href="#球面UV映射" class="headerlink" title="球面UV映射"></a>球面UV映射</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">UV <span class="title">sphereUV</span><span class="params">(<span class="type">const</span> Vec3&amp; point)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// point 是单位球面上的点</span></span><br><span class="line">    Vec3 p = point.<span class="built_in">normalize</span>();</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 经度 → u坐标 (使用 atan2 处理方位角)</span></span><br><span class="line">    <span class="type">double</span> u = <span class="number">0.5</span> + <span class="built_in">atan2</span>(p.z, p.x) / (<span class="number">2</span> * M_PI);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 纬度 → v坐标 (使用 asin 处理俯仰角)</span></span><br><span class="line">    <span class="type">double</span> v = <span class="number">0.5</span> - <span class="built_in">asin</span>(p.y) / M_PI;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">UV</span>(u, v);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键点</strong>：</p>
+<ul>
+<li><code>atan2(z, x)</code> 计算方位角，范围 [-π, π]</li>
+<li><code>asin(y)</code> 计算俯仰角，范围 [-π&#x2F;2, π&#x2F;2]</li>
+<li>归一化到 [0, 1] 范围</li>
+</ul>
+<h3 id="棋盘格纹理"><a href="#棋盘格纹理" class="headerlink" title="棋盘格纹理"></a>棋盘格纹理</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">checkerboardTexture</span><span class="params">(<span class="type">const</span> UV&amp; uv, <span class="type">int</span> scale = <span class="number">10</span>)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> ui = <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(<span class="built_in">floor</span>(uv.u * scale));</span><br><span class="line">    <span class="type">int</span> vi = <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(<span class="built_in">floor</span>(uv.v * scale));</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 奇偶判断</span></span><br><span class="line">    <span class="type">bool</span> isEven = ((ui + vi) % <span class="number">2</span>) == <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 白色 vs 蓝色</span></span><br><span class="line">    <span class="keyword">return</span> isEven ? <span class="built_in">Vec3</span>(<span class="number">0.9</span>, <span class="number">0.9</span>, <span class="number">0.9</span>) : <span class="built_in">Vec3</span>(<span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.8</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="材质系统"><a href="#材质系统" class="headerlink" title="材质系统"></a>材质系统</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Sphere</span> &#123;</span><br><span class="line">    <span class="type">bool</span> hasTexture;  <span class="comment">// 是否使用纹理</span></span><br><span class="line">    </span><br><span class="line">    <span class="function">Vec3 <span class="title">getColor</span><span class="params">(<span class="type">const</span> Vec3&amp; point)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (!hasTexture) <span class="keyword">return</span> color;  <span class="comment">// 纯色球</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 转换到局部坐标系</span></span><br><span class="line">        Vec3 localPoint = (point - center) * (<span class="number">1.0</span> / radius);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 计算UV并采样纹理</span></span><br><span class="line">        UV uv = <span class="built_in">sphereUV</span>(localPoint);</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">checkerboardTexture</span>(uv, <span class="number">10</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h2 id="运行结果"><a href="#运行结果" class="headerlink" title="运行结果"></a>运行结果</h2><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E5%99%A8/texture_output.png" alt="纹理映射结果"></p>
+<h3 id="场景说明"><a href="#场景说明" class="headerlink" title="场景说明"></a>场景说明</h3><ul>
+<li><strong>中心大球</strong>: 棋盘格纹理，蓝白相间</li>
+<li><strong>左侧小球</strong>: 纯色红色（无纹理）</li>
+<li><strong>右侧小球</strong>: 棋盘格纹理</li>
+<li><strong>地面</strong>: 大球模拟平面，棋盘格纹理</li>
+</ul>
+<h3 id="量化验证结果"><a href="#量化验证结果" class="headerlink" title="量化验证结果"></a>量化验证结果</h3><p>使用 ImageMagick 提取关键区域像素值：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 中心球蓝色格</span></span><br><span class="line">convert texture_output.png -crop 100x100+350+250 +repage -scale 1x1! \</span><br><span class="line">    -format <span class="string">&quot;RGB(%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)])&quot;</span> info:-</span><br><span class="line"><span class="comment"># 输出: RGB(83,83,129) ✅ 蓝色系，符合预期</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 左侧红球</span></span><br><span class="line">convert texture_output.png -crop 80x80+180+280 +repage -scale 1x1! \</span><br><span class="line">    -format <span class="string">&quot;RGB(%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)])&quot;</span> info:-</span><br><span class="line"><span class="comment"># 输出: RGB(161,68,68) ✅ 红色系，符合预期</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 颜色统计</span></span><br><span class="line">identify -verbose texture_output.png | grep -A 3 <span class="string">&quot;Channel statistics&quot;</span></span><br><span class="line"><span class="comment"># Red: min=10, max=254, mean=123.7 ✅ 正常分布</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="技术总结"><a href="#技术总结" class="headerlink" title="技术总结"></a>技术总结</h2><h3 id="学到的技术点"><a href="#学到的技术点" class="headerlink" title="学到的技术点"></a>学到的技术点</h3><ol>
+<li><p><strong>球面UV映射</strong></p>
+<ul>
+<li>理解了球坐标系到UV坐标的转换</li>
+<li>掌握了 <code>atan2</code> 和 <code>asin</code> 的正确用法</li>
+<li>处理了坐标范围归一化</li>
+</ul>
+</li>
+<li><p><strong>程序化纹理</strong></p>
+<ul>
+<li>棋盘格纹理的实现原理（奇偶判断）</li>
+<li>纹理缩放（scale参数）</li>
+</ul>
+</li>
+<li><p><strong>材质系统</strong></p>
+<ul>
+<li>纹理&#x2F;纯色混合渲染</li>
+<li>局部坐标系转换</li>
+</ul>
+</li>
+</ol>
+<h3 id="遇到的坑和解决方案"><a href="#遇到的坑和解决方案" class="headerlink" title="遇到的坑和解决方案"></a>遇到的坑和解决方案</h3><p><strong>潜在问题</strong>：UV坐标在球体两极可能不连续</p>
+<p><strong>解决方案</strong>：</p>
+<ul>
+<li>使用 <code>normalize()</code> 确保输入是单位向量</li>
+<li><code>atan2</code> 自动处理符号问题</li>
+<li>对于特殊情况（如纹理接缝），可以使用纹理重复模式</li>
+</ul>
+<h3 id="性能优化"><a href="#性能优化" class="headerlink" title="性能优化"></a>性能优化</h3><ul>
+<li><strong>分辨率</strong>: 800x600</li>
+<li><strong>渲染时间</strong>: ~1秒</li>
+<li><strong>优化空间</strong>: <ul>
+<li>BVH加速结构（减少光线求交次数）</li>
+<li>多线程渲染（并行化像素计算）</li>
+</ul>
+</li>
+</ul>
+<h2 id="代码仓库"><a href="#代码仓库" class="headerlink" title="代码仓库"></a>代码仓库</h2><p>GitHub: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/02-20-%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E5%99%A8">https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/02/02-20-纹理映射光线追踪器</a></p>
+<h2 id="下一步计划"><a href="#下一步计划" class="headerlink" title="下一步计划"></a>下一步计划</h2><ul>
+<li><input disabled="" type="checkbox"> 支持图片纹理加载（stb_image）</li>
+<li><input disabled="" type="checkbox"> 法线贴图（Bump Mapping）</li>
+<li><input disabled="" type="checkbox"> 环境贴图（Reflection Mapping）</li>
+<li><input disabled="" type="checkbox"> 柱面&#x2F;平面UV映射</li>
+<li><input disabled="" type="checkbox"> 纹理过滤（双线性插值）</li>
+</ul>
+<hr>
+<p><strong>完成时间</strong>: 2026-02-20 05:35<br><strong>迭代次数</strong>: 1 次<br><strong>编译器</strong>: g++ (GCC)</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/02/20/daily-coding-texture-mapping-2026-02-20/">https://chiuhoukazusa.github.io/2026/02/20/daily-coding-texture-mapping-2026-02-20/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA/">光线追踪</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/">纹理映射</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 折射效果（玻璃球）项目目标在昨日反射效果的基础上，实现折射效果（Refraction），让玻璃球真正”透明”！ 核心技术：  Snell 定律（折射方向计算） Fresnel 效应（反射&#x2F;折射混合） 全反射检测 多材质系统    ⚠️ 重要修复（2026-02-19 10:30）用户反馈的问题：  三个球部分叠在一起 右边金属球看起来像纯透明材质  根本原因：  球体重叠：球心间距 2.5 &lt; 球直径 3.0 金属反射 bug：代码只返回环境反射颜色，没有乘上金属本身的颜色  为什么金属必须乘上颜色？ 金属反射 &#x3D; 环境光 × 金属本身颜色 12345// ❌ 原代码（错误）- 金属变成无色镜子return reflectColor * 0.9;// ✅ 修复后 - 金属显示金黄色return (reflectColor * metalColor) * 0.9;     环境光 金属颜色 反射结果    白光 (1,1,1) 金黄 (0.8,0.6,0.2) 金黄反射   蓝天 (0,0,1) 金黄 (0.8,0.6,0.2) 深蓝 (...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-19</div><div class="info-item-2">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 折射效果（玻璃球）项目目标在昨日反射效果的基础上，实现折射效果（Refraction），让玻璃球真正”透明”！ 核心技术：  Snell 定律（折射方向计算） Fresnel 效应（反射&#x2F;折射混合） 全反射检测 多材质系统    ⚠️ 重要修复（2026-02-19 10:30）用户反馈的问题：  三个球部分叠在一起 右边金属球看起来像纯透明材质  根本原因：  球体重叠：球心间距 2.5 &lt; 球直径 3.0 金属反射 bug：代码只返回环境反射颜色，没有乘上金属本身的颜色  为什么金属必须乘上颜色？ 金属反射 &#x3D; 环境光 × 金属本身颜色 12345// ❌ 原代码（错误）- 金属变成无色镜子return reflectColor * 0.9;// ✅ 修复后 - 金属显示金黄色return (reflectColor * metalColor) * 0.9;     环境光 金属颜色 反射结果    白光 (1,1,1) 金黄 (0.8,0.6,0.2) 金黄反射   蓝天 (0,0,1) 金黄 (0.8,0.6,0.2) 深蓝 (...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/13/simple-ray-tracer-sphere-rendering/" title="每日编程实践：简单的光线追踪器渲染球体"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/ray-tracer-2026-02-13/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-13</div><div class="info-item-2">每日编程实践：简单的光线追踪器渲染球体</div></div><div class="info-2"><div class="info-item-1">每日编程实践：简单的光线追踪器渲染球体今天的目标是构建一个简单的光线追踪器来渲染一组球体场景，继续探索图形学中的光线追踪基础知识。   项目概述 项目名称: 简单的光线追踪器渲染球体 开发时间: 约15分钟 代码量: 143行 C++ 迭代次数: 1次（首次编译有小问题） 编译状态: ✅ 编译成功（0错误0警告） 运行结果: ✅ 成功生成600×400像素光线追踪图像 项目地址: GitHub - daily-coding-practice  技术要点光线追踪基本原理光线追踪的核心思想是从相机发射光线穿过每个像素，检测光线与场景中的物体是否相交，然后计算相交点的颜色。 三维向量运算实现光线追踪涉及大量的三维向量运算，为此需要实现基础的向量数学： 123456789struct Vec3 &#123;    float x, y, z;        Vec3 operator+(const Vec3&amp; v) const &#123; return Vec3(x + v.x, y + v.y, z + v.z); &#125;    Vec3 operator-(const...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/shadow-ray-tracing-2026-02-17/shadow_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-17</div><div class="info-item-2">Shadow Ray Tracing - 光线追踪中的阴影算法实现</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：带阴影的光线追踪器今天实现了光线追踪中的阴影算法（Shadow Ray），并结合完整的Phong光照模型，创建了一个支持真实阴影效果的光线追踪渲染器。这是图形学渲染管线中的重要一步，为场景增加了深度感和真实感。 项目概述 实现语言：C++11 核心技术：Shadow Ray + Phong光照模型 + 多光源 输出格式：800×600 PNG图像 开发时长：10分钟（一次性编译成功）  什么是Shadow Ray？在光线追踪中，当主光线（Primary Ray）击中物体表面后，我们需要判断该点是否被其他物体遮挡。**Shadow Ray（阴影光线）**就是从交点向光源发射的一条测试光线。 算法原理12345671. 主光线击中物体表面，得到交点P2. 对场景中的每个光源L：   a. 从P向L发射一条Shadow Ray   b. 检查Shadow Ray在到达L之前是否击中其他物体   c. 如果击中 → P在阴影中（该光源不贡献光照）   d. 如果未击中 → P被照亮（计算该光源的光照贡献）3. 累加所有光源的贡献，得到最终颜色  代码实现1234567891...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2022/09/23/03-HelloTrianglesMVP%E5%8F%98%E6%8D%A2/" title="03.HelloTriangles|MVP变换"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2022-09-23</div><div class="info-item-2">03.HelloTriangles|MVP变换</div></div><div class="info-2"><div class="info-item-1">03.HelloTriangles|MVP变换本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/03 前言在上一节中，我们实现了一个基本可用的3d数学库，我们马上就会使用到他们。 这一节中我们将实现渲染的第一个流程，MVP变换。这一节的目标就是实现games101的作业1的效果，我们将会传入跟101作业中一样的参数，并检验产生的三角形是否一致。 MVP变换并不是有了上一节的矩阵运算法则基础就一下子就可以讲清的，要理解MVP变换，要先了解矩阵与图形变换的关系。 本节引用的图片来自《Fundamentals of Computer Graphics Fifth Edition》和《Physically Based Rendering From Theorty To Implementation Third Edition》，下文将分别简述为虎书和PBRT-v3。 变换矩阵(Transformatio...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2023/01/18/05-%E8%BD%BD%E5%85%A53D%E6%A8%A1%E5%9E%8B%E6%A8%A1%E5%9E%8B%E5%8A%A0%E8%BD%BD%E4%B8%8E%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84/" title="05.载入3D模型|模型加载、简单着色与纹理映射"><img class="cover" src="/chiuhou-tech-blog/images/Maria.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2023-01-18</div><div class="info-item-2">05.载入3D模型|模型加载、简单着色与纹理映射</div></div><div class="info-2"><div class="info-item-1">05.载入3D模型|模型加载、简单着色与纹理映射本项目代码已托管至github，将会随着博客实时更新进度每一节的工程我都会创建一个新的分支，分支名由这一节的数字决定。 https://github.com/chiuhoukazusa/LearningTinyrenderer/tree/05 前言在上一节的工作完成后，我们离渲染出一个正常的三维模型还剩下两步，纹理映射和着色，当然前提是得先把模型给加载了。 这一节先来尝试纹理映射和简单着色模型。 上一节我们说过要引入一个读取obj的头文件，但我觉得完全可以自己写一个简单的objloader，那就不引入了吧。 OBJ-MTL文件格式obj是最广泛使用的3维模型的格式，实际上obj只是一个纯文本文件，我们可以梳理出他的大致结构。而mtl也是一个纯文本文件，基本上和obj对应，会记录一些材质信息。 我们以games202的吉祥物为例来理解一下obj和mtl文件的结构： 1   2   3   4   5   6   7   8   9   10   11   12   13   14   15   16   17   18   19   ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/" title="每日编程实践：递归光线追踪 - 镜面反射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-18</div><div class="info-item-2">每日编程实践：递归光线追踪 - 镜面反射</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 镜面反射日期: 2026-02-18开发时间: 约15分钟迭代次数: 2次技术: 递归光线追踪、镜面反射、Phong光照、阴影 项目目标在之前的 Shadow Ray Tracing 基础上，实现递归光线追踪算法，支持镜面反射效果。通过不同的材质反射率，实现从完全漫反射到高度镜面的多样化材质表现。 核心算法1. 递归光线追踪1234567891011121314151617Vec3 trace(const Ray&amp; ray, const Scene&amp; scene, int depth) &#123;    if (depth &lt;= 0) return Vec3(0, 0, 0); // 递归深度限制        // ... 计算直接光照（环境光 + 漫反射 + 镜面高光 + 阴影）...        // 递归反射    if (material.reflectivity &gt; 0.0) &#123;        Vec3 reflect_dir = ray.direction.reflect(normal);        R...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">16</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">24</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">4</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%BA%B9%E7%90%86%E6%98%A0%E5%B0%84%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E5%99%A8"><span class="toc-number">1.</span> <span class="toc-text">纹理映射光线追踪器</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B9%E7%9B%AE%E7%9B%AE%E6%A0%87"><span class="toc-number">1.1.</span> <span class="toc-text">项目目标</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E8%BF%87%E7%A8%8B"><span class="toc-number">1.2.</span> <span class="toc-text">实现过程</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%AD%E4%BB%A3%E5%8E%86%E5%8F%B2"><span class="toc-number">1.2.1.</span> <span class="toc-text">迭代历史</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E4%BB%A3%E7%A0%81"><span class="toc-number">1.3.</span> <span class="toc-text">核心代码</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%90%83%E9%9D%A2UV%E6%98%A0%E5%B0%84"><span class="toc-number">1.3.1.</span> <span class="toc-text">球面UV映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A3%8B%E7%9B%98%E6%A0%BC%E7%BA%B9%E7%90%86"><span class="toc-number">1.3.2.</span> <span class="toc-text">棋盘格纹理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9D%90%E8%B4%A8%E7%B3%BB%E7%BB%9F"><span class="toc-number">1.3.3.</span> <span class="toc-text">材质系统</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%BF%90%E8%A1%8C%E7%BB%93%E6%9E%9C"><span class="toc-number">1.4.</span> <span class="toc-text">运行结果</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%BA%E6%99%AF%E8%AF%B4%E6%98%8E"><span class="toc-number">1.4.1.</span> <span class="toc-text">场景说明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%BB%93%E6%9E%9C"><span class="toc-number">1.4.2.</span> <span class="toc-text">量化验证结果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E6%80%BB%E7%BB%93"><span class="toc-number">1.5.</span> <span class="toc-text">技术总结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AD%A6%E5%88%B0%E7%9A%84%E6%8A%80%E6%9C%AF%E7%82%B9"><span class="toc-number">1.5.1.</span> <span class="toc-text">学到的技术点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%81%87%E5%88%B0%E7%9A%84%E5%9D%91%E5%92%8C%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="toc-number">1.5.2.</span> <span class="toc-text">遇到的坑和解决方案</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96"><span class="toc-number">1.5.3.</span> <span class="toc-text">性能优化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81%E4%BB%93%E5%BA%93"><span class="toc-number">1.6.</span> <span class="toc-text">代码仓库</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8B%E4%B8%80%E6%AD%A5%E8%AE%A1%E5%88%92"><span class="toc-number">1.7.</span> <span class="toc-text">下一步计划</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/20/daily-coding-texture-mapping-2026-02-20/" title="每日编程实践: 纹理映射光线追踪器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 纹理映射光线追踪器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/20/daily-coding-texture-mapping-2026-02-20/" title="每日编程实践: 纹理映射光线追踪器">每日编程实践: 纹理映射光线追踪器</a><time datetime="2026-02-19T21:35:00.000Z" title="发表于 2026-02-20 05:35:00">2026-02-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</a><time datetime="2026-02-18T21:42:00.000Z" title="发表于 2026-02-19 05:42:00">2026-02-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/" title="每日编程实践：递归光线追踪 - 镜面反射"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/reflection-raytracing-2026-02-18/reflection_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践：递归光线追踪 - 镜面反射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/18/daily-coding-recursive-raytracing-2026-02-18/" title="每日编程实践：递归光线追踪 - 镜面反射">每日编程实践：递归光线追踪 - 镜面反射</a><time datetime="2026-02-18T03:35:00.000Z" title="发表于 2026-02-18 11:35:00">2026-02-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/shadow-ray-tracing-2026-02-17/shadow_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Shadow Ray Tracing - 光线追踪中的阴影算法实现"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/17/daily-coding-shadow-ray-tracing-2026-02-17/" title="Shadow Ray Tracing - 光线追踪中的阴影算法实现">Shadow Ray Tracing - 光线追踪中的阴影算法实现</a><time datetime="2026-02-17T02:00:00.000Z" title="发表于 2026-02-17 10:00:00">2026-02-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="Perlin噪声地形生成器 - 程序化地形技术实践"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践">Perlin噪声地形生成器 - 程序化地形技术实践</a><time datetime="2026-02-16T02:00:00.000Z" title="发表于 2026-02-16 10:00:00">2026-02-16</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
