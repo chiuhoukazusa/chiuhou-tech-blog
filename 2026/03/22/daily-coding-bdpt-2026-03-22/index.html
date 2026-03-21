@@ -1,0 +1,361 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机为什么单向路径追踪不够用？如果你用过标准路径追踪（Unidirectional Path Tracing, PT），一定注意到一个令人头疼的现象：在某些场景里，即使采样数很高，画面还是充满噪点。具体来说，当光源面积小、场景几何复杂、或者存在”焦散”效果时，单向路径追踪的收敛速度极其缓慢。 为什么？ 让我们想象一个典型的焦散场景：光线从天花板射下，经过一个玻璃球折射，在地面上形成一个亮斑。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/03/22/daily-coding-bdpt-2026-03-22/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机为什么单向路径追踪不够用？如果你用过标准路径追踪（Unidirectional Path Tracing, PT），一定注意到一个令人头疼的现象：在某些场景里，即使采样数很高，画面还是充满噪点。具体来说，当光源面积小、场景几何复杂、或者存在”焦散”效果时，单向路径追踪的收敛速度极其缓慢。 为什么？ 让我们想象一个典型的焦散场景：光线从天花板射下，经过一个玻璃球折射，在地面上形成一个亮斑。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png">
+<meta property="article:published_time" content="2026-03-21T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-03-21T21:37:14.291Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="光线追踪">
+<meta property="article:tag" content="全局光照">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样",
+  "url": "https://chiuhoukazusa.github.io/2026/03/22/daily-coding-bdpt-2026-03-22/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png",
+  "datePublished": "2026-03-21T21:30:00.000Z",
+  "dateModified": "2026-03-21T21:37:14.291Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/03/22/daily-coding-bdpt-2026-03-22/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-03-21T21:30:00.000Z" title="发表于 2026-03-22 05:30:00">2026-03-22</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-03-21T21:37:14.291Z" title="更新于 2026-03-22 05:37:14">2026-03-22</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><h3 id="为什么单向路径追踪不够用？"><a href="#为什么单向路径追踪不够用？" class="headerlink" title="为什么单向路径追踪不够用？"></a>为什么单向路径追踪不够用？</h3><p>如果你用过标准路径追踪（Unidirectional Path Tracing, PT），一定注意到一个令人头疼的现象：在某些场景里，即使采样数很高，画面还是充满噪点。具体来说，当光源面积小、场景几何复杂、或者存在”焦散”效果时，单向路径追踪的收敛速度极其缓慢。</p>
+<p><strong>为什么？</strong> 让我们想象一个典型的焦散场景：光线从天花板射下，经过一个玻璃球折射，在地面上形成一个亮斑。单向路径追踪从相机出发，光线碰到地面，想估计这个点的直接光照——它需要对天花板上的面光源采样，但光路是”光源 → 玻璃球折射 → 地面”，直接连接相机路径顶点和光源的概率极低（玻璃球的折射形成了很窄的采样空间），绝大多数样本的贡献是零。这就是所谓的**难以捕获的光路（difficult light transport path）**问题。</p>
+<p>再看几个工业界的真实痛点：</p>
+<ul>
+<li><strong>室内渲染</strong>：小窗户进来的阳光，单向 PT 需要极多样本才能收敛，而建筑可视化行业的标准渲染时间往往只有几分钟</li>
+<li><strong>珠宝渲染</strong>：宝石刻面形成的复杂折射焦散，游戏里的宝石看起来总是”假”，根本原因就是这里</li>
+<li><strong>汽车内饰</strong>：阳光穿过车窗的散射，自动驾驶仿真和游戏里的汽车光照难以逼真</li>
+</ul>
+<p>**BDPT（双向路径追踪）**正是为解决这些问题而生。它的核心思路极为自然：<strong>既然从相机端难以”撞见”光路，那就同时从光源端也发出路径，然后把两端路径连接起来</strong>。这样，那些单向 PT 几乎永远采样不到的光路，BDPT 可以通过连接两端顶点直接构造出来。</p>
+<p>BDPT 首次由 Lafortune 和 Willems（1993）以及 Veach 和 Guibas（1994）独立提出。Veach 在其 1997 年的博士论文中给出了完整的理论框架，并引入了**多重重要性采样（Multiple Importance Sampling, MIS）**来优化各策略的权重。此后，BDPT 成为离线渲染领域（Pixar RenderMan、Arnold、Cycles 等）的标准全局光照算法之一。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="渲染方程回顾"><a href="#渲染方程回顾" class="headerlink" title="渲染方程回顾"></a>渲染方程回顾</h3><p>所有路径追踪算法的出发点都是<strong>渲染方程</strong>（Kajiya, 1986）：</p>
+<p>$$L_o(x, \omega_o) &#x3D; L_e(x, \omega_o) + \int_{\Omega} f_r(x, \omega_i, \omega_o) L_i(x, \omega_i) |\cos\theta_i| , d\omega_i$$</p>
+<p>其中：</p>
+<ul>
+<li>$L_o$：出射辐射度（我们想计算的值）</li>
+<li>$L_e$：自发光辐射度（光源本身的贡献）</li>
+<li>$f_r$：双向反射分布函数（BRDF），描述表面的反射特性</li>
+<li>$L_i$：入射辐射度（来自其他物体的反射&#x2F;折射）</li>
+<li>$|\cos\theta_i|$：入射角余弦项，描述能量投影到表面的衰减</li>
+</ul>
+<p>这个方程是递归的——$L_i$ 本身又是另一个表面的 $L_o$，形成无穷递归。路径追踪就是用蒙特卡洛积分来近似这个递归积分的。</p>
+<h3 id="路径空间与测度"><a href="#路径空间与测度" class="headerlink" title="路径空间与测度"></a>路径空间与测度</h3><p><strong>路径空间</strong>的思想是 Veach 论文的核心贡献之一。设一条长度为 $k+1$ 的路径（含 $k+2$ 个顶点）：</p>
+<p>$$\bar{x} &#x3D; x_0 x_1 x_2 \cdots x_{k+1}$$</p>
+<p>其中 $x_0$ 是相机、$x_{k+1}$ 是光源，中间是场景中的交点。这条路径的贡献可以写成：</p>
+<p>$$f(\bar{x}) &#x3D; L_e(x_{k+1} \to x_k) \cdot G(x_k \leftrightarrow x_{k+1}) \cdot \prod_{i&#x3D;1}^{k} f_r(x_{i+1} \to x_i \to x_{i-1}) \cdot G(x_{i-1} \leftrightarrow x_i) \cdot W_e(x_0 \to x_1)$$</p>
+<p>这里 $G(x \leftrightarrow y)$ 是<strong>几何项</strong>：</p>
+<p>$$G(x \leftrightarrow y) &#x3D; \frac{|\cos\theta_x| \cdot |\cos\theta_y|}{|x - y|^2} \cdot V(x, y)$$</p>
+<p>$V(x, y)$ 是可见性函数（1 表示可见，0 表示被遮挡）。这个几何项包含了距离的平方衰减和两端法向量的余弦项，直觉上就是”单位立体角与单位面积之间的换算”。</p>
+<h3 id="BDPT-的策略分解"><a href="#BDPT-的策略分解" class="headerlink" title="BDPT 的策略分解"></a>BDPT 的策略分解</h3><p>单向路径追踪的一条长度为 $n$ 的路径，可以看成从相机端取了 $n$ 个顶点、从光源端取了 0 个顶点，然后”连接”的特殊情况。BDPT 把这个思路一般化：</p>
+<p>对于路径总长度 $k$，BDPT 枚举所有策略 $(s, t)$，其中 $s$ 是从光源端采样的顶点数，$t$ 是从相机端采样的顶点数，$s + t - 1 &#x3D; k$（减 1 是因为连接操作本身算一段）。</p>
+<p>每种策略 $(s, t)$ 都给出一个对像素辐射度的估计量 $C_{s,t}$。BDPT 把所有策略的估计量用多重重要性采样加权组合：</p>
+<p>$$\langle L \rangle &#x3D; \sum_{s \geq 0, t \geq 1} w_{s,t}(\bar{x}) \cdot \frac{f_{s,t}(\bar{x})}{p_{s,t}(\bar{x})}$$</p>
+<p>其中 $w_{s,t}$ 是 MIS 权重，保证所有权重之和为 1，从而估计量是无偏的。</p>
+<h3 id="多重重要性采样（MIS）"><a href="#多重重要性采样（MIS）" class="headerlink" title="多重重要性采样（MIS）"></a>多重重要性采样（MIS）</h3><p>MIS 的核心问题是：我有 $n$ 种采样策略，每种策略对同一个积分给出不同精度的估计，如何组合它们才能最优？</p>
+<p>**幂次启发（Power Heuristic）**是实践中最常用的 MIS 权重：</p>
+<p>$$w_k(x) &#x3D; \frac{(n_k p_k(x))^\beta}{\sum_j (n_j p_j(x))^\beta}$$</p>
+<p>通常取 $\beta &#x3D; 2$。直觉上，这个公式的意思是：<strong>哪种策略在当前样本 $x$ 处的 PDF 最高（即”最擅长采样这种路径”），就给那种策略更高的权重</strong>。</p>
+<p>为什么 $\beta &#x3D; 2$ 比 $\beta &#x3D; 1$（平衡启发）更好？Veach 证明了幂次启发的方差上界是平衡启发的 $\min_k n_k p_k(x)$ 倍，而平方可以放大高概率策略的主导性，减少低效策略的”污染”。</p>
+<p>在本项目的简化实现里，我用了三类策略：</p>
+<ol>
+<li><p><strong>$t \geq 2, s &#x3D; 0$（纯相机路径，PT 的方式）</strong>：相机路径直接打到光源。这对于能直接”看到”光源的路径非常高效。</p>
+</li>
+<li><p><strong>$t \geq 2, s &#x3D; 1$（直接光照，NEE 的方式）</strong>：在相机路径的最后一个顶点，直接采样光源上的一个点，检查可见性后计算贡献。这对漫反射场景极为有效。</p>
+</li>
+<li><p><strong>$t \geq 2, s \geq 2$（双向连接）</strong>：光路和相机路径各走几步，然后在中间连接。这是 BDPT 的独特贡献，对镜面球产生的焦散、穿越小开口的光照等复杂路径有效。</p>
+</li>
+</ol>
+<h3 id="Cornell-Box-场景光照分析"><a href="#Cornell-Box-场景光照分析" class="headerlink" title="Cornell Box 场景光照分析"></a>Cornell Box 场景光照分析</h3><p>Cornell Box 是渲染算法研究的标准测试场景，包含：</p>
+<ul>
+<li>漫反射红绿白墙</li>
+<li>天花板上的矩形面光源（强度 15）</li>
+<li>一个漫反射球 + 一个镜面球</li>
+</ul>
+<p>对于<strong>漫反射球</strong>的光照，$s&#x3D;1$（直接光照采样）策略最高效，因为球表面到光源的几何关系简单。</p>
+<p>对于<strong>镜面球</strong>产生的<strong>焦散</strong>（光源打在地板的亮斑），$s \geq 2$ 的双向策略才能高效采样：光路从光源出发，打到镜面球反射后落在地面，这时相机路径的地面顶点可以直接连接这个镜面球上的光路顶点。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">相机像素 (i, j)</span><br><span class="line">     │</span><br><span class="line">     ▼</span><br><span class="line">buildCameraPath()    buildLightPath()</span><br><span class="line">     │                    │</span><br><span class="line">     ▼                    ▼</span><br><span class="line">camPath: [cam, v1, v2, ...]    lightPath: [light, lv1, lv2, ...]</span><br><span class="line">     │                    │</span><br><span class="line">     └────────┬───────────┘</span><br><span class="line">              ▼</span><br><span class="line">     connectPaths(s, t)</span><br><span class="line">     对所有 (s, t) 组合</span><br><span class="line">              │</span><br><span class="line">              ▼</span><br><span class="line">     加权求和 → 像素辐射度</span><br><span class="line">              │</span><br><span class="line">              ▼</span><br><span class="line">     Reinhard ToneMap → Gamma → PNG</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><p><strong>Vertex（路径顶点）</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Vertex</span> &#123;</span><br><span class="line">    Vec3 pos;         <span class="comment">// 世界空间位置</span></span><br><span class="line">    Vec3 normal;      <span class="comment">// 表面法向量（已朝向入射侧）</span></span><br><span class="line">    Vec3 throughput;  <span class="comment">// 累积吞吐量（从路径起点到此顶点的乘积）</span></span><br><span class="line">    <span class="type">int</span> matIdx;       <span class="comment">// 材质索引</span></span><br><span class="line">    <span class="type">double</span> pdfFwd;    <span class="comment">// 从前一个顶点生成此顶点的 PDF</span></span><br><span class="line">    <span class="type">double</span> pdfRev;    <span class="comment">// 逆向 PDF（用于 MIS 权重计算）</span></span><br><span class="line">    <span class="type">bool</span> isDelta;     <span class="comment">// 是否是镜面（delta 分布 BRDF）</span></span><br><span class="line">    <span class="type">bool</span> isLight;     <span class="comment">// 是否在光源上</span></span><br><span class="line">    <span class="type">bool</span> isCamera;    <span class="comment">// 是否是相机顶点</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>throughput</code> 字段的设计思路：它存储的是”如果在此顶点处连接，乘以对端贡献就能得到路径总贡献”的因子，而不是路径的完整贡献。这使得连接操作变成简单的乘法而不是从头累乘。</p>
+<p><strong>Scene 设计</strong>：</p>
+<p>场景支持两种几何体：<code>Sphere</code>（用于球体求交的解析解）和 <code>Quad</code>（轴对齐矩形，用于墙面和面光源）。面光源通过 <code>lightQuadIndices</code> 列表单独管理，方便快速采样光源位置。</p>
+<p><strong>Material 设计</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">enum class</span> <span class="title class_">MatType</span> &#123; Diffuse, Mirror, Emissive &#125;;</span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Material</span> &#123;</span><br><span class="line">    MatType type;</span><br><span class="line">    Vec3 albedo;    <span class="comment">// 漫反射/镜面颜色</span></span><br><span class="line">    Vec3 emission;  <span class="comment">// 只有 Emissive 类型使用</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>区分 <code>Diffuse</code> 和 <code>Mirror</code> 非常重要：<code>Mirror</code> 是 delta BRDF（只在反射方向有值，其他方向为零）。Delta BRDF 顶点不能用于”连接”操作——因为连接意味着指定一个特定方向，而 delta BRDF 只接受一个特定方向（反射方向），随机的连接方向的贡献几乎总是零。因此 <code>isDelta</code> 字段用来跳过这些顶点。</p>
+<h3 id="相机模型"><a href="#相机模型" class="headerlink" title="相机模型"></a>相机模型</h3><p>使用简单的针孔相机：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Camera <span class="title">cam</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    Vec3(<span class="number">278</span>, <span class="number">273</span>, <span class="number">-800</span>),   <span class="comment">// 相机位置</span></span></span></span><br><span class="line"><span class="params"><span class="function">    Vec3(<span class="number">278</span>, <span class="number">273</span>, <span class="number">0</span>),      <span class="comment">// 看向场景中心</span></span></span></span><br><span class="line"><span class="params"><span class="function">    Vec3(<span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>),          <span class="comment">// 上方向</span></span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="number">40.0</span>,                   <span class="comment">// 垂直视场角（度）</span></span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="number">512</span>, <span class="number">512</span>                <span class="comment">// 分辨率</span></span></span></span><br><span class="line"><span class="params"><span class="function">)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>Cornell Box 的尺寸是 555×555×555，相机放在 z &#x3D; -800 处（场景外部），视角 40° 可以看到整个场景。</p>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="构建相机路径"><a href="#构建相机路径" class="headerlink" title="构建相机路径"></a>构建相机路径</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::vector&lt;Vertex&gt; <span class="title">buildCameraPath</span><span class="params">(<span class="type">const</span> Scene&amp; scene, <span class="type">const</span> Ray&amp; cameraRay, <span class="type">int</span> maxDepth)</span> </span>&#123;</span><br><span class="line">    std::vector&lt;Vertex&gt; path;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 相机顶点本身</span></span><br><span class="line">    Vertex cam;</span><br><span class="line">    cam.pos = cameraRay.origin;</span><br><span class="line">    cam.throughput = <span class="built_in">Vec3</span>(<span class="number">1.0</span>);   <span class="comment">// 初始吞吐量为 1</span></span><br><span class="line">    cam.isCamera = <span class="literal">true</span>;</span><br><span class="line">    path.<span class="built_in">push_back</span>(cam);</span><br><span class="line"></span><br><span class="line">    Ray ray = cameraRay;</span><br><span class="line">    <span class="function">Vec3 <span class="title">throughput</span><span class="params">(<span class="number">1.0</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> depth = <span class="number">0</span>; depth &lt; maxDepth; depth++) &#123;</span><br><span class="line">        <span class="keyword">auto</span> hit = scene.<span class="built_in">intersect</span>(ray);</span><br><span class="line">        <span class="keyword">if</span> (!hit) <span class="keyword">break</span>;  <span class="comment">// 打到背景/天空</span></span><br><span class="line"></span><br><span class="line">        <span class="type">const</span> Material&amp; mat = scene.materials[hit-&gt;matIdx];</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果打到光源，记录并停止（光源是路径终点）</span></span><br><span class="line">        <span class="keyword">if</span> (mat.type == MatType::Emissive) &#123;</span><br><span class="line">            <span class="comment">// 把光源顶点加入路径，用于 s=0 策略（相机直接&quot;看见&quot;光源）</span></span><br><span class="line">            Vertex v; v.pos = hit-&gt;point; v.isLight = <span class="literal">true</span>; v.throughput = throughput;</span><br><span class="line">            path.<span class="built_in">push_back</span>(v);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (mat.type == MatType::Mirror) &#123;</span><br><span class="line">            <span class="comment">// 镜面反射：完全确定性的新方向</span></span><br><span class="line">            Vec3 reflected = ray.dir - hit-&gt;normal * <span class="number">2.0</span> * ray.dir.<span class="built_in">dot</span>(hit-&gt;normal);</span><br><span class="line">            throughput = throughput * mat.albedo;  <span class="comment">// 镜面颜色衰减</span></span><br><span class="line">            <span class="comment">// isDelta = true，此顶点不参与连接操作</span></span><br><span class="line">            ray = <span class="built_in">Ray</span>(hit-&gt;point, reflected);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 漫反射：余弦重要性采样</span></span><br><span class="line">            Vec3 newDir = <span class="built_in">cosineSampleHemisphere</span>(hit-&gt;normal);</span><br><span class="line">            <span class="type">double</span> p = <span class="built_in">pdfDiffuse</span>(hit-&gt;normal, newDir);  <span class="comment">// = cos(theta) / pi</span></span><br><span class="line">            Vec3 f = mat.albedo / M_PI;                  <span class="comment">// Lambertian BRDF</span></span><br><span class="line">            <span class="type">double</span> cosTheta = hit-&gt;normal.<span class="built_in">dot</span>(newDir);</span><br><span class="line">            <span class="comment">// 更新吞吐量：f * cos / pdf = albedo（余弦采样正好约去 cos/pi）</span></span><br><span class="line">            throughput = throughput * f * cosTheta / p;  <span class="comment">// = throughput * albedo</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// 俄罗斯轮盘赌：避免无限追踪低贡献路径</span></span><br><span class="line">            <span class="type">double</span> rrProb = std::<span class="built_in">min</span>(<span class="number">0.95</span>, throughput.<span class="built_in">maxComp</span>());</span><br><span class="line">            <span class="keyword">if</span> (<span class="built_in">rand01</span>() &gt; rrProb) <span class="keyword">break</span>;</span><br><span class="line">            throughput = throughput / rrProb;  <span class="comment">// 无偏校正</span></span><br><span class="line"></span><br><span class="line">            ray = <span class="built_in">Ray</span>(hit-&gt;point, newDir);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> path;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计点</strong>：为什么漫反射的吞吐量更新后等于 <code>albedo</code>？</p>
+<p>余弦重要性采样下，PDF 为 $p(\omega) &#x3D; \cos\theta &#x2F; \pi$，BRDF 为 $f_r &#x3D; \text{albedo} &#x2F; \pi$，所以：</p>
+<p>$$\frac{f_r \cdot \cos\theta}{p} &#x3D; \frac{\text{albedo}&#x2F;\pi \cdot \cos\theta}{\cos\theta&#x2F;\pi} &#x3D; \text{albedo}$$</p>
+<p>这是余弦采样的一个很好的性质：通过”匹配”分布，消去了所有三角函数项，吞吐量就是反射率本身，直觉清晰且数值稳定。</p>
+<h3 id="构建光源路径"><a href="#构建光源路径" class="headerlink" title="构建光源路径"></a>构建光源路径</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::vector&lt;Vertex&gt; <span class="title">buildLightPath</span><span class="params">(<span class="type">const</span> Scene&amp; scene, <span class="type">int</span> maxDepth)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 1. 在面光源上均匀采样一个出发点</span></span><br><span class="line">    <span class="type">const</span> Quad&amp; lightQuad = scene.quads[li];</span><br><span class="line">    Vec3 pos = lightQuad.<span class="built_in">sample</span>();  <span class="comment">// corner + u*uAxis + v*vAxis, u,v ~ U[0,1]</span></span><br><span class="line">    Vec3 normal = -lightQuad.normal; <span class="comment">// 朝向场景内部（向下）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 在光源法半球内余弦采样出射方向</span></span><br><span class="line">    Vec3 dir = <span class="built_in">cosineSampleHemisphere</span>(normal);</span><br><span class="line">    <span class="type">double</span> pdfPos = <span class="number">1.0</span> / lightQuad.area;     <span class="comment">// 位置 PDF（均匀面采样）</span></span><br><span class="line">    <span class="type">double</span> pdfDir = normal.<span class="built_in">dot</span>(dir) / M_PI;   <span class="comment">// 方向 PDF（余弦采样）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 初始吞吐量：发射辐射度 / PDF</span></span><br><span class="line">    <span class="comment">// 物理含义：光源上这一点向这个方向发射的辐射度，除以采样概率</span></span><br><span class="line">    Vec3 throughput = lightMat.emission * normal.<span class="built_in">dot</span>(dir) / (pdfPos * pdfDir);</span><br><span class="line">    <span class="comment">// = emission * cos * pi / (cos * area) = emission * pi / area</span></span><br><span class="line">    <span class="comment">// 这就是&quot;每单位面积的总出射功率归一化到路径贡献&quot;的意义</span></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>光源路径的初始化比相机路径复杂一些，因为需要同时处理<strong>位置采样</strong>和<strong>方向采样</strong>两个 PDF。物理直觉是：光源在某个方向上发射的能量（辐射强度）与 $\cos\theta$（朗伯余弦定律）成正比，余弦采样的 PDF 正好抵消这个因子，类似相机路径的情况。</p>
+<h3 id="连接操作"><a href="#连接操作" class="headerlink" title="连接操作"></a>连接操作</h3><p>连接是 BDPT 最核心的部分，也是最容易出错的：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">connectPaths</span><span class="params">(<span class="type">const</span> Scene&amp; scene,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">const</span> std::vector&lt;Vertex&gt;&amp; camPath,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">const</span> std::vector&lt;Vertex&gt;&amp; lightPath,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">int</span> s, <span class="type">int</span> t)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (s == <span class="number">1</span>) &#123;</span><br><span class="line">        <span class="comment">// 直接光照策略：相机路径最后一个漫反射顶点 → 光源随机点</span></span><br><span class="line">        <span class="type">const</span> Vertex&amp; camV = camPath[t - <span class="number">1</span>];</span><br><span class="line">        <span class="keyword">if</span> (!camV.<span class="built_in">connectable</span>()) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>);  <span class="comment">// 跳过镜面顶点</span></span><br><span class="line"></span><br><span class="line">        Vec3 lightPos = lightQuad.<span class="built_in">sample</span>();</span><br><span class="line">        Vec3 toLight = lightPos - camV.pos;</span><br><span class="line">        <span class="type">double</span> dist = toLight.<span class="built_in">length</span>();</span><br><span class="line">        Vec3 dirToLight = toLight / dist;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 几何项的两端余弦</span></span><br><span class="line">        <span class="type">double</span> cosAtCam = camV.normal.<span class="built_in">dot</span>(dirToLight);    <span class="comment">// 相机侧余弦</span></span><br><span class="line">        <span class="type">double</span> cosAtLight = (-dirToLight).<span class="built_in">dot</span>(lightNormal); <span class="comment">// 光源侧余弦</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (cosAtCam &lt;= <span class="number">0</span> || cosAtLight &lt;= <span class="number">0</span>) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>); <span class="comment">// 光在背面</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (scene.<span class="built_in">occluded</span>(camV.pos, lightPos)) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>); <span class="comment">// 被遮挡</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// 贡献 = 相机路径吞吐量 × BRDF × 几何项 × 光源辐射度 / 采样PDF</span></span><br><span class="line">        Vec3 f = camMat.albedo / M_PI;</span><br><span class="line">        <span class="type">double</span> geo = cosAtCam * cosAtLight / (dist * dist);  <span class="comment">// G(x↔y) 无可见性</span></span><br><span class="line">        <span class="type">double</span> pdfLight = <span class="number">1.0</span> / lightQuad.area;</span><br><span class="line">        <span class="keyword">return</span> camThroughput * f * geo * lightMat.emission / pdfLight;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (s &gt;= <span class="number">2</span> &amp;&amp; t &gt;= <span class="number">2</span>) &#123;</span><br><span class="line">        <span class="comment">// 双向连接：camPath[t-1] 和 lightPath[s-1] 之间</span></span><br><span class="line">        <span class="type">const</span> Vertex&amp; camV = camPath[t - <span class="number">1</span>];</span><br><span class="line">        <span class="type">const</span> Vertex&amp; lightV = lightPath[s - <span class="number">1</span>];</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!camV.<span class="built_in">connectable</span>() || !lightV.<span class="built_in">connectable</span>()) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">        Vec3 dir = (lightV.pos - camV.pos).<span class="built_in">normalize</span>();</span><br><span class="line">        <span class="type">double</span> cosAtCam = camV.normal.<span class="built_in">dot</span>(dir);</span><br><span class="line">        <span class="type">double</span> cosAtLight = lightV.normal.<span class="built_in">dot</span>(-dir);</span><br><span class="line">        <span class="keyword">if</span> (cosAtCam &lt;= <span class="number">0</span> || cosAtLight &lt;= <span class="number">0</span>) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>);</span><br><span class="line">        <span class="keyword">if</span> (scene.<span class="built_in">occluded</span>(camV.pos, lightV.pos)) <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 从两端各贡献一个 BRDF 和余弦，几何项在中间</span></span><br><span class="line">        Vec3 fCam = camMat.albedo / M_PI * cosAtCam;</span><br><span class="line">        Vec3 fLight = lightMat.albedo / M_PI * cosAtLight;</span><br><span class="line">        <span class="type">double</span> geo = <span class="number">1.0</span> / dist2;  <span class="comment">// 距离平方衰减</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// 相机侧吞吐量 × 相机BRDF × 几何项 × 光源BRDF × 光源侧吞吐量</span></span><br><span class="line">        <span class="keyword">return</span> camThroughput * fCam * geo * fLight * lightThroughput;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>容易出错的地方</strong>：连接时，<code>camThroughput</code> 用的是 <code>camPath[t-2].throughput</code>（不是 <code>t-1</code>），因为 <code>throughput</code> 记录的是”到达该顶点之前”的累积，而 <code>camPath[t-1]</code> 的 BRDF 由 <code>fCam</code> 计算。理解这个”off-by-one”是写对 BDPT 的关键。</p>
+<h3 id="Tone-Mapping-与伽马校正"><a href="#Tone-Mapping-与伽马校正" class="headerlink" title="Tone Mapping 与伽马校正"></a>Tone Mapping 与伽马校正</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">toneMap</span><span class="params">(Vec3 v)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Reinhard tone mapping：逐通道映射 HDR → [0,1]</span></span><br><span class="line">    <span class="comment">// 公式：L_mapped = L / (1 + L)</span></span><br><span class="line">    <span class="comment">// 直觉：低亮度区域接近线性，高亮度区域（焦散等高能量区）被压缩而不截断</span></span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Vec3</span>(v.x / (v.x + <span class="number">1.0</span>), v.y / (v.y + <span class="number">1.0</span>), v.z / (v.z + <span class="number">1.0</span>));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">double</span> <span class="title">gammaCorrect</span><span class="params">(<span class="type">double</span> v)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// sRGB 近似：2.2 伽马</span></span><br><span class="line">    <span class="comment">// 物理显示器是线性响应，人眼对暗部更敏感，伽马校正将线性值映射到感知均匀空间</span></span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">pow</span>(std::<span class="built_in">clamp</span>(v, <span class="number">0.0</span>, <span class="number">1.0</span>), <span class="number">1.0</span> / <span class="number">2.2</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意：最初我写的 <code>toneMap</code> 是 <code>v / (v + Vec3(1.0))</code>，但 <code>Vec3</code> 没有定义 <code>Vec3 / Vec3</code> 的运算符（只有 <code>Vec3 / double</code>）——这是个编译错误，修复方式是拆成逐分量计算。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：Tone-Mapping-编译报错"><a href="#Bug-1：Tone-Mapping-编译报错" class="headerlink" title="Bug 1：Tone Mapping 编译报错"></a>Bug 1：Tone Mapping 编译报错</h3><p><strong>症状</strong>：<code>main.cpp: error: no match for &#39;operator/&#39; (operand types are &#39;Vec3&#39; and &#39;Vec3&#39;)</code><br><strong>错误假设</strong>：以为 <code>v / (v + Vec3(1.0))</code> 会用逐元素除法，就像 GLSL&#x2F;numpy 一样<br><strong>真实原因</strong>：C++ 的运算符不会自动向量化，<code>Vec3::operator/</code> 只接受 <code>double</code> 参数，而 <code>v + Vec3(1.0)</code> 返回 <code>Vec3</code>，所以找不到匹配的重载<br><strong>修复</strong>：改为 <code>Vec3(v.x/(v.x+1), v.y/(v.y+1), v.z/(v.z+1))</code> 逐分量计算</p>
+<p><strong>教训</strong>：写数学运算时要记得 C++ 不是数学软件，每个运算符都需要显式定义或逐分量展开。</p>
+<h3 id="Bug-2：光源法向量方向"><a href="#Bug-2：光源法向量方向" class="headerlink" title="Bug 2：光源法向量方向"></a>Bug 2：光源法向量方向</h3><p><strong>症状</strong>：画面极暗，接近全黑<br><strong>错误假设</strong>：面光源的 <code>normal</code> 已经朝向场景内部<br><strong>真实原因</strong>：Cornell Box 的天花板面光源，<code>uAxis.cross(vAxis)</code> 的方向朝上（指向场景外），需要取反才能朝向场景<br><strong>修复</strong>：在 <code>buildLightPath</code> 中检查 <code>if (lightNormal.y &gt; 0) lightNormal = -lightNormal</code>，确保法向量向下</p>
+<p><strong>教训</strong>：面光源的朝向必须显式检查，不能假设叉积方向正确。不同的顶点顺序会导致法向量反转。</p>
+<h3 id="Bug-3：连接时吞吐量取错顶点"><a href="#Bug-3：连接时吞吐量取错顶点" class="headerlink" title="Bug 3：连接时吞吐量取错顶点"></a>Bug 3：连接时吞吐量取错顶点</h3><p><strong>症状</strong>：渲染结果偏亮，颜色不正确<br><strong>错误假设</strong>：<code>camPath[t-1].throughput</code> 就是相机路径到最后顶点的吞吐量<br><strong>真实原因</strong>：<code>throughput</code> 字段存储的是”到达该顶点前”的累积吞吐量，最后一个顶点的 BRDF 还没有计入。连接时应该用 <code>camPath[t-2].throughput</code>，然后单独计算 <code>camPath[t-1]</code> 处的 BRDF<br><strong>修复</strong>：<code>Vec3 camThroughput = (t &gt;= 3) ? camPath[t-2].throughput : Vec3(1.0)</code></p>
+<p><strong>教训</strong>：路径追踪中，”throughput 在哪个顶点更新”的时序问题极易出错，需要画图理清”连接前”和”连接后”的状态。</p>
+<h3 id="Bug-4：防止-NaN-传播导致全屏噪点"><a href="#Bug-4：防止-NaN-传播导致全屏噪点" class="headerlink" title="Bug 4：防止 NaN 传播导致全屏噪点"></a>Bug 4：防止 NaN 传播导致全屏噪点</h3><p><strong>症状</strong>：偶发的极亮像素（firefly），破坏整体画面<br><strong>错误假设</strong>：BDPT 会自然避免极端值<br><strong>真实原因</strong>：当两个顶点连接时，如果距离极近（dist ≈ 0），几何项 <code>1/dist²</code> 会趋向无穷大，产生极高亮度<br><strong>修复</strong>：在合并贡献时检查 NaN，并对每个样本的亮度做 clamp（最大 50）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">double</span> lum = <span class="number">0.2126</span>*contrib.x + <span class="number">0.7152</span>*contrib.y + <span class="number">0.0722</span>*contrib.z;</span><br><span class="line"><span class="keyword">if</span> (lum &gt; <span class="number">50.0</span>) contrib = contrib * (<span class="number">50.0</span> / lum);</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：路径追踪中的 firefly 问题很普遍。简单的 luminance clamp 不是最优解（会引入偏差），但对于实践项目是合理的权衡。更好的解决方案是 clamped MIS（限制 PDF 比值）。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="量化验证结果"><a href="#量化验证结果" class="headerlink" title="量化验证结果"></a>量化验证结果</h3><p>渲染参数：512×512 分辨率，64 spp（每像素 64 个样本）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">图片文件: bdpt_output.png</span><br><span class="line">文件大小: 559.4 KB (&gt; 10KB ✅)</span><br><span class="line">像素均值: 75.8 / 255  (10~240 范围内 ✅)</span><br><span class="line">像素标准差: 46.8       (&gt; 5 ✅ 图像有丰富内容)</span><br><span class="line">图像尺寸: 512×512</span><br></pre></td></tr></table></figure>
+
+<p>渲染耗时约 60 秒（CPU 单线程，i7 级别处理器）。</p>
+<p><strong>像素分区分析</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>平均亮度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>天花板附近（含光源）</td>
+<td>~200</td>
+<td>光源直接可见，最亮</td>
+</tr>
+<tr>
+<td>左绿墙</td>
+<td>~40</td>
+<td>绿色漫反射，中等亮度</td>
+</tr>
+<tr>
+<td>右红墙</td>
+<td>~35</td>
+<td>红色漫反射，略暗</td>
+</tr>
+<tr>
+<td>地面</td>
+<td>~60</td>
+<td>受间接光照影响较多</td>
+</tr>
+<tr>
+<td>镜面球</td>
+<td>~90</td>
+<td>反射天花板和白墙</td>
+</tr>
+</tbody></table>
+<h3 id="各策略的实际贡献"><a href="#各策略的实际贡献" class="headerlink" title="各策略的实际贡献"></a>各策略的实际贡献</h3><p>BDPT 的优势在于综合多种策略：</p>
+<ul>
+<li><strong>$s&#x3D;0$ 纯相机路径</strong>：捕捉了直接看到光源的贡献（光源区域的高亮）</li>
+<li><strong>$s&#x3D;1$ 直接光照</strong>：漫反射区域的主要光照来源，大幅降低漫反射区域的方差</li>
+<li><strong>$s \geq 2$ 双向连接</strong>：捕捉了镜面球产生的间接光照，镜面球的亮度和颜色来自此策略</li>
+</ul>
+<h3 id="与单向-PT-的比较"><a href="#与单向-PT-的比较" class="headerlink" title="与单向 PT 的比较"></a>与单向 PT 的比较</h3><p>同等 64 spp 下：</p>
+<ul>
+<li>单向 PT 的漫反射区域有明显噪点（需要 ~256 spp 才能达到相同视觉质量）</li>
+<li>BDPT 通过 $s&#x3D;1$ 策略直接对光源采样，漫反射区域显著更平滑</li>
+<li>镜面球的焦散（地面亮斑）在单向 PT 中几乎不可见，BDPT 中有明显贡献</li>
+</ul>
+<p>渲染结果图：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png" alt="Cornell Box BDPT 渲染结果"></p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="当前实现的局限性"><a href="#当前实现的局限性" class="headerlink" title="当前实现的局限性"></a>当前实现的局限性</h3><ol>
+<li><p><strong>MIS 权重过于简化</strong>：本项目用了简化的权重（部分策略权重为 1，没有完整的幂次启发），正确的 BDPT 需要计算所有 $(s’, t’)$ 策略在当前路径上的 PDF，才能给出最优的 MIS 权重。</p>
+</li>
+<li><p><strong>没有处理 specular-specular 连接</strong>：两个连续的镜面顶点之间不能做连接操作（delta BRDF 的连接概率为 0），正确的处理是检测”specular 链”并绕过。</p>
+</li>
+<li><p><strong>单线程 CPU 渲染</strong>：64 spp 耗时约 60 秒，实际生产中 BDPT 会用多线程或 GPU 加速（GPU 上的 BDPT 实现更复杂，因为光源路径和相机路径需要共享内存）。</p>
+</li>
+<li><p><strong>无焦散玻璃折射</strong>：当前只有镜面反射，没有折射（玻璃&#x2F;水的 BDPT 需要处理 Snell 定律和全内反射，是 delta BRDF 的另一种形式）。</p>
+</li>
+<li><p><strong>俄罗斯轮盘赌的偏差</strong>：使用 <code>maxComp</code> 作为存活概率是常见近似，理论上更正确的是基于辐射度的自适应 RR。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ul>
+<li><p><strong>Metropolis Light Transport (MLT)</strong>：在 BDPT 的基础上，用 Metropolis 采样在路径空间中游走，专门针对难以采样的光路（焦散、SDS 路径）。这是 Veach 博士论文的另一个核心贡献。</p>
+</li>
+<li><p><strong>VCM&#x2F;UPBP（顶点连接与合并）</strong>：2012 年提出，结合了 BDPT 和光子映射，通过”合并”而非”连接”相近顶点，对焦散的收敛效率极大提升。</p>
+</li>
+<li><p><strong>ReSTIR（时序&#x2F;空间样本复用）</strong>：2020 年 NVIDIA 提出的实时算法，通过在时间和空间上复用样本，让 BDPT 级别的质量接近实时。</p>
+</li>
+<li><p><strong>多层散射介质</strong>：加入参与介质（烟、雾、皮肤次表面散射），BDPT 在体散射上同样有优势。</p>
+</li>
+</ul>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li>前天（03-20）的<strong>球谐环境光照</strong>提供了一种高效的低频光照表示，但无法捕捉焦散</li>
+<li>昨天（03-21）的 <strong>SPPM 渐进光子映射</strong>专门针对焦散，是 BDPT 在光子映射方向上的延伸</li>
+<li>今天的 <strong>BDPT</strong> 是统一的全局光照框架，理论上可以处理所有光路，但需要足够多的样本</li>
+</ul>
+<p>三者的关系：BDPT 是通用但收敛慢，SPPM 专攻焦散，SH 是实时近似。工业引擎（如 Cycles、Arnold）通常将 BDPT 和光子映射结合使用，各自处理擅长的光路类型。</p>
+<hr>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>今天通过实现 BDPT，深入理解了几个关键概念：</p>
+<ol>
+<li><strong>路径空间的统一视角</strong>：所有光照算法（PT、NEE、光子映射）都是对路径积分的不同估计策略，BDPT 把它们统一在一个框架下。</li>
+<li><strong>吞吐量的时序</strong>：<code>throughput[i]</code> 是”连接点 i 所需的前缀乘积”，off-by-one 是 BDPT 实现中最常见的错误来源。</li>
+<li><strong>delta BRDF 的特殊处理</strong>：镜面材质只能沿路径延伸，不能作为连接端点，这一约束必须在代码中显式检查。</li>
+<li><strong>MIS 的必要性</strong>：没有 MIS 时，各策略的贡献可能重复计算（过亮）或遗漏（过暗），MIS 权重保证估计量无偏且方差最小。</li>
+</ol>
+<p>BDPT 是离线渲染的经典算法，理解它是进入更高级渲染技术（MLT、VCM、ReSTIR）的必要基础。</p>
+<hr>
+<p><em>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/03/03-22-bdpt">https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/03/03-22-bdpt</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/03/22/daily-coding-bdpt-2026-03-22/">https://chiuhoukazusa.github.io/2026/03/22/daily-coding-bdpt-2026-03-22/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA/">光线追踪</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%A8%E5%B1%80%E5%85%89%E7%85%A7/">全局光照</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: SPPM 随机渐进光子映射</div></div><div class="info-2"><div class="info-item-1">① 背景与动机为什么需要全局光照？在实时渲染的世界里，我们长期依赖”直接光照 + 环境光假设”来模拟光照效果。这类方法速度快，但有一个根本性缺陷：它忽略了光线在场景中多次弹射的间接照明。 想象一个 Cornell Box——一个封闭的盒子，左墙红色，右墙绿色，天花板有一盏灯。在纯直接光照渲染中，你会看到墙面上均匀涂抹的红色和绿色；但在现实世界（或使用全局光照的渲染器）里，红墙的颜色会”流血”到白色地板和天花板上——这就是颜色渗色（Color Bleeding），是全局光照的典型特征。 此外，当场景中有镜面反射物体或玻璃时，光线可能经过多次折射&#x2F;反射后才照亮某个漫反射表面。直接光照模型根本无法处理这类焦散（Caustics）效果——例如玻璃球下方那一圈明亮的光斑。 全局光照真正解决的问题：  漫反射间接照明（颜色渗色、角落变暗） 焦散（通过玻璃&#x2F;镜面聚焦的光） 柔和阴影的物理正确计算 色调一致性（整个场景的光能守恒）  工业界实际应用全局光照在以下场景中有大量实际应用： 离线渲染（影视&#x2F;动画）：  Pixar 的 RenderMan 使用路径追踪 + ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-21</div><div class="info-item-2">每日编程实践: SPPM 随机渐进光子映射</div></div><div class="info-2"><div class="info-item-1">① 背景与动机为什么需要全局光照？在实时渲染的世界里，我们长期依赖”直接光照 + 环境光假设”来模拟光照效果。这类方法速度快，但有一个根本性缺陷：它忽略了光线在场景中多次弹射的间接照明。 想象一个 Cornell Box——一个封闭的盒子，左墙红色，右墙绿色，天花板有一盏灯。在纯直接光照渲染中，你会看到墙面上均匀涂抹的红色和绿色；但在现实世界（或使用全局光照的渲染器）里，红墙的颜色会”流血”到白色地板和天花板上——这就是颜色渗色（Color Bleeding），是全局光照的典型特征。 此外，当场景中有镜面反射物体或玻璃时，光线可能经过多次折射&#x2F;反射后才照亮某个漫反射表面。直接光照模型根本无法处理这类焦散（Caustics）效果——例如玻璃球下方那一圈明亮的光斑。 全局光照真正解决的问题：  漫反射间接照明（颜色渗色、角落变暗） 焦散（通过玻璃&#x2F;镜面聚焦的光） 柔和阴影的物理正确计算 色调一致性（整个场景的光能守恒）  工业界实际应用全局光照在以下场景中有大量实际应用： 离线渲染（影视&#x2F;动画）：  Pixar 的 RenderMan 使用路径追踪 + ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/28/daily-coding-ambient-occlusion-2026-02-28/" title="每日编程实践: Ambient Occlusion（环境光遮蔽）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-28-ambient-occlusion/ao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-28</div><div class="info-item-2">每日编程实践: Ambient Occlusion（环境光遮蔽）</div></div><div class="info-2"><div class="info-item-1">Ambient Occlusion（环境光遮蔽）环境光遮蔽（AO）是一种近似全局光照效果的技术，通过估算每个表面点被周围几何体遮蔽的程度，模拟出接触阴影、角落变暗等真实感效果。 项目目标 实现基于蒙特卡洛积分的 AO 渲染器 在半球方向随机采样光线，统计遮蔽率 构建包含多个球体和围合墙面的 Cornell Box 场景 量化验证 AO 梯度（角落暗、开阔区域亮）  效果展示 场景细节：  🔵 中央大球：球顶最亮（无遮蔽），底部接地点最暗（地面遮蔽） 🔵 角落小球：被墙角和地面三面遮蔽，明显偏暗 🟫 地面：球体正下方出现接触阴影，物理正确  核心原理蒙特卡洛积分AO 的数学定义是对法线半球上的可见性函数积分： 1AO(p) = (1/π) ∫_Ω V(p, ω) · (ω · N) dω  其中 V(p, ω) 是可见性函数（1&#x3D;未遮蔽，0&#x3D;遮蔽），用蒙特卡洛方法估算： 12345678910111213141516double computeAO(const Vec3&amp; p, const Vec3&amp; N, const Scene&amp;...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/01/daily-coding-BVH-Accelerated-Ray-Tracer-2026-03-01/" title="每日编程实践: BVH 层次包围盒加速光线追踪"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-01-BVH-Accelerated-Ray-Tracer/bvh_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-01</div><div class="info-item-2">每日编程实践: BVH 层次包围盒加速光线追踪</div></div><div class="info-2"><div class="info-item-1">BVH 层次包围盒加速光线追踪项目目标实现 BVH（Bounding Volume Hierarchy，层次包围盒） 加速结构，将暴力 O(n) 的光线-场景求交优化到 O(log n)，并通过实际渲染对比验证性能提升。 这是光线追踪系列（02-06 至今）的重要里程碑——解决了随场景规模增大性能急剧下降的根本问题。 核心概念为什么需要 BVH？朴素光线追踪对每条光线都要遍历场景中所有物体求交，时间复杂度是 O(n)。当场景有 1000 个球体时，每条光线需要做 1000 次求交测试。 BVH 通过构建层次树结构解决这个问题： 12345             [根节点 AABB]            /             \   [左子树 AABB]      [右子树 AABB]   /          \          /       \[球A AABB]  [球B AABB] ...      ...  光线先与包围盒求交（很快），如果不相交就跳过整棵子树，大幅减少无效测试。 实现过程1. AABB 轴对齐包围盒核心是高效的 Slab 方法求交： 1234...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/23/daily-coding-normal-mapping-2026-02-23/" title="每日编程实践: Normal Mapping - 法线贴图"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-23-Normal-Mapping/normal_mapping_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-23</div><div class="info-item-2">每日编程实践: Normal Mapping - 法线贴图</div></div><div class="info-2"><div class="info-item-1">Normal Mapping - 法线贴图项目目标实现法线贴图（Normal Mapping）技术，在光线追踪器中渲染带有法线贴图的球体，展示如何在不增加几何复杂度的情况下增加表面细节。   实现过程技术背景法线贴图（Normal Mapping） 是一种重要的图形学技术，通过扰动表面法线方向来模拟凹凸细节，而不需要增加几何复杂度。这项技术广泛应用于游戏和电影 CG 中，能够在保持高性能的同时大幅提升视觉效果。 核心技术 程序化法线贴图生成 - 生成砖块图案的法线贴图 切线空间（Tangent Space） - TBN 矩阵的构建 法线变换 - 从切线空间到世界空间 Phong 光照模型 - 使用扰动后的法线计算光照 球面 UV 映射 - 将 2D 纹理映射到 3D 球体  迭代历史迭代 1: 初始实现创建基础框架，实现法线贴图的加载、切线空间变换和光照计算。 迭代 2: 修复编译错误问题: Vec3 operator* 类型不匹配 1error: no match for &#x27;operator*&#x27; (operand types are &#x27;Vec3&#...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/03/daily-coding-environment-mapping-skybox-2026-03-03/" title="每日编程实践: Environment Mapping - Cube Map 天空盒渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-03-Environment-Mapping-Skybox/skybox_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-03</div><div class="info-item-2">每日编程实践: Environment Mapping - Cube Map 天空盒渲染</div></div><div class="info-2"><div class="info-item-1">Environment Mapping with Cube Map Skybox今天实现了 立方体贴图（Cube Map） 与 天空盒渲染，并结合光线追踪展示金属&#x2F;玻璃材质的环境反射效果。 项目目标 程序化生成 Cube Map（渐变天空 + 太阳光晕 + 星空） 通过 Cube Map 实现天空盒背景渲染 金属球和玻璃球的环境映射反射&#x2F;折射  渲染结果主场景：天空盒 + 环境反射球 场景包含三个球体：  左侧：黄金金属球（高反射率，暖色调反射周围环境） 中间：玻璃折射球（IOR 1.52，Fresnel 效应混合反射+折射） 右侧：铬金属球（接近完美镜面反射）  Cube Map 展开图 立方体贴图的十字展开，清晰展示了 6 个面（上&#x2F;下&#x2F;左&#x2F;右&#x2F;前&#x2F;后）的天空内容。 实现过程1. Cube Map 数据结构核心是将 3D 方向向量映射到立方体的某个面： 12345678910111213141516Vec3 CubeMap::sample(const Vec3&amp; dir) const &#123; ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/20/daily-coding-texture-mapping-2026-02-20/" title="每日编程实践: 纹理映射光线追踪器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-20</div><div class="info-item-2">每日编程实践: 纹理映射光线追踪器</div></div><div class="info-2"><div class="info-item-1">纹理映射光线追踪器项目目标实现完整的球面UV映射和纹理采样系统，支持在光线追踪器中渲染带纹理的球体。 关键技术：  球面坐标到UV坐标的转换 程序化纹理生成（棋盘格） 材质系统（纹理&#x2F;纯色混合） 基于UV坐标的纹理采样  实现过程迭代历史 初始版本: 一次性实现完成 球面UV映射公式 (sphereUV) 棋盘格纹理生成 (checkerboardTexture) 材质系统 (hasTexture 标志) 量化验证通过    为什么一次成功？  球面UV映射的数学公式已标准化 使用成熟的反三角函数库 严格的量化验证流程  核心代码球面UV映射123456789101112UV sphereUV(const Vec3&amp; point) &#123;    // point 是单位球面上的点    Vec3 p = point.normalize();        // 经度 → u坐标 (使用 atan2 处理方位角)    double u = 0.5 + atan2(p.z, p.x) / (2 * M_PI);        // 纬度 → v坐标 (使用 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">44</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">69</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8D%95%E5%90%91%E8%B7%AF%E5%BE%84%E8%BF%BD%E8%B8%AA%E4%B8%8D%E5%A4%9F%E7%94%A8%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">为什么单向路径追踪不够用？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%96%B9%E7%A8%8B%E5%9B%9E%E9%A1%BE"><span class="toc-number">2.1.</span> <span class="toc-text">渲染方程回顾</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B7%AF%E5%BE%84%E7%A9%BA%E9%97%B4%E4%B8%8E%E6%B5%8B%E5%BA%A6"><span class="toc-number">2.2.</span> <span class="toc-text">路径空间与测度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#BDPT-%E7%9A%84%E7%AD%96%E7%95%A5%E5%88%86%E8%A7%A3"><span class="toc-number">2.3.</span> <span class="toc-text">BDPT 的策略分解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%A4%9A%E9%87%8D%E9%87%8D%E8%A6%81%E6%80%A7%E9%87%87%E6%A0%B7%EF%BC%88MIS%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">多重重要性采样（MIS）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Cornell-Box-%E5%9C%BA%E6%99%AF%E5%85%89%E7%85%A7%E5%88%86%E6%9E%90"><span class="toc-number">2.5.</span> <span class="toc-text">Cornell Box 场景光照分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%B8%E6%9C%BA%E6%A8%A1%E5%9E%8B"><span class="toc-number">3.3.</span> <span class="toc-text">相机模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E5%BB%BA%E7%9B%B8%E6%9C%BA%E8%B7%AF%E5%BE%84"><span class="toc-number">4.1.</span> <span class="toc-text">构建相机路径</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%84%E5%BB%BA%E5%85%89%E6%BA%90%E8%B7%AF%E5%BE%84"><span class="toc-number">4.2.</span> <span class="toc-text">构建光源路径</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%9E%E6%8E%A5%E6%93%8D%E4%BD%9C"><span class="toc-number">4.3.</span> <span class="toc-text">连接操作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Tone-Mapping-%E4%B8%8E%E4%BC%BD%E9%A9%AC%E6%A0%A1%E6%AD%A3"><span class="toc-number">4.4.</span> <span class="toc-text">Tone Mapping 与伽马校正</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9ATone-Mapping-%E7%BC%96%E8%AF%91%E6%8A%A5%E9%94%99"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：Tone Mapping 编译报错</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E5%85%89%E6%BA%90%E6%B3%95%E5%90%91%E9%87%8F%E6%96%B9%E5%90%91"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：光源法向量方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E8%BF%9E%E6%8E%A5%E6%97%B6%E5%90%9E%E5%90%90%E9%87%8F%E5%8F%96%E9%94%99%E9%A1%B6%E7%82%B9"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：连接时吞吐量取错顶点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E9%98%B2%E6%AD%A2-NaN-%E4%BC%A0%E6%92%AD%E5%AF%BC%E8%87%B4%E5%85%A8%E5%B1%8F%E5%99%AA%E7%82%B9"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：防止 NaN 传播导致全屏噪点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%BB%93%E6%9E%9C"><span class="toc-number">6.1.</span> <span class="toc-text">量化验证结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%84%E7%AD%96%E7%95%A5%E7%9A%84%E5%AE%9E%E9%99%85%E8%B4%A1%E7%8C%AE"><span class="toc-number">6.2.</span> <span class="toc-text">各策略的实际贡献</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%8D%95%E5%90%91-PT-%E7%9A%84%E6%AF%94%E8%BE%83"><span class="toc-number">6.3.</span> <span class="toc-text">与单向 PT 的比较</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BD%93%E5%89%8D%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">当前实现的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">7.4.</span> <span class="toc-text">总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/22/daily-coding-bdpt-2026-03-22/" title="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/22/daily-coding-bdpt-2026-03-22/" title="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样">每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样</a><time datetime="2026-03-21T21:30:00.000Z" title="发表于 2026-03-22 05:30:00">2026-03-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SPPM 随机渐进光子映射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射">每日编程实践: SPPM 随机渐进光子映射</a><time datetime="2026-03-20T22:00:00.000Z" title="发表于 2026-03-21 06:00:00">2026-03-21</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-20-spherical-harmonics/sh_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Spherical Harmonics 球谐环境光照"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照">每日编程实践: Spherical Harmonics 球谐环境光照</a><time datetime="2026-03-19T21:36:00.000Z" title="发表于 2026-03-20 05:36:00">2026-03-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/19/daily-coding-Forward-Plus-Rendering-2026-03-19/" title="每日编程实践: Forward+ Rendering (前向+渲染)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-19-Forward-Plus-Rendering/forwardplus_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Forward+ Rendering (前向+渲染)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/19/daily-coding-Forward-Plus-Rendering-2026-03-19/" title="每日编程实践: Forward+ Rendering (前向+渲染)">每日编程实践: Forward+ Rendering (前向+渲染)</a><time datetime="2026-03-18T21:36:00.000Z" title="发表于 2026-03-19 05:36:00">2026-03-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/18/daily-coding-deferred-shading-2026-03-18/" title="每日编程实践: Deferred Shading Renderer 延迟渲染管线"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-18-Deferred-Shading-Renderer/deferred_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Deferred Shading Renderer 延迟渲染管线"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/18/daily-coding-deferred-shading-2026-03-18/" title="每日编程实践: Deferred Shading Renderer 延迟渲染管线">每日编程实践: Deferred Shading Renderer 延迟渲染管线</a><time datetime="2026-03-17T21:35:00.000Z" title="发表于 2026-03-18 05:35:00">2026-03-18</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
