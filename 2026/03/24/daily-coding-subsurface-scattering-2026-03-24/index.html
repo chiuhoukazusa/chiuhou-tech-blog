@@ -1,0 +1,483 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器） | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践 Day 24&#x2F;03: Subsurface Scattering Renderer今天实现了 次表面散射（Subsurface Scattering, SSS） 渲染器。SSS 是让皮肤、玉石、蜡烛等半透明材质看起来真实的关键技术。在此之前，我们用 Lambertian 漫反射模型渲染皮肤，结果往往显得”塑料感十足”——因为真实皮肤的光不是在表面反射的，而是钻进去、在内部散">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践 Day 24&#x2F;03: Subsurface Scattering Renderer今天实现了 次表面散射（Subsurface Scattering, SSS） 渲染器。SSS 是让皮肤、玉石、蜡烛等半透明材质看起来真实的关键技术。在此之前，我们用 Lambertian 漫反射模型渲染皮肤，结果往往显得”塑料感十足”——因为真实皮肤的光不是在表面反射的，而是钻进去、在内部散">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png">
+<meta property="article:published_time" content="2026-03-23T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-03-23T21:38:54.114Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="光照模型">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="渲染">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）",
+  "url": "https://chiuhoukazusa.github.io/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png",
+  "datePublished": "2026-03-23T21:30:00.000Z",
+  "dateModified": "2026-03-23T21:38:54.114Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-03-23T21:30:00.000Z" title="发表于 2026-03-24 05:30:00">2026-03-24</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-03-23T21:38:54.114Z" title="更新于 2026-03-24 05:38:54">2026-03-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践-Day-24-03-Subsurface-Scattering-Renderer"><a href="#每日编程实践-Day-24-03-Subsurface-Scattering-Renderer" class="headerlink" title="每日编程实践 Day 24&#x2F;03: Subsurface Scattering Renderer"></a>每日编程实践 Day 24&#x2F;03: Subsurface Scattering Renderer</h1><p>今天实现了 <strong>次表面散射（Subsurface Scattering, SSS）</strong> 渲染器。SSS 是让皮肤、玉石、蜡烛等半透明材质看起来真实的关键技术。在此之前，我们用 Lambertian 漫反射模型渲染皮肤，结果往往显得”塑料感十足”——因为真实皮肤的光不是在表面反射的，而是钻进去、在内部散射一番再从另一个地方射出来。这正是 SSS 的精髓。</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png" alt="四材质渲染图：皮肤&#x2F;大理石&#x2F;蜡烛&#x2F;玉石"></p>
+<hr>
+<h2 id="一、背景与动机——为什么普通漫反射不够用"><a href="#一、背景与动机——为什么普通漫反射不够用" class="headerlink" title="一、背景与动机——为什么普通漫反射不够用"></a>一、背景与动机——为什么普通漫反射不够用</h2><h3 id="1-1-漫反射模型的假设"><a href="#1-1-漫反射模型的假设" class="headerlink" title="1.1 漫反射模型的假设"></a>1.1 漫反射模型的假设</h3><p>标准的 Lambert&#x2F;Phong&#x2F;PBR 光照模型有一个隐含假设：<strong>光在表面某一点入射，就在那一点反射</strong>。用数学语言说，BRDF（双向反射分布函数）描述的是一个纯粹的表面现象：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Lo(xo, ωo) = ∫ f_r(xo, ωi, ωo) · Li(xo, ωi) · cosθi dωi</span><br></pre></td></tr></table></figure>
+
+<p>注意，入射点和出射点<strong>是同一个点 xo</strong>。这个假设对金属、塑料、光滑漆面非常准确，但对皮肤、大理石、玉石、蜡烛、牛奶却完全错了。</p>
+<h3 id="1-2-光在皮肤里发生了什么"><a href="#1-2-光在皮肤里发生了什么" class="headerlink" title="1.2 光在皮肤里发生了什么"></a>1.2 光在皮肤里发生了什么</h3><p>皮肤是一种多层介质：</p>
+<ul>
+<li><strong>表皮层（Epidermis）</strong>：厚约 0.1mm，含黑色素，强散射</li>
+<li><strong>真皮层（Dermis）</strong>：厚约 1-4mm，含血红素，强吸收红色以外的光</li>
+<li><strong>皮下脂肪层</strong>：高散射低吸收</li>
+</ul>
+<p>光打到皮肤时，一部分在表面发生镜面反射（这就是皮肤的高光），另一部分<strong>折射进入皮肤内部</strong>，经历数百次到数千次的散射和吸收，最终从<strong>入射点周围不同位置</strong>射出来。这个过程可能涉及几毫米到数十毫米的横向扩散。</p>
+<p>这就是为什么手指放在手电筒旁边透射看起来是红色的——皮肤强烈吸收绿色和蓝色，只有红色能穿透传播很远；也是为什么耳朵被灯光从背面照时会透出红色光晕。</p>
+<h3 id="1-3-工业界的使用现状"><a href="#1-3-工业界的使用现状" class="headerlink" title="1.3 工业界的使用现状"></a>1.3 工业界的使用现状</h3><p>SSS 渲染技术在以下场景中是<strong>标配</strong>：</p>
+<ul>
+<li><strong>游戏角色皮肤</strong>：Unreal Engine 5 的角色渲染管线专门有 Subsurface Profile 材质</li>
+<li><strong>影视级渲染</strong>：《阿凡达》、《指环王》等 CG 角色都依赖 SSS 实现真实感皮肤</li>
+<li><strong>医学可视化</strong>：模拟皮肤、组织对激光或光的响应</li>
+<li><strong>食品包装设计</strong>：模拟牛奶、奶酪、水果的外观</li>
+<li><strong>珠宝&#x2F;玉石渲染</strong>：翡翠、白玉的半透明质感</li>
+</ul>
+<hr>
+<h2 id="二、核心原理——从-BRDF-到-BSSRDF"><a href="#二、核心原理——从-BRDF-到-BSSRDF" class="headerlink" title="二、核心原理——从 BRDF 到 BSSRDF"></a>二、核心原理——从 BRDF 到 BSSRDF</h2><h3 id="2-1-BSSRDF-的定义"><a href="#2-1-BSSRDF-的定义" class="headerlink" title="2.1 BSSRDF 的定义"></a>2.1 BSSRDF 的定义</h3><p>为了正确描述次表面散射，Jensen 等人在 2001 年提出了 <strong>BSSRDF（Bidirectional Subsurface Scattering Reflectance Distribution Function）</strong> 的框架。与 BRDF 不同，BSSRDF 允许入射点和出射点不同：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Lo(xo, ωo) = ∫_A ∫_&#123;2π&#125; S(xi, ωi, xo, ωo) · Li(xi, ωi) · cosθi dωi dA</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>xi</code>：光线入射点（在表面 A 上积分）</li>
+<li><code>xo</code>：观察点（我们关心的渲染点）</li>
+<li><code>S(xi, ωi, xo, ωo)</code>：BSSRDF，描述从 xi 方向 ωi 入射的光在 xo 方向 ωo 射出的概率</li>
+<li>积分遍历<strong>整个表面</strong> A，这是与 BRDF 的根本区别</li>
+</ul>
+<p>这个式子的直觉是：xo 处的亮度，是来自<strong>整个表面上所有可能入射点</strong>的贡献之和。</p>
+<h3 id="2-2-Jensen-偶极子模型（Dipole-Approximation）"><a href="#2-2-Jensen-偶极子模型（Dipole-Approximation）" class="headerlink" title="2.2 Jensen 偶极子模型（Dipole Approximation）"></a>2.2 Jensen 偶极子模型（Dipole Approximation）</h3><p>BSSRDF 的完整计算极其昂贵，Jensen 提出了一个基于<strong>扩散方程</strong>的近似模型。</p>
+<p>核心思路：把介质中的散射过程用**热传导方程（扩散方程）**近似。光在散射介质中的传播满足：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">∇²φ(r) - σ_tr² · φ(r) = 0</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>φ</code> 是辐射通量密度，<code>σ_tr</code> 是有效传输系数。</p>
+<p>对这个方程的格林函数（点源响应）求解，就得到了著名的<strong>漫射剖面（Diffusion Profile）</strong> <code>R_d(r)</code>，描述了距入射点距离 r 处的出射辐射密度。</p>
+<h4 id="2-2-1-关键参数"><a href="#2-2-1-关键参数" class="headerlink" title="2.2.1 关键参数"></a>2.2.1 关键参数</h4><p>首先定义几个材质参数：</p>
+<ul>
+<li><code>σ_a</code>：吸收系数（材质吸收光的能力，单位 mm⁻¹）</li>
+<li><code>σ_s</code>：散射系数（散射光的能力）</li>
+<li><code>σ_sp = (1-g)·σ_s</code>：折减散射系数（考虑各向异性后的等效各向同性散射系数，g 是平均余弦&#x2F;相函数参数）</li>
+<li><code>σ_t = σ_a + σ_sp</code>：全消光系数</li>
+<li><code>α&#39; = σ_sp / σ_t</code>：折减单次散射反照率</li>
+</ul>
+<p>有效传输系数反映光在介质中能传播多远：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">σ_tr = sqrt(3 · σ_a · σ_t)</span><br></pre></td></tr></table></figure>
+<p><code>1/σ_tr</code> 就是光的有效传播深度。蜡烛的 <code>σ_tr</code> 小，光能传很远；吸收性强的材质 <code>σ_tr</code> 大，光被快速吸收。</p>
+<h4 id="2-2-2-偶极子公式"><a href="#2-2-2-偶极子公式" class="headerlink" title="2.2.2 偶极子公式"></a>2.2.2 偶极子公式</h4><p>偶极子模型的核心：用一个<strong>真实光源</strong>和一个<strong>虚拟镜像光源</strong>来满足表面边界条件。</p>
+<p>真实光源深度（从表面向内）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">z_r = 1 / σ_t</span><br></pre></td></tr></table></figure>
+
+<p>虚拟光源深度（从表面向外的镜像位置）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">z_v = z_r + 4·A·D   其中 D = 1/(3·σ_t) 为扩散系数</span><br></pre></td></tr></table></figure>
+
+<p><code>A</code> 是边界修正系数，与折射率 η 相关：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">F_dr = (Fresnel内反射系数的漫射近似)</span><br><span class="line">A = (1 + F_dr) / (1 - F_dr)</span><br></pre></td></tr></table></figure>
+
+<p>最终的漫射剖面公式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">R_d(r) = (α&#x27;/(4π)) · [</span><br><span class="line">    z_r · (σ_tr + 1/d_r) · exp(-σ_tr · d_r) / d_r²  +</span><br><span class="line">    z_v · (σ_tr + 1/d_v) · exp(-σ_tr · d_v) / d_v²</span><br><span class="line">]</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">d_r = sqrt(r² + z_r²)   // 到真实光源的距离</span><br><span class="line">d_v = sqrt(r² + z_v²)   // 到虚拟光源的距离</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉解释</strong>：</p>
+<ul>
+<li>第一项是真实光源的贡献：光从表面进入，在深度 z_r 处扩散，然后向上传播距离 d_r 射出</li>
+<li>第二项是虚拟光源（负值）修正边界条件：防止光从表面”逃逸”到外部介质</li>
+<li><code>exp(-σ_tr · d)</code> 表示光在传播过程中因吸收而衰减</li>
+<li><code>z·(σ_tr + 1/d)/d²</code> 是扩散方程的格林函数导数形式</li>
+</ul>
+<p>这个函数描述的是一个<strong>钟形曲线</strong>：在 r&#x3D;0 处最大（对应入射点正上方），随 r 增大指数衰减。散射强、吸收弱的材质（如蜡烛）衰减慢，散射效果明显；吸收强的材质衰减快。</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_diffusion_profile.png" alt="漫射剖面 R_d(r) 曲线：不同材质的对比"></p>
+<h3 id="2-3-Fresnel-折射率修正"><a href="#2-3-Fresnel-折射率修正" class="headerlink" title="2.3 Fresnel 折射率修正"></a>2.3 Fresnel 折射率修正</h3><p><code>F_dr</code>（Fresnel 漫射反射率）用来处理光在介质表面的折射。当 η≥1 时，使用 Jensen 的多项式近似：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">F_dr = -1.44/η² + 0.71/η + 0.668 + 0.0636·η</span><br></pre></td></tr></table></figure>
+<p>当 η&lt;1 时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">F_dr = -0.4399 + 0.7099/η - 0.3319/η² + 0.0636/η³</span><br></pre></td></tr></table></figure>
+<p>这个近似在折射率 η ∈ [1.0, 2.0] 范围内误差小于 1%，足够实用。</p>
+<h3 id="2-4-Monte-Carlo-表面积分"><a href="#2-4-Monte-Carlo-表面积分" class="headerlink" title="2.4 Monte Carlo 表面积分"></a>2.4 Monte Carlo 表面积分</h3><p>漫射剖面 <code>R_d(r)</code> 给了我们每个入射点的贡献权重，实际计算还需要在整个表面上积分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">L_sss(xo) = ∫_A R_d(|xi - xo|) · Li(xi) · dA(xi)</span><br></pre></td></tr></table></figure>
+
+<p>我们用 Monte Carlo 方法在球面上均匀采样 N 个入射点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">L_sss ≈ (1/N) · Σ R_d(|xi - xo|) · Li(xi) · (面积 / 采样密度)</span><br><span class="line">       = Area · (1/N) · Σ R_d(|xi - xo|) · Li(xi)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[相机光线] → [场景求交] → [命中SSS球]</span><br><span class="line">                              ↓</span><br><span class="line">                    [计算直接光照 (Blinn-Phong)]</span><br><span class="line">                              +</span><br><span class="line">                    [Monte Carlo 表面积分 SSS]</span><br><span class="line">                              ↓</span><br><span class="line">                    [混合直接光照 + SSS 贡献]</span><br><span class="line">                              ↓</span><br><span class="line">                    [ACES 色调映射 + Gamma 校正]</span><br><span class="line">                              ↓</span><br><span class="line">                         [写入 PPM]</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><p><strong>SSSMaterial</strong>：封装所有 SSS 相关参数及推导方法</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">SSSMaterial</span> &#123;</span><br><span class="line">    Vec3 sigma_a;    <span class="comment">// 吸收系数（RGB 三通道独立）</span></span><br><span class="line">    Vec3 sigma_sp;   <span class="comment">// 折减散射系数</span></span><br><span class="line">    <span class="type">double</span> eta;      <span class="comment">// 折射率</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 导出参数（按需计算）</span></span><br><span class="line">    <span class="function">Vec3 <span class="title">sigma_t</span><span class="params">()</span>   <span class="type">const</span> </span>&#123; <span class="keyword">return</span> sigma_a + sigma_sp; &#125;</span><br><span class="line">    <span class="function">Vec3 <span class="title">sigma_tr</span><span class="params">()</span>  <span class="type">const</span> </span>&#123; <span class="comment">/* sqrt(3*σ_a*σ_t) 逐通道 */</span> &#125;</span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">Fdr</span><span class="params">()</span>     <span class="type">const</span> </span>&#123; <span class="comment">/* Fresnel 多项式近似 */</span> &#125;</span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">A</span><span class="params">()</span>       <span class="type">const</span> </span>&#123; <span class="keyword">return</span> (<span class="number">1</span> + <span class="built_in">Fdr</span>()) / (<span class="number">1</span> - <span class="built_in">Fdr</span>()); &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 核心：漫射剖面</span></span><br><span class="line">    <span class="function">Vec3 <span class="title">Rd</span><span class="params">(<span class="type">double</span> r)</span> <span class="type">const</span> </span>&#123; <span class="comment">/* 偶极子公式 */</span> &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设计理由</strong>：三通道独立处理是因为皮肤在红绿蓝波段的散射&#x2F;吸收特性差异很大。比如皮肤 σ_a 在蓝色通道远大于红色通道，导致散射出来的光偏红色。</p>
+<h3 id="3-3-渲染管线的职责划分"><a href="#3-3-渲染管线的职责划分" class="headerlink" title="3.3 渲染管线的职责划分"></a>3.3 渲染管线的职责划分</h3><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>CPU 侧</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>场景求交</td>
+<td>Sphere::intersect</td>
+<td>简单球体析解法</td>
+</tr>
+<tr>
+<td>直接光照</td>
+<td>directLighting()</td>
+<td>Blinn-Phong，含阴影测试</td>
+</tr>
+<tr>
+<td>SSS 积分</td>
+<td>computeSSS()</td>
+<td>Monte Carlo，球面均匀采样</td>
+</tr>
+<tr>
+<td>混合</td>
+<td>renderPixel()</td>
+<td><code>result = direct * (1-w) + sss * w</code></td>
+</tr>
+<tr>
+<td>后处理</td>
+<td>Image::savePPM()</td>
+<td>ACES Tonemapping + Gamma 2.2</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-偶极子漫射剖面实现"><a href="#4-1-偶极子漫射剖面实现" class="headerlink" title="4.1 偶极子漫射剖面实现"></a>4.1 偶极子漫射剖面实现</h3><p>这是整个系统的核心，每个通道独立计算：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">Rd</span><span class="params">(<span class="type">double</span> r)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    Vec3 st = <span class="built_in">sigma_t</span>();</span><br><span class="line">    Vec3 sp = sigma_sp;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// alpha&#x27; = sigma_sp / sigma_t（折减单次散射反照率）</span></span><br><span class="line">    <span class="comment">// 这个比值控制材质的&quot;散射强度&quot;</span></span><br><span class="line">    Vec3 alphap = <span class="built_in">Vec3</span>(sp.x/st.x, sp.y/st.y, sp.z/st.z);</span><br><span class="line"></span><br><span class="line">    Vec3 sigtr = <span class="built_in">sigma_tr</span>();  <span class="comment">// 有效传输系数</span></span><br><span class="line">    <span class="type">double</span> a = <span class="built_in">A</span>();           <span class="comment">// 边界修正系数</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 偶极子深度（真实/虚拟光源到表面的距离）</span></span><br><span class="line">    <span class="comment">// z_r = 1/sigma_t 是散射平均自由程</span></span><br><span class="line">    Vec3 zr = <span class="built_in">Vec3</span>(<span class="number">1.0</span>/st.x, <span class="number">1.0</span>/st.y, <span class="number">1.0</span>/st.z);</span><br><span class="line">    <span class="comment">// z_v 通过扩散长度 D = 1/(3*sigma_t) 修正</span></span><br><span class="line">    Vec3 D = <span class="built_in">Vec3</span>(<span class="number">1.0</span>/(<span class="number">3.0</span>*st.x), <span class="number">1.0</span>/(<span class="number">3.0</span>*st.y), <span class="number">1.0</span>/(<span class="number">3.0</span>*st.z));</span><br><span class="line">    Vec3 zv = <span class="built_in">Vec3</span>(zr.x + <span class="number">4.0</span>*a*D.x, zr.y + <span class="number">4.0</span>*a*D.y, zr.z + <span class="number">4.0</span>*a*D.z);</span><br><span class="line"></span><br><span class="line">    Vec3 result;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">        <span class="type">double</span> sc  = <span class="comment">/* sigma_tr for channel c */</span>;</span><br><span class="line">        <span class="type">double</span> zcr = <span class="comment">/* zr for channel c */</span>;</span><br><span class="line">        <span class="type">double</span> zcv = <span class="comment">/* zv for channel c */</span>;</span><br><span class="line">        <span class="type">double</span> alc = <span class="comment">/* alphap for channel c */</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 到真实/虚拟光源的欧式距离</span></span><br><span class="line">        <span class="type">double</span> d_r = std::<span class="built_in">sqrt</span>(r*r + zcr*zcr);</span><br><span class="line">        <span class="type">double</span> d_v = std::<span class="built_in">sqrt</span>(r*r + zcv*zcv);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 偶极子公式：真实项 - 虚拟项（确保边界 R_d(0) 最大）</span></span><br><span class="line">        <span class="type">double</span> term_r = zcr * (sc + <span class="number">1.0</span>/d_r) * std::<span class="built_in">exp</span>(-sc * d_r) / (d_r * d_r);</span><br><span class="line">        <span class="type">double</span> term_v = zcv * (sc + <span class="number">1.0</span>/d_v) * std::<span class="built_in">exp</span>(-sc * d_v) / (d_v * d_v);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 最终贡献：α&#x27;/(4π) * (term_r + term_v)</span></span><br><span class="line">        result[c] = (alc / (<span class="number">4.0</span> * M_PI)) * (term_r + term_v);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐步解析</strong>：</p>
+<ol>
+<li><code>z_r = 1/σ_t</code>：光的散射平均自由程，代表光在被散射之前平均能走多远</li>
+<li><code>d_r = sqrt(r² + z_r²)</code>：出射点到真实光源的三维距离（x-y 平面距离 r，深度 z_r）</li>
+<li><code>exp(-σ_tr · d_r)</code>：Beer-Lambert 定律，光在传播 d_r 距离后的衰减</li>
+<li><code>(σ_tr + 1/d_r) / d_r²</code>：扩散方程格林函数的梯度项，描述辐射通量的距离依赖性</li>
+<li>虚拟项 term_v 与真实项符号相同（都是正数），但因为 <code>d_v &gt; d_r</code> 所以 term_v &lt; term_r，净效果是<strong>减小靠近表面的贡献</strong>，满足表面边界条件</li>
+</ol>
+<h3 id="4-2-Monte-Carlo-SSS-积分"><a href="#4-2-Monte-Carlo-SSS-积分" class="headerlink" title="4.2 Monte Carlo SSS 积分"></a>4.2 Monte Carlo SSS 积分</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">computeSSS</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> Scene&amp; scene,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> Sphere&amp; sphere,    <span class="comment">// 被渲染的球体</span></span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> Vec3&amp; xo,          <span class="comment">// 观察点（出射点）</span></span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> Vec3&amp; no,          <span class="comment">// 出射点法线</span></span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> SSSMaterial&amp; mat,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">int</span> sampleCount</span></span></span><br><span class="line"><span class="params"><span class="function">)</span> </span>&#123;</span><br><span class="line">    Vec3 result;</span><br><span class="line">    <span class="type">double</span> r = sphere.radius;</span><br><span class="line">    <span class="comment">// 积分权重 = 球面面积（均匀采样的 PDF = 1/Area，蒙特卡洛权重 = Area）</span></span><br><span class="line">    <span class="type">double</span> area = <span class="number">4.0</span> * M_PI * r * r;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; sampleCount; i++) &#123;</span><br><span class="line">        <span class="comment">// Step 1: 在球面均匀采样入射点 xi</span></span><br><span class="line">        Vec3 localDir = <span class="built_in">uniformSampleSphere</span>();</span><br><span class="line">        Vec3 xi = sphere.center + localDir * r;</span><br><span class="line">        Vec3 ni = localDir;  <span class="comment">// 球面上法线 = 归一化位置向量</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// Step 2: 计算 xi 处的直接光照（入射辐射 Li）</span></span><br><span class="line">        Vec3 Li;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; light : scene.lights) &#123;</span><br><span class="line">            <span class="keyword">if</span> (!scene.<span class="built_in">inShadow</span>(xi + ni * <span class="number">1e-3</span>, light.pos)) &#123;</span><br><span class="line">                Vec3 ld = (light.pos - xi).<span class="built_in">norm</span>();</span><br><span class="line">                <span class="type">double</span> ndotl = std::<span class="built_in">max</span>(<span class="number">0.0</span>, ni.<span class="built_in">dot</span>(ld));</span><br><span class="line">                <span class="type">double</span> dist2 = (light.pos - xi).<span class="built_in">length2</span>();</span><br><span class="line">                <span class="comment">// 点光源辐照度：I * cosθ / r²</span></span><br><span class="line">                Li += light.color * (light.intensity * ndotl / dist2);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Step 3: 计算 xi 到 xo 的距离</span></span><br><span class="line">        <span class="type">double</span> dist = (xi - xo).<span class="built_in">length</span>();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Step 4: 漫射剖面权重 R_d(dist)</span></span><br><span class="line">        Vec3 Rd = mat.<span class="built_in">Rd</span>(dist);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Step 5: 入射点到出射点的方向一致性权重</span></span><br><span class="line">        <span class="comment">// 只有 xi 和 xo 在同侧（法线方向相近）时才有贡献</span></span><br><span class="line">        Vec3 contribution = Rd * Li * (area / sampleCount);</span><br><span class="line">        result += contribution * std::<span class="built_in">max</span>(<span class="number">0.0</span>, no.<span class="built_in">dot</span>(ni) * <span class="number">0.5</span> + <span class="number">0.5</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 除以 π 是 Lambert 漫反射的归一化因子</span></span><br><span class="line">    <span class="keyword">return</span> result * (<span class="number">1.0</span> / M_PI);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要乘以 <code>no.dot(ni) * 0.5 + 0.5</code>？</strong></p>
+<p>这是一个软性的方向一致性权重。如果 xi 在球的正后方（ni 与 no 反向），贡献为 0；如果 xi 在同侧（ni ≈ no），贡献最大为 1。<code>*0.5 + 0.5</code> 把范围从 [-1,1] 映射到 [0,1]，避免完全截断而产生硬接缝。</p>
+<h3 id="4-3-材质参数定义"><a href="#4-3-材质参数定义" class="headerlink" title="4.3 材质参数定义"></a>4.3 材质参数定义</h3><p>真实材质参数来自 Jensen 2001 年论文 Table 2（单位 mm⁻¹）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">SSSMaterial <span class="title">skin</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        &#123;<span class="number">0.032</span>, <span class="number">0.17</span>,  <span class="number">0.48</span> &#125;,  <span class="comment">// sigma_a: 红通道吸收最低（所以皮肤透出红光）</span></span><br><span class="line">        &#123;<span class="number">0.74</span>,  <span class="number">0.88</span>,  <span class="number">1.01</span> &#125;,  <span class="comment">// sigma_sp: 高散射系数（皮肤是强散射介质）</span></span><br><span class="line">        <span class="number">1.4</span>,                     <span class="comment">// eta: 皮肤折射率</span></span><br><span class="line">        &#123;<span class="number">0.9</span>, <span class="number">0.7</span>, <span class="number">0.6</span>&#125;         <span class="comment">// 漫反射颜色</span></span><br><span class="line">    &#125;;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">SSSMaterial <span class="title">marble</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">        &#123;<span class="number">0.0021</span>, <span class="number">0.0041</span>, <span class="number">0.0071</span>&#125;,  <span class="comment">// sigma_a: 非常小（大理石几乎不吸收）</span></span><br><span class="line">        &#123;<span class="number">2.19</span>, <span class="number">2.62</span>, <span class="number">3.00</span>&#125;,        <span class="comment">// sigma_sp: 非常大（大理石是强散射介质）</span></span><br><span class="line">        <span class="number">1.5</span>,</span><br><span class="line">        &#123;<span class="number">0.9</span>, <span class="number">0.9</span>, <span class="number">0.85</span>&#125;</span><br><span class="line">    &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>参数对散射效果的影响分析</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>材质</th>
+<th>σ_a</th>
+<th>σ_sp</th>
+<th>效果描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>皮肤</td>
+<td>中等（蓝&gt;红）</td>
+<td>高</td>
+<td>红色偏移，柔和散射边缘</td>
+</tr>
+<tr>
+<td>大理石</td>
+<td>极低</td>
+<td>极高</td>
+<td>大范围散射，近乎半透明</td>
+</tr>
+<tr>
+<td>蜡烛</td>
+<td>低</td>
+<td>中等</td>
+<td>暖黄色调，蜡质半透明感</td>
+</tr>
+<tr>
+<td>玉石</td>
+<td>低（红&gt;绿）</td>
+<td>中等</td>
+<td>绿色偏移，玉质感</td>
+</tr>
+</tbody></table>
+<h3 id="4-4-ACES-色调映射实现"><a href="#4-4-ACES-色调映射实现" class="headerlink" title="4.4 ACES 色调映射实现"></a>4.4 ACES 色调映射实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 渲染结果是 HDR（High Dynamic Range），需要映射到 [0,1] 范围</span></span><br><span class="line"><span class="keyword">auto</span> tonemapACES = [](<span class="type">double</span> v) &#123;</span><br><span class="line">    <span class="comment">// ACES Filmic 曲线的近似（Hill 2016）</span></span><br><span class="line">    <span class="comment">// 公式：(v*(a*v+b)) / (v*(c*v+d)+e)</span></span><br><span class="line">    <span class="type">double</span> a = <span class="number">2.51</span>, b = <span class="number">0.03</span>, c = <span class="number">2.43</span>, d = <span class="number">0.59</span>, e = <span class="number">0.14</span>;</span><br><span class="line">    <span class="keyword">return</span> (v*(a*v+b)) / (v*(c*v+d)+e);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么不用简单的 clamp(v, 0, 1)？</strong></p>
+<p>SSS 积分的结果可能在高光区域超过 1.0（HDR 值）。简单 clamp 会导致高光区域完全饱和、失去细节。ACES 曲线在暗部接近线性，在亮部平滑压缩，保留了高光层次感，同时避免了过爆区域的完全饱和。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="坑-1：偶极子公式符号错误导致全黑"><a href="#坑-1：偶极子公式符号错误导致全黑" class="headerlink" title="坑 1：偶极子公式符号错误导致全黑"></a>坑 1：偶极子公式符号错误导致全黑</h3><p><strong>症状</strong>：渲染结果四个球全黑，仅边缘有微弱高光。</p>
+<p><strong>错误假设</strong>：以为虚拟项应该用减法（负号），即 <code>term_r - term_v</code>，因为虚拟光源是”负光源”用来满足边界条件。</p>
+<p><strong>真实原因</strong>：在 Jensen 的推导中，虚拟光源与真实光源都位于表面同侧（虚拟源在表面外侧），两项都是<strong>正数</strong>相加。是真实源的 <code>z_r</code> 与虚拟源的 <code>z_v</code> 的位置关系（<code>z_v &gt; z_r</code>）导致了虚拟项贡献较小，而不是通过负号来”抵消”。</p>
+<p><strong>修复方式</strong>：将 <code>term_r - term_v</code> 改为 <code>term_r + term_v</code>，立即得到了正确的散射晕光效果。</p>
+<p><strong>教训</strong>：实现物理公式时，要仔细分辨”虚拟”的含义。偶极子的”虚拟光源”在电磁学中确实是负号的，但在光子扩散方程框架下，边界条件的满足方式不同，两项均为正。</p>
+<h3 id="坑-2：SSS-权重与直接光照混合比例失调"><a href="#坑-2：SSS-权重与直接光照混合比例失调" class="headerlink" title="坑 2：SSS 权重与直接光照混合比例失调"></a>坑 2：SSS 权重与直接光照混合比例失调</h3><p><strong>症状</strong>：渲染结果中，皮肤球看起来和普通漫反射没有区别，完全看不出 SSS 效果。</p>
+<p><strong>错误假设</strong>：默认将 SSS 权重设为 0.1，认为大部分光照来自表面反射。</p>
+<p><strong>真实原因</strong>：SSS 的表面积分（64个采样点）覆盖了整个球面，所以总 SSS 贡献量其实非常大，但如果权重 0.1 太小就完全被直接光照淹没了。反之，如果 SSS 权重过高（&gt;0.8），场景会显得过于”发光”，失去高光细节。</p>
+<p><strong>修复方式</strong>：通过多次试验，将 SSS 权重设定为 0.6（直接光照 0.4），这在保留表面高光的同时让 SSS 透射效果明显可见。</p>
+<p><strong>教训</strong>：SSS 权重的调节类似 PBR 中金属度&#x2F;粗糙度的调节，没有唯一”正确”值，需要根据材质和光照环境调整。实际生产中通常通过艺术家调参+物理测量数据结合的方式确定。</p>
+<h3 id="坑-3：均匀球面采样方法错误"><a href="#坑-3：均匀球面采样方法错误" class="headerlink" title="坑 3：均匀球面采样方法错误"></a>坑 3：均匀球面采样方法错误</h3><p><strong>症状</strong>：采样点大量聚集在球的两极，赤道附近采样不足，SSS 效果在顶底强、两侧弱，出现明显的垂直条纹。</p>
+<p><strong>错误假设</strong>：用 <code>θ = randF()*π, φ = randF()*2π</code> 直接采样球面坐标。</p>
+<p><strong>真实原因</strong>：球坐标系中面积元是 <code>dA = sinθ · dθ · dφ</code>，直接均匀采样 <code>(θ, φ)</code> 会导致极点附近面积被过采样。在极点附近，小角度变化对应的表面面积很小，但采样数量与赤道相同。</p>
+<p><strong>修复方式</strong>：使用正确的均匀球面采样公式：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">uniformSampleSphere</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> u = <span class="built_in">randF</span>(), v = <span class="built_in">randF</span>();</span><br><span class="line">    <span class="type">double</span> theta = <span class="number">2.0</span> * M_PI * u;</span><br><span class="line">    <span class="comment">// cosφ 均匀分布等价于 φ 的正确面积采样</span></span><br><span class="line">    <span class="type">double</span> phi = std::<span class="built_in">acos</span>(<span class="number">1.0</span> - <span class="number">2.0</span> * v);</span><br><span class="line">    <span class="keyword">return</span> &#123;<span class="built_in">sin</span>(phi)*<span class="built_in">cos</span>(theta), <span class="built_in">sin</span>(phi)*<span class="built_in">sin</span>(theta), <span class="built_in">cos</span>(phi)&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>关键是用 <code>cos(φ) = 1 - 2v</code>（即 <code>φ = acos(1-2v)</code>）而不是 <code>φ = v*π</code>。</p>
+<h3 id="坑-4：缺少-lm-链接导致链接错误"><a href="#坑-4：缺少-lm-链接导致链接错误" class="headerlink" title="坑 4：缺少 -lm 链接导致链接错误"></a>坑 4：缺少 -lm 链接导致链接错误</h3><p><strong>症状</strong>：<code>g++ main.cpp -o output -std=c++17 -O2</code> 链接失败，提示找不到 <code>sqrt</code>、<code>exp</code> 等数学函数符号。</p>
+<p><strong>原因</strong>：在 Linux 上，<code>&lt;cmath&gt;</code> 中的数学函数实现在 libm（数学库）中，需要显式用 <code>-lm</code> 链接。macOS 和 Windows 上通常不需要，但 Linux 严格要求。</p>
+<p><strong>修复</strong>：在编译命令末尾加上 <code>-lm</code> 即可。</p>
+<p><strong>教训</strong>：Linux 下编写图形学代码，编译命令模板应该是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra -lm</span><br></pre></td></tr></table></figure>
+<p>这个 <code>-lm</code> 要变成肌肉记忆。</p>
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="6-1-渲染图分析"><a href="#6-1-渲染图分析" class="headerlink" title="6.1 渲染图分析"></a>6.1 渲染图分析</h3><p><strong>主渲染图（1024×512，4xAA，64 SSS 采样&#x2F;像素）</strong>：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png" alt="四材质渲染图"></p>
+<p>从左到右依次是：皮肤（Skin）、大理石（Marble）、蜡烛（Wax）、玉石（Jade）。</p>
+<p>可以观察到明显的材质差异：</p>
+<ul>
+<li><strong>皮肤</strong>：边缘有明显的红色散射晕（因为 σ_a 红通道最小，红光传播最远）</li>
+<li><strong>大理石</strong>：整体几乎半透明，散射范围最大（σ_sp 高达 2.19-3.00 mm⁻¹）</li>
+<li><strong>蜡烛</strong>：暖黄色调，散射范围中等</li>
+<li><strong>玉石</strong>：偏绿色调，SSS 赋予了玉质感</li>
+</ul>
+<p><strong>皮肤特写（512×512）</strong>：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_skin_closeup.png" alt="皮肤球特写"></p>
+<h3 id="6-2-量化验证数据"><a href="#6-2-量化验证数据" class="headerlink" title="6.2 量化验证数据"></a>6.2 量化验证数据</h3><p>像素统计验证（验证脚本输出）：</p>
+<table>
+<thead>
+<tr>
+<th>图像</th>
+<th>分辨率</th>
+<th>均值</th>
+<th>标准差</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>sss_output.png</td>
+<td>1024×512</td>
+<td>143.2</td>
+<td>58.5</td>
+<td>✅ 正常</td>
+</tr>
+<tr>
+<td>sss_skin_closeup.png</td>
+<td>512×512</td>
+<td>143.6</td>
+<td>59.1</td>
+<td>✅ 正常</td>
+</tr>
+<tr>
+<td>sss_diffusion_profile.png</td>
+<td>800×400</td>
+<td>70.2</td>
+<td>17.1</td>
+<td>✅ 正常</td>
+</tr>
+</tbody></table>
+<p>验证标准：均值 10-240（非全黑&#x2F;全白），标准差 &gt; 5（有内容变化）。三张图均通过。</p>
+<h3 id="6-3-漫射剖面曲线分析"><a href="#6-3-漫射剖面曲线分析" class="headerlink" title="6.3 漫射剖面曲线分析"></a>6.3 漫射剖面曲线分析</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_diffusion_profile.png" alt="漫射剖面 R_d(r) 四材质对比"></p>
+<p>曲线显示：</p>
+<ul>
+<li><strong>大理石</strong>（蓝紫色）：衰减最慢，散射半径最大，这与大理石 σ_a 极低的参数一致</li>
+<li><strong>皮肤</strong>（橙红色）：中等衰减速率</li>
+<li><strong>蜡烛&#x2F;玉石</strong>：类似的衰减曲线，主要差别体现在颜色通道比例上</li>
+</ul>
+<h3 id="6-4-性能数据"><a href="#6-4-性能数据" class="headerlink" title="6.4 性能数据"></a>6.4 性能数据</h3><table>
+<thead>
+<tr>
+<th>渲染配置</th>
+<th>分辨率</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AA&#x3D;4, SSS&#x3D;64</td>
+<td>1024×512</td>
+<td>~95s</td>
+</tr>
+<tr>
+<td>AA&#x3D;4, SSS&#x3D;64（特写）</td>
+<td>512×512</td>
+<td>~25s</td>
+</tr>
+</tbody></table>
+<p>SSS 每像素需要 4（AA）× 64（SSS 采样）&#x3D; 256 次球面积分点，每次还需要做光照计算和阴影测试，所以速度较慢。实际引擎中会用预积分纹理（Pre-integrated SSS）或屏幕空间技术来加速。</p>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><ol>
+<li><p><strong>表面积分效率低</strong>：当前实现是对整个球面均匀积分，时间复杂度 O(N·M)（N 是像素数，M 是 SSS 采样数）。实际中 <code>R_d(r)</code> 随距离快速衰减，大多数采样点的贡献接近 0，是严重的浪费。</p>
+</li>
+<li><p><strong>仅适用于凸几何体</strong>：偶极子模型假设介质是半无限平面，对球体等凸体近似尚可，但对凹形物体（如耳孔、鼻腔内壁）会失真——真实情况下光不应该穿越空气间隙，但模型会允许。</p>
+</li>
+<li><p><strong>不支持各向异性散射</strong>：真实皮肤中的散射有一定方向偏好（前向散射），我们用折减散射系数 σ_sp 折算成了等效各向同性，这是一个近似。</p>
+</li>
+<li><p><strong>单层介质模型</strong>：真实皮肤是多层的（表皮&#x2F;真皮&#x2F;脂肪），偶极子模型只处理单层均匀介质。多层 SSS 需要用”多极子”（Multipole）扩展。</p>
+</li>
+</ol>
+<h3 id="7-2-可优化的方向"><a href="#7-2-可优化的方向" class="headerlink" title="7.2 可优化的方向"></a>7.2 可优化的方向</h3><ol>
+<li><p><strong>预积分 SSS 纹理（Pre-integrated SSS）</strong>：游戏引擎常用方法——预计算一张 2D 纹理，索引为 <code>(dot(N,L), 曲率)</code>，把 SSS 积分结果存在纹理里，渲染时直接查表，性能提升 100x 以上。</p>
+</li>
+<li><p><strong>屏幕空间 SSS（SSSSS）</strong>：在屏幕空间对像素做高斯模糊（对应不同颜色通道用不同半径），能以 O(W×H) 的开销近似 SSS，是 AAA 游戏的常用方案。</p>
+</li>
+<li><p><strong>重要性采样</strong>：不均匀采样整个表面，而是用 <code>R_d(r)</code> 作为概率密度函数进行重要性采样，将大量采样集中在对结果贡献显著的区域（入射点周围），可以大幅减少所需采样数。</p>
+</li>
+<li><p><strong>GPU 加速</strong>：SSS 积分天然适合并行，每个像素独立计算，可以用 CUDA&#x2F;Vulkan Compute Shader 加速。</p>
+</li>
+</ol>
+<h3 id="7-3-与本系列的关联"><a href="#7-3-与本系列的关联" class="headerlink" title="7.3 与本系列的关联"></a>7.3 与本系列的关联</h3><ul>
+<li>前天（03-22）实现的 <strong>BDPT</strong> 从全局光照角度处理多次弹射，与 SSS 的多次内部散射在概念上同源，都是描述光的多次交互</li>
+<li>昨天（03-23）的 <strong>Voxel Cone Tracing</strong> 使用体素化近似全局光照，与 SSS 同样属于”把光的传输简化为可计算的近似”的思路</li>
+<li>后续可以尝试把 SSS 与 <strong>延迟渲染（03-18）</strong> 结合，实现 Screen-Space Subsurface Scattering</li>
+</ul>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>Jensen et al. “A Practical Model for Subsurface Light Transport.” SIGGRAPH 2001.</li>
+<li>d’Eon &amp; Luebke. “Advanced Techniques for Realistic Real-Time Skin Rendering.” GPU Gems 3.</li>
+<li>Jimenez et al. “Practical Real-Time Strategies for Accurate Indirect Occlusion.” SIGGRAPH 2014.</li>
+<li>本项目代码：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/03/03-24-subsurface-scattering">GitHub - daily-coding-practice&#x2F;2026&#x2F;03&#x2F;03-24-subsurface-scattering</a></li>
+</ol>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/">https://chiuhoukazusa.github.io/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%B8%B2%E6%9F%93/">渲染</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E7%85%A7%E6%A8%A1%E5%9E%8B/">光照模型</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-23-voxel-cone-tracing/vct_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机全局光照的工程困境光线追踪可以精确计算全局光照（Global Illumination，GI），但在实时渲染场景下代价极高。渲染一帧 1080P 图像，路径追踪往往需要每像素几十甚至上百条路径才能收敛——这对于 60FPS 的游戏来说显然不现实。 游戏引擎里用了哪些方案来”作弊”？  光照贴图（Lightmap）：离线烘焙，无法响应动态物体 Irradiance Volume（光照探针）：动态性好，但空间分辨率有限 SSAO（屏幕空间环境光遮蔽）：只用屏幕信息，遮蔽范围受限 Lumen（UE5）：混合 SDF 追踪 + Radiance Cache，非常复杂  2011 年，Cyril Crassin 等人提出了 Voxel Cone Tracing（VCT），发表在 SIGGRAPH 论文”Interactive Indirect Illumination Using Voxel Cone Tracing”中。VCT 的核心思想是：  把场景体素化成一个带 Mipmap 的 3D 纹理，然后在着色时沿锥形方向”扫描”这个 3D 纹理，近似计算来自各方向的间接辐射度...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/13/daily-coding-ssao-screen-space-ambient-occlusion-2026-03-13/" title="每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-13-SSAO/ssao_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-13</div><div class="info-item-2">每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽</div></div><div class="info-2"><div class="info-item-1">SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽今天实现了 SSAO（Screen Space Ambient Occlusion）——现代实时渲染管线中最重要的后处理技术之一。从 Crysis（2007）开始被引入游戏工业，此后成为 UE、Unity 等引擎的标配功能，也是《赛博朋克 2077》、《荒野大镖客2》等 AAA 游戏中真实感的重要来源。 本项目在纯 CPU + 软光栅化器上从零实现完整的 SSAO 管线，不依赖 GPU 或任何图形 API，完整掌控每个数学细节。   为什么需要 SSAO？传统环境光的问题实时渲染中，处理全局光照（Global Illumination）在计算上开销极大。最简单的近似是用一个常数环境光项代替所有间接光照： 1ambient = albedo × k_a × L_ambient  这意味着场景中所有点受到同样强度的环境光，结果是球体底部贴地处和空旷的墙面获得完全相同的环境光强度——不真实，缺乏层次感。 现实中，环境光不是均匀到达的：  狭窄缝隙里的光线被周围几何体阻挡 凹陷区域（角落、裂缝）...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-20-spherical-harmonics/sh_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-20</div><div class="info-item-2">每日编程实践: Spherical Harmonics 球谐环境光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机：为什么需要球谐函数？环境光照的困境实时渲染有一道绕不过去的坎：如何高效地表示整个球面上的环境光照，并在每个着色点快速计算它对漫反射的贡献？ 最直接的办法是蒙特卡洛积分——对每个着色点，在半球上采样数百个方向，取环境光加权平均： $$E(n) &#x3D; \int_{\Omega} L(\omega) \max(0, n \cdot \omega) , d\omega \approx \frac{1}{N} \sum_{i&#x3D;1}^{N} L(\omega_i) \max(0, n \cdot \omega_i)$$ 问题在于：1080P 下有两百万像素，每像素哪怕只采样 64 次，每帧就要做 1.28 亿次环境贴图采样。这在实时场景根本行不通。 工业界的标准答案：球谐函数UE4&#x2F;UE5 的 Indirect Lighting Cache、Sky Light 全都基于 L2 球谐函数（9个系数）。Unity 的 Light Probes 同样如此。寒霜引擎、Frostbite 也把 SH 作为环境漫反射光照的核心表示。 原因很简单：Lambert...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/11/daily-coding-taa-temporal-anti-aliasing-2026-03-11/" title="每日编程实践: TAA 时域抗锯齿渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-11-taa-temporal-anti-aliasing/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-11</div><div class="info-item-2">每日编程实践: TAA 时域抗锯齿渲染器</div></div><div class="info-2"><div class="info-item-1">TAA 时域抗锯齿渲染器打开任何一款现代游戏，进入设置找到抗锯齿选项，几乎一定有 TAA。UE4、UE5、Unity HDRP、寒霜引擎、虚幻竞技场……这项技术几乎无处不在。 但 TAA 背后隐藏着一个精妙的思想：不在当前帧多次采样，而是把采样分散到时间轴上——每帧只用 1 个采样点，但通过累积历史帧信息，等效获得几十次超采样的质量。 今天从零实现这套机制，包括它的两个核心难题：如何选择每帧的采样偏移（Jitter），以及如何防止历史帧信息带来的鬼影（Ghosting）。  四图对比  左上：No-AA（明显锯齿）| 右上：SSAA 4x（参考质量）左下：TAA + Variance Clipping（无鬼影）| 右下：TAA 无 Variance Clipping（残影可见）   第一章：为什么会有锯齿？理解 TAA 之前，先理解锯齿的成因。 像素是离散的小方块，而几何边缘是连续的斜线或曲线。当一条斜线穿过像素时，这个像素要么完全被覆盖（点亮），要么完全没有覆盖（不点亮）——没有中间状态。这种二值化就产生了锯齿（Aliasing）。 香农采样定理给出了理论解释：要正确还原一个频...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/17/daily-coding-ltc-area-light-rendering-2026-03-17/" title="每日编程实践: LTC Area Light Rendering 面光源渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-17-LTC-Area-Light-Rendering/ltc_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-17</div><div class="info-item-2">每日编程实践: LTC Area Light Rendering 面光源渲染</div></div><div class="info-2"><div class="info-item-1">LTC Area Light Rendering - 面光源渲染今天实现了基于 线性变换余弦（Linearly Transformed Cosines, LTC） 的矩形面光源实时渲染算法——源自 Heitz et al. SIGGRAPH 2016 的工作。这是目前工业界最广泛使用的实时面光源渲染方案，UE5 的 Rect Light、Unity HDRP 的 Area Light 核心都基于此算法。   为什么面光源难以实时渲染？点光源的局限传统实时渲染使用点光源、方向光、聚光灯等”无面积”光源。这些光源的 BRDF 积分有解析解： 1L_o(x, ω_o) = f_r(x, ω_i, ω_o) · L_i · cos(θ_i)  因为光源退化为单一方向 ω_i，积分消失了，只剩一次 BRDF 求值。 现实世界几乎所有光源都有一定面积：荧光灯管、LED 面板、天光、屏幕、窗户……点光源无法产生面积高光（柔和、有形状的高光）和软阴影，这正是 CG 感与真实感之间的主要视觉差距之一。 面光源的积分问题对于面积光源，BRDF 积分变成： 1L_o(x, ω_o) = ∫_A f_r...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/18/daily-coding-deferred-shading-2026-03-18/" title="每日编程实践: Deferred Shading Renderer 延迟渲染管线"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-18-Deferred-Shading-Renderer/deferred_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-18</div><div class="info-item-2">每日编程实践: Deferred Shading Renderer 延迟渲染管线</div></div><div class="info-2"><div class="info-item-1">Deferred Shading Renderer 延迟渲染管线背景：前向渲染的瓶颈在图形渲染的发展历史上，前向渲染（Forward Rendering） 是最直观的做法——每个几何体对每个光源分别着色，最终叠加。这在光源数量少的情况下工作得很好，但当你想要一个现代游戏引擎级别的场景——数百个动态点光源、面积光、体积光——前向渲染的复杂度就变成了不可接受的瓶颈。 复杂度分析（前向 vs 延迟）：    方案 每帧着色次数 典型场景 (1000球 × 100光)    前向渲染 O(geometry × lights) 100,000 次着色   延迟渲染 O(pixels × lights) 800×600 × 有效光 ≈ 按覆盖范围   Tiled Deferred O(pixels × 局部光源) 现代 AAA 标准方案   前向渲染还有另一个更隐蔽的问题：Overdraw。当多个物体重叠时，被遮挡的物体也会被着色，然后深度测试丢弃——计算量全部浪费。延迟渲染通过”先确定可见性，再着色”彻底解决了这个问题。 延迟渲染的代价是显存带宽（G-Buffer 需要存储多张全分辨率纹理...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/19/daily-coding-Forward-Plus-Rendering-2026-03-19/" title="每日编程实践: Forward+ Rendering (前向+渲染)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-19-Forward-Plus-Rendering/forwardplus_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-19</div><div class="info-item-2">每日编程实践: Forward+ Rendering (前向+渲染)</div></div><div class="info-2"><div class="info-item-1">Forward+ Rendering（前向+渲染）为什么需要 Forward+？在实时渲染中，光源数量是一个经典的性能瓶颈。假设场景里有 N 个光源、M 个像素：  朴素前向渲染：每个像素都要遍历所有 N 个光源，复杂度 O(M × N) 现代游戏：N 可以轻松达到几十甚至数百个动态光源（手电筒、枪口火焰、爆炸特效……）  当 N 很大时，朴素方案直接崩溃。延迟渲染（Deferred Rendering） 是一种解法，但它无法处理透明物体，且 G-Buffer 内存压力大。 Forward+（也叫 Tiled Forward Rendering） 是另一条路：  核心思想：把屏幕切成小格子（Tile），对每个格子预先算出”哪些光源影响这个格子”，渲染时每个像素只遍历自己格子里的那几个光源。  这样一来，只要每个 Tile 的光源数量 k 远小于 N，就能大幅减少计算量。Frostbite（战地系列引擎）、Unity HDRP、Unreal Engine 都用了这个思路。  三种方案横向对比   方案 每像素光源遍历 透明物体 内存开销 适合场景    朴素前向渲染 全部 N 个 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">46</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">69</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5-Day-24-03-Subsurface-Scattering-Renderer"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践 Day 24&#x2F;03: Subsurface Scattering Renderer</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA%E2%80%94%E2%80%94%E4%B8%BA%E4%BB%80%E4%B9%88%E6%99%AE%E9%80%9A%E6%BC%AB%E5%8F%8D%E5%B0%84%E4%B8%8D%E5%A4%9F%E7%94%A8"><span class="toc-number">1.1.</span> <span class="toc-text">一、背景与动机——为什么普通漫反射不够用</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E6%BC%AB%E5%8F%8D%E5%B0%84%E6%A8%A1%E5%9E%8B%E7%9A%84%E5%81%87%E8%AE%BE"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 漫反射模型的假设</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%85%89%E5%9C%A8%E7%9A%AE%E8%82%A4%E9%87%8C%E5%8F%91%E7%94%9F%E4%BA%86%E4%BB%80%E4%B9%88"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 光在皮肤里发生了什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E5%B7%A5%E4%B8%9A%E7%95%8C%E7%9A%84%E4%BD%BF%E7%94%A8%E7%8E%B0%E7%8A%B6"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 工业界的使用现状</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86%E2%80%94%E2%80%94%E4%BB%8E-BRDF-%E5%88%B0-BSSRDF"><span class="toc-number">1.2.</span> <span class="toc-text">二、核心原理——从 BRDF 到 BSSRDF</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-BSSRDF-%E7%9A%84%E5%AE%9A%E4%B9%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 BSSRDF 的定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Jensen-%E5%81%B6%E6%9E%81%E5%AD%90%E6%A8%A1%E5%9E%8B%EF%BC%88Dipole-Approximation%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 Jensen 偶极子模型（Dipole Approximation）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-1-%E5%85%B3%E9%94%AE%E5%8F%82%E6%95%B0"><span class="toc-number">1.2.2.1.</span> <span class="toc-text">2.2.1 关键参数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-2-%E5%81%B6%E6%9E%81%E5%AD%90%E5%85%AC%E5%BC%8F"><span class="toc-number">1.2.2.2.</span> <span class="toc-text">2.2.2 偶极子公式</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Fresnel-%E6%8A%98%E5%B0%84%E7%8E%87%E4%BF%AE%E6%AD%A3"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 Fresnel 折射率修正</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Monte-Carlo-%E8%A1%A8%E9%9D%A2%E7%A7%AF%E5%88%86"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 Monte Carlo 表面积分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF%E7%9A%84%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 渲染管线的职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%81%B6%E6%9E%81%E5%AD%90%E6%BC%AB%E5%B0%84%E5%89%96%E9%9D%A2%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 偶极子漫射剖面实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Monte-Carlo-SSS-%E7%A7%AF%E5%88%86"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Monte Carlo SSS 积分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%9D%90%E8%B4%A8%E5%8F%82%E6%95%B0%E5%AE%9A%E4%B9%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 材质参数定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-ACES-%E8%89%B2%E8%B0%83%E6%98%A0%E5%B0%84%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 ACES 色调映射实现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E5%81%B6%E6%9E%81%E5%AD%90%E5%85%AC%E5%BC%8F%E7%AC%A6%E5%8F%B7%E9%94%99%E8%AF%AF%E5%AF%BC%E8%87%B4%E5%85%A8%E9%BB%91"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：偶极子公式符号错误导致全黑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9ASSS-%E6%9D%83%E9%87%8D%E4%B8%8E%E7%9B%B4%E6%8E%A5%E5%85%89%E7%85%A7%E6%B7%B7%E5%90%88%E6%AF%94%E4%BE%8B%E5%A4%B1%E8%B0%83"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：SSS 权重与直接光照混合比例失调</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E5%9D%87%E5%8C%80%E7%90%83%E9%9D%A2%E9%87%87%E6%A0%B7%E6%96%B9%E6%B3%95%E9%94%99%E8%AF%AF"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：均匀球面采样方法错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E7%BC%BA%E5%B0%91-lm-%E9%93%BE%E6%8E%A5%E5%AF%BC%E8%87%B4%E9%93%BE%E6%8E%A5%E9%94%99%E8%AF%AF"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：缺少 -lm 链接导致链接错误</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%B8%B2%E6%9F%93%E5%9B%BE%E5%88%86%E6%9E%90"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 渲染图分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 量化验证数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%BC%AB%E5%B0%84%E5%89%96%E9%9D%A2%E6%9B%B2%E7%BA%BF%E5%88%86%E6%9E%90"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 漫射剖面曲线分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 性能数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列的关联</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-number">1.8.</span> <span class="toc-text">参考资料</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/" title="每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-24-subsurface-scattering/sss_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/24/daily-coding-subsurface-scattering-2026-03-24/" title="每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）">每日编程实践: Subsurface Scattering Renderer（次表面散射渲染器）</a><time datetime="2026-03-23T21:30:00.000Z" title="发表于 2026-03-24 05:30:00">2026-03-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-23-voxel-cone-tracing/vct_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照">每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照</a><time datetime="2026-03-22T21:30:00.000Z" title="发表于 2026-03-23 05:30:00">2026-03-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/22/daily-coding-bdpt-2026-03-22/" title="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/22/daily-coding-bdpt-2026-03-22/" title="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样">每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样</a><time datetime="2026-03-21T21:30:00.000Z" title="发表于 2026-03-22 05:30:00">2026-03-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SPPM 随机渐进光子映射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射">每日编程实践: SPPM 随机渐进光子映射</a><time datetime="2026-03-20T22:00:00.000Z" title="发表于 2026-03-21 06:00:00">2026-03-21</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-20-spherical-harmonics/sh_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Spherical Harmonics 球谐环境光照"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照">每日编程实践: Spherical Harmonics 球谐环境光照</a><time datetime="2026-03-19T21:36:00.000Z" title="发表于 2026-03-20 05:36:00">2026-03-20</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
