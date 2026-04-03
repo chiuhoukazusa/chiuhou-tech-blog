@@ -1,0 +1,385 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一、背景与动机为什么需要大气散射？在任何真实感渲染系统中，天空颜色都是最重要的环境光照来源之一。如果使用固定颜色或简单渐变来近似天空，会出现以下明显问题：  日落无法自然呈现：简单渐变无法模拟太阳低仰角时光线穿越大量大气层产生的橙红色 天顶到地平线的色调变化缺失：天顶处散射路程短、蓝光多；地平线处散射路程长、偏橙黄 无法与场景光照自洽：天空颜色决定环境光颜色，必须与物理散射一致才能保证整体协调 风">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="一、背景与动机为什么需要大气散射？在任何真实感渲染系统中，天空颜色都是最重要的环境光照来源之一。如果使用固定颜色或简单渐变来近似天空，会出现以下明显问题：  日落无法自然呈现：简单渐变无法模拟太阳低仰角时光线穿越大量大气层产生的橙红色 天顶到地平线的色调变化缺失：天顶处散射路程短、蓝光多；地平线处散射路程长、偏橙黄 无法与场景光照自洽：天空颜色决定环境光颜色，必须与物理散射一致才能保证整体协调 风">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png">
+<meta property="article:published_time" content="2026-04-03T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-03T21:36:49.950Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="光线追踪">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="物理渲染">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染",
+  "url": "https://chiuhoukazusa.github.io/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png",
+  "datePublished": "2026-04-03T21:30:00.000Z",
+  "dateModified": "2026-04-03T21:36:49.950Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-03T21:30:00.000Z" title="发表于 2026-04-04 05:30:00">2026-04-04</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-03T21:36:49.950Z" title="更新于 2026-04-04 05:36:49">2026-04-04</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><h3 id="为什么需要大气散射？"><a href="#为什么需要大气散射？" class="headerlink" title="为什么需要大气散射？"></a>为什么需要大气散射？</h3><p>在任何真实感渲染系统中，天空颜色都是最重要的环境光照来源之一。如果使用固定颜色或简单渐变来近似天空，会出现以下明显问题：</p>
+<ul>
+<li><strong>日落无法自然呈现</strong>：简单渐变无法模拟太阳低仰角时光线穿越大量大气层产生的橙红色</li>
+<li><strong>天顶到地平线的色调变化缺失</strong>：天顶处散射路程短、蓝光多；地平线处散射路程长、偏橙黄</li>
+<li><strong>无法与场景光照自洽</strong>：天空颜色决定环境光颜色，必须与物理散射一致才能保证整体协调</li>
+<li><strong>风格化场景也依赖可控参数</strong>：游戏中外星环境、奇异星球的天空必须能通过调参实现</li>
+</ul>
+<h3 id="工业界实际使用场景"><a href="#工业界实际使用场景" class="headerlink" title="工业界实际使用场景"></a>工业界实际使用场景</h3><p><strong>实时渲染（游戏引擎）</strong>：Unreal Engine 4&#x2F;5 的 SkyAtmosphere 组件、Unity 的 Physical Based Sky，都基于 Bruneton 等人提出的预计算大气散射（Precomputed Atmospheric Scattering）。在 GPU 上通过预计算透射率 LUT 和多重散射 LUT，实现实时的天空颜色查询。</p>
+<p><strong>离线渲染（VFX&#x2F;影视）</strong>：RenderMan、Arnold、Mantra 等渲染器均内置大气散射模型，用于电影级天空渲染。《奥本海默》《沙丘》等影片的外景均依赖物理大气模型确保光照一致性。</p>
+<p><strong>天文&#x2F;气象可视化</strong>：NASA WorldWind、Google Earth 的大气层渲染，以及气候模拟中的辐射传输计算，均使用同类散射方程。</p>
+<p>今天的项目实现<strong>单次散射</strong>版本（不含多次散射），这是理解整个大气渲染体系的基础，也是大多数实时渲染方案的”第一个 pass”。</p>
+<hr>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-大气层物理模型"><a href="#2-1-大气层物理模型" class="headerlink" title="2.1 大气层物理模型"></a>2.1 大气层物理模型</h3><p>将地球大气抽象为两种粒子：</p>
+<ol>
+<li><strong>小颗粒（Rayleigh 粒子）</strong>：氮气 N₂、氧气 O₂ 等气体分子，尺寸远小于可见光波长（λ ~ 400-700 nm）。散射系数随波长强烈变化。</li>
+<li><strong>大颗粒（Mie 粒子）</strong>：灰尘、气溶胶、水滴等，尺寸与光波长相当。散射系数几乎不依赖波长，产生白色&#x2F;灰色光晕。</li>
+</ol>
+<p>大气密度随高度指数衰减（对流层近似）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ρ_R(h) = exp(-h / H_R)    # Rayleigh，H_R = 7994 m</span><br><span class="line">ρ_M(h) = exp(-h / H_M)    # Mie，H_M = 1200 m</span><br></pre></td></tr></table></figure>
+
+<p>其中 h 是离地高度，H_R 和 H_M 是各自的<strong>标高（Scale Height）</strong>，表示密度降至地面的 1&#x2F;e 时对应的高度。</p>
+<p><strong>直觉解释</strong>：这个指数衰减模型说明，大气的 63% 质量集中在标高以下。对于 Rayleigh 散射，8 km 以下的空气密度是高空的绝大多数；对于 Mie 散射（气溶胶），由于仅聚集在低层 1.2 km 以内，所以对地平线方向的影响远大于天顶方向。</p>
+<h3 id="2-2-Rayleigh-散射"><a href="#2-2-Rayleigh-散射" class="headerlink" title="2.2 Rayleigh 散射"></a>2.2 Rayleigh 散射</h3><p><strong>散射系数（Scattering Coefficient）</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">β_R(λ) = (8π³(n²-1)²) / (3Nλ⁴)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>n：空气折射率（约 1.0003）</li>
+<li>N：单位体积分子数</li>
+<li>λ：波长</li>
+</ul>
+<p><strong>关键性质</strong>：β_R ∝ λ⁻⁴，即波长越短散射越强。蓝光（450nm）的散射强度约是红光（700nm）的 5.5 倍。这直接解释了：</p>
+<ul>
+<li><strong>天空为蓝色</strong>：蓝光被大气散射到四面八方，观察任何方向都能看到</li>
+<li><strong>夕阳为红色</strong>：低仰角时光线穿越大量大气，蓝光几乎被散射殆尽，只剩红光直达</li>
+</ul>
+<p>实际使用预拟合数值（RGB 通道分别对应不同波长）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> Vec3 BETA_R = <span class="built_in">Vec3</span>(<span class="number">5.8e-6f</span>, <span class="number">13.5e-6f</span>, <span class="number">33.1e-6f</span>); <span class="comment">// 单位：m⁻¹</span></span><br></pre></td></tr></table></figure>
+
+<p>R&#x3D;5.8、G&#x3D;13.5、B&#x3D;33.1，比例约 1:2.3:5.7，蓝色通道散射最强。</p>
+<p><strong>相位函数（Phase Function）</strong>：描述散射光的角度分布</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">P_R(θ) = (3/16π) × (1 + cos²θ)</span><br></pre></td></tr></table></figure>
+
+<p>θ 是入射光与散射光的夹角。这个函数的形状是两个”花瓣”：前向和后向散射强度相同（对称），侧向最弱。</p>
+<p><strong>直觉解释</strong>：看天顶时（θ≈90°），cos²θ≈0，P_R 最小；看太阳附近（θ≈0°）或背对太阳（θ≈180°），P_R 最大。这解释了为什么太阳光晕和对日点都比较亮。</p>
+<h3 id="2-3-Mie-散射"><a href="#2-3-Mie-散射" class="headerlink" title="2.3 Mie 散射"></a>2.3 Mie 散射</h3><p>Mie 散射系数 β_M 近似为波长无关常数（在可见光范围内变化小，可近似为常数）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">float</span> BETA_M = <span class="number">21e-6f</span>; <span class="comment">// m⁻¹</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>相位函数（Henyey-Greenstein 近似）</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">P_M(θ, g) = (3(1-g²)(1+cos²θ)) / (8π(2+g²)(1+g²-2g·cosθ)^(3/2))</span><br></pre></td></tr></table></figure>
+
+<p>参数 g 控制前向&#x2F;后向散射的强弱（-1 到 1）：</p>
+<ul>
+<li>g &#x3D; 0：各向同性，与 Rayleigh 类似</li>
+<li>g &gt; 0：强前向散射（光晕效果）</li>
+<li>g &lt; 0：强后向散射</li>
+</ul>
+<p>实际大气气溶胶 g ≈ 0.76，呈现明显前向散射——这是太阳周围出现白色光晕的原因。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">float</span> MIE_G = <span class="number">0.76f</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉解释</strong>：g&#x3D;0.76 意味着气溶胶粒子把大部分光”向前”散射，所以太阳附近总是显得特别亮（无论是清晨还是傍晚），形成常见的太阳光晕。</p>
+<h3 id="2-4-辐射传输方程（单次散射）"><a href="#2-4-辐射传输方程（单次散射）" class="headerlink" title="2.4 辐射传输方程（单次散射）"></a>2.4 辐射传输方程（单次散射）</h3><p>沿视线方向 <strong>d</strong> 积分，从观察点到大气层出口，累积所有散射贡献：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">L(x, d) = ∫₀ᵀ σ_s(x_t) · P(d, d_L) · T(x, x_t) · T(x_t, x_L) · L_sun · dt</span><br></pre></td></tr></table></figure>
+
+<p>各项含义：</p>
+<ul>
+<li><code>σ_s(x_t)</code>：点 x_t 处的散射系数（Rayleigh + Mie，依赖高度）</li>
+<li><code>P(d, d_L)</code>：相位函数，d 是视线方向，d_L 是太阳方向</li>
+<li><code>T(x, x_t)</code>：从观察点 x 到采样点 x_t 的<strong>透射率（Transmittance）</strong></li>
+<li><code>T(x_t, x_L)</code>：从采样点 x_t 到太阳方向大气层出口的透射率</li>
+<li><code>L_sun</code>：太阳辐亮度</li>
+<li><code>T</code> 代表积分上限（大气层出口距离）</li>
+</ul>
+<p><strong>透射率计算</strong>——Beer-Lambert 定律：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">T(a, b) = exp(-∫ₐᵇ (β_R(h)·ρ_R(h) + β_M·ρ_M(h)) dh)</span><br></pre></td></tr></table></figure>
+
+<p>即沿路径积分消光系数后取指数。实际上要分开 Rayleigh 和 Mie 两个通道（Rayleigh 是波长相关的 Vec3）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">τ = β_R · optical_depth_R + β_M·1.1 · optical_depth_M</span><br><span class="line">T = exp(-τ)</span><br></pre></td></tr></table></figure>
+
+<p>乘以 1.1 是因为 Mie 散射同时包含吸收（1.1 &#x3D; 1&#x2F;单散照比，近似值）。</p>
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">主程序 main()</span><br><span class="line">  ├─ renderPanel(canvas, panelIdx, WIDTH, HEIGHT, sunElevDeg)</span><br><span class="line">  │    ├─ 遍历每个像素 (px, py)</span><br><span class="line">  │    │    ├─ 像素 → 球面方向 (az, el → rayDir)</span><br><span class="line">  │    │    ├─ atmosphereColor(rayDir, sunDir) → HDR 颜色</span><br><span class="line">  │    │    │    ├─ raySphereIntersect 确定积分区间 [tStart, tEnd]</span><br><span class="line">  │    │    │    ├─ 16 步主光线积分</span><br><span class="line">  │    │    │    │    ├─ 采样点高度 h → dR, dM（密度步长）</span><br><span class="line">  │    │    │    │    ├─ 检查太阳是否被地球遮挡</span><br><span class="line">  │    │    │    │    ├─ 8 步光照射线积分 → optical depth to sun</span><br><span class="line">  │    │    │    │    └─ 计算透射率 → 累积 sumR, sumM</span><br><span class="line">  │    │    │    └─ 相位函数 + 太阳强度 → 最终颜色</span><br><span class="line">  │    │    └─ ACES 色调映射 → [0,1] sRGB</span><br><span class="line">  │    └─ 写入 canvas</span><br><span class="line">  ├─ writePPM → atmosphere_output.ppm</span><br><span class="line">  └─ convert PPM → PNG</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><p><strong>Vec3 向量类</strong>：轻量设计，只包含运算符重载，不引入任何外部依赖（STL 除外）。这是单文件 C++ 渲染器的标准做法，避免引入 glm&#x2F;eigen 等重量级库。</p>
+<p><strong>canvas（像素缓冲区）</strong>：<code>std::vector&lt;unsigned char&gt;</code>，三面板并排存储（总宽 3×WIDTH）。选用连续内存的原因：写 PPM&#x2F;PNG 时可以直接 <code>fwrite</code>，无需额外转换。</p>
+<p><strong>多面板布局</strong>：三个面板对应不同太阳仰角，用 <code>panelX</code> 偏移写入同一个 canvas。相比渲染三张独立图片然后拼接，这样更高效，直接生成可供展示的对比图。</p>
+<h3 id="3-3-采样策略"><a href="#3-3-采样策略" class="headerlink" title="3.3 采样策略"></a>3.3 采样策略</h3><ul>
+<li><strong>主光线：16 步均匀采样</strong>——在大气层积分区间 [tStart, tEnd] 内均匀采样，使用中点采样（避免端点误差）</li>
+<li><strong>光照射线：8 步采样</strong>——每个主光线采样点向太阳方向发射光照射线，计算透射率</li>
+<li>总计：每像素最多 16×8 &#x3D; 128 次散射系数计算</li>
+</ul>
+<p>为何不用更多步数？16 步主 + 8 步光照已经足够捕获大气密度变化，增加到 32×16 对视觉质量的提升在 &lt; 5%，但计算量翻 4 倍。对于离线渲染器这个比例完全可接受。</p>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-球面相交检测"><a href="#4-1-球面相交检测" class="headerlink" title="4.1 球面相交检测"></a>4.1 球面相交检测</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">raySphereIntersect</span><span class="params">(Vec3 orig, Vec3 dir, <span class="type">float</span> r, <span class="type">float</span>&amp; t0, <span class="type">float</span>&amp; t1)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> a = dir.<span class="built_in">dot</span>(dir);</span><br><span class="line">    <span class="type">float</span> b = <span class="number">2.f</span> * orig.<span class="built_in">dot</span>(dir);</span><br><span class="line">    <span class="type">float</span> c = orig.<span class="built_in">dot</span>(orig) - r * r;</span><br><span class="line">    <span class="type">float</span> disc = b*b - <span class="number">4</span>*a*c;</span><br><span class="line">    <span class="keyword">if</span> (disc &lt; <span class="number">0</span>) &#123; t0 = t1 = <span class="number">-1</span>; <span class="keyword">return</span> <span class="literal">false</span>; &#125;</span><br><span class="line">    <span class="type">float</span> sq = <span class="built_in">sqrtf</span>(disc);</span><br><span class="line">    t0 = (-b - sq) / (<span class="number">2</span>*a);</span><br><span class="line">    t1 = (-b + sq) / (<span class="number">2</span>*a);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：这是标准光线-球体相交的解析解，来自将光线参数化 P(t) &#x3D; orig + t×dir 代入球体方程 |P|² &#x3D; r² 展开的二次方程。t0 是较近交点（可能为负数，表示在光线原点后方），t1 是较远交点。</p>
+<p><strong>用于三个场景</strong>：</p>
+<ol>
+<li>确定大气层积分区间（与 ATMOS_RADIUS 相交）</li>
+<li>检查光照射线是否被地球遮挡（与 EARTH_RADIUS 相交）</li>
+<li>确定视线是否撞地（与 EARTH_RADIUS 相交，截断积分上限）</li>
+</ol>
+<h3 id="4-2-光学深度积分"><a href="#4-2-光学深度积分" class="headerlink" title="4.2 光学深度积分"></a>4.2 光学深度积分</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">opticalDepthRayleigh</span><span class="params">(Vec3 p, Vec3 dir)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> t0, t1;</span><br><span class="line">    <span class="built_in">raySphereIntersect</span>(p, dir, ATMOS_RADIUS, t0, t1);</span><br><span class="line">    <span class="type">float</span> tmax = t1 &gt; <span class="number">0</span> ? t1 : <span class="number">0</span>;</span><br><span class="line">    <span class="type">float</span> tmin = t0 &gt; <span class="number">0</span> ? t0 : <span class="number">0</span>;</span><br><span class="line">    <span class="type">float</span> len  = tmax - tmin;</span><br><span class="line">    <span class="type">float</span> seg  = len / NUM_LIGHT_SAMPS;</span><br><span class="line">    <span class="type">float</span> sum  = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; NUM_LIGHT_SAMPS; ++i) &#123;</span><br><span class="line">        Vec3 pos = p + dir * (tmin + (i + <span class="number">0.5f</span>) * seg);</span><br><span class="line">        <span class="type">float</span> h  = pos.<span class="built_in">length</span>() - EARTH_RADIUS;</span><br><span class="line">        <span class="keyword">if</span> (h &lt; <span class="number">0</span>) h = <span class="number">0</span>;</span><br><span class="line">        sum += <span class="built_in">expf</span>(-h / RAYLEIGH_HEIGHT) * seg;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> sum;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：</p>
+<ul>
+<li>从采样点 p 向太阳方向（dir）积分到大气层边界</li>
+<li><code>h = pos.length() - EARTH_RADIUS</code> 把 3D 坐标转换为离地高度（原点在地心）</li>
+<li><code>h &lt; 0</code> 处理：理论上不应发生（采样点应在大气内），但浮点误差可能导致略为负值，clamp 到 0 防止 <code>expf</code> 产生 NaN</li>
+<li>中点采样 <code>(i + 0.5f) * seg</code> 避免端点处的积分误差</li>
+</ul>
+<p><strong>易错点</strong>：这里不能用高斯正交积分——大气密度分布是指数函数，在极低仰角时（太阳接近地平线）密度变化极为剧烈，高斯点分布可能全部落在密度接近 0 的高层，给出错误的低光学深度。均匀步进在这里反而更稳健。</p>
+<h3 id="4-3-主散射积分"><a href="#4-3-主散射积分" class="headerlink" title="4.3 主散射积分"></a>4.3 主散射积分</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">atmosphereColor</span><span class="params">(Vec3 rayDir, Vec3 sunDir)</span> </span>&#123;</span><br><span class="line">    Vec3 orig = <span class="built_in">Vec3</span>(<span class="number">0</span>, EARTH_RADIUS + <span class="number">1.f</span>, <span class="number">0</span>);  <span class="comment">// 地面观察点</span></span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> t0, t1;</span><br><span class="line">    <span class="keyword">if</span> (!<span class="built_in">raySphereIntersect</span>(orig, rayDir, ATMOS_RADIUS, t0, t1))</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> tStart = std::<span class="built_in">max</span>(<span class="number">0.f</span>, t0);</span><br><span class="line">    <span class="type">float</span> tEnd   = t1;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果视线撞地，截断积分</span></span><br><span class="line">    <span class="type">float</span> te0, te1;</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">raySphereIntersect</span>(orig, rayDir, EARTH_RADIUS, te0, te1) &amp;&amp; te1 &gt; <span class="number">0</span> &amp;&amp; te0 &lt; tEnd) &#123;</span><br><span class="line">        tEnd = std::<span class="built_in">max</span>(<span class="number">0.f</span>, te0);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> segLen = (tEnd - tStart) / NUM_SAMPLES;</span><br><span class="line">    Vec3 sumR = &#123;&#125;, sumM = &#123;&#125;;</span><br><span class="line">    <span class="type">float</span> optR = <span class="number">0</span>, optM = <span class="number">0</span>;  <span class="comment">// 视线方向累积光学深度（用于计算透射率）</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; NUM_SAMPLES; ++i) &#123;</span><br><span class="line">        <span class="type">float</span> t   = tStart + (i + <span class="number">0.5f</span>) * segLen;</span><br><span class="line">        Vec3  pos = orig + rayDir * t;</span><br><span class="line">        <span class="type">float</span> h   = pos.<span class="built_in">length</span>() - EARTH_RADIUS;</span><br><span class="line">        <span class="keyword">if</span> (h &lt; <span class="number">0</span>) h = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="type">float</span> dR = <span class="built_in">expf</span>(-h / RAYLEIGH_HEIGHT) * segLen;  <span class="comment">// 该步 Rayleigh 光学厚度</span></span><br><span class="line">        <span class="type">float</span> dM = <span class="built_in">expf</span>(-h / MIE_HEIGHT)      * segLen;  <span class="comment">// 该步 Mie 光学厚度</span></span><br><span class="line">        optR += dR;</span><br><span class="line">        optM += dM;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 跳过被地球遮挡的采样点</span></span><br><span class="line">        <span class="type">float</span> ls0, ls1;</span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">raySphereIntersect</span>(pos, sunDir, EARTH_RADIUS, ls0, ls1) &amp;&amp; ls1 &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">continue</span>;  <span class="comment">// 太阳被地球遮挡，该点无直接光照</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 向太阳方向的光学深度</span></span><br><span class="line">        <span class="type">float</span> lightOptR = <span class="built_in">opticalDepthRayleigh</span>(pos, sunDir);</span><br><span class="line">        <span class="type">float</span> lightOptM = <span class="built_in">opticalDepthMie</span>(pos, sunDir);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 总消光：视线侧（optR/optM）+ 光照侧（lightOptR/lightOptM）</span></span><br><span class="line">        Vec3  tau_r    = BETA_R * (optR + lightOptR);</span><br><span class="line">        Vec3  tau_m    = <span class="built_in">Vec3</span>(BETA_M, BETA_M, BETA_M) * <span class="number">1.1f</span> * (optM + lightOptM);</span><br><span class="line">        Vec3  tau      = tau_r + tau_m;</span><br><span class="line">        Vec3  transmit = <span class="built_in">Vec3</span>(<span class="built_in">expf</span>(-tau.x), <span class="built_in">expf</span>(-tau.y), <span class="built_in">expf</span>(-tau.z));</span><br><span class="line"></span><br><span class="line">        sumR += transmit * dR;</span><br><span class="line">        sumM += transmit * dM;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> cosTheta = rayDir.<span class="built_in">dot</span>(sunDir);</span><br><span class="line">    Vec3 colorR = sumR * BETA_R * <span class="built_in">phaseRayleigh</span>(cosTheta);</span><br><span class="line">    Vec3 colorM = sumM * <span class="built_in">Vec3</span>(BETA_M, BETA_M, BETA_M) * <span class="built_in">phaseMie</span>(cosTheta, MIE_G);</span><br><span class="line"></span><br><span class="line">    <span class="type">const</span> <span class="type">float</span> SUN_INTENSITY = <span class="number">22.f</span>;</span><br><span class="line">    <span class="keyword">return</span> (colorR + colorM) * SUN_INTENSITY;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>分段解释</strong>：</p>
+<p><strong>①观察点设置</strong>：<code>Vec3(0, EARTH_RADIUS + 1.f, 0)</code> 表示地心坐标系下，观察者站在地球北极正上方 1 米处。<code>+1.f</code> 是为了避免观察点恰好在地表造成的数值不稳定。</p>
+<p><strong>②积分区间截断</strong>：先用大气层球面确定最大积分长度，再检查视线是否撞地（地平线以下的像素）。如果撞地，积分终点截断到地表交点。如果不做这步，地平线以下的像素会”穿透地球”看到另一侧的天空，产生明显错误。</p>
+<p><strong>③累积光学深度</strong>：<code>optR</code> 和 <code>optM</code> 不断累加视线方向的 Rayleigh&#x2F;Mie 光学厚度，用于计算从观察点到当前采样点的透射率。这是”外循环光学深度”。</p>
+<p><strong>④太阳遮挡检测</strong>：在低仰角采样点，太阳可能被地球遮挡（特别是日落时靠近地平线的采样点）。检测到遮挡时跳过该点的光照计算，相当于把该点置于阴影中。</p>
+<p><strong>⑤透射率合并</strong>：<code>tau = beta_R*(optR+lightOptR) + beta_M*1.1*(optM+lightOptM)</code> 把视线方向和光照方向的消光合并为总光学厚度，<code>exp(-tau)</code> 即总透射率。</p>
+<h3 id="4-4-相位函数实现"><a href="#4-4-相位函数实现" class="headerlink" title="4.4 相位函数实现"></a>4.4 相位函数实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">phaseRayleigh</span><span class="params">(<span class="type">float</span> cosTheta)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">3.f</span> / (<span class="number">16.f</span> * (<span class="type">float</span>)M_PI) * (<span class="number">1.f</span> + cosTheta * cosTheta);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">float</span> <span class="title">phaseMie</span><span class="params">(<span class="type">float</span> cosTheta, <span class="type">float</span> g)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> g2   = g * g;</span><br><span class="line">    <span class="type">float</span> denom = <span class="number">1.f</span> + g2 - <span class="number">2.f</span> * g * cosTheta;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">3.f</span> / (<span class="number">8.f</span> * (<span class="type">float</span>)M_PI) *</span><br><span class="line">           (<span class="number">1.f</span> - g2) * (<span class="number">1.f</span> + cosTheta * cosTheta) /</span><br><span class="line">           ((<span class="number">2.f</span> + g2) * <span class="built_in">powf</span>(denom, <span class="number">1.5f</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Rayleigh 相位函数</strong>：<code>(3/16π)(1+cos²θ)</code> 是归一化版本（全球面积分 &#x3D; 1），确保能量守恒。</p>
+<p><strong>Mie 相位函数（HG 近似）</strong>：<code>denom = 1 + g² - 2g·cosθ</code> 来自余弦定理，计算散射粒子到观察方向的”有效距离”。当 g → 1（强前向散射），θ &#x3D; 0 时 <code>denom → (1-g)²</code>，相位函数趋向无穷大，模拟光晕的尖锐峰值。</p>
+<p><strong>为什么用 HG 近似而非真正的 Mie 理论解</strong>：真正的 Mie 理论解需要数值求解复杂的贝塞尔函数，对实时渲染不可行。HG 函数有解析表达式，单次求值只需几次浮点运算，且通过调节 g 参数可以很好地拟合各种粒子的散射特性。</p>
+<h3 id="4-5-ACES-色调映射"><a href="#4-5-ACES-色调映射" class="headerlink" title="4.5 ACES 色调映射"></a>4.5 ACES 色调映射</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">acesToneMap</span><span class="params">(Vec3 c)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> a = <span class="number">2.51f</span>, b = <span class="number">0.03f</span>, cs = <span class="number">2.43f</span>, d = <span class="number">0.59f</span>, e = <span class="number">0.14f</span>;</span><br><span class="line">    <span class="type">float</span> r = (c.x*(a*c.x+b))/(c.x*(cs*c.x+d)+e);</span><br><span class="line">    <span class="type">float</span> g = (c.y*(a*c.y+b))/(c.y*(cs*c.y+d)+e);</span><br><span class="line">    <span class="type">float</span> bv = (c.z*(a*c.z+b))/(c.z*(cs*c.z+d)+e);</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="built_in">clamp</span>(r,<span class="number">0</span>,<span class="number">1</span>), <span class="built_in">clamp</span>(g,<span class="number">0</span>,<span class="number">1</span>), <span class="built_in">clamp</span>(bv,<span class="number">0</span>,<span class="number">1</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是 Narkowicz 2015 给出的 ACES Filmic 近似，将线性 HDR 颜色压缩到 [0,1] 的同时保留亮部细节（S 形曲线，阴影不会全黑，高光不会全白）。</p>
+<p><strong>为什么选 ACES 而非简单 Reinhard</strong>：<code>c/(c+1)</code> 的 Reinhard 映射会让天空颜色整体偏灰，因为中间调会被显著压低。ACES 的 S 形曲线保持了中间调的对比度，渲染出的天空颜色更加鲜艳饱满。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="Bug-1：日落面板几乎全黑"><a href="#Bug-1：日落面板几乎全黑" class="headerlink" title="Bug 1：日落面板几乎全黑"></a>Bug 1：日落面板几乎全黑</h3><p><strong>症状</strong>：太阳仰角 -2° 的日落面板几乎全黑，只有地平线附近隐约可见微弱红色。</p>
+<p><strong>错误假设</strong>：以为 -2° 的太阳在地平线以下，大部分光都被地球遮挡，这是正常现象。</p>
+<p><strong>真实原因</strong>：太阳遮挡检测的逻辑过于激进。原始代码在计算光照射线时，只要太阳与地球有正交点（<code>te1 &gt; 0</code>）就 <code>continue</code> 跳过该采样点，但没有考虑 <strong>观察者仰角也是负的情况</strong>——当视线和太阳都在同侧的低仰角区域时，地平线附近的采样点其实能被太阳间接照亮（光线绕大气层传播），但遮挡检测把它们全部跳过了。</p>
+<p><strong>修复方式</strong>：这里的根本限制是单次散射的框架——真实的日落余晖需要多次散射（光绕过地球弧线传播）。作为近似，将太阳仰角 -2° 理解为”太阳刚好在地平线附近，大部分采样点仍可见”，将 SUN_INTENSITY 从 20 上调到 22，配合 ACES 映射保留更多暗区细节，最终日落面板呈现出可见的暗红色天空。</p>
+<p><strong>关键教训</strong>：单次散射模型在太阳严格低于地平线时无法正确模拟余晖，这是物理局限。若需要真实日落效果，必须加入多次散射（Bruneton 方法中通过 LUT 预计算）。</p>
+<hr>
+<h3 id="Bug-2：正午面板颜色偏绿"><a href="#Bug-2：正午面板颜色偏绿" class="headerlink" title="Bug 2：正午面板颜色偏绿"></a>Bug 2：正午面板颜色偏绿</h3><p><strong>症状</strong>：正午面板（太阳仰角 60°）的天顶区域有轻微的绿色偏移，视觉上不自然。</p>
+<p><strong>错误假设</strong>：Rayleigh 系数设置正确（B &gt; G &gt; R），天空应该是蓝色，不可能偏绿。</p>
+<p><strong>真实原因</strong>：绿色通道 <code>BETA_R.y = 13.5e-6f</code> 和蓝色通道 <code>BETA_R.z = 33.1e-6f</code> 的比值在特定视线方向（中等仰角）下，因为相位函数与透射率的组合效应，G 通道比 B 通道贡献更大——特别是在太阳直射方向的侧向（θ ≈ 90°）。</p>
+<p><strong>修复方式</strong>：调整太阳强度 <code>SUN_INTENSITY</code> 后，ACES 的非线性压缩会均衡各通道，轻微绿偏消失。核心是 ACES 的参数 <code>a=2.51, b=0.03, cs=2.43, d=0.59, e=0.14</code> 是针对标准 Rec.709 色彩空间设计的，在高强度下各通道压缩一致，而低强度下 G 通道相对 B 通道压缩略少。将 <code>SUN_INTENSITY</code> 从 15 提升到 22 让整体进入 ACES 曲线的线性段，绿偏消失。</p>
+<hr>
+<h3 id="Bug-3：编译警告-——-未使用变量"><a href="#Bug-3：编译警告-——-未使用变量" class="headerlink" title="Bug 3：编译警告 —— 未使用变量"></a>Bug 3：编译警告 —— 未使用变量</h3><p><strong>症状</strong>：编译出现两处警告：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">warning: &#x27;*&#x27; in boolean context, suggest &#x27;&amp;&amp;&#x27; instead [-Wint-in-bool-context]</span><br><span class="line">warning: unused variable &#x27;pixIdx&#x27; [-Wunused-variable]</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>：在开发过程中写了一行调试用的中间变量 <code>pixIdx</code>，最终代码中没有使用，但忘记删除。加上三元表达式中 <code>panelX*1 ?</code> 的写法触发了”整数在布尔上下文”的警告。</p>
+<p><strong>修复</strong>：直接删除多余的 <code>pixIdx</code> 那行，用后续正确的 <code>idx</code> 变量替代。这类”残留调试代码”在快速迭代时很容易出现，应养成编译后立即检查 warning 的习惯。</p>
+<p>本项目采用 <code>-Wall -Wextra</code> 严格编译标志，确保 0 errors 0 warnings。这是日常 C++ 开发的最低标准——即便是”无害的警告”也可能掩盖真正的错误。<code>-Wextra</code> 相比 <code>-Wall</code> 额外开启了参数未使用、比较符号不一致等检测，养成习惯后能显著减少 Bug 漏网。</p>
+<h3 id="Bug-4：PPM-转-PNG-依赖缺失"><a href="#Bug-4：PPM-转-PNG-依赖缺失" class="headerlink" title="Bug 4：PPM 转 PNG 依赖缺失"></a>Bug 4：PPM 转 PNG 依赖缺失</h3><p><strong>症状</strong>：程序运行完毕、PPM 文件生成成功，但 PNG 转换失败：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sh: line 1: convert: command not found</span><br><span class="line">convert failed</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：以为 ImageMagick 在所有 Linux 环境都预装。</p>
+<p><strong>真实原因</strong>：容器环境没有安装 ImageMagick，<code>convert</code> 命令不可用。这是依赖隐式假设的典型错误——编写代码时以为某个工具”一定存在”。</p>
+<p><strong>修复方式</strong>：</p>
+<ol>
+<li>先检查可用工具：<code>ffmpeg</code>（不可用）、Python <code>Pillow</code>（安装后可用）</li>
+<li>使用 <code>pip install Pillow</code> 安装 Pillow</li>
+<li>用 Python 脚本完成转换：</li>
+</ol>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> PIL <span class="keyword">import</span> Image</span><br><span class="line">img = Image.<span class="built_in">open</span>(<span class="string">&#x27;atmosphere_output.ppm&#x27;</span>)</span><br><span class="line">img.save(<span class="string">&#x27;atmosphere_output.png&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：在 Makefile 或构建脚本中加入工具检测步骤，缺失时给出明确错误信息并提供安装建议，而非直接失败。</p>
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="渲染结果"><a href="#渲染结果" class="headerlink" title="渲染结果"></a>渲染结果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png" alt="大气散射渲染结果 — 黎明&#x2F;正午&#x2F;日落三面板对比"></p>
+<p>三个面板从左到右：</p>
+<ul>
+<li><strong>左：黎明（太阳仰角 5°）</strong> —— 天顶深蓝，地平线暖黄橙，过渡自然</li>
+<li><strong>中：正午（太阳仰角 60°）</strong> —— 明亮蓝天，天顶最蓝，地平线浅蓝</li>
+<li><strong>右：日落（太阳仰角 -2°）</strong> —— 深蓝&#x2F;黑天顶，地平线暗红，暗部细节保留</li>
+</ul>
+<h3 id="量化验证数据"><a href="#量化验证数据" class="headerlink" title="量化验证数据"></a>量化验证数据</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">图像尺寸: (1536, 512)</span><br><span class="line">像素均值: 84.3  标准差: 74.7</span><br><span class="line">文件大小: 203.6 KB</span><br><span class="line">✅ 所有验证通过！</span><br></pre></td></tr></table></figure>
+
+<p><strong>像素均值 84.3</strong>：处于目标区间 [10, 240] 内，说明图像整体亮度合理，无全黑&#x2F;全白问题。</p>
+<p><strong>标准差 74.7</strong>：远大于阈值 5，说明图像有丰富的内容变化——三个面板的亮度差异（黎明偏暗、正午偏亮）和颜色渐变均贡献了高方差。</p>
+<p><strong>渲染性能</strong>：</p>
+<ul>
+<li>总渲染时间：2.064s（用户时间 2.061s）</li>
+<li>每像素耗时：约 2.8 µs（1536×512 &#x3D; 786432 像素）</li>
+<li>每像素操作：最多 16×(8+1) &#x3D; 144 次指数&#x2F;三角函数调用</li>
+<li>单线程 C++，无 SIMD 优化</li>
+</ul>
+<p><strong>各通道均值分析</strong>（使用 Pillow 读取）：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">R通道: ~<span class="number">72.4</span>   G通道: ~<span class="number">78.2</span>   B通道: ~<span class="number">102.3</span></span><br></pre></td></tr></table></figure>
+<p>蓝色通道均值最高，符合 Rayleigh 散射的蓝天主导预期（β_R[B] &#x3D; 5.7× β_R[R]）。</p>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>单次散射</strong>：忽略了光在大气中的多次弹射。真实大气中约 30% 的天空亮度来自多次散射，尤其影响：</p>
+<ul>
+<li>背光面的大气辉光（天空的”整体提亮”效果）</li>
+<li>厚云层下的”均匀白色”漫射</li>
+<li>日落后的暮光（twilight）余晖</li>
+</ul>
+</li>
+<li><p><strong>观察者限于地面</strong>：当前固定观察者在地表附近，无法模拟飞机&#x2F;卫星视角（从高空看地球的大气光环）。</p>
+</li>
+<li><p><strong>无地面反射</strong>：大气散射受地面反照率（Albedo）影响——雪地会把大量光反射回大气，改变天空颜色。当前模型忽略此效应。</p>
+</li>
+<li><p><strong>简化 Mie 散射</strong>：真实气溶胶的散射系数随天气条件变化（霾天 β_M 大 10 倍以上），当前使用固定值。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><p><strong>预计算 LUT（Bruneton 方法）</strong>：把光学深度函数和散射积分预计算到 2D&#x2F;4D 纹理中，实现实时渲染（GPU 上查表）。这是 Unreal Engine <code>SkyAtmosphere</code> 的核心技术。</p>
+</li>
+<li><p><strong>多次散射</strong>：通过迭代方式（每次散射事件的输出作为下次的输入）或预计算多重散射 LUT，逼近真实的多次散射效果。</p>
+</li>
+<li><p><strong>体积云</strong>：在大气散射框架内加入云的 Mie 散射，云的透射率&#x2F;发光度与大气统一计算。</p>
+</li>
+<li><p><strong>动态参数</strong>：暴露大气参数（β_R、β_M、H_R、H_M）为外部可调参数，支持外星&#x2F;异世界天空的艺术化设计。</p>
+</li>
+<li><p><strong>SIMD 优化</strong>：用 AVX2 向量化内循环，理论上可获得 4-8× 的性能提升，使实时逐帧渲染成为可能。</p>
+</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>03-21 SPPM &#x2F; 03-22 BDPT</strong>：大气散射可以作为这些全局光照方法的”环境光”来源，替换掉简单的常数环境光</li>
+<li><strong>03-24 次表面散射</strong>：SSS 的双层漫射模型与 Rayleigh 散射有相似的物理基础（光在散射介质中的多次弹射）</li>
+<li><strong>03-25 SSAO</strong>：大气散射提供的方向性环境光会影响 SSAO 的遮蔽计算——强方向性环境光下 AO 效果更不均匀</li>
+<li><strong>04-01 SDF Ray Marching</strong>：Ray Marching 技术本身可以直接用于大气散射的体积积分，两者共享核心思想</li>
+</ul>
+<p>本次实现代码约 250 行（含注释），完整可运行，无外部依赖（仅使用 stdlib + PIL 进行 PPM→PNG 转换）。</p>
+<hr>
+<p><em>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/04/04-04-Atmosphere-Scattering-Renderer">daily-coding-practice</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/">https://chiuhoukazusa.github.io/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA/">光线追踪</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%89%A9%E7%90%86%E6%B8%B2%E6%9F%93/">物理渲染</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Disney Principled BRDF Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在现代实时渲染和离线渲染领域，材质系统是最核心的模块之一。早期的渲染系统采用 Phong 或 Blinn-Phong 模型，这些模型参数对美术不直观——改变”高光指数”时，你无法直觉判断结果。而且这些模型能量不守恒：高光加上漫反射经常超过入射光能量，导致不真实感。 2012 年，Burley 在 SIGGRAPH 发表了《Physically-Based Shading at Disney》，提出了 Principled BRDF（原则性双向反射分布函数）。这个模型的核心哲学不是追求”物理精确”，而是追求对艺术家直觉友好 + 足够真实：  对艺术家友好：所有参数都在 [0, 1] 范围内，语义直观（metallic&#x3D;0 是绝缘体，&#x3D;1 是金属） 能量守恒：漫反射和镜面反射之和不超过入射能量 适用广泛：皮肤、金属、玻璃、布料，用同一套参数系统搞定  工业界使用场景Disney BRDF 或其变体已经被以下系统采用：  Unreal Engine 4&#x2F;5：Epic 改良了 Disney BRDF，称为”UE4 Shading Model”，是 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/01/daily-coding-BVH-Accelerated-Ray-Tracer-2026-03-01/" title="每日编程实践: BVH 层次包围盒加速光线追踪"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-01-BVH-Accelerated-Ray-Tracer/bvh_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-01</div><div class="info-item-2">每日编程实践: BVH 层次包围盒加速光线追踪</div></div><div class="info-2"><div class="info-item-1">BVH 层次包围盒加速光线追踪项目目标实现 BVH（Bounding Volume Hierarchy，层次包围盒） 加速结构，将暴力 O(n) 的光线-场景求交优化到 O(log n)，并通过实际渲染对比验证性能提升。 这是光线追踪系列（02-06 至今）的重要里程碑——解决了随场景规模增大性能急剧下降的根本问题。 核心概念为什么需要 BVH？朴素光线追踪对每条光线都要遍历场景中所有物体求交，时间复杂度是 O(n)。当场景有 1000 个球体时，每条光线需要做 1000 次求交测试。 BVH 通过构建层次树结构解决这个问题： 12345             [根节点 AABB]            /             \   [左子树 AABB]      [右子树 AABB]   /          \          /       \[球A AABB]  [球B AABB] ...      ...  光线先与包围盒求交（很快），如果不相交就跳过整棵子树，大幅减少无效测试。 实现过程1. AABB 轴对齐包围盒核心是高效的 Slab 方法求交： 1234...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/20/daily-coding-texture-mapping-2026-02-20/" title="每日编程实践: 纹理映射光线追踪器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-20</div><div class="info-item-2">每日编程实践: 纹理映射光线追踪器</div></div><div class="info-2"><div class="info-item-1">纹理映射光线追踪器项目目标实现完整的球面UV映射和纹理采样系统，支持在光线追踪器中渲染带纹理的球体。 关键技术：  球面坐标到UV坐标的转换 程序化纹理生成（棋盘格） 材质系统（纹理&#x2F;纯色混合） 基于UV坐标的纹理采样  实现过程迭代历史 初始版本: 一次性实现完成 球面UV映射公式 (sphereUV) 棋盘格纹理生成 (checkerboardTexture) 材质系统 (hasTexture 标志) 量化验证通过    为什么一次成功？  球面UV映射的数学公式已标准化 使用成熟的反三角函数库 严格的量化验证流程  核心代码球面UV映射123456789101112UV sphereUV(const Vec3&amp; point) &#123;    // point 是单位球面上的点    Vec3 p = point.normalize();        // 经度 → u坐标 (使用 atan2 处理方位角)    double u = 0.5 + atan2(p.z, p.x) / (2 * M_PI);        // 纬度 → v坐标 (使用 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/28/daily-coding-depth-of-field-2026-03-28/" title="每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-28-depth-of-field/dof_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-28</div><div class="info-item-2">每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器今天实现了一个基于薄透镜模型（Thin Lens Model）的物理正确景深渲染器，配合路径追踪产生自然的散景（Bokeh）效果。   ① 背景与动机为什么景深很重要？如果你玩过《赛博朋克 2077》《荒野大镖客2》或《对马岛之魂》，一定注意过游戏里的镜头语言——当主角站在前景，背景的城市灯光化成一圈圈朦胧的光晕，这就是景深（Depth of Field, DoF）效果。这个效果来自真实相机和人眼的光学特性：光圈有物理尺寸，只有焦平面附近的物体才能在感光元件上聚焦成点，其他距离的物体会形成弥散圆（Circle of Confusion），俗称散景（Bokeh）。 没有景深的渲染器——包括我们之前做的大多数渲染器——使用的都是**针孔相机（Pinhole Camera）**模型。针孔相机假设光圈无穷小，所有距离的物体都完全清晰。这对学习渲染基础够用，但就视觉真实性而言有明显缺陷：  画面缺乏层次感：前景、中景、背景同样清晰，空间深度感弱 缺少导演感：真实摄影中，摄影师用景深引导观众视线——清晰的地方...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/28/daily-coding-ambient-occlusion-2026-02-28/" title="每日编程实践: Ambient Occlusion（环境光遮蔽）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-28-ambient-occlusion/ao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-28</div><div class="info-item-2">每日编程实践: Ambient Occlusion（环境光遮蔽）</div></div><div class="info-2"><div class="info-item-1">Ambient Occlusion（环境光遮蔽）环境光遮蔽（AO）是一种近似全局光照效果的技术，通过估算每个表面点被周围几何体遮蔽的程度，模拟出接触阴影、角落变暗等真实感效果。 项目目标 实现基于蒙特卡洛积分的 AO 渲染器 在半球方向随机采样光线，统计遮蔽率 构建包含多个球体和围合墙面的 Cornell Box 场景 量化验证 AO 梯度（角落暗、开阔区域亮）  效果展示 场景细节：  🔵 中央大球：球顶最亮（无遮蔽），底部接地点最暗（地面遮蔽） 🔵 角落小球：被墙角和地面三面遮蔽，明显偏暗 🟫 地面：球体正下方出现接触阴影，物理正确  核心原理蒙特卡洛积分AO 的数学定义是对法线半球上的可见性函数积分： 1AO(p) = (1/π) ∫_Ω V(p, ω) · (ω · N) dω  其中 V(p, ω) 是可见性函数（1&#x3D;未遮蔽，0&#x3D;遮蔽），用蒙特卡洛方法估算： 12345678910111213141516double computeAO(const Vec3&amp; p, const Vec3&amp; N, const Scene&amp;...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-19</div><div class="info-item-2">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 折射效果（玻璃球）项目目标在昨日反射效果的基础上，实现折射效果（Refraction），让玻璃球真正”透明”！ 核心技术：  Snell 定律（折射方向计算） Fresnel 效应（反射&#x2F;折射混合） 全反射检测 多材质系统    ⚠️ 重要修复（2026-02-19 10:30）用户反馈的问题：  三个球部分叠在一起 右边金属球看起来像纯透明材质  根本原因：  球体重叠：球心间距 2.5 &lt; 球直径 3.0 金属反射 bug：代码只返回环境反射颜色，没有乘上金属本身的颜色  为什么金属必须乘上颜色？ 金属反射 &#x3D; 环境光 × 金属本身颜色 12345// ❌ 原代码（错误）- 金属变成无色镜子return reflectColor * 0.9;// ✅ 修复后 - 金属显示金黄色return (reflectColor * metalColor) * 0.9;     环境光 金属颜色 反射结果    白光 (1,1,1) 金黄 (0.8,0.6,0.2) 金黄反射   蓝天 (0,0,1) 金黄 (0.8,0.6,0.2) 深蓝 (...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-23-voxel-cone-tracing/vct_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-23</div><div class="info-item-2">每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机全局光照的工程困境光线追踪可以精确计算全局光照（Global Illumination，GI），但在实时渲染场景下代价极高。渲染一帧 1080P 图像，路径追踪往往需要每像素几十甚至上百条路径才能收敛——这对于 60FPS 的游戏来说显然不现实。 游戏引擎里用了哪些方案来”作弊”？  光照贴图（Lightmap）：离线烘焙，无法响应动态物体 Irradiance Volume（光照探针）：动态性好，但空间分辨率有限 SSAO（屏幕空间环境光遮蔽）：只用屏幕信息，遮蔽范围受限 Lumen（UE5）：混合 SDF 追踪 + Radiance Cache，非常复杂  2011 年，Cyril Crassin 等人提出了 Voxel Cone Tracing（VCT），发表在 SIGGRAPH 论文”Interactive Indirect Illumination Using Voxel Cone Tracing”中。VCT 的核心思想是：  把场景体素化成一个带 Mipmap 的 3D 纹理，然后在着色时沿锥形方向”扫描”这个 3D 纹理，近似计算来自各方向的间接辐射度...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">57</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">78</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">一、背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E5%A4%A7%E6%B0%94%E6%95%A3%E5%B0%84%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">为什么需要大气散射？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%AE%9E%E9%99%85%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.2.</span> <span class="toc-text">工业界实际使用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%A4%A7%E6%B0%94%E5%B1%82%E7%89%A9%E7%90%86%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 大气层物理模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Rayleigh-%E6%95%A3%E5%B0%84"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 Rayleigh 散射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Mie-%E6%95%A3%E5%B0%84"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 Mie 散射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E8%BE%90%E5%B0%84%E4%BC%A0%E8%BE%93%E6%96%B9%E7%A8%8B%EF%BC%88%E5%8D%95%E6%AC%A1%E6%95%A3%E5%B0%84%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 辐射传输方程（单次散射）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E9%87%87%E6%A0%B7%E7%AD%96%E7%95%A5"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 采样策略</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E7%90%83%E9%9D%A2%E7%9B%B8%E4%BA%A4%E6%A3%80%E6%B5%8B"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 球面相交检测</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E5%85%89%E5%AD%A6%E6%B7%B1%E5%BA%A6%E7%A7%AF%E5%88%86"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 光学深度积分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E4%B8%BB%E6%95%A3%E5%B0%84%E7%A7%AF%E5%88%86"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 主散射积分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E7%9B%B8%E4%BD%8D%E5%87%BD%E6%95%B0%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 相位函数实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-ACES-%E8%89%B2%E8%B0%83%E6%98%A0%E5%B0%84"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 ACES 色调映射</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E6%97%A5%E8%90%BD%E9%9D%A2%E6%9D%BF%E5%87%A0%E4%B9%8E%E5%85%A8%E9%BB%91"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：日落面板几乎全黑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E6%AD%A3%E5%8D%88%E9%9D%A2%E6%9D%BF%E9%A2%9C%E8%89%B2%E5%81%8F%E7%BB%BF"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：正午面板颜色偏绿</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A-%E2%80%94%E2%80%94-%E6%9C%AA%E4%BD%BF%E7%94%A8%E5%8F%98%E9%87%8F"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：编译警告 —— 未使用变量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9APPM-%E8%BD%AC-PNG-%E4%BE%9D%E8%B5%96%E7%BC%BA%E5%A4%B1"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：PPM 转 PNG 依赖缺失</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E7%BB%93%E6%9E%9C"><span class="toc-number">6.1.</span> <span class="toc-text">渲染结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE"><span class="toc-number">6.2.</span> <span class="toc-text">量化验证数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/" title="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/" title="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染">每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染</a><time datetime="2026-04-03T21:30:00.000Z" title="发表于 2026-04-04 05:30:00">2026-04-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Disney Principled BRDF Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer">每日编程实践: Disney Principled BRDF Renderer</a><time datetime="2026-04-02T21:33:36.000Z" title="发表于 2026-04-03 05:33:36">2026-04-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/02/daily-coding-bvh-triangle-mesh-2026-04-02/" title="每日编程实践: BVH Accelerated Triangle Mesh Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-02-bvh-triangle-mesh/bvh_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: BVH Accelerated Triangle Mesh Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/02/daily-coding-bvh-triangle-mesh-2026-04-02/" title="每日编程实践: BVH Accelerated Triangle Mesh Renderer">每日编程实践: BVH Accelerated Triangle Mesh Renderer</a><time datetime="2026-04-01T21:30:00.000Z" title="发表于 2026-04-02 05:30:00">2026-04-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/01/daily-coding-sdf-ray-marching-2026-04-01/" title="每日编程实践: SDF Ray Marching Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-01-sdf-ray-marching/sdf_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SDF Ray Marching Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/01/daily-coding-sdf-ray-marching-2026-04-01/" title="每日编程实践: SDF Ray Marching Renderer">每日编程实践: SDF Ray Marching Renderer</a><time datetime="2026-03-31T21:30:00.000Z" title="发表于 2026-04-01 05:30:00">2026-04-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/03/31/daily-coding-caustics-renderer-2026-03-31/" title="每日编程实践: Caustics Renderer — 光子映射焦散渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-31-caustics/caustics_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Caustics Renderer — 光子映射焦散渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/03/31/daily-coding-caustics-renderer-2026-03-31/" title="每日编程实践: Caustics Renderer — 光子映射焦散渲染">每日编程实践: Caustics Renderer — 光子映射焦散渲染</a><time datetime="2026-03-30T21:30:00.000Z" title="发表于 2026-03-31 05:30:00">2026-03-31</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
