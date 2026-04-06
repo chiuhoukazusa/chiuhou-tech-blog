@@ -1,0 +1,429 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="① 背景与动机毛发渲染为什么难？在实时和离线渲染中，毛发（hair）与毛皮（fur）是公认最难处理的材质之一。难点不在于单根头发本身，而在于：  几何复杂度：一个人类头部约有 10 万根头发，每根头发是一条细长的圆柱体（直径 0.05~0.1 mm），传统三角形面片难以高效表达； 光照各向异性：头发纤维的截面是圆形，光线打在上面不像漫反射那样均匀散射，而是沿着纤维切线方向产生拉丝状高光——这是毛发">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Fur&#x2F;Hair Rendering with Kajiya-Kay Model">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="① 背景与动机毛发渲染为什么难？在实时和离线渲染中，毛发（hair）与毛皮（fur）是公认最难处理的材质之一。难点不在于单根头发本身，而在于：  几何复杂度：一个人类头部约有 10 万根头发，每根头发是一条细长的圆柱体（直径 0.05~0.1 mm），传统三角形面片难以高效表达； 光照各向异性：头发纤维的截面是圆形，光线打在上面不像漫反射那样均匀散射，而是沿着纤维切线方向产生拉丝状高光——这是毛发">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png">
+<meta property="article:published_time" content="2026-04-06T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-06T21:36:49.523Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="毛发渲染">
+<meta property="article:tag" content="着色模型">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model",
+  "url": "https://chiuhoukazusa.github.io/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png",
+  "datePublished": "2026-04-06T21:30:00.000Z",
+  "dateModified": "2026-04-06T21:36:49.523Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-06T21:30:00.000Z" title="发表于 2026-04-07 05:30:00">2026-04-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-06T21:36:49.523Z" title="更新于 2026-04-07 05:36:49">2026-04-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="毛发渲染为什么难？"><a href="#毛发渲染为什么难？" class="headerlink" title="毛发渲染为什么难？"></a>毛发渲染为什么难？</h3><p>在实时和离线渲染中，毛发（hair）与毛皮（fur）是公认最难处理的材质之一。难点不在于单根头发本身，而在于：</p>
+<ol>
+<li><strong>几何复杂度</strong>：一个人类头部约有 10 万根头发，每根头发是一条细长的圆柱体（直径 0.05~0.1 mm），传统三角形面片难以高效表达；</li>
+<li><strong>光照各向异性</strong>：头发纤维的截面是圆形，光线打在上面不像漫反射那样均匀散射，而是沿着纤维切线方向产生拉丝状高光——这是毛发区别于其他材质的核心视觉特征；</li>
+<li><strong>自遮挡与透射</strong>：头发丛密集，内部有大量自遮挡；同时头发具有一定透明度，逆光看时会出现透射光（subsurface glow）效果；</li>
+<li><strong>实时性要求</strong>：游戏引擎中毛发不能逐根光线追踪，需要近似模型以达到实时帧率。</li>
+</ol>
+<h3 id="Kajiya-Kay-模型的历史地位"><a href="#Kajiya-Kay-模型的历史地位" class="headerlink" title="Kajiya-Kay 模型的历史地位"></a>Kajiya-Kay 模型的历史地位</h3><p>1989 年，James T. Kajiya 和 Timothy L. Kay 在 SIGGRAPH 发表了论文《Rendering Fur with Three Dimensional Textures》，提出了第一个专门针对毛发&#x2F;纤维着色的光照模型——<strong>Kajiya-Kay 模型</strong>。</p>
+<p>这篇论文的核心洞察是：头发不能用点法线来描述光照，而应该用<strong>切线（tangent）</strong>——头发沿切线方向延伸，光照响应对称地围绕切线，而不是法线。</p>
+<p>尽管今天有了更物理精确的 <strong>Marschner (2003)</strong>、<strong>d’Eon (2011)</strong> 和 <strong>Chiang (2016)</strong> 等模型，Kajiya-Kay 因其极低的计算成本，在实时渲染中仍大量使用，尤其是：</p>
+<ul>
+<li><strong>《刺客信条》系列</strong>（早期版本）的 NPC 头发</li>
+<li>各类手游中的卡通角色毛发</li>
+<li>影视制作中的快速预览</li>
+<li>VR 场景中需要极低开销的毛发效果</li>
+</ul>
+<p>今天的实践目标是：<strong>从零实现 Kajiya-Kay 毛发着色模型</strong>，包含程序化毛发几何生成、软光栅化管线，渲染出一个带有真实感毛发的头部模型。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-Kajiya-Kay-着色模型的数学推导"><a href="#2-1-Kajiya-Kay-着色模型的数学推导" class="headerlink" title="2.1 Kajiya-Kay 着色模型的数学推导"></a>2.1 Kajiya-Kay 着色模型的数学推导</h3><p><strong>传统 Phong 模型的局限</strong></p>
+<p>在 Phong 模型中，着色依赖于表面法线 <strong>N</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Diffuse  = kd * max(0, N · L)</span><br><span class="line">Specular = ks * max(0, R · V)^p</span><br></pre></td></tr></table></figure>
+
+<p>其中 <strong>L</strong> 是光线方向，<strong>V</strong> 是视线方向，<strong>R</strong> 是反射方向。</p>
+<p>这套公式假设表面是局部平坦的，有一个明确的法线。但头发是一根圆柱，它的”法线”取决于观察角度——从不同方向看，同一位置的有效法线不同。更重要的是，头发对光的响应在绕切线旋转方向上是对称的（各向同性于绕切线的旋转），这恰恰是 Phong 无法处理的。</p>
+<p><strong>Kajiya-Kay 的关键替换</strong></p>
+<p>设 <strong>T</strong> 为毛发的单位切线向量，<strong>L</strong> 为光源方向（归一化，指向光源），<strong>V</strong> 为视线方向（归一化，指向眼睛）。</p>
+<p>定义 θ_LT 为 <strong>L</strong> 与 <strong>T</strong> 之间的夹角，则：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cos(θ_LT) = T · L</span><br><span class="line">sin(θ_LT) = sqrt(1 - (T · L)²)</span><br></pre></td></tr></table></figure>
+
+<p><strong>Kajiya-Kay 漫反射项</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I_diffuse = kd * sin(θ_LT)</span><br></pre></td></tr></table></figure>
+
+<p>直觉解释：当光线<strong>垂直</strong>于头发（θ_LT &#x3D; 90°），sin &#x3D; 1，漫反射最强，这符合现实——光线从侧面打来，照亮了最大面积的纤维截面；当光线<strong>平行</strong>于头发（θ_LT &#x3D; 0°），sin &#x3D; 0，漫反射为零，光线沿头发滑过，没有照亮表面。</p>
+<p>这与传统漫反射 <code>cos(θ)</code> 的行为是对偶的——传统模型是”法线与光线越平行越亮”，而毛发是”切线与光线越垂直越亮”。</p>
+<p><strong>Kajiya-Kay 高光项</strong>：</p>
+<p>对于高光，我们考虑：头发在某个”有效法线”方向发生镜面反射，这个有效法线是 <strong>L</strong> 在垂直于 <strong>T</strong> 的平面上的投影方向。类似地，<strong>V</strong> 也有一个相对于 <strong>T</strong> 的分量。</p>
+<p>令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">T_L = T * (T · L)    // L 在 T 方向的投影</span><br><span class="line">L_perp = L - T_L     // L 的垂直分量（长度 = sin(θ_LT)）</span><br><span class="line"></span><br><span class="line">T_V = T * (T · V)    // V 在 T 方向的投影</span><br><span class="line">V_perp = V - T_V     // V 的垂直分量（长度 = sin(θ_TV)）</span><br></pre></td></tr></table></figure>
+
+<p>Kajiya-Kay 高光定义为这两个垂直分量的点积（归一化后），再提升到幂次 p：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">cos_angle = (L_perp / |L_perp|) · (V_perp / |V_perp|)</span><br><span class="line">           = (L - T*(T·L)) · (V - T*(T·V)) / (sin_LT * sin_TV)</span><br><span class="line">           </span><br><span class="line">I_specular = ks * max(0, cos_angle)^p</span><br></pre></td></tr></table></figure>
+
+<p>化简后可以写成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I_specular = ks * (sin_LT * sin_TV * cos(φ) - cos_LT * cos_TV)^p</span><br></pre></td></tr></table></figure>
+
+<p>其中 φ 是 L 和 V 在垂直于 T 的平面上的方位角差。</p>
+<p>在实现上，也常用等价的近似（本实现采用）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I_specular = ks * pow(max(0, sin_shifted), p)</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>sin_shifted = sqrt(1 - (T·V + offset)²)</code>，offset 用于沿切线方向偏移高光叶片，模拟头发根部与发梢的高光位移差。</p>
+<h3 id="2-2-为什么毛发有两个高光叶片？"><a href="#2-2-为什么毛发有两个高光叶片？" class="headerlink" title="2.2 为什么毛发有两个高光叶片？"></a>2.2 为什么毛发有两个高光叶片？</h3><p>真实头发的横截面并非完美圆形，而是有角质层（cuticle）的粗糙表面。光打到头发上会发生：</p>
+<ol>
+<li><strong>R 叶片</strong>（primary highlight）：光从角质层表面直接反射，产生明亮、偏白的高光；</li>
+<li><strong>TT 叶片</strong>（secondary highlight）：光透射进入头发，在内部散射后从对侧射出，颜色接近头发本色，位置与 R 叶片约相差 2-3 度。</li>
+</ol>
+<p>Kajiya-Kay 原始模型只有一个高光叶片，Marschner 模型引入了双叶片。本实现用切线偏移模拟了偏移效果。</p>
+<h3 id="2-3-程序化毛发几何：Fibonacci-球面分布"><a href="#2-3-程序化毛发几何：Fibonacci-球面分布" class="headerlink" title="2.3 程序化毛发几何：Fibonacci 球面分布"></a>2.3 程序化毛发几何：Fibonacci 球面分布</h3><p>要在头部球面上均匀分布 6000 根头发，需要一种好的球面分布策略。</p>
+<p><strong>随机均匀</strong>方法容易出现”簇集”（clustering）——随机数有时集中在一个区域，留下空洞。</p>
+<p><strong>Fibonacci 球面（Sunflower Spiral）</strong> 是目前最优的均匀球面分布之一：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">φ_i = 2π * i * φ_golden           // 黄金角 φ_golden ≈ 0.618033...</span><br><span class="line">θ_i = arccos(1 - 2*(i+0.5)/N)     // 让 cos(θ) 均匀分布在 [-1, 1]</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>φ_golden = (√5 - 1)/2 ≈ 0.618034</code>（黄金比例），每根头发的经向角递增黄金角，避免了整数倍重叠，产生螺旋状的均匀分布。</p>
+<p>这种方法的球面覆盖误差为 O(1&#x2F;N)，而随机方法期望误差为 O(1&#x2F;√N)，Fibonacci 分布在相同数量下覆盖质量更好。</p>
+<h3 id="2-4-毛发生长方向：重力垂落与随机卷曲"><a href="#2-4-毛发生长方向：重力垂落与随机卷曲" class="headerlink" title="2.4 毛发生长方向：重力垂落与随机卷曲"></a>2.4 毛发生长方向：重力垂落与随机卷曲</h3><p>单根头发从球面法线方向出发，随着发尖逐渐向重力方向倾斜：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dir_at_segment_s = lerp(normal, gravity_dir, s/S)</span><br></pre></td></tr></table></figure>
+
+<p>加上每段随机的法平面内扰动，模拟卷曲与不整齐感：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">random_perp = random_vec3 - normal * dot(random_vec3, normal)</span><br><span class="line">dir_final = normalize(dir_blend + random_perp * 0.15)</span><br></pre></td></tr></table></figure>
+
+<p>通过控制 blend 权重和随机强度，可以得到从直发到卷发的不同效果。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体渲染管线"><a href="#3-1-整体渲染管线" class="headerlink" title="3.1 整体渲染管线"></a>3.1 整体渲染管线</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">程序入口</span><br><span class="line">    │</span><br><span class="line">    ├─ renderBackground()     背景渐变（直接填像素）</span><br><span class="line">    ├─ renderSphere()         头部球体（逐像素光线-球相交）</span><br><span class="line">    └─ drawStrand() × 6000   毛发渲染（软光栅化线段）</span><br><span class="line">         │</span><br><span class="line">         ├─ generateHair()   Fibonacci球面分布 + 重力垂落几何</span><br><span class="line">         ├─ 排序（Z远→近）   画家算法保证正确遮挡</span><br><span class="line">         ├─ Kajiya-Kay着色   逐线段计算切线→漫反射+高光</span><br><span class="line">         └─ 投影+光栅化       3D→屏幕空间，圆盘状线段绘制</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 图像缓冲区（含 Z-Buffer）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Image</span> &#123;</span><br><span class="line">    <span class="type">int</span> w, h;</span><br><span class="line">    std::vector&lt;Vec3&gt; pixels;   <span class="comment">// RGB 颜色</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; zbuf;    <span class="comment">// 深度（相机空间 Z）</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 毛发几何：每根头发是一条折线</span></span><br><span class="line">std::vector&lt;std::vector&lt;Vec3&gt;&gt; strands;  <span class="comment">// 外层=毛发，内层=节点</span></span><br></pre></td></tr></table></figure>
+
+<p>选择折线（poly-line）而非贝塞尔曲线的原因：折线在软光栅化时可以直接逐段处理，无需采样参数曲线，计算成本更低；8 段折线已经足以表达自然弯曲，过多段数在视觉上没有明显提升但增加渲染时间。</p>
+<h3 id="3-3-相机投影模型"><a href="#3-3-相机投影模型" class="headerlink" title="3.3 相机投影模型"></a>3.3 相机投影模型</h3><p>使用透视投影，自实现而非依赖 OpenGL&#x2F;Vulkan：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">相机坐标系 = &#123;forward, right, up&#125;（orthonormal basis）</span><br><span class="line">给定世界点 P：</span><br><span class="line">    d = P - cam.origin</span><br><span class="line">    z_cam = d · forward              // 相机空间深度</span><br><span class="line">    x_cam = d · right</span><br><span class="line">    y_cam = d · up</span><br><span class="line">    </span><br><span class="line">    half_h = tan(fovY/2) * z_cam     // 视锥半高</span><br><span class="line">    half_w = half_h * aspect</span><br><span class="line">    </span><br><span class="line">    screen_x = (x_cam/half_w * 0.5 + 0.5) * W</span><br><span class="line">    screen_y = (-y_cam/half_h * 0.5 + 0.5) * H   // Y轴翻转</span><br></pre></td></tr></table></figure>
+
+<p>Z-Buffer 存储相机空间深度 <code>z_cam</code>（越小越近），线段插值时对 <code>z_cam</code> 线性插值（近似；精确的透视正确插值需要用 <code>1/z</code> 插值，对直径 ≤ 1px 的毛发误差可忽略）。</p>
+<h3 id="3-4-毛发-vs-球体的-Z-排序策略"><a href="#3-4-毛发-vs-球体的-Z-排序策略" class="headerlink" title="3.4 毛发 vs 球体的 Z 排序策略"></a>3.4 毛发 vs 球体的 Z 排序策略</h3><p>球体使用逐像素光线追踪，天然支持 Z-Buffer；毛发使用软光栅化线段。两者共享同一个 Image 的 Z-Buffer，因此：</p>
+<ul>
+<li>球体先渲染（占据 Z-Buffer 靠近处的值）</li>
+<li>毛发后渲染，通过 <code>setPixel</code> 的 Z-Test 自动处理遮挡</li>
+<li>毛发内部按根-深度排序（Z 远→近），使用画家算法辅助（但 Z-Buffer 仍是最终仲裁）</li>
+</ul>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-Kajiya-Kay-着色实现"><a href="#4-1-Kajiya-Kay-着色实现" class="headerlink" title="4.1 Kajiya-Kay 着色实现"></a>4.1 Kajiya-Kay 着色实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 漫反射：sin(angle between tangent T and light L)</span></span><br><span class="line"><span class="function"><span class="keyword">inline</span> <span class="type">float</span> <span class="title">KK_diffuse</span><span class="params">(<span class="type">const</span> Vec3&amp; T, <span class="type">const</span> Vec3&amp; L)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> cosTheta = T.<span class="built_in">dot</span>(L);</span><br><span class="line">    <span class="comment">// sin² = 1 - cos²，取正数平方根</span></span><br><span class="line">    <span class="type">float</span> sinTheta = std::<span class="built_in">sqrt</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, <span class="number">1.f</span> - cosTheta*cosTheta));</span><br><span class="line">    <span class="keyword">return</span> sinTheta;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 高光：基于切线-视线夹角，+偏移模拟双叶片</span></span><br><span class="line"><span class="function"><span class="keyword">inline</span> <span class="type">float</span> <span class="title">KK_specular</span><span class="params">(<span class="type">const</span> Vec3&amp; T, <span class="type">const</span> Vec3&amp; V, <span class="type">float</span> shininess)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> cosTheta_TV = T.<span class="built_in">dot</span>(V);</span><br><span class="line">    <span class="comment">// 沿切线方向偏移高光叶片（模拟 R 与 TT 的分离）</span></span><br><span class="line">    <span class="type">float</span> shifted = cosTheta_TV + <span class="number">0.2f</span>;</span><br><span class="line">    <span class="type">float</span> sinShifted = std::<span class="built_in">sqrt</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, <span class="number">1.f</span> - shifted*shifted));</span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, sinShifted), shininess);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么对 <code>cosTheta + 0.2</code> 做偏移？</strong></p>
+<p>在 Kajiya-Kay 的原始公式中，高光叶片位于 V 和 T 所在平面的特定角度。给 <code>cos(θ_TV)</code> 加一个偏移量等效于将高光叶片沿切线方向移动，使反射高光与镜面高光分离，视觉上产生”两层高光”的效果——这是长发反光的标志性特征。</p>
+<p><strong>最终颜色合成</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ambient: 基础环境光，防止背光面全黑</span></span><br><span class="line"><span class="type">const</span> Vec3 ambient  = <span class="built_in">Vec3</span>(<span class="number">0.10f</span>, <span class="number">0.08f</span>, <span class="number">0.05f</span>);  <span class="comment">// 暖色调环境光</span></span><br><span class="line"><span class="type">const</span> <span class="type">float</span> kd = <span class="number">0.7f</span>, ks = <span class="number">0.4f</span>, shininess = <span class="number">60.f</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> diff = <span class="built_in">KK_diffuse</span>(tangent, lightDir);    <span class="comment">// [0,1]</span></span><br><span class="line"><span class="type">float</span> spec = <span class="built_in">KK_specular</span>(tangent, viewDir, shininess);  <span class="comment">// [0,1]</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// hairColor = 暖棕色 (0.58, 0.35, 0.15)</span></span><br><span class="line"><span class="comment">// 高光颜色用偏暖白 (1, 1, 0.8)，模拟发丝光泽感</span></span><br><span class="line">Vec3 shadedColor = (ambient </span><br><span class="line">                  + hairColor * (kd * diff) </span><br><span class="line">                  + <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">1</span>,<span class="number">0.8f</span>) * (ks * spec)).<span class="built_in">clamp01</span>();</span><br></pre></td></tr></table></figure>
+
+<p>注意高光的颜色用 <code>Vec3(1, 1, 0.8)</code> 而非纯白，因为自然光高光总有微弱暖色调（来自光源色温）。</p>
+<h3 id="4-2-程序化头发几何生成"><a href="#4-2-程序化头发几何生成" class="headerlink" title="4.2 程序化头发几何生成"></a>4.2 程序化头发几何生成</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">std::vector&lt;std::vector&lt;Vec3&gt;&gt; <span class="built_in">generateHair</span>(</span><br><span class="line">        Vec3 center, <span class="type">float</span> headRadius,</span><br><span class="line">        <span class="type">int</span> numHairs, <span class="type">float</span> hairLength, <span class="type">unsigned</span> <span class="type">int</span> seed)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="function">std::mt19937 <span class="title">rng</span><span class="params">(seed)</span></span>;</span><br><span class="line">    <span class="function">std::uniform_real_distribution&lt;<span class="type">float</span>&gt; <span class="title">u01</span><span class="params">(<span class="number">0.f</span>, <span class="number">1.f</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">0</span>; i &lt; numHairs; ++i) &#123;</span><br><span class="line">        <span class="comment">// ---- Fibonacci 球面分布 ----</span></span><br><span class="line">        <span class="type">float</span> phi   = <span class="number">2.f</span> * PI * (<span class="type">float</span>)i * <span class="number">0.618033988f</span>;  <span class="comment">// 黄金角递增</span></span><br><span class="line">        <span class="type">float</span> theta = std::<span class="built_in">acos</span>(<span class="number">1.f</span> - <span class="number">2.f</span>*(i<span class="number">+0.5f</span>)/numHairs);  <span class="comment">// 均匀 cos 分布</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 随机抖动（±0.2 弧度），让分布更自然，避免过度规律</span></span><br><span class="line">        phi   += (<span class="built_in">u01</span>(rng)<span class="number">-0.5f</span>)*<span class="number">0.4f</span>;</span><br><span class="line">        theta += (<span class="built_in">u01</span>(rng)<span class="number">-0.5f</span>)*<span class="number">0.2f</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 跳过头部下方 20%（避免颈部/下巴长头发）</span></span><br><span class="line">        <span class="keyword">if</span>(theta &gt; PI * <span class="number">0.8f</span>) <span class="keyword">continue</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// ---- 根节点：球面上的点 ----</span></span><br><span class="line">        Vec3 root = center + <span class="built_in">Vec3</span>(</span><br><span class="line">            std::<span class="built_in">sin</span>(theta)*std::<span class="built_in">cos</span>(phi),</span><br><span class="line">            std::<span class="built_in">cos</span>(theta),</span><br><span class="line">            std::<span class="built_in">sin</span>(theta)*std::<span class="built_in">sin</span>(phi)</span><br><span class="line">        ) * headRadius;</span><br><span class="line">        </span><br><span class="line">        Vec3 normal = (root - center).<span class="built_in">norm</span>();  <span class="comment">// 球面法线 = 头发生长方向</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// ---- 重力方向（下垂 + 轻微侧风） ----</span></span><br><span class="line">        Vec3 windDir = <span class="built_in">Vec3</span>(<span class="number">0.1f</span>, <span class="number">-1.f</span>, <span class="number">0.05f</span>).<span class="built_in">norm</span>();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// ---- 生成 8 段折线 ----</span></span><br><span class="line">        <span class="type">const</span> <span class="type">int</span> SEG = <span class="number">8</span>;</span><br><span class="line">        <span class="type">float</span> segLen = hairLength / SEG;</span><br><span class="line">        Vec3 pos = root;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span>(<span class="type">int</span> s = <span class="number">0</span>; s &lt; SEG; ++s) &#123;</span><br><span class="line">            <span class="type">float</span> blend = (<span class="type">float</span>)s / SEG;  <span class="comment">// 0(根部)→1(发梢) 越来越下垂</span></span><br><span class="line">            </span><br><span class="line">            <span class="comment">// 当前方向 = 法线（根部直立） lerp 到重力方向（发梢下垂）</span></span><br><span class="line">            Vec3 d = (normal*(<span class="number">1.f</span>-blend) + windDir*blend).<span class="built_in">norm</span>();</span><br><span class="line">            </span><br><span class="line">            <span class="comment">// 随机法平面内扰动（产生卷曲感）</span></span><br><span class="line">            Vec3 rndPerp = <span class="built_in">Vec3</span>(<span class="built_in">u01</span>(rng)<span class="number">-0.5f</span>, <span class="built_in">u01</span>(rng)<span class="number">-0.5f</span>, <span class="built_in">u01</span>(rng)<span class="number">-0.5f</span>);</span><br><span class="line">            rndPerp = rndPerp - normal*(rndPerp.<span class="built_in">dot</span>(normal));  <span class="comment">// 投影掉法线分量</span></span><br><span class="line">            d = (d + rndPerp * <span class="number">0.15f</span>).<span class="built_in">norm</span>();</span><br><span class="line">            </span><br><span class="line">            pos = pos + d * segLen;</span><br><span class="line">            strand.<span class="built_in">push_back</span>(pos);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计说明</strong>：</p>
+<ul>
+<li><code>blend = s/SEG</code>：越靠近发梢，重力影响越大，模拟真实头发根部硬（附着头皮）、发梢软（自由垂落）的特性；</li>
+<li><code>rndPerp * 0.15f</code>：0.15 是经过调试的合适值，太小头发过于整齐（像假发），太大则杂乱无章；</li>
+<li><code>theta &gt; PI * 0.8f</code> 跳过下方：这避免了下巴和颈部的穿插问题，同时让头顶密度略高于两侧（接近真实发型）。</li>
+</ul>
+<h3 id="4-3-软光栅化：线段投影与-Z-Buffer-写入"><a href="#4-3-软光栅化：线段投影与-Z-Buffer-写入" class="headerlink" title="4.3 软光栅化：线段投影与 Z-Buffer 写入"></a>4.3 软光栅化：线段投影与 Z-Buffer 写入</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">drawStrand</span><span class="params">(Image&amp; img, <span class="type">const</span> Camera&amp; cam,</span></span></span><br><span class="line"><span class="params"><span class="function">                <span class="type">const</span> std::vector&lt;Vec3&gt;&amp; pts,</span></span></span><br><span class="line"><span class="params"><span class="function">                <span class="type">const</span> Vec3&amp; lightDir, <span class="type">const</span> Vec3&amp; viewDir,</span></span></span><br><span class="line"><span class="params"><span class="function">                <span class="type">const</span> Vec3&amp; hairColor, <span class="type">float</span> thickness)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">size_t</span> i = <span class="number">0</span>; i<span class="number">+1</span> &lt; pts.<span class="built_in">size</span>(); ++i) &#123;</span><br><span class="line">        <span class="type">const</span> Vec3&amp; A = pts[i];</span><br><span class="line">        <span class="type">const</span> Vec3&amp; B = pts[i<span class="number">+1</span>];</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 每段的切线 = 方向向量（归一化）</span></span><br><span class="line">        Vec3 tangent = (B-A).<span class="built_in">norm</span>();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// Kajiya-Kay 着色（一次性计算整段颜色）</span></span><br><span class="line">        <span class="type">float</span> diff = <span class="built_in">KK_diffuse</span>(tangent, lightDir);</span><br><span class="line">        <span class="type">float</span> spec = <span class="built_in">KK_specular</span>(tangent, viewDir, shininess);</span><br><span class="line">        Vec3 shadedColor = (ambient + hairColor*(kd*diff) </span><br><span class="line">                           + <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">1</span>,<span class="number">0.8f</span>)*(ks*spec)).<span class="built_in">clamp01</span>();</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 投影到屏幕空间（初始化为 0 防止 uninitialized warning）</span></span><br><span class="line">        <span class="type">float</span> ax=<span class="number">0</span>,ay=<span class="number">0</span>,az=<span class="number">0</span>, bx=<span class="number">0</span>,by=<span class="number">0</span>,bz=<span class="number">0</span>;</span><br><span class="line">        <span class="type">bool</span> okA = cam.<span class="built_in">project</span>(A, ax, ay, az);</span><br><span class="line">        <span class="type">bool</span> okB = cam.<span class="built_in">project</span>(B, bx, by, bz);</span><br><span class="line">        <span class="keyword">if</span>(!okA &amp;&amp; !okB) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="comment">// 只有一个端点可见时，用可见端代替不可见端（近似裁剪）</span></span><br><span class="line">        <span class="keyword">if</span>(!okA)&#123; ax=bx; ay=by; az=bz; &#125;</span><br><span class="line">        <span class="keyword">if</span>(!okB)&#123; bx=ax; by=ay; bz=az; &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 沿线段均匀采样，步数 = 屏幕空间像素距离</span></span><br><span class="line">        <span class="type">int</span> steps = (<span class="type">int</span>)std::<span class="built_in">max</span>(std::<span class="built_in">abs</span>(bx-ax), std::<span class="built_in">abs</span>(by-ay)) + <span class="number">2</span>;</span><br><span class="line">        <span class="type">int</span> r = (<span class="type">int</span>)std::<span class="built_in">ceil</span>(thickness);  <span class="comment">// 像素半径</span></span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span>(<span class="type">int</span> s = <span class="number">0</span>; s &lt;= steps; ++s) &#123;</span><br><span class="line">            <span class="type">float</span> t = (<span class="type">float</span>)s / steps;</span><br><span class="line">            <span class="type">float</span> px = ax + (bx-ax)*t;</span><br><span class="line">            <span class="type">float</span> py = ay + (by-ay)*t;</span><br><span class="line">            <span class="type">float</span> pz = az + (bz-az)*t;  <span class="comment">// 深度插值（近似透视校正）</span></span><br><span class="line">            </span><br><span class="line">            <span class="comment">// 以 (px,py) 为中心，绘制半径 r 的圆盘</span></span><br><span class="line">            <span class="keyword">for</span>(<span class="type">int</span> dy=-r; dy&lt;=r; ++dy)</span><br><span class="line">            <span class="keyword">for</span>(<span class="type">int</span> dx=-r; dx&lt;=r; ++dx) &#123;</span><br><span class="line">                <span class="keyword">if</span>(dx*dx+dy*dy &lt;= r*r) &#123;  <span class="comment">// 圆形截面（而非正方形）</span></span><br><span class="line">                    img.<span class="built_in">setPixel</span>((<span class="type">int</span>)(px+dx<span class="number">+.5f</span>), (<span class="type">int</span>)(py+dy<span class="number">+.5f</span>), shadedColor, pz);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>用圆盘而非线段单像素的原因</strong>：<br>单像素线段在 512×512 的图像中几乎不可见（头发直径 &lt; 1px），需要 <code>thickness=0.7</code> 的圆盘半径才能渲染出可见的发丝。圆形截面比正方形更自然，且计算开销极低（r&#x3D;1 时只有 π≈3 个额外像素）。</p>
+<h3 id="4-4-头部球体：光线-球相交"><a href="#4-4-头部球体：光线-球相交" class="headerlink" title="4.4 头部球体：光线-球相交"></a>4.4 头部球体：光线-球相交</h3><p>球体不使用光栅化，而是逐像素做光线-球相交，以确保边缘精确（球体边缘光栅化需要额外处理抗锯齿）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 给定像素 (x,y)，构造视线方向</span></span><br><span class="line"><span class="type">float</span> u = ((<span class="type">float</span>)x<span class="number">+0.5f</span>)/W * <span class="number">2.f</span> - <span class="number">1.f</span>;   <span class="comment">// [-1, 1]</span></span><br><span class="line"><span class="type">float</span> v = <span class="number">1.f</span> - ((<span class="type">float</span>)y<span class="number">+0.5f</span>)/H * <span class="number">2.f</span>;   <span class="comment">// [-1, 1]（Y 向上）</span></span><br><span class="line">Vec3 dir = (cam.forward </span><br><span class="line">           + cam.right*(u*half_w) </span><br><span class="line">           + cam.up*(v*half_h)).<span class="built_in">norm</span>();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 光线-球相交（代数法）</span></span><br><span class="line">Vec3 oc = eye - center;</span><br><span class="line"><span class="type">float</span> b = <span class="number">2.f</span> * oc.<span class="built_in">dot</span>(dir);</span><br><span class="line"><span class="type">float</span> c = oc.<span class="built_in">dot</span>(oc) - radius*radius;</span><br><span class="line"><span class="type">float</span> disc = b*b - <span class="number">4</span>*c;   <span class="comment">// a=1（dir已归一化）</span></span><br><span class="line"><span class="keyword">if</span>(disc &lt; <span class="number">0</span>) <span class="keyword">continue</span>;    <span class="comment">// 未命中</span></span><br><span class="line"></span><br><span class="line"><span class="type">float</span> t = (-b - std::<span class="built_in">sqrt</span>(disc)) / <span class="number">2.f</span>;  <span class="comment">// 取近交点</span></span><br><span class="line"><span class="keyword">if</span>(t &lt; cam.near) <span class="keyword">continue</span>;               <span class="comment">// 在相机后方</span></span><br><span class="line"></span><br><span class="line">Vec3 hit = eye + dir*t;</span><br><span class="line">Vec3 N   = (hit - center).<span class="built_in">norm</span>();        <span class="comment">// 命中点法线</span></span><br></pre></td></tr></table></figure>
+
+<p>这段代码处理了 <strong>near clip</strong>（避免相机在球内时的异常），并用<strong>代数判别式</strong>直接求解，比几何法（先求投影点再判断距离）稍快且数值更稳定。</p>
+<h3 id="4-5-伽马校正"><a href="#4-5-伽马校正" class="headerlink" title="4.5 伽马校正"></a>4.5 伽马校正</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 线性空间 RGB → sRGB 近似（γ=2.2）</span></span><br><span class="line"><span class="type">float</span> r = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, std::<span class="built_in">min</span>(<span class="number">1.f</span>, p.x)), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br><span class="line"><span class="type">float</span> g = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, std::<span class="built_in">min</span>(<span class="number">1.f</span>, p.y)), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br><span class="line"><span class="type">float</span> b = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, std::<span class="built_in">min</span>(<span class="number">1.f</span>, p.z)), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br></pre></td></tr></table></figure>
+
+<p>不做伽马校正时，图像会整体偏暗（人眼对暗部更敏感，线性空间的中灰在显示器上显示为暗灰）。这一步将线性光照计算结果转换为显示器正确显示的 sRGB 近似。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：-Wuninitialized-导致编译警告（变量未初始化）"><a href="#Bug-1：-Wuninitialized-导致编译警告（变量未初始化）" class="headerlink" title="Bug 1：-Wuninitialized 导致编译警告（变量未初始化）"></a>Bug 1：<code>-Wuninitialized</code> 导致编译警告（变量未初始化）</h3><p><strong>症状</strong>：<br>编译通过，但 <code>-Wextra</code> 产生大量 <code>may be used uninitialized</code> 警告，涉及 <code>drawStrand</code> 中的 <code>ax, ay, az, bx, by, bz</code> 以及排序 lambda 中的 <code>za, zb</code>。</p>
+<p><strong>错误假设</strong>：<br>“两个端点必有一个能投影成功，另一个即使失败也不会被使用。”</p>
+<p><strong>真实原因</strong>：<br>GCC 的 <code>-Wextra</code> 分析无法识别 <code>if(!okA &amp;&amp; !okB) continue;</code> 这种保护逻辑，它只看到变量在声明后没有被显式赋初值，就报 uninitialized。编译器不跟踪 bool 控制流来判断该变量是否”一定已被赋值”。</p>
+<p><strong>修复方式</strong>：<br>将声明改为显式初始化：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复前</span></span><br><span class="line"><span class="type">float</span> ax,ay,az, bx,by,bz;</span><br><span class="line"><span class="comment">// 修复后</span></span><br><span class="line"><span class="type">float</span> ax=<span class="number">0</span>,ay=<span class="number">0</span>,az=<span class="number">0</span>, bx=<span class="number">0</span>,by=<span class="number">0</span>,bz=<span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+<p>并在 <code>!okB</code> 时将 B 的投影坐标赋值为 A 的投影坐标（合理的降级处理，避免使用未初始化值）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span>(!okA)&#123; ax=bx; ay=by; az=bz; &#125;</span><br><span class="line"><span class="keyword">if</span>(!okB)&#123; bx=ax; by=ay; bz=az; &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：<code>-Wextra -Wuninitialized</code> 在 GCC 的分析是保守的，即使逻辑上变量一定被赋值，编译器也可能报警。最安全的做法是<strong>所有局部变量都初始化为合理默认值</strong>。</p>
+<hr>
+<h3 id="Bug-2：convert-命令未找到（ImageMagick-未安装）"><a href="#Bug-2：convert-命令未找到（ImageMagick-未安装）" class="headerlink" title="Bug 2：convert 命令未找到（ImageMagick 未安装）"></a>Bug 2：<code>convert</code> 命令未找到（ImageMagick 未安装）</h3><p><strong>症状</strong>：<br>程序运行后报 <code>sh: line 1: convert: command not found</code>，随后 <code>ffmpeg</code> 也找不到，最终程序以错误码退出，PNG 未生成。</p>
+<p><strong>错误假设</strong>：<br>“这类 Linux 环境都会预装 ImageMagick 和 ffmpeg。”</p>
+<p><strong>真实原因</strong>：<br>当前容器环境是最小化镜像，只安装了 Python 和部分开发工具，没有 ImageMagick 或 ffmpeg。</p>
+<p><strong>修复方式</strong>：<br>检查可用工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">python3 -c <span class="string">&quot;from PIL import Image; print(&#x27;PIL ok&#x27;)&quot;</span>  <span class="comment"># 输出 PIL ok</span></span><br></pre></td></tr></table></figure>
+<p>改为优先使用 Python PIL 转换，ImageMagick&#x2F;ffmpeg 作为降级后备：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> ret = std::<span class="built_in">system</span>(</span><br><span class="line">    (<span class="string">&quot;python3 -c \&quot;&quot;</span></span><br><span class="line">     <span class="string">&quot;from PIL import Image; &quot;</span></span><br><span class="line">     <span class="string">&quot;img=Image.open(&#x27;&quot;</span> + ppmPath + <span class="string">&quot;&#x27;); &quot;</span></span><br><span class="line">     <span class="string">&quot;img.save(&#x27;&quot;</span> + pngPath + <span class="string">&quot;&#x27;)\&quot;&quot;</span>).<span class="built_in">c_str</span>()</span><br><span class="line">);</span><br><span class="line"><span class="keyword">if</span>(ret != <span class="number">0</span>) &#123; <span class="comment">/* ImageMagick 降级 */</span> &#125;</span><br><span class="line"><span class="keyword">if</span>(ret != <span class="number">0</span>) &#123; <span class="comment">/* ffmpeg 降级 */</span> &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：外部工具依赖要先探测可用性，不要假设环境。先检查 <code>which convert</code>、<code>python3 -c &quot;from PIL import Image&quot;</code> 等，根据实际可用工具选择路径。</p>
+<hr>
+<h3 id="Bug-3：头发分布不均匀（视觉上头顶稀疏、两侧密集）"><a href="#Bug-3：头发分布不均匀（视觉上头顶稀疏、两侧密集）" class="headerlink" title="Bug 3：头发分布不均匀（视觉上头顶稀疏、两侧密集）"></a>Bug 3：头发分布不均匀（视觉上头顶稀疏、两侧密集）</h3><p><strong>症状</strong>（调试过程中发现）：<br>纯随机球面采样（两个角度均匀分布）导致极点稀疏，赤道密集。</p>
+<p><strong>根本原因</strong>：<br>均匀分布 θ ∈ [0, π] 时，面积元 <code>dA = sin(θ) dθ dφ</code>，赤道附近 sin(θ) 大，面积实际上更大，点数相同但密度低；极点附近 sin(θ) 趋近 0，面积极小但点数相同，密度极高。</p>
+<p><strong>修复方式</strong>：<br>改用 <code>cos(θ)</code> 均匀分布（即均匀采样球面面积元）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误：θ 均匀分布</span></span><br><span class="line"><span class="type">float</span> theta = <span class="built_in">u01</span>(rng) * PI;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 正确：cos(θ) 均匀分布，等效球面面积均匀</span></span><br><span class="line"><span class="type">float</span> theta = std::<span class="built_in">acos</span>(<span class="number">1.f</span> - <span class="number">2.f</span>*(i<span class="number">+0.5f</span>)/numHairs);  <span class="comment">// Fibonacci</span></span><br><span class="line"><span class="comment">// 或随机版：</span></span><br><span class="line"><span class="type">float</span> theta = std::<span class="built_in">acos</span>(<span class="number">1.f</span> - <span class="number">2.f</span> * <span class="built_in">u01</span>(rng));</span><br></pre></td></tr></table></figure>
+
+<p>Fibonacci 球面分布比纯随机更均匀，最终选用了 Fibonacci 方案。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="图像量化验证"><a href="#图像量化验证" class="headerlink" title="图像量化验证"></a>图像量化验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">python3 &lt;&lt; <span class="string">&#x27;EOF&#x27;</span></span><br><span class="line">from PIL import Image</span><br><span class="line">import numpy as np</span><br><span class="line">img = Image.open(<span class="string">&quot;fur_hair_output.png&quot;</span>)</span><br><span class="line">pixels = np.array(img).astype(<span class="built_in">float</span>)</span><br><span class="line"><span class="built_in">print</span>(f<span class="string">&quot;Size: &#123;img.size&#125;  Mode: &#123;img.mode&#125;&quot;</span>)</span><br><span class="line"><span class="built_in">print</span>(f<span class="string">&quot;Pixel mean: &#123;pixels.mean():.1f&#125;  std: &#123;pixels.std():.1f&#125;&quot;</span>)</span><br><span class="line">EOF</span><br></pre></td></tr></table></figure>
+
+<p><strong>实际输出</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>值</th>
+<th>验收标准</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件大小</td>
+<td>170 KB</td>
+<td>&gt; 10 KB</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>图像尺寸</td>
+<td>512×512</td>
+<td>512×512</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>像素均值</td>
+<td>145.5</td>
+<td>10~240</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>像素标准差</td>
+<td>31.4</td>
+<td>&gt; 5</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<p>均值 145.5 表明图像亮度适中（非全黑&#x2F;全白），标准差 31.4 表明图像有丰富的明暗变化（头部球体 Phong 阴影 + 毛发各向异性高光的空间变化）。</p>
+<h3 id="渲染性能（非实时，软光栅化参考）"><a href="#渲染性能（非实时，软光栅化参考）" class="headerlink" title="渲染性能（非实时，软光栅化参考）"></a>渲染性能（非实时，软光栅化参考）</h3><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>耗时估计</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>头部球体（512×512 逐像素）</td>
+<td>~50ms</td>
+</tr>
+<tr>
+<td>6000根毛发 × 8段 × 光栅化</td>
+<td>~200ms</td>
+</tr>
+<tr>
+<td>总渲染 + PNG 保存</td>
+<td>&lt; 1s</td>
+</tr>
+</tbody></table>
+<p>（在容器单核 CPU 上，未优化）</p>
+<p>实时引擎中，Kajiya-Kay 毛发（10 万根，每帧）在现代 GPU 上可达 60fps，GPU 的并行化将把上述 ~250ms 压缩到 &lt; 1ms。</p>
+<h3 id="渲染结果"><a href="#渲染结果" class="headerlink" title="渲染结果"></a>渲染结果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png" alt="Fur Hair Rendering - Kajiya-Kay Model"></p>
+<p>效果：</p>
+<ul>
+<li>头部球体可见，皮肤色 Phong 着色，有高光</li>
+<li>6000 根棕色头发均匀覆盖头部，根部直立、发梢下垂</li>
+<li>Kajiya-Kay 各向异性高光：在光源方向有明显亮条（发丝光泽）</li>
+<li>背光面毛发漫反射为零，体现了 sin(θ_LT) 模型的特性</li>
+</ul>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="本次实践收获"><a href="#本次实践收获" class="headerlink" title="本次实践收获"></a>本次实践收获</h3><ol>
+<li><strong>Kajiya-Kay 模型</strong>的数学本质是”用切线代替法线”，这一直觉替换解决了传统着色模型无法处理各向异性纤维的根本问题；</li>
+<li><strong>Fibonacci 球面分布</strong>是一个优雅的均匀球面采样方案，O(1) 时间复杂度，无随机扰动也能得到高质量分布；</li>
+<li><strong>软光栅化的局限</strong>：线段 Z-Buffer 只做近似深度测试，不处理透明度（真实毛发有半透明效果），需要 OIT（Order-Independent Transparency）等技术补充。</li>
+</ol>
+<h3 id="Kajiya-Kay-的局限性"><a href="#Kajiya-Kay-的局限性" class="headerlink" title="Kajiya-Kay 的局限性"></a>Kajiya-Kay 的局限性</h3><table>
+<thead>
+<tr>
+<th>局限</th>
+<th>影响</th>
+<th>更好的替代</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单散射，无透射</td>
+<td>发丝缺少透光感</td>
+<td>Marschner (2003) 加入 TRT 分量</td>
+</tr>
+<tr>
+<td>高光叶片形状固定</td>
+<td>无法精确控制高光宽度</td>
+<td>d’Eon (2011) 更精确的 R&#x2F;TT&#x2F;TRT</td>
+</tr>
+<tr>
+<td>无自阴影</td>
+<td>发丛内部光照均匀</td>
+<td>深度贴图阴影</td>
+</tr>
+<tr>
+<td>无 multiple scattering</td>
+<td>金发&#x2F;白发偏暗</td>
+<td>Volume scattering 或预计算</td>
+</tr>
+<tr>
+<td>切线假设固定</td>
+<td>只适合直发或简单弯发</td>
+<td>需要逐段切线（本实现已做）</td>
+</tr>
+</tbody></table>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><strong>加入第二高光叶片（R + TT）</strong>：将偏移量参数化，用两个 <code>KK_specular</code> 调用叠加，分别模拟直接反射和透射；</li>
+<li><strong>发根-发梢颜色渐变</strong>：根据 <code>s/SEG</code> 混合两种颜色（发根深、发梢浅），更接近真实漂染发色；</li>
+<li><strong>多种发型</strong>：修改 <code>windDir</code> 和 <code>blend</code> 函数可得到盘发（高 blend 从中间折叠）、卷发（正弦波扰动）、短发（减小 <code>hairLength</code>）；</li>
+<li><strong>GPU 实现</strong>：将 <code>drawStrand</code> 移植为 Vertex + Fragment Shader，利用硬件光栅化加速，10 万根头发可实现实时渲染；</li>
+<li><strong>LOD 策略</strong>：远处头发合并为条带（strand → billboard quad），节省顶点数。</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>04-03 Disney BRDF</strong>：Disney 模型处理的是光滑&#x2F;粗糙各向同性表面，Kajiya-Kay 处理的是各向异性纤维——两者共同覆盖了游戏引擎材质系统的主流需求；</li>
+<li><strong>04-04 大气散射</strong>：大气散射也利用了 sin&#x2F;cos 角的非对称特性（Rayleigh vs Mie 相位函数），与 Kajiya-Kay 在数学结构上有相似之处；</li>
+<li><strong>04-06 地形渲染</strong>：地形的草地可以用类似思路渲染——用 Kajiya-Kay 着色草叶（宽叶片近似为毛发），或者本次的程序化几何思路生成草丛。</li>
+</ul>
+<hr>
+<p><strong>代码仓库</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/04/04-07-fur-hair-kajiya-kay">daily-coding-practice &#x2F; 04-07 Fur Hair Kajiya-Kay</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/">https://chiuhoukazusa.github.io/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%9B%E5%8F%91%E6%B8%B2%E6%9F%93/">毛发渲染</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%9D%80%E8%89%B2%E6%A8%A1%E5%9E%8B/">着色模型</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-06-Procedural-Terrain-Renderer/terrain_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器</div></div><div class="info-2"><div class="info-item-1">Procedural Terrain Renderer — 程序化地形渲染器今天是每日编程实践系列第 48 天。主题是程序化地形渲染——从零用 C++ 实现一个完整的地形生成与渲染管线：Perlin 噪声高度图 + fBm 分形叠加 + 多生物群系着色 + Phong 光照 + 大气雾 + 软光栅化投影。   ① 背景与动机：为什么要做程序化地形？手工地形的局限在游戏开发和影视特效中，场景中的地形是最占资源、最难手工制作的内容之一。一片 10km×10km 的游戏地图，如果依靠美术手工刷高度图，需要几周甚至几个月。而且手工地形有一个根本问题：内容密度与规模不匹配——想做大就细节少，想要细节就规模小。 程序化生成（Procedural Generation）的核心价值是：用确定性算法无限扩展内容，同时保持细节。一段几十行的噪声函数可以生成整个星球的地形，而且每次用不同种子（seed）都能得到独一无二的结果。 工业界应用场景 《No Man’s Sky》：整个游戏的 18 quintillion 颗行星地形全部程序化生成，包括地貌、植被、大气 《Minecraft》：经典案例，Per...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/12/daily-coding-csm-cascaded-shadow-maps-2026-03-12/" title="每日编程实践: Cascaded Shadow Maps CSM 级联阴影"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-12-csm-cascaded-shadow-maps/csm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-12</div><div class="info-item-2">每日编程实践: Cascaded Shadow Maps CSM 级联阴影</div></div><div class="info-2"><div class="info-item-1">Cascaded Shadow Maps — CSM 级联阴影昨天实现了 PCSS 软阴影，解决了”阴影软化”的问题。今天面对另一个经典难题：大场景下的阴影精度。 问题是这样的：用一张 Shadow Map 覆盖整个场景，近处的阴影分辨率会严重不足——一个 Shadow Map 的纹素可能对应几十平方米的地面，阴影边缘会出现巨大的锯齿块；但如果把 Shadow Map 只覆盖近处，远处又会完全没有阴影。 CSM（Cascaded Shadow Maps，级联阴影映射） 的解法是：把视锥体按深度切成若干段，每段用一张独立的 Shadow Map，近处精细、远处粗略——跟 Mipmap 的思路如出一辙。 今天完整实现了 4 级 CSM，包含对数线性级联分割、每级独立正交投影和 PCF 软阴影。  效果展示主渲染（含 CSM 阴影） 近景红球、中景紫球橙球、远景山丘都投射出软化阴影，地面阴影由近到远精度自然过渡。 级联区域可视化 颜色叠层：红色 &#x3D; Cascade 0（最近） | 绿色 &#x3D; Cascade 1 | 蓝色 &#x3D; Cascade 2 | 黄色 &...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-21</div><div class="info-item-2">每日编程实践: SPPM 随机渐进光子映射</div></div><div class="info-2"><div class="info-item-1">① 背景与动机为什么需要全局光照？在实时渲染的世界里，我们长期依赖”直接光照 + 环境光假设”来模拟光照效果。这类方法速度快，但有一个根本性缺陷：它忽略了光线在场景中多次弹射的间接照明。 想象一个 Cornell Box——一个封闭的盒子，左墙红色，右墙绿色，天花板有一盏灯。在纯直接光照渲染中，你会看到墙面上均匀涂抹的红色和绿色；但在现实世界（或使用全局光照的渲染器）里，红墙的颜色会”流血”到白色地板和天花板上——这就是颜色渗色（Color Bleeding），是全局光照的典型特征。 此外，当场景中有镜面反射物体或玻璃时，光线可能经过多次折射&#x2F;反射后才照亮某个漫反射表面。直接光照模型根本无法处理这类焦散（Caustics）效果——例如玻璃球下方那一圈明亮的光斑。 全局光照真正解决的问题：  漫反射间接照明（颜色渗色、角落变暗） 焦散（通过玻璃&#x2F;镜面聚焦的光） 柔和阴影的物理正确计算 色调一致性（整个场景的光能守恒）  工业界实际应用全局光照在以下场景中有大量实际应用： 离线渲染（影视&#x2F;动画）：  Pixar 的 RenderMan 使用路径追踪 + ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/" title="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-04</div><div class="info-item-2">每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么需要大气散射？在任何真实感渲染系统中，天空颜色都是最重要的环境光照来源之一。如果使用固定颜色或简单渐变来近似天空，会出现以下明显问题：  日落无法自然呈现：简单渐变无法模拟太阳低仰角时光线穿越大量大气层产生的橙红色 天顶到地平线的色调变化缺失：天顶处散射路程短、蓝光多；地平线处散射路程长、偏橙黄 无法与场景光照自洽：天空颜色决定环境光颜色，必须与物理散射一致才能保证整体协调 风格化场景也依赖可控参数：游戏中外星环境、奇异星球的天空必须能通过调参实现  工业界实际使用场景实时渲染（游戏引擎）：Unreal Engine 4&#x2F;5 的 SkyAtmosphere 组件、Unity 的 Physical Based Sky，都基于 Bruneton 等人提出的预计算大气散射（Precomputed Atmospheric Scattering）。在 GPU 上通过预计算透射率 LUT 和多重散射 LUT，实现实时的天空颜色查询。 离线渲染（VFX&#x2F;影视）：RenderMan、Arnold、Mantra 等渲染器均内置大气散射模型，用于电影级天空渲染...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/08/daily-coding-cloth-simulation-2026-03-08/" title="每日编程实践: Cloth Simulation 布料模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-08-cloth-simulation/cloth_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-08</div><div class="info-item-2">每日编程实践: Cloth Simulation 布料模拟</div></div><div class="info-2"><div class="info-item-1">Cloth Simulation — 布料模拟一件衬衫被风吹起的样子，一块丝绸落在桌面上的纹理，游戏里的旗帜随风飘动——这些看似简单的视觉效果，背后隐藏着一个有趣的物理问题：如何用计算机模拟柔软的织物？ 今天实现了经典的质点弹簧布料模拟，这是游戏引擎和影视特效中处理布料最常见的基础方案。  最终效果主渲染图（含风力的最终状态） 红色布料从水平展开的初始状态，在重力拉扯下垂落，包裹住下方的球体，随后被侧风吹起一角。Phong 着色区分正面（深红）和背面（暗红），形成明显的布料折叠感。 物理演化序列（0 → 150 → 300 → 600 帧） 从左上到右下：布料从展开状态，逐渐在重力作用下垂落，绕过球体弯曲，最终稳定在平衡态。  第一章：为什么布料模拟难？布料的本质是大量纤维交织的网。真正从纤维层面模拟是不现实的——一件 T 恤大概有几十亿根纤维。 工程上的解法是离散化：把布料简化成有限个质点，再用弹簧连接它们，让弹簧产生的弹力近似真实布料的弹性。这就是 Mass-Spring System（质点弹簧系统）。 直觉模型：想象一个渔网。每个网结是一个质点（有质量，能运动），绳子是弹簧...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/30/daily-coding-procedural-texture-2026-03-30/" title="每日编程实践: Procedural Texture Synthesis — 程序化纹理合成"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-30-procedural-texture/procedural_texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-30</div><div class="info-item-2">每日编程实践: Procedural Texture Synthesis — 程序化纹理合成</div></div><div class="info-2"><div class="info-item-1"> 今日主题：程序化纹理合成——用数学公式而非美术资产生成无限变化的有机纹理。核心技术：Worley Noise（细胞&#x2F;Voronoi 噪声）+ Fractal Brownian Motion（分形布朗运动），生成大理石、木纹、熔岩、有机细胞六种纹理。   ① 背景与动机为什么需要程序化纹理？传统美术流程中，纹理贴图是美术师手工绘制的图像文件——一张 2048×2048 的漫反射贴图占用 16MB（未压缩）。大型开放世界游戏中，仅地形纹理就可能高达几十 GB。这带来三个核心痛点： 1. 存储瓶颈《巫师 3》的纹理资产超过 30GB。玩家在下载时要忍受漫长等待，主机平台更是受限于蓝光盘容量。而程序化纹理只需存储几十行数学参数，运行时实时生成任意分辨率的纹理。 2. 分辨率无关性手绘纹理存在物理分辨率上限——放大 4 倍就会看到像素化。程序化纹理本质是连续函数，理论上可以无限放大，细节永远清晰。《No Man’s Sky》的整个星球纹理系统就建立在这一特性上。 3. 参数化变化手绘大理石纹理要变色，需要美术师重新画一张。程序化纹理只需修改一个颜色参数，立刻生成新变体。这使得实...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/31/daily-coding-caustics-renderer-2026-03-31/" title="每日编程实践: Caustics Renderer — 光子映射焦散渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-31-caustics/caustics_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-31</div><div class="info-item-2">每日编程实践: Caustics Renderer — 光子映射焦散渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Caustics Renderer — 光子映射焦散渲染今天的项目是用**光子映射（Photon Mapping）算法渲染焦散（Caustics）**效果——玻璃球折射光线在漫反射地板上形成的亮斑图案。这是计算机图形学中最经典且最难正确实现的效果之一，纯路径追踪需要极长时间才能收敛，而光子映射可以在有限时间内产生可辨识的焦散图案。 一、背景与动机什么是焦散？焦散（Caustics）是光线通过折射或反射介质后聚焦在漫反射表面形成的亮斑。游泳池底部的波纹光斑、玻璃杯旁的彩色光圈、钻石的内部闪烁——都是焦散现象。 从物理角度看，焦散是辐照度场的高频信息：光子从光源出发，通过玻璃的斯涅尔折射改变方向，最终在某块漫反射地面上”聚堆”，该区域接收到的光通量远高于周围，形成明亮的光斑。 为什么纯路径追踪很难渲染焦散？想用路径追踪渲染焦散，渲染器需要从相机出发，击中地板，然后经历以下路径才能采样到焦散贡献： 1相机 → 地板 → 玻璃球（进入）→ 玻璃球（离开）→ 光源  这条路径称为 LS²DE 路径（Light-Specular-Specular-Diffuse-Eye）。问题...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">60</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">82</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%AF%9B%E5%8F%91%E6%B8%B2%E6%9F%93%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9A%BE%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">毛发渲染为什么难？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Kajiya-Kay-%E6%A8%A1%E5%9E%8B%E7%9A%84%E5%8E%86%E5%8F%B2%E5%9C%B0%E4%BD%8D"><span class="toc-number">1.2.</span> <span class="toc-text">Kajiya-Kay 模型的历史地位</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Kajiya-Kay-%E7%9D%80%E8%89%B2%E6%A8%A1%E5%9E%8B%E7%9A%84%E6%95%B0%E5%AD%A6%E6%8E%A8%E5%AF%BC"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 Kajiya-Kay 着色模型的数学推导</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%AF%9B%E5%8F%91%E6%9C%89%E4%B8%A4%E4%B8%AA%E9%AB%98%E5%85%89%E5%8F%B6%E7%89%87%EF%BC%9F"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 为什么毛发有两个高光叶片？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E7%A8%8B%E5%BA%8F%E5%8C%96%E6%AF%9B%E5%8F%91%E5%87%A0%E4%BD%95%EF%BC%9AFibonacci-%E7%90%83%E9%9D%A2%E5%88%86%E5%B8%83"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 程序化毛发几何：Fibonacci 球面分布</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%AF%9B%E5%8F%91%E7%94%9F%E9%95%BF%E6%96%B9%E5%90%91%EF%BC%9A%E9%87%8D%E5%8A%9B%E5%9E%82%E8%90%BD%E4%B8%8E%E9%9A%8F%E6%9C%BA%E5%8D%B7%E6%9B%B2"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 毛发生长方向：重力垂落与随机卷曲</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体渲染管线</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%9B%B8%E6%9C%BA%E6%8A%95%E5%BD%B1%E6%A8%A1%E5%9E%8B"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 相机投影模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E6%AF%9B%E5%8F%91-vs-%E7%90%83%E4%BD%93%E7%9A%84-Z-%E6%8E%92%E5%BA%8F%E7%AD%96%E7%95%A5"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 毛发 vs 球体的 Z 排序策略</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Kajiya-Kay-%E7%9D%80%E8%89%B2%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 Kajiya-Kay 着色实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E7%A8%8B%E5%BA%8F%E5%8C%96%E5%A4%B4%E5%8F%91%E5%87%A0%E4%BD%95%E7%94%9F%E6%88%90"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 程序化头发几何生成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96%EF%BC%9A%E7%BA%BF%E6%AE%B5%E6%8A%95%E5%BD%B1%E4%B8%8E-Z-Buffer-%E5%86%99%E5%85%A5"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 软光栅化：线段投影与 Z-Buffer 写入</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%A4%B4%E9%83%A8%E7%90%83%E4%BD%93%EF%BC%9A%E5%85%89%E7%BA%BF-%E7%90%83%E7%9B%B8%E4%BA%A4"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 头部球体：光线-球相交</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E4%BC%BD%E9%A9%AC%E6%A0%A1%E6%AD%A3"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 伽马校正</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A-Wuninitialized-%E5%AF%BC%E8%87%B4%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A%EF%BC%88%E5%8F%98%E9%87%8F%E6%9C%AA%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%89"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：-Wuninitialized 导致编译警告（变量未初始化）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9Aconvert-%E5%91%BD%E4%BB%A4%E6%9C%AA%E6%89%BE%E5%88%B0%EF%BC%88ImageMagick-%E6%9C%AA%E5%AE%89%E8%A3%85%EF%BC%89"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：convert 命令未找到（ImageMagick 未安装）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%A4%B4%E5%8F%91%E5%88%86%E5%B8%83%E4%B8%8D%E5%9D%87%E5%8C%80%EF%BC%88%E8%A7%86%E8%A7%89%E4%B8%8A%E5%A4%B4%E9%A1%B6%E7%A8%80%E7%96%8F%E3%80%81%E4%B8%A4%E4%BE%A7%E5%AF%86%E9%9B%86%EF%BC%89"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：头发分布不均匀（视觉上头顶稀疏、两侧密集）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%BE%E5%83%8F%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81"><span class="toc-number">6.1.</span> <span class="toc-text">图像量化验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%80%A7%E8%83%BD%EF%BC%88%E9%9D%9E%E5%AE%9E%E6%97%B6%EF%BC%8C%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96%E5%8F%82%E8%80%83%EF%BC%89"><span class="toc-number">6.2.</span> <span class="toc-text">渲染性能（非实时，软光栅化参考）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E7%BB%93%E6%9E%9C"><span class="toc-number">6.3.</span> <span class="toc-text">渲染结果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%AC%A1%E5%AE%9E%E8%B7%B5%E6%94%B6%E8%8E%B7"><span class="toc-number">7.1.</span> <span class="toc-text">本次实践收获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Kajiya-Kay-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.2.</span> <span class="toc-text">Kajiya-Kay 的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.4.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/" title="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/" title="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model">每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model</a><time datetime="2026-04-06T21:30:00.000Z" title="发表于 2026-04-07 05:30:00">2026-04-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-06-Procedural-Terrain-Renderer/terrain_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器">每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器</a><time datetime="2026-04-05T21:30:00.000Z" title="发表于 2026-04-06 05:30:00">2026-04-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/05/daily-coding-water-wave-2026-04-05/" title="每日编程实践: Water Wave Simulation &amp; Rendering"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-05-water-wave/water_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Water Wave Simulation &amp; Rendering"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/05/daily-coding-water-wave-2026-04-05/" title="每日编程实践: Water Wave Simulation &amp; Rendering">每日编程实践: Water Wave Simulation &amp; Rendering</a><time datetime="2026-04-04T21:30:00.000Z" title="发表于 2026-04-05 05:30:00">2026-04-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/" title="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-04-Atmosphere-Scattering-Renderer/atmosphere_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/04/daily-coding-atmosphere-scattering-2026-04-04/" title="每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染">每日编程实践: Atmosphere Scattering Renderer — 基于物理的大气散射天空渲染</a><time datetime="2026-04-03T21:30:00.000Z" title="发表于 2026-04-04 05:30:00">2026-04-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Disney Principled BRDF Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer">每日编程实践: Disney Principled BRDF Renderer</a><time datetime="2026-04-02T21:33:36.000Z" title="发表于 2026-04-03 05:33:36">2026-04-03</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
