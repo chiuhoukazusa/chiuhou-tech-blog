@@ -1,0 +1,476 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机为什么需要刚体动力学？在游戏开发中，几乎所有具有真实感的物理交互都依赖刚体动力学（Rigid Body Dynamics）。从《愤怒的小鸟》里飞出去的石块砸到木结构倒塌，到《GTA》系列里车辆翻滚，再到《Half-Life 2》令人印象深刻的 Gravity Gun 物理玩法——这些体验的背后都是刚体模拟在支撑。 没有刚体物理，游戏世界里的物体要么静止不动，要么只能走预设动画轨迹。一块石">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机为什么需要刚体动力学？在游戏开发中，几乎所有具有真实感的物理交互都依赖刚体动力学（Rigid Body Dynamics）。从《愤怒的小鸟》里飞出去的石块砸到木结构倒塌，到《GTA》系列里车辆翻滚，再到《Half-Life 2》令人印象深刻的 Gravity Gun 物理玩法——这些体验的背后都是刚体模拟在支撑。 没有刚体物理，游戏世界里的物体要么静止不动，要么只能走预设动画轨迹。一块石">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png">
+<meta property="article:published_time" content="2026-04-09T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-09T21:38:09.437Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="游戏开发">
+<meta property="article:tag" content="物理模拟">
+<meta property="article:tag" content="碰撞检测">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算",
+  "url": "https://chiuhoukazusa.github.io/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png",
+  "datePublished": "2026-04-09T21:30:00.000Z",
+  "dateModified": "2026-04-09T21:38:09.437Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-09T21:30:00.000Z" title="发表于 2026-04-10 05:30:00">2026-04-10</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-09T21:38:09.437Z" title="更新于 2026-04-10 05:38:09">2026-04-10</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><h3 id="为什么需要刚体动力学？"><a href="#为什么需要刚体动力学？" class="headerlink" title="为什么需要刚体动力学？"></a>为什么需要刚体动力学？</h3><p>在游戏开发中，几乎所有具有真实感的物理交互都依赖刚体动力学（Rigid Body Dynamics）。从《愤怒的小鸟》里飞出去的石块砸到木结构倒塌，到《GTA》系列里车辆翻滚，再到《Half-Life 2》令人印象深刻的 Gravity Gun 物理玩法——这些体验的背后都是刚体模拟在支撑。</p>
+<p>没有刚体物理，游戏世界里的物体要么静止不动，要么只能走预设动画轨迹。一块石头飞出去不会受重力弯曲，碰到墙壁会穿透过去，没有任何真实感。</p>
+<p><strong>刚体动力学要解决三大核心问题</strong>：</p>
+<ol>
+<li><strong>运动积分</strong>：给定力和力矩，怎么更新物体的位置和旋转角度？</li>
+<li><strong>碰撞检测</strong>：哪些物体在哪些时刻发生了接触？接触点在哪，法线方向是什么？</li>
+<li><strong>碰撞响应</strong>：检测到碰撞后，怎么计算反弹？怎么处理摩擦？</li>
+</ol>
+<h3 id="工业界如何使用"><a href="#工业界如何使用" class="headerlink" title="工业界如何使用"></a>工业界如何使用</h3><p><strong>游戏引擎层面</strong>：</p>
+<ul>
+<li>Unity 使用 PhysX（NVIDIA），Unreal Engine 早期用 PhysX，4.26 后引入 Chaos Physics</li>
+<li>Godot 内置了自己的 GodotPhysics，也支持 Bullet Physics</li>
+<li>Box2D 是 2D 物理的标准（《愤怒的小鸟》《Angry Birds》《Limbo》都在用）</li>
+</ul>
+<p><strong>这些引擎底层几乎都用本文实现的技术</strong>：</p>
+<ul>
+<li>SAT（分离轴定理）或 GJK 算法做碰撞检测</li>
+<li>脉冲解算（Impulse-based resolution）处理碰撞响应</li>
+<li>Baumgarte 位置修正防止穿透漂移</li>
+</ul>
+<p><strong>今天的目标</strong>：从零实现一个支持矩形 + 圆形刚体、SAT碰撞检测、脉冲解算、摩擦力的 2D 物理引擎，输出时序模拟动图。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="1-刚体的数学表示"><a href="#1-刚体的数学表示" class="headerlink" title="1. 刚体的数学表示"></a>1. 刚体的数学表示</h3><p>一个 2D 刚体需要以下状态量：</p>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>符号</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>位置</td>
+<td><strong>x</strong></td>
+<td>质心世界坐标</td>
+</tr>
+<tr>
+<td>速度</td>
+<td><strong>v</strong></td>
+<td>质心线速度 (px&#x2F;s)</td>
+</tr>
+<tr>
+<td>旋转角</td>
+<td>θ</td>
+<td>朝向角（弧度）</td>
+</tr>
+<tr>
+<td>角速度</td>
+<td>ω</td>
+<td>旋转速率 (rad&#x2F;s)</td>
+</tr>
+<tr>
+<td>质量</td>
+<td>m</td>
+<td>线性动量相关</td>
+</tr>
+<tr>
+<td>转动惯量</td>
+<td>I</td>
+<td>角动量相关</td>
+</tr>
+</tbody></table>
+<p><strong>质量倒数技巧</strong>：物理引擎里通常存 <code>invMass = 1/m</code> 而不是 <code>m</code>，原因是：</p>
+<ul>
+<li>静态物体（墙壁、地面）质量无限大，直接存 <code>invMass = 0</code> 即可，不需要特判 <code>if (isStatic)</code></li>
+<li>所有脉冲计算都是除以质量，倒数便于统一运算</li>
+</ul>
+<p><strong>矩形的转动惯量推导</strong>：</p>
+<p>对于质量为 m、宽 2w、高 2h 的矩形，绕质心的转动惯量：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">I = (1/12) * m * (width² + height²)</span><br><span class="line">  = (1/12) * m * ((2w)² + (2h)²)</span><br><span class="line">  = (1/12) * m * (4w² + 4h²)</span><br><span class="line">  = m * (w² + h²) / 3</span><br></pre></td></tr></table></figure>
+
+<p>直觉解释：质量越大、分布范围越广（w、h 越大），旋转越难（I 越大），角速度变化越慢。</p>
+<p><strong>圆的转动惯量</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">I = (1/2) * m * r²</span><br></pre></td></tr></table></figure>
+
+<p>圆形质量集中在中心附近（相比同尺寸矩形），所以 I 更小，更容易旋转。</p>
+<h3 id="2-半隐式-Euler-积分"><a href="#2-半隐式-Euler-积分" class="headerlink" title="2. 半隐式 Euler 积分"></a>2. 半隐式 Euler 积分</h3><p>给定外力 F（重力等），更新状态的步骤：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">// 先更新速度（由力计算加速度）</span><br><span class="line">a = F / m</span><br><span class="line">v(t+dt) = v(t) + a * dt</span><br><span class="line"></span><br><span class="line">// 再用新速度更新位置（这是&quot;半隐式&quot;的关键）</span><br><span class="line">x(t+dt) = x(t) + v(t+dt) * dt</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么是”半隐式”（Symplectic Euler）而不是普通 Euler？</strong></p>
+<p>普通 Euler 会用旧速度更新位置：<code>x = x + v_old * dt</code><br>半隐式用新速度：<code>x = x + v_new * dt</code></p>
+<p>看似只是顺序不同，但数学上半隐式 Euler 是<strong>辛积分</strong>（Symplectic Integrator），能保持能量守恒！普通 Euler 会逐渐增加系统能量（弹簧会爆炸），半隐式则保持稳定。这是物理引擎选择它的根本原因。</p>
+<h3 id="3-分离轴定理（SAT）"><a href="#3-分离轴定理（SAT）" class="headerlink" title="3. 分离轴定理（SAT）"></a>3. 分离轴定理（SAT）</h3><p><strong>核心命题</strong>：两个凸多边形不相交，当且仅当存在某个轴，使得它们在该轴上的投影区间不重叠。</p>
+<p><strong>直觉理解</strong>：把两个图形都”压扁”投影到某根轴上，如果存在任何一根轴使得两段投影没有交叠，那这两个形状就没有碰撞。这根轴叫”分离轴”。</p>
+<p><strong>关键定理</strong>：对于凸多边形，只需检查各自边的法线方向作为候选轴。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">两个矩形 A 和 B：</span><br><span class="line">- A 有 4 条边 → 2 个唯一法线方向（矩形对边平行）</span><br><span class="line">- B 有 4 条边 → 2 个唯一法线方向</span><br><span class="line">- 共检查 4 个轴</span><br></pre></td></tr></table></figure>
+
+<p><strong>SAT 的碰撞信息提取</strong>：</p>
+<p>不只是判断有没有碰撞，还要知道：</p>
+<ul>
+<li><strong>碰撞法线</strong>（normal）：物体应该被推开的方向</li>
+<li><strong>穿透深度</strong>（depth）：重叠了多少</li>
+</ul>
+<p>找到最小重叠深度的那个轴，就是碰撞法线：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">对每个候选轴 n：</span><br><span class="line">  projA = 投影 A 的所有顶点到 n → [minA, maxA]</span><br><span class="line">  projB = 投影 B 的所有顶点到 n → [minB, maxB]</span><br><span class="line">  overlap = min(maxA, maxB) - max(minA, minB)</span><br><span class="line">  if overlap ≤ 0: 分离，无碰撞，提前退出</span><br><span class="line">  跟踪 minOverlap 和对应的轴</span><br><span class="line"></span><br><span class="line">结果：minOverlap 是穿透深度，对应轴是碰撞法线</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-圆-vs-矩形碰撞检测"><a href="#4-圆-vs-矩形碰撞检测" class="headerlink" title="4. 圆 vs 矩形碰撞检测"></a>4. 圆 vs 矩形碰撞检测</h3><p>圆与矩形的碰撞是个特殊情况，SAT 对圆不直接适用（圆没有”边”）。解法是：</p>
+<ol>
+<li>将圆心变换到矩形的<strong>局部坐标系</strong>（旋转矩阵逆变换）</li>
+<li>将局部坐标 clamp 到矩形的半宽&#x2F;半高范围内，得到矩形上的最近点</li>
+<li>计算圆心到最近点的距离，与半径比较</li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">local = inverse_rotate(circle.center - rect.center)</span><br><span class="line">closest = clamp(local, -half_extents, +half_extents)</span><br><span class="line">diff = local - closest</span><br><span class="line">dist = length(diff)</span><br><span class="line">if dist &gt;= radius: 无碰撞</span><br><span class="line">else: 碰撞，穿透深度 = radius - dist</span><br></pre></td></tr></table></figure>
+
+<p><strong>特殊情况：圆心在矩形内部</strong>：<br>此时 <code>closest == local</code>，<code>diff = 0</code>，无法从 diff 获取法线方向。需要找到圆心到矩形每个边的最短距离，从最近的边推出圆。</p>
+<h3 id="5-脉冲解算（Impulse-based-Resolution）"><a href="#5-脉冲解算（Impulse-based-Resolution）" class="headerlink" title="5. 脉冲解算（Impulse-based Resolution）"></a>5. 脉冲解算（Impulse-based Resolution）</h3><p><strong>什么是脉冲（Impulse）？</strong></p>
+<p>脉冲 J &#x3D; 力 × 时间，单位是 kg·m&#x2F;s（也等于动量变化量）。与其模拟持续力随时间积分，不如直接在碰撞那一刻施加一个瞬间的速度变化。</p>
+<p><strong>接触点的相对速度</strong>：</p>
+<p>在接触点 P 处，物体 A 的速度不只有质心线速度 <strong>v</strong>，还要加上旋转引起的切向速度：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">v_contact_A = v_A + ω_A × r_A</span><br></pre></td></tr></table></figure>
+
+<p>其中 r_A &#x3D; P - center_A（接触点相对质心的向量）。<br>在 2D 中，叉积退化为：<code>ω × r = (-ω*r.y, ω*r.x)</code></p>
+<p>相对速度（A 相对于 B）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">v_rel = v_contact_A - v_contact_B</span><br></pre></td></tr></table></figure>
+
+<p><strong>法向脉冲大小推导</strong>：</p>
+<p>碰撞后，法线方向的相对速度必须反弹：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">v_rel_n_after = -e * v_rel_n_before   (e = 恢复系数)</span><br></pre></td></tr></table></figure>
+
+<p>脉冲 j 施加在法线方向，对 A 加速，对 B 减速：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">v_A_after = v_A + (j/m_A) * n</span><br><span class="line">ω_A_after = ω_A + (r_A × (j*n)) / I_A</span><br></pre></td></tr></table></figure>
+
+<p>代入相对速度条件，解出 j：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">j = -(1 + e) * v_rel · n</span><br><span class="line">    ─────────────────────────────────────────────────────────</span><br><span class="line">    invMass_A + invMass_B + (r_A × n)² * invI_A + (r_B × n)² * invI_B</span><br></pre></td></tr></table></figure>
+
+<p>直觉解释：</p>
+<ul>
+<li>分子：需要翻转多大的法向速度</li>
+<li>分母：系统对法向脉冲的”响应敏感度”（质量越大、接触点越靠近质心，响应越弱）</li>
+</ul>
+<h3 id="6-摩擦力脉冲"><a href="#6-摩擦力脉冲" class="headerlink" title="6. 摩擦力脉冲"></a>6. 摩擦力脉冲</h3><p>碰撞法向脉冲处理后，还需要处理切线方向的摩擦。</p>
+<p><strong>库仑摩擦定律</strong>：</p>
+<ul>
+<li>静摩擦力 ≤ μ × 法向力</li>
+<li>如果需要的静摩擦脉冲超过 μ × j，就用动摩擦</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">t = (v_rel - (v_rel · n) * n).normalized()   // 切线方向</span><br><span class="line">jt = -v_rel · t / (invMassSum_tangential)</span><br><span class="line"></span><br><span class="line">// 库仑条件</span><br><span class="line">if |jt| &lt; μ * j:</span><br><span class="line">    friction_impulse = jt * t   // 静摩擦</span><br><span class="line">else:</span><br><span class="line">    friction_impulse = -μ * j * t   // 动摩擦（Coulomb）</span><br></pre></td></tr></table></figure>
+
+<p><code>μ = sqrt(μ_A * μ_B)</code> 是两个物体摩擦系数的几何均值，这是标准的材质组合方式。</p>
+<h3 id="7-Baumgarte-位置修正"><a href="#7-Baumgarte-位置修正" class="headerlink" title="7. Baumgarte 位置修正"></a>7. Baumgarte 位置修正</h3><p><strong>问题</strong>：由于浮点精度和时间步离散化，碰撞响应后物体仍可能有残余穿透。多帧累积后，物体会慢慢”沉进去”。</p>
+<p><strong>解法（Baumgarte Stabilization）</strong>：每步直接修正位置，按穿透深度的一定比例往外推：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">correction = max(depth - slop, 0) / (invMass_A + invMass_B) * percent</span><br><span class="line">A.pos += correction * invMass_A * normal</span><br><span class="line">B.pos -= correction * invMass_B * normal</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>slop</code>（容差）：允许少量穿透存在，防止物体”抖动”（大约 0.01~1.0 px）</li>
+<li><code>percent</code>：每帧修正多少比例（通常 20%~80%）</li>
+</ul>
+<p><strong>为什么不全量修正（percent&#x3D;1.0）</strong>：会引起”位置爆炸”。每帧修正量太大，下一帧又过度修正回来，形成震荡。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体模块设计"><a href="#整体模块设计" class="headerlink" title="整体模块设计"></a>整体模块设计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">main.cpp</span><br><span class="line">├── Vec2          - 2D向量数学库</span><br><span class="line">├── Color         - RGB颜色</span><br><span class="line">├── Canvas        - 软光栅化画布</span><br><span class="line">│   ├── fillPolygon()     - 扫描线填充凸多边形</span><br><span class="line">│   ├── fillCircle()      - 圆形填充</span><br><span class="line">│   ├── drawLine()        - Bresenham直线</span><br><span class="line">│   └── save()            - PNG输出</span><br><span class="line">├── RigidBody     - 刚体数据 + 工厂方法</span><br><span class="line">│   ├── makeRect()        - 矩形刚体</span><br><span class="line">│   ├── makeCircle()      - 圆形刚体</span><br><span class="line">│   ├── getVertices()     - 获取旋转后的顶点</span><br><span class="line">│   └── applyImpulse()    - 施加脉冲</span><br><span class="line">├── Collision     - 碰撞检测</span><br><span class="line">│   ├── satRectRect()     - SAT矩形vs矩形</span><br><span class="line">│   ├── circleCircle()    - 圆vs圆</span><br><span class="line">│   ├── circleRect()      - 圆vs矩形</span><br><span class="line">│   └── detectCollision() - 分发函数</span><br><span class="line">├── resolveCollision()    - 脉冲解算</span><br><span class="line">├── physicsStep()         - 单步模拟</span><br><span class="line">├── drawBody()            - 绘制单个刚体</span><br><span class="line">├── createScene()         - 场景初始化</span><br><span class="line">└── main()                - 主循环</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据流"><a href="#数据流" class="headerlink" title="数据流"></a>数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">createScene() → 初始化 14 个刚体（静态 + 动态）</span><br><span class="line">     ↓</span><br><span class="line">for each frame:</span><br><span class="line">    physicsStep(bodies, dt)</span><br><span class="line">        ├── 遍历所有动态体：施加重力，更新速度和位置</span><br><span class="line">        ├── 碰撞解算（10次迭代）：</span><br><span class="line">        │    ├── detectCollision(A, B) → ContactInfo</span><br><span class="line">        │    └── resolveCollision(A, B, info) → 修改速度、角速度、位置</span><br><span class="line">        └── 边界约束（简单 clamp）</span><br><span class="line">    if 需要保存帧: drawScene() → Canvas → save PNG</span><br></pre></td></tr></table></figure>
+
+<p><strong>10次迭代</strong>：物理引擎通常对同一帧内的碰撞做多次求解，让相互接触的物体（如堆叠箱子）逐步传播力。迭代次数越多越稳定，但越慢。</p>
+<h3 id="刚体设计决策"><a href="#刚体设计决策" class="headerlink" title="刚体设计决策"></a>刚体设计决策</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">RigidBody</span> &#123;</span><br><span class="line">    ShapeType shape;      <span class="comment">// RECT or CIRCLE</span></span><br><span class="line">    Vec2 pos, vel;        <span class="comment">// 位置、速度</span></span><br><span class="line">    <span class="type">float</span> angle, angularVel;  <span class="comment">// 旋转角、角速度</span></span><br><span class="line">    <span class="type">float</span> invMass, invInertia; <span class="comment">// 存倒数！静态体=0</span></span><br><span class="line">    <span class="type">float</span> hw, hh, radius; <span class="comment">// 形状参数</span></span><br><span class="line">    <span class="type">float</span> restitution, friction; <span class="comment">// 材质</span></span><br><span class="line">    <span class="type">bool</span> isStatic;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计</strong>：存 invMass 而非 mass。对静态体设 invMass&#x3D;0，脉冲计算公式完全一致，无需分支。</p>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="SAT-矩形-vs-矩形"><a href="#SAT-矩形-vs-矩形" class="headerlink" title="SAT 矩形 vs 矩形"></a>SAT 矩形 vs 矩形</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">ContactInfo <span class="title">satRectRect</span><span class="params">(<span class="type">const</span> RigidBody&amp; a, <span class="type">const</span> RigidBody&amp; b)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">auto</span> vertsA = a.<span class="built_in">getVertices</span>();</span><br><span class="line">    <span class="keyword">auto</span> vertsB = b.<span class="built_in">getVertices</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 收集所有候选分离轴（每条边的法线）</span></span><br><span class="line">    std::vector&lt;Vec2&gt; axes;</span><br><span class="line">    <span class="keyword">auto</span> addAxes = [&amp;](<span class="type">const</span> std::vector&lt;Vec2&gt;&amp; verts) &#123;</span><br><span class="line">        <span class="type">int</span> n = (<span class="type">int</span>)verts.<span class="built_in">size</span>();</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">            Vec2 edge = verts[(i<span class="number">+1</span>)%n] - verts[i];</span><br><span class="line">            axes.<span class="built_in">push_back</span>(edge.<span class="built_in">perp</span>().<span class="built_in">normalized</span>());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="built_in">addAxes</span>(vertsA);</span><br><span class="line">    <span class="built_in">addAxes</span>(vertsB);  <span class="comment">// 8个轴，但矩形对边平行，实质4个唯一方向</span></span><br></pre></td></tr></table></figure>
+
+<p><code>edge.perp()</code> 返回 <code>(-edge.y, edge.x)</code>，即边的外法线。归一化是必要的，否则投影值没有物理意义（无法比较重叠量）。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> minOverlap = std::numeric_limits&lt;<span class="type">float</span>&gt;::<span class="built_in">max</span>();</span><br><span class="line">Vec2 bestAxis;</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">auto</span>&amp; axis : axes) &#123;</span><br><span class="line">    <span class="keyword">auto</span> [minA, maxA] = <span class="built_in">projectOnAxis</span>(vertsA, axis);</span><br><span class="line">    <span class="keyword">auto</span> [minB, maxB] = <span class="built_in">projectOnAxis</span>(vertsB, axis);</span><br><span class="line">    <span class="type">float</span> overlap = std::<span class="built_in">min</span>(maxA, maxB) - std::<span class="built_in">max</span>(minA, minB);</span><br><span class="line">    <span class="keyword">if</span> (overlap &lt;= <span class="number">0</span>) <span class="keyword">return</span> &#123;<span class="literal">false</span>, &#123;&#125;, <span class="number">0</span>, &#123;&#125;&#125;;  <span class="comment">// 早期退出！</span></span><br><span class="line">    <span class="keyword">if</span> (overlap &lt; minOverlap) &#123;</span><br><span class="line">        minOverlap = overlap;</span><br><span class="line">        bestAxis = axis;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>早期退出</strong>（<code>if overlap &lt;= 0 return</code>）是 SAT 的性能优化精髓。一旦找到分离轴就立即返回 false，不需要继续检查其他轴。碰撞检测数量远多于碰撞发生次数，早期退出极大提升性能。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 确保法线从 B 指向 A（推开 A 的方向）</span></span><br><span class="line">Vec2 d = a.pos - b.pos;</span><br><span class="line"><span class="keyword">if</span> (d.<span class="built_in">dot</span>(bestAxis) &lt; <span class="number">0</span>) bestAxis = bestAxis * <span class="number">-1</span>;</span><br></pre></td></tr></table></figure>
+
+<p>SAT 找到的轴可能方向是任意的，需要确保法线方向”从 B 指向 A”（即 A 应该被推向正方向）。通过检查两个质心差向量与法线的点积来判断。</p>
+<h3 id="脉冲解算核心"><a href="#脉冲解算核心" class="headerlink" title="脉冲解算核心"></a>脉冲解算核心</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">resolveCollision</span><span class="params">(RigidBody&amp; a, RigidBody&amp; b, <span class="type">const</span> ContactInfo&amp; info)</span> </span>&#123;</span><br><span class="line">    Vec2 n = info.normal;</span><br><span class="line">    Vec2 rA = info.contactPoint - a.pos;  <span class="comment">// 接触点相对 A 质心</span></span><br><span class="line">    Vec2 rB = info.contactPoint - b.pos;  <span class="comment">// 接触点相对 B 质心</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计算接触点的相对速度（包含旋转分量）</span></span><br><span class="line">    Vec2 vA = a.vel + <span class="built_in">Vec2</span>(-a.angularVel * rA.y, a.angularVel * rA.x);</span><br><span class="line">    Vec2 vB = b.vel + <span class="built_in">Vec2</span>(-b.angularVel * rB.y, b.angularVel * rB.x);</span><br><span class="line">    Vec2 relVel = vA - vB;</span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> velAlongNormal = relVel.<span class="built_in">dot</span>(n);</span><br><span class="line">    <span class="keyword">if</span> (velAlongNormal &gt; <span class="number">0</span>) <span class="keyword">return</span>;  <span class="comment">// 物体正在分离，不需要脉冲</span></span><br></pre></td></tr></table></figure>
+
+<p><code>(-ω*r.y, ω*r.x)</code> 是 2D 中 ω × r 的展开。如果 ω &gt; 0（逆时针），接触点在质心右上方（r.x &gt; 0, r.y &gt; 0），则切线速度向左上方。</p>
+<p><strong>判断是否需要脉冲</strong>：如果接触点相对速度已经是分离的（<code>velAlongNormal &gt; 0</code>），则跳过。这防止了”已经弹开却又施加脉冲”的双重处理。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> e = std::<span class="built_in">min</span>(a.restitution, b.restitution);  <span class="comment">// 取较小恢复系数</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 脉冲分母：线性质量 + 旋转贡献</span></span><br><span class="line"><span class="type">float</span> rACrossN = rA.<span class="built_in">cross</span>(n);  <span class="comment">// r_A × n（2D标量叉积）</span></span><br><span class="line"><span class="type">float</span> rBCrossN = rB.<span class="built_in">cross</span>(n);</span><br><span class="line"><span class="type">float</span> invMassSum = a.invMass + b.invMass</span><br><span class="line">                 + rACrossN * rACrossN * a.invInertia</span><br><span class="line">                 + rBCrossN * rBCrossN * b.invInertia;</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> j = -(<span class="number">1</span> + e) * velAlongNormal / invMassSum;</span><br></pre></td></tr></table></figure>
+
+<p><code>rA.cross(n)</code> 在 2D 中等于 <code>rA.x * n.y - rA.y * n.x</code>，其平方乘以 invInertia 就是旋转对”响应”的贡献。</p>
+<p>为什么取 <code>min(restitution)</code> 而不是平均？因为碰撞的弹性受限于较弱的那一方。一个橡皮球碰到水泥墙（e&#x3D;0），结果不会弹得很高。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 摩擦脉冲</span></span><br><span class="line">Vec2 tangent = (relVel - n * relVel.<span class="built_in">dot</span>(n)).<span class="built_in">normalized</span>();</span><br><span class="line"><span class="type">float</span> velAlongTangent = relVel.<span class="built_in">dot</span>(tangent);</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> rACrossT = rA.<span class="built_in">cross</span>(tangent);</span><br><span class="line"><span class="type">float</span> rBCrossT = rB.<span class="built_in">cross</span>(tangent);</span><br><span class="line"><span class="type">float</span> invMassSumT = a.invMass + b.invMass</span><br><span class="line">                  + rACrossT * rACrossT * a.invInertia</span><br><span class="line">                  + rBCrossT * rBCrossT * b.invInertia;</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> jt = -velAlongTangent / invMassSumT;</span><br><span class="line"><span class="type">float</span> mu = std::<span class="built_in">sqrt</span>(a.friction * b.friction);</span><br><span class="line"></span><br><span class="line">Vec2 frictionImpulse;</span><br><span class="line"><span class="keyword">if</span> (std::<span class="built_in">abs</span>(jt) &lt; j * mu) &#123;</span><br><span class="line">    frictionImpulse = tangent * jt;   <span class="comment">// 静摩擦：完全消除切向速度</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    frictionImpulse = tangent * (-j * mu);  <span class="comment">// 动摩擦：库仑定律上限</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>tangent = relVel - (relVel·n)*n</code> 是将相对速度中的法向分量去掉，剩下切向分量，再归一化。</p>
+<p>库仑摩擦判断：如果计算出的静摩擦脉冲 <code>|jt|</code> 小于法向脉冲的 μ 倍，就用静摩擦（完全阻止滑动）；否则物体在滑动，用动摩擦（限制在 μ*j）。</p>
+<h3 id="圆-vs-矩形碰撞"><a href="#圆-vs-矩形碰撞" class="headerlink" title="圆 vs 矩形碰撞"></a>圆 vs 矩形碰撞</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">ContactInfo <span class="title">circleRect</span><span class="params">(<span class="type">const</span> RigidBody&amp; circle, <span class="type">const</span> RigidBody&amp; rect)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 将圆心变换到矩形局部坐标系</span></span><br><span class="line">    <span class="type">float</span> c = std::<span class="built_in">cos</span>(-rect.angle), s = std::<span class="built_in">sin</span>(-rect.angle);</span><br><span class="line">    Vec2 d = circle.pos - rect.pos;</span><br><span class="line">    Vec2 local = &#123;c*d.x - s*d.y, s*d.x + c*d.y&#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 求矩形上的最近点（clamp到矩形范围内）</span></span><br><span class="line">    Vec2 closest = &#123;</span><br><span class="line">        std::<span class="built_in">max</span>(-rect.hw, std::<span class="built_in">min</span>(rect.hw, local.x)),</span><br><span class="line">        std::<span class="built_in">max</span>(-rect.hh, std::<span class="built_in">min</span>(rect.hh, local.y))</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    Vec2 diff = local - closest;</span><br><span class="line">    <span class="type">float</span> dist = diff.<span class="built_in">length</span>();</span><br><span class="line">    <span class="keyword">if</span> (dist &gt;= circle.radius) <span class="keyword">return</span> &#123;<span class="literal">false</span>, &#123;&#125;, <span class="number">0</span>, &#123;&#125;&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>旋转角用 <code>-rect.angle</code></strong>：这是将世界坐标系旋转到矩形局部坐标系，即矩形的逆变换。如果矩形旋转了 +θ 度，那么点要旋转 -θ 度才能变换到矩形局部。</p>
+<p>clamp 操作 <code>max(-hw, min(hw, x))</code> 找到矩形上沿 x 轴最近的点。二维 clamp 后得到的 <code>closest</code> 就是矩形表面（或内部）上距离圆心最近的点。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 圆心在矩形内部的特殊处理</span></span><br><span class="line"><span class="keyword">if</span> (dist &lt; <span class="number">1e-8f</span>) &#123;</span><br><span class="line">    <span class="type">float</span> ox = rect.hw - std::<span class="built_in">abs</span>(local.x);  <span class="comment">// 到左右边的距离</span></span><br><span class="line">    <span class="type">float</span> oy = rect.hh - std::<span class="built_in">abs</span>(local.y);  <span class="comment">// 到上下边的距离</span></span><br><span class="line">    Vec2 normal_local;</span><br><span class="line">    <span class="type">float</span> depth;</span><br><span class="line">    <span class="keyword">if</span> (ox &lt; oy) &#123;  <span class="comment">// 从最近的边推出</span></span><br><span class="line">        normal_local = &#123;(local.x &gt; <span class="number">0</span>) ? <span class="number">1.0f</span> : <span class="number">-1.0f</span>, <span class="number">0</span>&#125;;</span><br><span class="line">        depth = ox + circle.radius;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        normal_local = &#123;<span class="number">0</span>, (local.y &gt; <span class="number">0</span>) ? <span class="number">1.0f</span> : <span class="number">-1.0f</span>&#125;;</span><br><span class="line">        depth = oy + circle.radius;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 将法线旋转回世界坐标系</span></span><br><span class="line">    <span class="type">float</span> ca = std::<span class="built_in">cos</span>(rect.angle), sa = std::<span class="built_in">sin</span>(rect.angle);</span><br><span class="line">    Vec2 normal = &#123;ca*normal_local.x - sa*normal_local.y,</span><br><span class="line">                   sa*normal_local.x + ca*normal_local.y&#125;;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>圆心在矩形内部时，<code>diff = local - closest = 0</code>，无法通过 diff 求法线。改为找到圆心距离四条边最近的那条边，从那个方向推出去，深度 &#x3D; 到那条边的距离 + 圆的半径。</p>
+<h3 id="软光栅化多边形填充"><a href="#软光栅化多边形填充" class="headerlink" title="软光栅化多边形填充"></a>软光栅化多边形填充</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">fillPolygon</span><span class="params">(<span class="type">const</span> std::vector&lt;Vec2&gt;&amp; verts, Color c)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 求包围盒</span></span><br><span class="line">    <span class="type">int</span> minY = height, maxY = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span>&amp; v : verts) &#123;</span><br><span class="line">        minY = std::<span class="built_in">min</span>(minY, (<span class="type">int</span>)v.y);</span><br><span class="line">        maxY = std::<span class="built_in">max</span>(maxY, (<span class="type">int</span>)v.y);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = minY; y &lt;= maxY; y++) &#123;</span><br><span class="line">        std::vector&lt;<span class="type">float</span>&gt; xs;  <span class="comment">// 当前扫描线与各边的交点</span></span><br><span class="line">        <span class="type">int</span> n = (<span class="type">int</span>)verts.<span class="built_in">size</span>();</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">            Vec2 a = verts[i], b = verts[(i<span class="number">+1</span>)%n];</span><br><span class="line">            <span class="comment">// 奇偶规则：当扫描线穿过边时记录 x 交点</span></span><br><span class="line">            <span class="keyword">if</span> ((a.y &lt;= y &amp;&amp; b.y &gt; y) || (b.y &lt;= y &amp;&amp; a.y &gt; y)) &#123;</span><br><span class="line">                <span class="type">float</span> t = (y - a.y) / (b.y - a.y);</span><br><span class="line">                xs.<span class="built_in">push_back</span>(a.x + t * (b.x - a.x));</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        std::<span class="built_in">sort</span>(xs.<span class="built_in">begin</span>(), xs.<span class="built_in">end</span>());  <span class="comment">// 从左到右排序</span></span><br><span class="line">        <span class="comment">// 两两配对填充水平段</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i<span class="number">+1</span> &lt; (<span class="type">int</span>)xs.<span class="built_in">size</span>(); i += <span class="number">2</span>) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> x = (<span class="type">int</span>)xs[i]; x &lt;= (<span class="type">int</span>)xs[i<span class="number">+1</span>]; x++)</span><br><span class="line">                <span class="built_in">setPixel</span>(x, y, c);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>扫描线填充原理</strong>：对每条水平扫描线，找到它与多边形各边的交点，排序后两两配对，填充每对交点之间的水平段。对凸多边形，每条扫描线恰好有 2 个交点（进入和退出）。</p>
+<p><strong>边界条件 <code>a.y &lt;= y &amp;&amp; b.y &gt; y</code></strong>：只在边从下往上穿过扫描线时计交点，防止顶点被计算两次（否则两条共顶点的边都会计入该交点，破坏奇偶计数）。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：SAT-法线方向不一致"><a href="#Bug-1：SAT-法线方向不一致" class="headerlink" title="Bug 1：SAT 法线方向不一致"></a>Bug 1：SAT 法线方向不一致</h3><p><strong>症状</strong>：物体有时被推向对方（穿进去更深）而不是推开。</p>
+<p><strong>错误假设</strong>：SAT 找到的法线方向总是”从 B 指向 A”。</p>
+<p><strong>真实原因</strong>：SAT 投影时，法线方向取决于边的方向（顺时针或逆时针遍历），与”哪个物体是 A、哪个是 B”无关。同一对碰撞，法线可能指向任意方向。</p>
+<p><strong>修复</strong>：计算两质心的差向量 <code>d = a.pos - b.pos</code>，如果 <code>d.dot(bestAxis) &lt; 0</code>，翻转法线。这确保了法线总是从 B 指向 A。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Vec2 d = a.pos - b.pos;</span><br><span class="line"><span class="keyword">if</span> (d.<span class="built_in">dot</span>(bestAxis) &lt; <span class="number">0</span>) bestAxis = bestAxis * <span class="number">-1</span>;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-2：接触点计算影响脉冲稳定性"><a href="#Bug-2：接触点计算影响脉冲稳定性" class="headerlink" title="Bug 2：接触点计算影响脉冲稳定性"></a>Bug 2：接触点计算影响脉冲稳定性</h3><p><strong>症状</strong>：叠放的箱子剧烈抖动，有时飞出去。</p>
+<p><strong>错误假设</strong>：用 SAT 找到的最小重叠区域中心作为接触点足够精确。</p>
+<p><strong>真实原因</strong>：对于堆叠场景，接触点的微小误差会被角速度放大（r × n 的叉积放大了误差）。接触点偏离真实接触位置时，力矩计算出错，产生虚假旋转。</p>
+<p><strong>修复</strong>：10次碰撞迭代求解 + Baumgarte 位置修正。迭代允许力在堆叠物体间逐步传播，位置修正消除残余穿透，两者共同抑制抖动。</p>
+<h3 id="Bug-3：圆-vs-矩形法线变换错误"><a href="#Bug-3：圆-vs-矩形法线变换错误" class="headerlink" title="Bug 3：圆 vs 矩形法线变换错误"></a>Bug 3：圆 vs 矩形法线变换错误</h3><p><strong>症状</strong>：圆形碰到旋转的矩形时，弹飞方向完全错误。</p>
+<p><strong>错误假设</strong>：法线直接用局部坐标系的方向。</p>
+<p><strong>真实原因</strong>：碰撞法线在矩形局部坐标系中计算，但脉冲解算需要世界坐标系的法线。如果矩形有旋转角 θ，局部法线需要旋转 +θ 才能变回世界坐标。</p>
+<p><strong>修复</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> ca = std::<span class="built_in">cos</span>(rect.angle), sa = std::<span class="built_in">sin</span>(rect.angle);</span><br><span class="line">Vec2 normal = &#123;ca*normal_local.x - sa*normal_local.y,</span><br><span class="line">               sa*normal_local.x + ca*normal_local.y&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>注意：这里用 <code>+rect.angle</code>（不是 <code>-rect.angle</code>），因为我们是从局部坐标变换回世界坐标，是正变换。</p>
+<h3 id="Bug-4：角阻尼使用错误的衰减方式"><a href="#Bug-4：角阻尼使用错误的衰减方式" class="headerlink" title="Bug 4：角阻尼使用错误的衰减方式"></a>Bug 4：角阻尼使用错误的衰减方式</h3><p><strong>症状</strong>：箱子落地后旋转永远不停，或者停得过快（参数难调）。</p>
+<p><strong>错误假设</strong>：<code>angularVel *= 0.98f</code> 每帧固定衰减 2%。</p>
+<p><strong>真实原因</strong>：固定帧率时没问题，但若帧率变化（dt 不固定），衰减速率也会变化，导致物理表现不一致。</p>
+<p><strong>修复</strong>：将衰减与 dt 绑定：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">angularVel *= std::<span class="built_in">pow</span>(<span class="number">0.98f</span>, dt * <span class="number">60.0f</span>);</span><br></pre></td></tr></table></figure>
+<p>这样无论帧率多少，模拟 1 秒后的衰减量都一致。</p>
+<h3 id="Bug-5：velAlongNormal-0-判断反向"><a href="#Bug-5：velAlongNormal-0-判断反向" class="headerlink" title="Bug 5：velAlongNormal &gt; 0 判断反向"></a>Bug 5：<code>velAlongNormal &gt; 0</code> 判断反向</h3><p><strong>症状</strong>：物体穿透后竟然仍在被”推开”（但方向错），系统不稳定。</p>
+<p><strong>错误假设</strong>：没有加”已在分离则跳过”的判断。</p>
+<p><strong>真实原因</strong>：如果两个物体接触点的相对速度已经是分离方向（<code>velAlongNormal &gt; 0</code>），但位置还有穿透（因为上一帧才发生接触），此时不应施加脉冲。强行施加只会打乱速度。</p>
+<p><strong>修复</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (velAlongNormal &gt; <span class="number">0</span>) <span class="keyword">return</span>;  <span class="comment">// 物体正在分离，跳过</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="输出文件"><a href="#输出文件" class="headerlink" title="输出文件"></a>输出文件</h3><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>大小</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>rigid_body_output.png</code></td>
+<td>92.6 KB</td>
+<td>2×3时序合成图 (1816×1212)</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_000.png</code></td>
+<td>14 KB</td>
+<td>t&#x3D;0.0s 初始状态</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_001.png</code></td>
+<td>18 KB</td>
+<td>t&#x3D;1.0s 碰撞活跃期</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_002.png</code></td>
+<td>17 KB</td>
+<td>t&#x3D;2.0s 多体堆叠</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_003.png</code></td>
+<td>17 KB</td>
+<td>t&#x3D;3.0s 系统逐渐稳定</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_004.png</code></td>
+<td>17 KB</td>
+<td>t&#x3D;4.0s 大部分静止</td>
+</tr>
+<tr>
+<td><code>rigid_body_seq_005.png</code></td>
+<td>17 KB</td>
+<td>t&#x3D;5.0s 最终状态</td>
+</tr>
+</tbody></table>
+<h3 id="像素采样验证（量化）"><a href="#像素采样验证（量化）" class="headerlink" title="像素采样验证（量化）"></a>像素采样验证（量化）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">图像尺寸: 1816 × 1212</span><br><span class="line">像素均值: 43.1  （范围 10~240 ✅）</span><br><span class="line">标准差: 28.4    （&gt; 5，图像有内容 ✅）</span><br><span class="line">文件大小: 92.6 KB（&gt; 10KB ✅）</span><br></pre></td></tr></table></figure>
+
+<p>均值 43 说明图像整体偏暗（深色背景 + 彩色刚体），标准差 28 说明有明显的内容变化（刚体颜色、边界线等）。</p>
+<h3 id="场景统计"><a href="#场景统计" class="headerlink" title="场景统计"></a>场景统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">刚体总数: 14</span><br><span class="line">  静态体: 5（地面1 + 墙壁2 + 斜坡2）</span><br><span class="line">  动态矩形: 5（4叠箱 + 1重箱）</span><br><span class="line">  动态圆形: 4</span><br><span class="line">碰撞对数量（最坏情况）: C(14,2) = 91对/帧</span><br><span class="line">实际活跃碰撞对（平均）: ~6对/帧</span><br><span class="line">每帧物理步 × 10次迭代</span><br><span class="line">总模拟帧数: 360帧（6秒 × 60fps）</span><br></pre></td></tr></table></figure>
+
+<h3 id="模拟结束时的体位置（t-5-0s）"><a href="#模拟结束时的体位置（t-5-0s）" class="headerlink" title="模拟结束时的体位置（t&#x3D;5.0s）"></a>模拟结束时的体位置（t&#x3D;5.0s）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Body 5 (蓝箱0): pos=(127.7, 52.9) vel=(0.7, 2.3)  → 基本静止</span><br><span class="line">Body 9 (蓝箱3): pos=(541.3, 47.3) vel=(19.2, 2.3) → 靠右墙滑动</span><br><span class="line">Body 12 (圆1):  pos=(83.8, 154.9) vel=(-1.3, 0.1)  → 卡在斜面</span><br><span class="line">Body 13 (圆4):  pos=(347.2, 34.3) vel=(14.9, 2.3)  → 地面滑行</span><br></pre></td></tr></table></figure>
+
+<p>大部分物体速度降到个位数，说明摩擦力和碰撞阻尼工作正常。y 方向速度 2.3 是最小碰撞响应（Baumgarte 修正的残余量），属于正常。</p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><p><strong>本实现的主要局限</strong>：</p>
+<ol>
+<li><p><strong>接触点精度不足</strong>：SAT 给出的接触点是近似值（投影重叠区域中心），堆叠多体时会有抖动。工业级引擎用 Contact Manifold（接触流形）追踪多个接触点，稳定性远好于本实现。</p>
+</li>
+<li><p><strong>时间步固定</strong>：用固定 dt&#x3D;1&#x2F;60s，帧率不足时会跳跃。生产环境需要用 Sub-stepping（将大时间步分成多个小步）。</p>
+</li>
+<li><p><strong>碰撞检测 O(N²)</strong>：遍历所有物体对，N&#x3D;100 时 5000 对&#x2F;帧。需要 BVH 或空间哈希进行宽相（Broad Phase）剔除。</p>
+</li>
+<li><p><strong>不支持 Sleeping</strong>：静止物体每帧仍参与碰撞计算。真实引擎会将速度接近零的物体标记为 “sleeping”，跳过它们直到有冲击激活。</p>
+</li>
+<li><p><strong>只有 10 个 Solver 迭代</strong>：复杂堆叠（10+ 个物体堆）可能不收敛，需要更多迭代或改用 PGS（Projected Gauss-Seidel）。</p>
+</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>[03-08 布料模拟]</strong>：也是质点弹簧系统 + Verlet 积分，但布料不是刚体，不需要旋转动力学</li>
+<li><strong>[03-09 SPH 流体]</strong>：流体用粒子近似，无碰撞检测，只有邻域搜索 + 压力场</li>
+<li><strong>[04-08 粒子系统]</strong>：纯运动学（无碰撞），本文加入了刚性约束</li>
+<li><strong>[04-09 SPH]</strong>：流体模拟，粒子之间通过压力交互，而非脉冲碰撞</li>
+</ul>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><p><strong>短期优化</strong>：</p>
+<ul>
+<li>加入 Broad Phase（AABB Grid），将碰撞检测从 O(N²) 降至近似 O(N)</li>
+<li>Contact Manifold：每对碰撞体维护 2 个接触点，避免单点接触的不稳定</li>
+<li>Island Sleeping：静止物体岛屿跳过模拟</li>
+</ul>
+<p><strong>进阶扩展</strong>：</p>
+<ul>
+<li>约束系统（铰链、滑轨）：用 Lagrange 乘子方法</li>
+<li>凸多边形 GJK&#x2F;EPA：更通用的碰撞检测，支持任意凸形状</li>
+<li>3D 扩展：需要四元数旋转、3D SAT 或 GJK</li>
+<li>连续碰撞检测（CCD）：防止高速物体”穿墙”（Tunneling）</li>
+</ul>
+<p>今天的实现已经包含了一个完整 2D 物理引擎的所有核心要素——积分、碰撞检测、脉冲响应、摩擦。理解了这套框架，Box2D 和 PhysX 的核心逻辑就不再神秘了。</p>
+<hr>
+<p><strong>代码仓库</strong>: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026-04-10-rigid-body-dynamics">GitHub</a><br><strong>输出预览</strong>:</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png" alt="时序合成图"></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/">https://chiuhoukazusa.github.io/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%89%A9%E7%90%86%E6%A8%A1%E6%8B%9F/">物理模拟</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%B8%B8%E6%88%8F%E5%BC%80%E5%8F%91/">游戏开发</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A2%B0%E6%92%9E%E6%A3%80%E6%B5%8B/">碰撞检测</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/04/09/daily-coding-sph-fluid-2026-04-09/" title="每日编程实践: SPH 流体模拟 (Dam-Break)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-09-sph-fluid/sph_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: SPH 流体模拟 (Dam-Break)</div></div><div class="info-2"><div class="info-item-1">SPH 流体模拟：从 Navier-Stokes 到粒子汤今天实现 Smoothed Particle Hydrodynamics（光滑粒子流体动力学，SPH），用经典的 dam-break（溃坝）场景验证：一团液体从容器一侧坍塌，在重力作用下沿底部扩散。 输出图像是 1200×200 的六帧连拍，展示流体从初始静止块到完全扩散稳定的全过程：  颜色编码速度：蓝色 &#x3D; 静止，青绿 &#x3D; 中速，黄红 &#x3D; 高速。帧 0 全蓝（初始静止），帧 2 出现大量红黄（流体坍塌峰速），帧 5 回归蓝色（流体沉降稳定）。  ① 背景与动机流体模拟的两大门派实时&#x2F;离线渲染引擎里，流体模拟主要分两种方法： 欧拉法（Eulerian）：固定空间网格，追踪格点上的速度&#x2F;密度&#x2F;压力。代表算法是 Navier-Stokes 有限差分&#x2F;有限体积法。优点：格点插值高效，适合大规模流场；缺点：边界跟踪麻烦（需要 Level Set 或 VOF），粒子细节难以保留。 拉格朗日法（Lagrangian）：粒子随流体运动，每个粒子携带自己的物理量。代表...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/09/daily-coding-sph-fluid-2026-04-09/" title="每日编程实践: SPH 流体模拟 (Dam-Break)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-09-sph-fluid/sph_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-09</div><div class="info-item-2">每日编程实践: SPH 流体模拟 (Dam-Break)</div></div><div class="info-2"><div class="info-item-1">SPH 流体模拟：从 Navier-Stokes 到粒子汤今天实现 Smoothed Particle Hydrodynamics（光滑粒子流体动力学，SPH），用经典的 dam-break（溃坝）场景验证：一团液体从容器一侧坍塌，在重力作用下沿底部扩散。 输出图像是 1200×200 的六帧连拍，展示流体从初始静止块到完全扩散稳定的全过程：  颜色编码速度：蓝色 &#x3D; 静止，青绿 &#x3D; 中速，黄红 &#x3D; 高速。帧 0 全蓝（初始静止），帧 2 出现大量红黄（流体坍塌峰速），帧 5 回归蓝色（流体沉降稳定）。  ① 背景与动机流体模拟的两大门派实时&#x2F;离线渲染引擎里，流体模拟主要分两种方法： 欧拉法（Eulerian）：固定空间网格，追踪格点上的速度&#x2F;密度&#x2F;压力。代表算法是 Navier-Stokes 有限差分&#x2F;有限体积法。优点：格点插值高效，适合大规模流场；缺点：边界跟踪麻烦（需要 Level Set 或 VOF），粒子细节难以保留。 拉格朗日法（Lagrangian）：粒子随流体运动，每个粒子携带自己的物理量。代表...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/08/daily-coding-particle-system-2026-04-08/" title="每日编程实践: Particle System Simulation — 烟花粒子系统"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-08-Particle-System-Simulation/particle_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-08</div><div class="info-item-2">每日编程实践: Particle System Simulation — 烟花粒子系统</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 50: Particle System Simulation — 烟花粒子系统渲染① 背景与动机烟花爆炸是最直观的粒子系统应用场景之一。游戏、电影 VFX、实时渲染引擎，几乎所有需要表现爆炸、烟雾、火焰、魔法特效的场景，底层都是粒子系统。 没有粒子系统时的痛点： 若要在屏幕上呈现”烟花爆炸”的视觉效果，最朴素的做法是手动绘制一张预先制作的精灵图（Sprite），或者播放一段预渲染的视频。这样的问题是：  缺乏真实感——爆炸的每次形态都一样，玩家立刻能识别出”假感” 无法与场景交互——粒子无法受到风场、重力场、碰撞体影响 资源占用大——视频帧序列的存储成本远高于运行时模拟 参数化调整困难——改一个颜色就要重新制作素材  粒子系统通过”定义少量参数 + 运行时物理模拟”的方式，用极低的存储成本换来高度多样化的视觉输出。 工业界实际使用场景：  Unreal Engine Niagara：UE5 的粒子系统，支持 GPU 粒子（百万量级），用于烟雾、火焰、魔法特效 Unity VFX Graph：基于 GPU Compute Shader，支持复杂的力场和碰撞 影...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/04/daily-coding-particle-system-fire-smoke-2026-03-04/" title="每日编程实践: CPU粒子系统 - 火焰与烟雾模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-04-Particle-System-Fire-Smoke/fire_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-04</div><div class="info-item-2">每日编程实践: CPU粒子系统 - 火焰与烟雾模拟</div></div><div class="info-2"><div class="info-item-1">CPU粒子系统 - 火焰与烟雾模拟粒子系统是游戏引擎和实时渲染的核心技术之一。今天从零实现一个完整的 CPU 粒子系统，模拟真实的火焰、烟雾和飞散火星效果。 效果预览火焰稳定状态（3秒预热后） 时序演变（四帧对比） 从左到右：粒子系统从少到多，逐渐形成稳定火焰形态 项目目标实现一个功能完整的 CPU 粒子系统，具有：  三种粒子类型：火焰、烟雾、火星 物理模拟：浮力、重力、湍流、阻尼 软粒子渲染：高斯衰减 + 加法&#x2F;Alpha 混合 颜色生命周期：从热核心到消散的完整颜色渐变  系统架构粒子结构每个粒子持有以下状态： 123456789101112struct Particle &#123;    Vec2 pos;        // 位置    Vec2 vel;        // 速度    float life;      // 当前生命值 [0,1]    float maxLife;   // 生命持续时间（秒）    float size;      // 当前大小（像素）    float maxSize;   // 最大尺寸    float tur...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/08/daily-coding-cloth-simulation-2026-03-08/" title="每日编程实践: Cloth Simulation 布料模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-08-cloth-simulation/cloth_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-08</div><div class="info-item-2">每日编程实践: Cloth Simulation 布料模拟</div></div><div class="info-2"><div class="info-item-1">Cloth Simulation — 布料模拟一件衬衫被风吹起的样子，一块丝绸落在桌面上的纹理，游戏里的旗帜随风飘动——这些看似简单的视觉效果，背后隐藏着一个有趣的物理问题：如何用计算机模拟柔软的织物？ 今天实现了经典的质点弹簧布料模拟，这是游戏引擎和影视特效中处理布料最常见的基础方案。  最终效果主渲染图（含风力的最终状态） 红色布料从水平展开的初始状态，在重力拉扯下垂落，包裹住下方的球体，随后被侧风吹起一角。Phong 着色区分正面（深红）和背面（暗红），形成明显的布料折叠感。 物理演化序列（0 → 150 → 300 → 600 帧） 从左上到右下：布料从展开状态，逐渐在重力作用下垂落，绕过球体弯曲，最终稳定在平衡态。  第一章：为什么布料模拟难？布料的本质是大量纤维交织的网。真正从纤维层面模拟是不现实的——一件 T 恤大概有几十亿根纤维。 工程上的解法是离散化：把布料简化成有限个质点，再用弹簧连接它们，让弹簧产生的弹力近似真实布料的弹性。这就是 Mass-Spring System（质点弹簧系统）。 直觉模型：想象一个渔网。每个网结是一个质点（有质量，能运动），绳子是弹簧...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/28/daily-coding-ambient-occlusion-2026-02-28/" title="每日编程实践: Ambient Occlusion（环境光遮蔽）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-28-ambient-occlusion/ao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-28</div><div class="info-item-2">每日编程实践: Ambient Occlusion（环境光遮蔽）</div></div><div class="info-2"><div class="info-item-1">Ambient Occlusion（环境光遮蔽）环境光遮蔽（AO）是一种近似全局光照效果的技术，通过估算每个表面点被周围几何体遮蔽的程度，模拟出接触阴影、角落变暗等真实感效果。 项目目标 实现基于蒙特卡洛积分的 AO 渲染器 在半球方向随机采样光线，统计遮蔽率 构建包含多个球体和围合墙面的 Cornell Box 场景 量化验证 AO 梯度（角落暗、开阔区域亮）  效果展示 场景细节：  🔵 中央大球：球顶最亮（无遮蔽），底部接地点最暗（地面遮蔽） 🔵 角落小球：被墙角和地面三面遮蔽，明显偏暗 🟫 地面：球体正下方出现接触阴影，物理正确  核心原理蒙特卡洛积分AO 的数学定义是对法线半球上的可见性函数积分： 1AO(p) = (1/π) ∫_Ω V(p, ω) · (ω · N) dω  其中 V(p, ω) 是可见性函数（1&#x3D;未遮蔽，0&#x3D;遮蔽），用蒙特卡洛方法估算： 12345678910111213141516double computeAO(const Vec3&amp; p, const Vec3&amp; N, const Scene&amp;...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-19</div><div class="info-item-2">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 折射效果（玻璃球）项目目标在昨日反射效果的基础上，实现折射效果（Refraction），让玻璃球真正”透明”！ 核心技术：  Snell 定律（折射方向计算） Fresnel 效应（反射&#x2F;折射混合） 全反射检测 多材质系统    ⚠️ 重要修复（2026-02-19 10:30）用户反馈的问题：  三个球部分叠在一起 右边金属球看起来像纯透明材质  根本原因：  球体重叠：球心间距 2.5 &lt; 球直径 3.0 金属反射 bug：代码只返回环境反射颜色，没有乘上金属本身的颜色  为什么金属必须乘上颜色？ 金属反射 &#x3D; 环境光 × 金属本身颜色 12345// ❌ 原代码（错误）- 金属变成无色镜子return reflectColor * 0.9;// ✅ 修复后 - 金属显示金黄色return (reflectColor * metalColor) * 0.9;     环境光 金属颜色 反射结果    白光 (1,1,1) 金黄 (0.8,0.6,0.2) 金黄反射   蓝天 (0,0,1) 金黄 (0.8,0.6,0.2) 深蓝 (...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">63</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">84</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E5%88%9A%E4%BD%93%E5%8A%A8%E5%8A%9B%E5%AD%A6%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">为什么需要刚体动力学？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8"><span class="toc-number">1.2.</span> <span class="toc-text">工业界如何使用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%88%9A%E4%BD%93%E7%9A%84%E6%95%B0%E5%AD%A6%E8%A1%A8%E7%A4%BA"><span class="toc-number">2.1.</span> <span class="toc-text">1. 刚体的数学表示</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%8D%8A%E9%9A%90%E5%BC%8F-Euler-%E7%A7%AF%E5%88%86"><span class="toc-number">2.2.</span> <span class="toc-text">2. 半隐式 Euler 积分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E5%88%86%E7%A6%BB%E8%BD%B4%E5%AE%9A%E7%90%86%EF%BC%88SAT%EF%BC%89"><span class="toc-number">2.3.</span> <span class="toc-text">3. 分离轴定理（SAT）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E5%9C%86-vs-%E7%9F%A9%E5%BD%A2%E7%A2%B0%E6%92%9E%E6%A3%80%E6%B5%8B"><span class="toc-number">2.4.</span> <span class="toc-text">4. 圆 vs 矩形碰撞检测</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-%E8%84%89%E5%86%B2%E8%A7%A3%E7%AE%97%EF%BC%88Impulse-based-Resolution%EF%BC%89"><span class="toc-number">2.5.</span> <span class="toc-text">5. 脉冲解算（Impulse-based Resolution）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-%E6%91%A9%E6%93%A6%E5%8A%9B%E8%84%89%E5%86%B2"><span class="toc-number">2.6.</span> <span class="toc-text">6. 摩擦力脉冲</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-Baumgarte-%E4%BD%8D%E7%BD%AE%E4%BF%AE%E6%AD%A3"><span class="toc-number">2.7.</span> <span class="toc-text">7. Baumgarte 位置修正</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%A8%A1%E5%9D%97%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.1.</span> <span class="toc-text">整体模块设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.2.</span> <span class="toc-text">数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9A%E4%BD%93%E8%AE%BE%E8%AE%A1%E5%86%B3%E7%AD%96"><span class="toc-number">3.3.</span> <span class="toc-text">刚体设计决策</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#SAT-%E7%9F%A9%E5%BD%A2-vs-%E7%9F%A9%E5%BD%A2"><span class="toc-number">4.1.</span> <span class="toc-text">SAT 矩形 vs 矩形</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%84%89%E5%86%B2%E8%A7%A3%E7%AE%97%E6%A0%B8%E5%BF%83"><span class="toc-number">4.2.</span> <span class="toc-text">脉冲解算核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%86-vs-%E7%9F%A9%E5%BD%A2%E7%A2%B0%E6%92%9E"><span class="toc-number">4.3.</span> <span class="toc-text">圆 vs 矩形碰撞</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96%E5%A4%9A%E8%BE%B9%E5%BD%A2%E5%A1%AB%E5%85%85"><span class="toc-number">4.4.</span> <span class="toc-text">软光栅化多边形填充</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9ASAT-%E6%B3%95%E7%BA%BF%E6%96%B9%E5%90%91%E4%B8%8D%E4%B8%80%E8%87%B4"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：SAT 法线方向不一致</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E6%8E%A5%E8%A7%A6%E7%82%B9%E8%AE%A1%E7%AE%97%E5%BD%B1%E5%93%8D%E8%84%89%E5%86%B2%E7%A8%B3%E5%AE%9A%E6%80%A7"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：接触点计算影响脉冲稳定性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%9C%86-vs-%E7%9F%A9%E5%BD%A2%E6%B3%95%E7%BA%BF%E5%8F%98%E6%8D%A2%E9%94%99%E8%AF%AF"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：圆 vs 矩形法线变换错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E8%A7%92%E9%98%BB%E5%B0%BC%E4%BD%BF%E7%94%A8%E9%94%99%E8%AF%AF%E7%9A%84%E8%A1%B0%E5%87%8F%E6%96%B9%E5%BC%8F"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：角阻尼使用错误的衰减方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-5%EF%BC%9AvelAlongNormal-0-%E5%88%A4%E6%96%AD%E5%8F%8D%E5%90%91"><span class="toc-number">5.5.</span> <span class="toc-text">Bug 5：velAlongNormal &gt; 0 判断反向</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%93%E5%87%BA%E6%96%87%E4%BB%B6"><span class="toc-number">6.1.</span> <span class="toc-text">输出文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%83%8F%E7%B4%A0%E9%87%87%E6%A0%B7%E9%AA%8C%E8%AF%81%EF%BC%88%E9%87%8F%E5%8C%96%EF%BC%89"><span class="toc-number">6.2.</span> <span class="toc-text">像素采样验证（量化）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%BA%E6%99%AF%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.3.</span> <span class="toc-text">场景统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A8%A1%E6%8B%9F%E7%BB%93%E6%9D%9F%E6%97%B6%E7%9A%84%E4%BD%93%E4%BD%8D%E7%BD%AE%EF%BC%88t-5-0s%EF%BC%89"><span class="toc-number">6.4.</span> <span class="toc-text">模拟结束时的体位置（t&#x3D;5.0s）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.2.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">可优化方向</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/" title="每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/" title="每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算">每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算</a><time datetime="2026-04-09T21:30:00.000Z" title="发表于 2026-04-10 05:30:00">2026-04-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/09/daily-coding-sph-fluid-2026-04-09/" title="每日编程实践: SPH 流体模拟 (Dam-Break)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-09-sph-fluid/sph_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SPH 流体模拟 (Dam-Break)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/09/daily-coding-sph-fluid-2026-04-09/" title="每日编程实践: SPH 流体模拟 (Dam-Break)">每日编程实践: SPH 流体模拟 (Dam-Break)</a><time datetime="2026-04-08T21:30:00.000Z" title="发表于 2026-04-09 05:30:00">2026-04-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/08/daily-coding-particle-system-2026-04-08/" title="每日编程实践: Particle System Simulation — 烟花粒子系统"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-08-Particle-System-Simulation/particle_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Particle System Simulation — 烟花粒子系统"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/08/daily-coding-particle-system-2026-04-08/" title="每日编程实践: Particle System Simulation — 烟花粒子系统">每日编程实践: Particle System Simulation — 烟花粒子系统</a><time datetime="2026-04-07T21:30:00.000Z" title="发表于 2026-04-08 05:30:00">2026-04-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/" title="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-07-fur-hair-kajiya-kay/fur_hair_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/07/daily-coding-fur-hair-kajiya-kay-2026-04-07/" title="每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model">每日编程实践: Fur/Hair Rendering with Kajiya-Kay Model</a><time datetime="2026-04-06T21:30:00.000Z" title="发表于 2026-04-07 05:30:00">2026-04-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-06-Procedural-Terrain-Renderer/terrain_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器">每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器</a><time datetime="2026-04-05T21:30:00.000Z" title="发表于 2026-04-06 05:30:00">2026-04-06</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
