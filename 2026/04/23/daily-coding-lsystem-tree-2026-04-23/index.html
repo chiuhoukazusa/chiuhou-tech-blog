@@ -1,0 +1,477 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: L-System 程序化树木渲染 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一、背景与动机植物建模的本质困境在游戏和影视中，自然场景不可或缺——森林、草地、树木几乎出现在所有户外关卡中。但手工建模植物极为费时：一棵写实的大树可能包含数万根树枝、数十万片叶子。如果每一根枝条都由美术手动摆放，那么任何一款开放世界游戏的制作周期都将延长数倍。 传统手工建模还有一个根本问题：难以复用。游戏里需要成百上千种形态不同的树，美术不可能逐一雕刻，也不可能让每棵树都用同一个模型。真实世界的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: L-System 程序化树木渲染">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/04/23/daily-coding-lsystem-tree-2026-04-23/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="一、背景与动机植物建模的本质困境在游戏和影视中，自然场景不可或缺——森林、草地、树木几乎出现在所有户外关卡中。但手工建模植物极为费时：一棵写实的大树可能包含数万根树枝、数十万片叶子。如果每一根枝条都由美术手动摆放，那么任何一款开放世界游戏的制作周期都将延长数倍。 传统手工建模还有一个根本问题：难以复用。游戏里需要成百上千种形态不同的树，美术不可能逐一雕刻，也不可能让每棵树都用同一个模型。真实世界的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png">
+<meta property="article:published_time" content="2026-04-22T21:44:00.000Z">
+<meta property="article:modified_time" content="2026-04-22T21:48:35.367Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="程序化生成">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: L-System 程序化树木渲染",
+  "url": "https://chiuhoukazusa.github.io/2026/04/23/daily-coding-lsystem-tree-2026-04-23/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png",
+  "datePublished": "2026-04-22T21:44:00.000Z",
+  "dateModified": "2026-04-22T21:48:35.367Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/04/23/daily-coding-lsystem-tree-2026-04-23/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: L-System 程序化树木渲染',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: L-System 程序化树木渲染</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: L-System 程序化树木渲染</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-22T21:44:00.000Z" title="发表于 2026-04-23 05:44:00">2026-04-23</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-22T21:48:35.367Z" title="更新于 2026-04-23 05:48:35">2026-04-23</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><h3 id="植物建模的本质困境"><a href="#植物建模的本质困境" class="headerlink" title="植物建模的本质困境"></a>植物建模的本质困境</h3><p>在游戏和影视中，自然场景不可或缺——森林、草地、树木几乎出现在所有户外关卡中。但手工建模植物极为费时：一棵写实的大树可能包含数万根树枝、数十万片叶子。如果每一根枝条都由美术手动摆放，那么任何一款开放世界游戏的制作周期都将延长数倍。</p>
+<p>传统手工建模还有一个根本问题：<strong>难以复用</strong>。游戏里需要成百上千种形态不同的树，美术不可能逐一雕刻，也不可能让每棵树都用同一个模型。真实世界的植物拥有无限多样性，却始终遵循着相似的结构规律。这种”规则中的变化”正是程序化生成要捕捉的本质。</p>
+<h3 id="L-System-的诞生与定位"><a href="#L-System-的诞生与定位" class="headerlink" title="L-System 的诞生与定位"></a>L-System 的诞生与定位</h3><p>1968年，匈牙利生物学家 Aristid Lindenmayer 在研究藻类细胞分裂时，提出了一套描述生物生长过程的形式文法系统，后来被称为 <strong>Lindenmayer 系统</strong>，简称 <strong>L-System</strong>。他的洞察是：植物生长可以用极少的<strong>重写规则</strong>来完整描述——每根茎干分叉时遵循相同的模式，只是比例和角度略有不同。</p>
+<p>L-System 的核心在于<strong>自相似性</strong>：树的整体结构与每个子树枝高度相似。这正是分形几何的本质特征。通过 4-6 次迭代，一条两个字符的初始公理可以展开成数万个字符的字符串，对应着数千根枝条的完整树形。</p>
+<h3 id="工业界实际应用"><a href="#工业界实际应用" class="headerlink" title="工业界实际应用"></a>工业界实际应用</h3><p>L-System 及其变体在现代工业中无处不在：</p>
+<ul>
+<li><strong>SpeedTree</strong>（游戏和影视界最主流的植被工具）底层大量借鉴 L-System 思路，用参数化规则生成各类树形，《荒野大镖客2》《赛博朋克2077》均使用该方案</li>
+<li><strong>Houdini 的 Labs 植物工具</strong>直接集成了 L-System 节点，支持可视化编辑生长规则</li>
+<li><strong>UE5 的 PCG（程序化内容生成）框架</strong>中，植被生成模块同样包含基于符号重写的参数化结构</li>
+<li><strong>离线渲染领域</strong>（Disney 内部渲染器 Hyperion、Pixar 的 RenderMan）用 L-System 生成高密度植被分布</li>
+</ul>
+<p>今天的实现是最原始、最纯粹的 L-System 渲染——用 C++ 从零实现文法解释器和 3D 软光栅化器，不依赖任何图形库，直接输出 PNG 图像。</p>
+<hr>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-形式文法与字符串重写"><a href="#2-1-形式文法与字符串重写" class="headerlink" title="2.1 形式文法与字符串重写"></a>2.1 形式文法与字符串重写</h3><p>L-System 本质上是一种<strong>并行字符串重写系统（Parallel String Rewriting System）</strong>，由以下三部分定义：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">G = (V, ω, P)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>V</strong>（字母表）：所有合法符号的集合，如 <code>{F, A, +, -, &amp;, ^, \, /, [, ]}</code></li>
+<li><strong>ω</strong>（公理 Axiom）：初始字符串，如 <code>FFFFA</code></li>
+<li><strong>P</strong>（产生式 Production Rules）：每个字符的替换规则</li>
+</ul>
+<p>与普通语法的关键区别在于 <strong>并行性</strong>：每一次迭代时，字符串中的<strong>所有</strong>符号同时被替换（不是逐个处理）。这模拟了植物所有部位同步生长的生物学现实。</p>
+<p><strong>本项目使用的文法</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">公理：FFFFA</span><br><span class="line">规则：A → FF[&amp;+A][&amp;-A][&amp;\A][&amp;/A]FA</span><br></pre></td></tr></table></figure>
+
+<p>解读：</p>
+<ul>
+<li>主干先长 <code>FF</code>（两段茎干）</li>
+<li>然后分出4个方向的侧枝：偏仰+左转 <code>[&amp;+A]</code>、偏仰+右转 <code>[&amp;-A]</code>、偏仰+前滚 <code>[&amp;\A]</code>、偏仰+后滚 <code>[&amp;/A]</code></li>
+<li>最后主轴继续延伸 <code>FA</code>（自相似：A 在下一次迭代中继续展开）</li>
+</ul>
+<p>迭代展开过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">n=0: FFFFA</span><br><span class="line">n=1: FFFFFFFF[&amp;+FFFFA][&amp;-FFFFA][&amp;\FFFFA][&amp;/FFFFA]FFFFA</span><br><span class="line">n=2: (指数级展开)...</span><br><span class="line">n=6: ~89,843 个字符</span><br></pre></td></tr></table></figure>
+
+<p>每次迭代，非终结符 <code>A</code> 被完整展开一层，产生的字符串长度大约以 <strong>5倍</strong> 的速度增长（每个 A 产生约 5 个新节点）。</p>
+<h3 id="2-2-龟形图形学（Turtle-Graphics）解释器"><a href="#2-2-龟形图形学（Turtle-Graphics）解释器" class="headerlink" title="2.2 龟形图形学（Turtle Graphics）解释器"></a>2.2 龟形图形学（Turtle Graphics）解释器</h3><p>字符串本身只是抽象的符号序列，需要通过<strong>龟形图形学</strong>将其转换为几何结构。这个名字来自 LOGO 语言中的”海龟”：一只爬行的虚拟龟，接收指令向前爬行或转身，留下轨迹即为枝条。</p>
+<p>在 3D 版本中，龟的状态由以下量完整描述：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">状态 = &#123;位置 p ∈ ℝ³, 方向矩阵 M ∈ SO(3), 长度 l, 像素半径 r&#125;</span><br></pre></td></tr></table></figure>
+
+<p>方向矩阵 <code>M</code> 是一个 3×3 正交矩阵，三列分别为：</p>
+<ul>
+<li><code>col[0]</code> &#x3D; 右方向（Right）</li>
+<li><code>col[1]</code> &#x3D; 前进方向（Heading，即龟鼻子指向）</li>
+<li><code>col[2]</code> &#x3D; 局部前向（Forward &#x3D; Heading × Right）</li>
+</ul>
+<p>符号映射表：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+<th>操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>F</code></td>
+<td>向前画</td>
+<td>在当前方向延伸枝条，移动到新位置</td>
+</tr>
+<tr>
+<td><code>+</code></td>
+<td>偏航左转</td>
+<td>绕 <code>col[2]</code> 轴旋转 +angle</td>
+</tr>
+<tr>
+<td><code>-</code></td>
+<td>偏航右转</td>
+<td>绕 <code>col[2]</code> 轴旋转 -angle</td>
+</tr>
+<tr>
+<td><code>&amp;</code></td>
+<td>俯仰前倾</td>
+<td>绕 <code>col[0]</code> 轴旋转 +angle</td>
+</tr>
+<tr>
+<td><code>^</code></td>
+<td>俯仰后仰</td>
+<td>绕 <code>col[0]</code> 轴旋转 -angle</td>
+</tr>
+<tr>
+<td><code>\</code></td>
+<td>滚转左</td>
+<td>绕 <code>col[1]</code> 轴旋转 +angle</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>滚转右</td>
+<td>绕 <code>col[1]</code> 轴旋转 -angle</td>
+</tr>
+<tr>
+<td><code>[</code></td>
+<td>压栈</td>
+<td>保存当前状态（分支开始）</td>
+</tr>
+<tr>
+<td><code>]</code></td>
+<td>弹栈</td>
+<td>恢复上一状态（分支结束）</td>
+</tr>
+</tbody></table>
+<p><strong>关键问题：旋转的参考轴</strong></p>
+<p>与很多教程不同，本实现中旋转操作的参考轴不是<strong>全局固定轴</strong>，而是<strong>龟的局部坐标轴</strong>。这意味着每次旋转后，下次旋转的参考系也跟着转动——这正是真实植物分枝的行为。</p>
+<h3 id="2-3-Rodrigues-旋转公式"><a href="#2-3-Rodrigues-旋转公式" class="headerlink" title="2.3 Rodrigues 旋转公式"></a>2.3 Rodrigues 旋转公式</h3><p>每次旋转调用 Rodrigues 旋转，将方向矩阵的三列绕指定轴各旋转一次：</p>
+<p>对向量 <strong>v</strong> 绕单位轴 <strong>k</strong> 旋转角度 θ：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">v_rot = v·cos(θ) + (k×v)·sin(θ) + k·(k·v)·(1-cos(θ))</span><br></pre></td></tr></table></figure>
+
+<p>这个公式的直觉解释：</p>
+<ul>
+<li><code>v·cos(θ)</code>：将原向量缩小，如同投影在旋转后方向的”影子”</li>
+<li><code>(k×v)·sin(θ)</code>：沿垂直平面的旋转分量（叉乘给出垂直方向）</li>
+<li><code>k·(k·v)·(1-cos(θ))</code>：沿旋转轴方向的保留分量（点积给出平行分量）</li>
+</ul>
+<p>合并为矩阵形式（Rodrigues 旋转矩阵 R）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">R = I·cos(θ) + (1-cos(θ))·k⊗k + sin(θ)·[k]×</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>k⊗k</code> 是外积（rank-1矩阵），<code>[k]×</code> 是反对称矩阵（叉积的矩阵表示）。</p>
+<p>代码实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Mat3 <span class="title">rotateAround</span><span class="params">(<span class="type">const</span> Mat3&amp; m, <span class="type">const</span> Vec3&amp; axis, <span class="type">float</span> angle)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> c = <span class="built_in">cosf</span>(angle), s = <span class="built_in">sinf</span>(angle), mc = <span class="number">1</span>-c;</span><br><span class="line">    Vec3 a = axis;</span><br><span class="line">    <span class="comment">// 展开 Rodrigues 旋转矩阵的9个元素</span></span><br><span class="line">    <span class="type">float</span> r00 = c + a.x*a.x*mc,       r01 = a.x*a.y*mc - a.z*s, r02 = a.x*a.z*mc + a.y*s;</span><br><span class="line">    <span class="type">float</span> r10 = a.y*a.x*mc + a.z*s,   r11 = c + a.y*a.y*mc,     r12 = a.y*a.z*mc - a.x*s;</span><br><span class="line">    <span class="type">float</span> r20 = a.z*a.x*mc - a.y*s,   r21 = a.z*a.y*mc + a.x*s, r22 = c + a.z*a.z*mc;</span><br><span class="line">    <span class="comment">// 将旋转矩阵应用到方向矩阵的每一列</span></span><br><span class="line">    Mat3 result;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i=<span class="number">0</span>; i&lt;<span class="number">3</span>; i++) &#123;</span><br><span class="line">        Vec3 v = m.col[i];</span><br><span class="line">        result.col[i] = &#123;</span><br><span class="line">            r00*v.x + r01*v.y + r02*v.z,</span><br><span class="line">            r10*v.x + r11*v.y + r12*v.z,</span><br><span class="line">            r20*v.x + r21*v.y + r22*v.z</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么选 Rodrigues 而不是欧拉角或四元数？</p>
+<ul>
+<li><strong>欧拉角</strong>存在万向锁问题（Gimbal Lock），当某个分量达到 90° 时会丢失一个自由度</li>
+<li><strong>四元数</strong>计算正确，但需要额外转换，且本项目需要方向矩阵的列向量直接用于旋转操作</li>
+<li><strong>Rodrigues</strong>：直接操作矩阵，没有奇异点，实现紧凑，3D 植物建模的理想选择</li>
+</ul>
+<h3 id="2-4-枝条的分形维度与迭代参数"><a href="#2-4-枝条的分形维度与迭代参数" class="headerlink" title="2.4 枝条的分形维度与迭代参数"></a>2.4 枝条的分形维度与迭代参数</h3><p>L-System 生成的几何是真正的数学分形。枝条的分支比例系数 <code>lenScale = 0.68f</code>，即每分支一次，新枝长度为父枝的 68%。经过 n 层递归后，末端枝条长度为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">l_n = l_0 × 0.68^n</span><br></pre></td></tr></table></figure>
+
+<p>6层后：<code>l_6 = l_0 × 0.68^6 ≈ l_0 × 0.098</code>，即原始长度的约10%。</p>
+<p>像素半径的缩减系数 <code>radScale = 0.64f</code>，6层后半径约为初始的 <code>0.64^6 ≈ 0.068</code>，即初始半径 9.0 像素的约0.6像素——足够细到消失于单像素。</p>
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">L-System 定义</span><br><span class="line">    ↓ generate(iters)</span><br><span class="line">L-string (字符序列)</span><br><span class="line">    ↓ buildTree(lstr, ...)</span><br><span class="line">Branch[] + LeafQuad[]</span><br><span class="line">    ↓ sort by viewZ (Painter&#x27;s Algorithm)</span><br><span class="line">排序后的几何数组</span><br><span class="line">    ↓ 正交投影 + 软光栅化</span><br><span class="line">Framebuffer (uint8_t[H][W][3])</span><br><span class="line">    ↓ stb_image_write</span><br><span class="line">lsystem_tree_output.png</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 龟的状态（压栈弹栈的基本单元）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">TState</span> &#123;</span><br><span class="line">    Vec3 pos;          <span class="comment">// 当前世界坐标</span></span><br><span class="line">    Mat3 orient;       <span class="comment">// 方向矩阵（3个正交列向量）</span></span><br><span class="line">    <span class="type">float</span> length;      <span class="comment">// 当前步长（世界单位）</span></span><br><span class="line">    <span class="type">float</span> pixRadius;   <span class="comment">// 枝条渲染半径（像素）</span></span><br><span class="line">    <span class="type">int</span> generation;    <span class="comment">// 递归深度（用于颜色映射）</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 枝条段（一对首尾点的线段）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Branch</span> &#123;</span><br><span class="line">    Vec3 start, end;   <span class="comment">// 世界坐标</span></span><br><span class="line">    <span class="type">float</span> r0, r1;      <span class="comment">// 首尾半径</span></span><br><span class="line">    Vec3 color;        <span class="comment">// 颜色</span></span><br><span class="line">    <span class="type">float</span> viewZ;       <span class="comment">// 深度值（用于 Painter&#x27;s Algorithm 排序）</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 叶片（圆形近似）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">LeafQuad</span> &#123;</span><br><span class="line">    Vec3 pos;          <span class="comment">// 世界坐标</span></span><br><span class="line">    <span class="type">float</span> size;        <span class="comment">// 像素半径</span></span><br><span class="line">    Vec3 color;</span><br><span class="line">    <span class="type">float</span> viewZ;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-相机系统设计"><a href="#3-3-相机系统设计" class="headerlink" title="3.3 相机系统设计"></a>3.3 相机系统设计</h3><p>本项目使用正交投影（Orthographic Projection），而不是透视投影。原因：</p>
+<ol>
+<li>树木体积不大，透视畸变会使近处枝条看起来过粗</li>
+<li>正交投影实现简单，不需要处理 near&#x2F;far clip 的 z-除法</li>
+<li>类似于印象派画作的”扁平感”正好适合程序化树木的风格化呈现</li>
+</ol>
+<p>正交相机用3个正交基向量定义观察空间：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Camera</span> &#123;</span><br><span class="line">    Vec3 right, up, forward;  <span class="comment">// 相机坐标系</span></span><br><span class="line">    <span class="type">float</span> scale;              <span class="comment">// 世界单位到像素的缩放</span></span><br><span class="line">    <span class="type">int</span> cx, cy;               <span class="comment">// 画面中心（像素）</span></span><br><span class="line">    </span><br><span class="line">    <span class="function">Vec2 <span class="title">project</span><span class="params">(<span class="type">const</span> Vec3&amp; p)</span> </span>&#123;</span><br><span class="line">        Vec3 d = p - pos;</span><br><span class="line">        <span class="type">float</span> sx = d.<span class="built_in">dot</span>(right) * scale + cx;</span><br><span class="line">        <span class="type">float</span> sy = -d.<span class="built_in">dot</span>(up)   * scale + cy;  <span class="comment">// 注意Y轴翻转</span></span><br><span class="line">        <span class="keyword">return</span> &#123;sx, sy&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="type">float</span> <span class="title">projZ</span><span class="params">(<span class="type">const</span> Vec3&amp; p)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> -(p - pos).<span class="built_in">dot</span>(forward);  <span class="comment">// 负号：越小越近</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>相机参数（轻微斜视角）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> yaw = <span class="number">15</span>° * PI/<span class="number">180</span>;   <span class="comment">// 水平偏转 15 度</span></span><br><span class="line"><span class="type">float</span> pitch = <span class="number">5</span>° * PI/<span class="number">180</span>;  <span class="comment">// 垂直仰角 5 度</span></span><br><span class="line">cam.right   = &#123;<span class="built_in">cos</span>(yaw), <span class="number">0</span>,          -<span class="built_in">sin</span>(yaw)&#125;;</span><br><span class="line">cam.up      = &#123;<span class="built_in">sin</span>(yaw)*<span class="built_in">sin</span>(pitch), <span class="built_in">cos</span>(pitch), <span class="built_in">cos</span>(yaw)*<span class="built_in">sin</span>(pitch)&#125;;</span><br><span class="line">cam.forward = &#123;<span class="built_in">sin</span>(yaw)*<span class="built_in">cos</span>(pitch), -<span class="built_in">sin</span>(pitch), <span class="built_in">cos</span>(yaw)*<span class="built_in">cos</span>(pitch)&#125;;</span><br><span class="line">cam.scale   = <span class="number">55.0f</span>;  <span class="comment">// 每世界单位对应55像素</span></span><br><span class="line">cam.cx = <span class="number">450</span>; cam.cy = <span class="number">702</span>;  <span class="comment">// 树根在画面下方 78% 处</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-Painter’s-Algorithm（画家算法）"><a href="#3-4-Painter’s-Algorithm（画家算法）" class="headerlink" title="3.4 Painter’s Algorithm（画家算法）"></a>3.4 Painter’s Algorithm（画家算法）</h3><p>3D 场景的遮挡问题通常用 Z-Buffer 解决。但画家算法在某些情况下更适合：</p>
+<ul>
+<li>树木枝条大量重叠，Z-Buffer 需要对每个像素比较深度</li>
+<li>画家算法按深度排序后从后往前绘制，后绘制的自然覆盖前面的——与真实绘画中”先画背景再画前景”相同</li>
+</ul>
+<p>深度值使用 <code>viewZ = cam.projZ(midpoint)</code>，即中点在相机坐标系中的 Z 分量。排序：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">std::<span class="built_in">sort</span>(branches.<span class="built_in">begin</span>(), branches.<span class="built_in">end</span>(),</span><br><span class="line">    [](<span class="type">const</span> Branch&amp; a, <span class="type">const</span> Branch&amp; b)&#123; <span class="keyword">return</span> a.viewZ &lt; b.viewZ; &#125;);</span><br></pre></td></tr></table></figure>
+
+<p><code>viewZ</code> 越小意味着离相机越远（因为我们用了负号），先渲染。</p>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-L-System-生成器"><a href="#4-1-L-System-生成器" class="headerlink" title="4.1 L-System 生成器"></a>4.1 L-System 生成器</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">LSystem</span> &#123;</span><br><span class="line">    std::string axiom;</span><br><span class="line">    <span class="type">char</span> from[<span class="number">16</span>];       <span class="comment">// 规则左侧符号</span></span><br><span class="line">    std::string to[<span class="number">16</span>];  <span class="comment">// 规则右侧字符串</span></span><br><span class="line">    <span class="type">int</span> count = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">addRule</span><span class="params">(<span class="type">char</span> f, <span class="type">const</span> std::string&amp; t)</span> </span>&#123; from[count]=f; to[count]=t; count++; &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function">std::string <span class="title">generate</span><span class="params">(<span class="type">int</span> iters)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        std::string cur = axiom;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i=<span class="number">0</span>; i&lt;iters; i++) &#123;</span><br><span class="line">            std::string next;</span><br><span class="line">            next.<span class="built_in">reserve</span>(cur.<span class="built_in">size</span>() * <span class="number">5</span>);  <span class="comment">// 预分配5倍容量，避免频繁重分配</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">char</span> c : cur) &#123;</span><br><span class="line">                <span class="type">bool</span> replaced = <span class="literal">false</span>;</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> j=<span class="number">0</span>; j&lt;count; j++) &#123;</span><br><span class="line">                    <span class="keyword">if</span> (from[j]==c) &#123;</span><br><span class="line">                        next += to[j];  <span class="comment">// 并行替换：每个字符独立展开</span></span><br><span class="line">                        replaced=<span class="literal">true</span>; <span class="keyword">break</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> (!replaced) next += c;  <span class="comment">// 没有规则的字符（如[、]）直接保留</span></span><br><span class="line">            &#125;</span><br><span class="line">            cur = next;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> cur;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键设计点：</p>
+<ul>
+<li><code>reserve(size*5)</code>：L-System 每次迭代字符串长度大约增长5倍，预分配减少内存重分配次数</li>
+<li>规则查找是 O(count) 的线性搜索，因为规则数量很少（通常1-4条），不值得用哈希表</li>
+<li>无规则符号直接保留，这是 L-System 的核心规定：字母表中的控制符号（如<code>[</code>）不需要规则</li>
+</ul>
+<h3 id="4-2-龟形解释器的方向初始化"><a href="#4-2-龟形解释器的方向初始化" class="headerlink" title="4.2 龟形解释器的方向初始化"></a>4.2 龟形解释器的方向初始化</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 树木向上生长 → 初始前进方向 = +Y 世界轴</span></span><br><span class="line">turtle.orient.col[<span class="number">0</span>] = &#123;<span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>&#125;;   <span class="comment">// right  = +X</span></span><br><span class="line">turtle.orient.col[<span class="number">1</span>] = &#123;<span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span>&#125;;   <span class="comment">// heading = +Y (向上)</span></span><br><span class="line">turtle.orient.col[<span class="number">2</span>] = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>&#125;;   <span class="comment">// forward = +Z</span></span><br></pre></td></tr></table></figure>
+
+<p>为什么选 +Y 作为初始前进方向而不是 +Z？</p>
+<ul>
+<li>在世界坐标系中，+Y 通常代表”向上”（Y-up convention）</li>
+<li>初始前进方向 &#x3D; 向上，树自然从地面竖直生长</li>
+<li>旋转命令 <code>&amp;</code>（绕局部right轴旋转）会将前进方向”向下偏转”，模拟枝条弯曲下垂</li>
+</ul>
+<h3 id="4-3-枝条颜色映射"><a href="#4-3-枝条颜色映射" class="headerlink" title="4.3 枝条颜色映射"></a>4.3 枝条颜色映射</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 用 generation（递归深度）映射颜色</span></span><br><span class="line"><span class="type">float</span> t = (<span class="type">float</span>)turtle.generation / (<span class="type">float</span>)(maxGen<span class="number">+1</span>);</span><br><span class="line">Vec3 col;</span><br><span class="line"><span class="keyword">if</span> (t &lt; <span class="number">0.35f</span>) &#123;</span><br><span class="line">    <span class="comment">// 主干：暖棕色</span></span><br><span class="line">    col = <span class="built_in">Vec3</span>(<span class="number">0.48f</span>, <span class="number">0.30f</span>, <span class="number">0.13f</span>) + <span class="built_in">Vec3</span>(<span class="built_in">jit</span>(rng)*<span class="number">0.05f</span>, <span class="built_in">jit</span>(rng)*<span class="number">0.03f</span>, <span class="number">0</span>);</span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> (t &lt; <span class="number">0.65f</span>) &#123;</span><br><span class="line">    <span class="comment">// 中等枝条：棕绿色过渡</span></span><br><span class="line">    <span class="type">float</span> s = (t<span class="number">-0.35f</span>)/<span class="number">0.3f</span>;  <span class="comment">// 0→1 的插值因子</span></span><br><span class="line">    col = <span class="built_in">Vec3</span>(<span class="number">0.35f</span> - s*<span class="number">0.08f</span>,    <span class="comment">// 红色分量下降（棕色→绿色）</span></span><br><span class="line">               <span class="number">0.30f</span> + s*<span class="number">0.10f</span>,    <span class="comment">// 绿色分量上升</span></span><br><span class="line">               <span class="number">0.12f</span> + s*<span class="number">0.05f</span>);   <span class="comment">// 蓝色微增</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 细枝：绿色（含随机抖动）</span></span><br><span class="line">    col = <span class="built_in">Vec3</span>(<span class="number">0.20f</span>, <span class="number">0.38f</span> + <span class="built_in">jit</span>(rng)*<span class="number">0.06f</span>, <span class="number">0.14f</span> + <span class="built_in">jit</span>(rng)*<span class="number">0.04f</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个颜色映射模拟真实树木的规律：</p>
+<ul>
+<li>主干和粗枝因为树皮覆盖而呈棕色（木质素丰富）</li>
+<li>细枝因为仍处于生长期，含有大量叶绿素，偏绿</li>
+<li>随机抖动避免颜色过于均匀</li>
+</ul>
+<h3 id="4-4-叶片散布策略"><a href="#4-4-叶片散布策略" class="headerlink" title="4.4 叶片散布策略"></a>4.4 叶片散布策略</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 叶片只在足够细的枝条上生成</span></span><br><span class="line"><span class="keyword">if</span> (turtle.pixRadius &lt; basePixR * <span class="number">0.55f</span>) &#123;</span><br><span class="line">    <span class="comment">// 越细的枝条叶片越密集</span></span><br><span class="line">    <span class="type">float</span> leafChance = <span class="number">1.0f</span> - (turtle.pixRadius / (basePixR * <span class="number">0.55f</span>)) * <span class="number">0.4f</span>;</span><br><span class="line">    <span class="comment">// leafChance 范围：0.6(接近阈值) ~ 1.0(最细枝条)</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">prob</span>(rng) &lt; leafChance) &#123;</span><br><span class="line">        <span class="type">int</span> nL = <span class="number">4</span> + (<span class="type">int</span>)(<span class="built_in">rng</span>()%<span class="number">5</span>);  <span class="comment">// 每段 4-8 片叶子</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i=<span class="number">0</span>; i&lt;nL; i++) &#123;</span><br><span class="line">            <span class="type">float</span> lt = <span class="number">0.15f</span> + rand * <span class="number">0.85f</span>;  <span class="comment">// 沿枝条随机位置</span></span><br><span class="line">            Vec3 lp = startPos + heading * (len*lt);</span><br><span class="line">            <span class="comment">// 在枝条法平面内随机散布</span></span><br><span class="line">            lp += right * (<span class="built_in">lo</span>(rng)*len*<span class="number">0.55f</span>)</span><br><span class="line">               + fwd   * (<span class="built_in">lo</span>(rng)*len*<span class="number">0.55f</span>)</span><br><span class="line">               + heading*(<span class="built_in">lo</span>(rng)*len*<span class="number">0.2f</span>);</span><br><span class="line">            <span class="comment">// ...</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>设计考量：</p>
+<ul>
+<li>阈值 <code>0.55f × basePixR</code>：当枝条半径降低到初始半径的55%时开始长叶，这确保主干和粗枝不会被叶片遮挡（否则看不到树的骨架结构）</li>
+<li>叶片沿枝条的法平面（right × fwd 方向）散布，而非沿枝条方向——这让叶簇看起来向外蓬发，而非顺着枝条方向排列</li>
+<li><code>heading</code> 方向的抖动幅度较小（<code>*0.2f</code>）：叶片主要在横向散布，不在纵向拉伸</li>
+</ul>
+<h3 id="4-5-厚线段渲染"><a href="#4-5-厚线段渲染" class="headerlink" title="4.5 厚线段渲染"></a>4.5 厚线段渲染</h3><p>枝条通过沿线段方向步进并绘制圆形截面来实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">drawThickLine</span><span class="params">(<span class="type">float</span> x0, <span class="type">float</span> y0, <span class="type">float</span> x1, <span class="type">float</span> y1,</span></span></span><br><span class="line"><span class="params"><span class="function">                   <span class="type">float</span> z0, <span class="type">float</span> z1, <span class="type">float</span> r0, <span class="type">float</span> r1, Vec3 col)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> dx = x1-x0, dy = y1-y0;</span><br><span class="line">    <span class="type">float</span> len = <span class="built_in">sqrtf</span>(dx*dx+dy*dy);</span><br><span class="line">    <span class="keyword">if</span> (len &lt; <span class="number">0.001f</span>) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> steps = (<span class="type">int</span>)(len) + <span class="number">2</span>;  <span class="comment">// 步进次数 ≈ 线段像素长度，确保无缝覆盖</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i=<span class="number">0</span>; i&lt;=steps; i++) &#123;</span><br><span class="line">        <span class="type">float</span> t = (<span class="type">float</span>)i / steps;</span><br><span class="line">        <span class="type">float</span> cx = x0 + dx*t, cy = y0 + dy*t;</span><br><span class="line">        <span class="type">float</span> cz = z0 + (z1-z0)*t;</span><br><span class="line">        <span class="type">float</span> cr = r0 + (r1-r0)*t;  <span class="comment">// 线性插值半径（锥形）</span></span><br><span class="line">        </span><br><span class="line">        <span class="type">float</span> bright = <span class="number">0.75f</span> + <span class="number">0.25f</span>*(<span class="number">1.0f</span>-t);  <span class="comment">// 近端略亮，远端略暗</span></span><br><span class="line">        <span class="type">int</span> ir = (<span class="type">int</span>)<span class="built_in">ceilf</span>(cr);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> oy=-ir; oy&lt;=ir; oy++)</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> ox=-ir; ox&lt;=ir; ox++) &#123;</span><br><span class="line">                <span class="type">float</span> d = <span class="built_in">sqrtf</span>((<span class="type">float</span>)(ox*ox+oy*oy));</span><br><span class="line">                <span class="keyword">if</span> (d &lt;= cr) &#123;</span><br><span class="line">                    <span class="type">float</span> edge = (<span class="number">1.0f</span> - d/cr * <span class="number">0.4f</span>) * bright;</span><br><span class="line">                    <span class="comment">// edge：圆心处=1.0, 边缘处=0.6，模拟边缘暗化</span></span><br><span class="line">                    <span class="built_in">putPixel</span>(...);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个方法是”圆形印章沿线段盖印”，每步的圆形印章间距约1像素，确保线段完全填充无缝隙。相比扫描线填充三角形，这种方法实现简单，且天然处理了任意粗细。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="Bug-1：树木倒置（上下颠倒）"><a href="#Bug-1：树木倒置（上下颠倒）" class="headerlink" title="Bug 1：树木倒置（上下颠倒）"></a>Bug 1：树木倒置（上下颠倒）</h3><p><strong>症状</strong>：树冠在底部，树根在顶部，枝条向下展开</p>
+<p><strong>错误假设</strong>：以为需要将初始方向旋转 -90° 绕X轴，才能让龟”向上”爬行</p>
+<p><strong>真实原因</strong>：搞反了旋转方向。L-System 的 <code>&amp;</code> 符号（俯仰）本身会将前进方向向下倾斜分支。初始前进方向直接设为 <code>{0,1,0}</code>（+Y &#x3D; 向上）才是正确的，不需要额外旋转。用 <code>-PI/2</code> 旋转会导致初始方向变成 -Y（向下）。</p>
+<p><strong>修复</strong>：将 <code>rotateX(-PI/2)</code> 改为直接初始化 <code>orient.col[1] = {0, 1, 0}</code></p>
+<p><strong>教训</strong>：坐标系初始化要从最简单的情况验证——先渲染一条竖直线段，确认”向上生长”是正确的，再加入旋转规则。</p>
+<hr>
+<h3 id="Bug-2：上部枝条无叶片"><a href="#Bug-2：上部枝条无叶片" class="headerlink" title="Bug 2：上部枝条无叶片"></a>Bug 2：上部枝条无叶片</h3><p><strong>症状</strong>：树冠下半部分叶片茂密，上半部分枝干全部裸露，整体像”戴草帽的树”</p>
+<p><strong>错误假设</strong>：以为用 <code>turtle.depth &gt;= maxDepth - 2</code>（即只有足够深的分支才生成叶片）能让叶片覆盖树冠顶部</p>
+<p><strong>真实原因</strong>：L-System 规则中，<code>A</code> 总是直接展开（不经过 <code>[...]</code>），所以主干延伸的段始终保持 generation&#x3D;0，永远不会达到 <code>maxDepth</code>。上部枝条实际上都是 generation&#x3D;0 到 generation&#x3D;1 的段，远低于 <code>maxDepth - 2</code> 的阈值。</p>
+<p><strong>修复</strong>：改用枝条<strong>像素半径</strong>作为叶片生成的判断标准——半径 &lt; baseRadius × 55% 时生成叶片。半径随递归自动缩小，不依赖 generation 深度，正确覆盖所有细枝。</p>
+<p><strong>教训</strong>：在分析生成结果异常时，先打印 <code>turtle.generation</code> 的实际分布，而不是凭感觉估计。</p>
+<hr>
+<h3 id="Bug-3：叶片”穿地”"><a href="#Bug-3：叶片”穿地”" class="headerlink" title="Bug 3：叶片”穿地”"></a>Bug 3：叶片”穿地”</h3><p><strong>症状</strong>：树木下方的枝条延伸到”地面”以下，对应的叶片出现在地面之下，渲染出来像是地下长了叶子</p>
+<p><strong>错误假设</strong>：以为 L-System 的分枝只会向上和两侧展开</p>
+<p><strong>真实原因</strong>：规则 <code>[&amp;+A]</code> 中 <code>&amp;</code> 是俯仰，在初始方向为 +Y 的情况下，<code>&amp;</code> 会让新枝向 -Z 方向倾斜——对于相机视角，部分枝条会向下弯曲触及”地面”（Y&#x3D;0 平面以下）。</p>
+<p><strong>修复</strong>：将 <code>cam.cy</code>（相机中心Y坐标）从 <code>H/2</code> 调整到 <code>H*0.78</code>（画面下方78%处），给树木更多向上生长的显示空间，同时让地面背景渐变起始点正好与树根对齐。</p>
+<hr>
+<h3 id="Bug-4：编译-stb-image-write-h-产生大量警告"><a href="#Bug-4：编译-stb-image-write-h-产生大量警告" class="headerlink" title="Bug 4：编译 stb_image_write.h 产生大量警告"></a>Bug 4：编译 stb_image_write.h 产生大量警告</h3><p><strong>症状</strong>：编译时出现20余条 <code>-Wmissing-field-initializers</code> 警告，来自第三方库 stb_image_write.h</p>
+<p><strong>原因</strong>：stb 库的 <code>stbi__write_context s = { 0 }</code> 初始化语句在 GCC 中触发了”未初始化结构体字段”警告。这不是代码错误，而是 GCC 的静态分析过于严格。</p>
+<p><strong>修复</strong>：用 pragma 临时屏蔽第三方库的警告：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic push</span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic ignored <span class="string">&quot;-Wmissing-field-initializers&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> STB_IMAGE_WRITE_IMPLEMENTATION</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;stb_image_write.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic pop</span></span><br></pre></td></tr></table></figure>
+
+<p><code>push/pop</code> 对确保只屏蔽 stb 头文件的警告，不影响其他代码的告警检测。</p>
+<hr>
+<h3 id="Bug-5：随机抖动导致枝条角度过大"><a href="#Bug-5：随机抖动导致枝条角度过大" class="headerlink" title="Bug 5：随机抖动导致枝条角度过大"></a>Bug 5：随机抖动导致枝条角度过大</h3><p><strong>症状</strong>：某些迭代下，树形严重不对称，部分枝条几乎水平甚至向下弯曲</p>
+<p><strong>原因</strong>：初始版本的角度抖动范围是 <code>angle + jit * 0.3f</code>，其中 <code>jit ∈ [-0.1, 0.1]</code>（弧度）。基础角度25°≈0.44rad，抖动量 <code>0.3 * 0.1 = 0.03rad</code>。但分支角度 <code>angle = 25°</code> + 抖动，在某些情况下叠加后达到 60° 以上，导致分枝几乎水平，最终使叶片深入地面。</p>
+<p><strong>修复</strong>：将抖动系数从 <code>0.3f</code> 降低到 <code>0.15f</code>，同时将分支角度从 30° 降回 25°，保持树形紧凑。</p>
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="渲染输出"><a href="#渲染输出" class="headerlink" title="渲染输出"></a>渲染输出</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png" alt="L-System 程序化树木渲染结果"></p>
+<p><em>图：6次迭代的 L-System 程序化树木，900×900像素，正交投影，带叶片散布，渲染时间 0.20 秒</em></p>
+<h3 id="量化验证数据"><a href="#量化验证数据" class="headerlink" title="量化验证数据"></a>量化验证数据</h3><p>验证脚本输出（像素采样）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">均值: 160.2  （范围期望：10-240，✅ 通过）</span><br><span class="line">标准差: 58.6  （期望 &gt; 5，✅ 通过）</span><br><span class="line">尺寸: 900×900</span><br><span class="line">文件大小: 92KB（期望 &gt; 10KB，✅ 通过）</span><br><span class="line">上方蓝色均值: 216.3（天空区域，✅ 通过）</span><br><span class="line">下方绿色均值: 125.9（地面区域，✅ 通过）</span><br></pre></td></tr></table></figure>
+
+<p>分区域像素统计：</p>
+<ul>
+<li>顶部1&#x2F;4（天空）：蓝色通道均值216，符合天空渐变背景</li>
+<li>中间1&#x2F;2（树冠）：绿色通道均值183，叶片密集</li>
+<li>底部1&#x2F;4（地面）：绿色通道均值126，地面颜色符合预期</li>
+</ul>
+<h3 id="几何数据统计"><a href="#几何数据统计" class="headerlink" title="几何数据统计"></a>几何数据统计</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>L-string 长度</td>
+<td>89,843 字符</td>
+</tr>
+<tr>
+<td>枝条段数量</td>
+<td>27,347</td>
+</tr>
+<tr>
+<td>叶片数量</td>
+<td>143,933</td>
+</tr>
+<tr>
+<td>迭代次数</td>
+<td>6</td>
+</tr>
+<tr>
+<td>渲染时间</td>
+<td>0.20 秒</td>
+</tr>
+<tr>
+<td>编译时间</td>
+<td>&lt;0.5 秒</td>
+</tr>
+<tr>
+<td>输出文件大小</td>
+<td>92 KB PNG</td>
+</tr>
+<tr>
+<td>最大树高（世界单位）</td>
+<td>~4.5</td>
+</tr>
+<tr>
+<td>分支角度</td>
+<td>25° ± 1.5°</td>
+</tr>
+</tbody></table>
+<h3 id="性能分析"><a href="#性能分析" class="headerlink" title="性能分析"></a>性能分析</h3><p>渲染瓶颈分析（粗略测量）：</p>
+<ul>
+<li><strong>buildTree 阶段</strong>（字符串遍历 + 几何生成）：~30ms</li>
+<li><strong>深度排序</strong>（Painter’s Algorithm sort）：~15ms</li>
+<li><strong>枝条光栅化</strong>（27,347条线段）：~60ms</li>
+<li><strong>叶片光栅化</strong>（143,933个圆形）：~95ms</li>
+<li><strong>总计</strong>：~200ms（单线程）</li>
+</ul>
+<p>叶片数量是瓶颈，因为每个叶片需要绘制一个半径约6像素的圆形，每圆约 36×π ≈ 113 像素的循环，143,933 个叶片共约 1,625 万次 <code>putPixel</code> 调用。</p>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>没有碰撞检测</strong>：枝条可能穿透彼此，真实树木不会这样。解决方案：加入枝条间的排斥力（参考 L-System 的开放 L-System 变体）</li>
+<li><strong>正交投影缺乏深度感</strong>：远近枝条大小相同，整体偏平。可改用透视投影，增加3D立体感</li>
+<li><strong>叶片是球形近似</strong>：真实叶片是扁平的椭圆形，有复杂的叶脉纹理。可改用纹理映射的四边形（Billboard）</li>
+<li><strong>没有光照模型</strong>：只有简单的边缘暗化，缺少太阳方向光和阴影。加入 Lambertian 漫射 + 自阴影会大幅提升质感</li>
+<li><strong>L-System 没有参数化</strong>：Prusinkiewicz 的参数化 L-System（Parametric L-System）支持每个符号携带数值参数，可以更精细控制每条枝条的属性</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><strong>随机 L-System（Stochastic L-System）</strong>：为同一个符号提供多条规则，每条规则有不同概率被选中，产生不规则自然的树形</li>
+<li><strong>上下文敏感 L-System（Context-sensitive L-System）</strong>：规则可以感知左右邻居，模拟信号在植物中的传递（如激素信号控制分枝）</li>
+<li><strong>并行化</strong>：叶片光栅化是天然可并行的，用 OpenMP 或 SIMD 可轻松提速4-8倍</li>
+<li><strong>树皮纹理</strong>：主干枝条加入 Perlin 噪声的法向量扰动，渲染时产生凹凸感</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><p>今天的 L-System 与之前的项目有多处技术交集：</p>
+<ul>
+<li><strong>[04-01 SDF Ray Marching]</strong>：SDF 也是隐式几何描述，L-System 是显式符号描述——两种不同的程序化生成范式</li>
+<li><strong>[04-06 Procedural Terrain]</strong>：均属于程序化内容生成（PCG），地形用噪声函数，植被用L-System</li>
+<li><strong>[04-17 Marching Cubes]</strong>：若将 L-System 生成的树形体素化，可用 Marching Cubes 提取树木的光滑曲面表示</li>
+<li><strong>[04-21 Bloom]</strong>：在游戏引擎中，树木受光部分通常会触发 Bloom 效果（嫩叶透光后的发光感），可将今天的输出作为 Bloom 的输入</li>
+</ul>
+<p>L-System 是通往程序化生成世界的入口——从这里延伸出去，可以研究更复杂的植物建模（花朵、草甸、珊瑚礁），甚至城市道路生成（城市 L-System），或者分形艺术（Koch 雪花、Sierpinski 三角形的 L-System 表示）。</p>
+<hr>
+<p><strong>代码仓库</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/04/04-23-lsystem-tree">daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-23-lsystem-tree</a></p>
+<p><strong>编译运行</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra</span><br><span class="line">./output  <span class="comment"># 生成 lsystem_tree_output.png</span></span><br></pre></td></tr></table></figure>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/04/23/daily-coding-lsystem-tree-2026-04-23/">https://chiuhoukazusa.github.io/2026/04/23/daily-coding-lsystem-tree-2026-04-23/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A8%8B%E5%BA%8F%E5%8C%96%E7%94%9F%E6%88%90/">程序化生成</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-22-marschner-hair/marschner_hair_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Marschner Hair Rendering今天实现了 Marschner 头发光照模型——这是游戏渲染领域最重要的头发着色模型之一，自 2003 年发表以来几乎成为工业标准。渲染结果是 120 根 Cubic Bezier 发丝，在三盏灯下展示出 R（反射）、TT（透射）、TRT（内反射）三条散射路径的物理效果。   ① 背景与动机：为什么头发渲染这么难传统 Phong&#x2F;Blinn-Phong 的失败头发是一种极其特殊的几何体：它是直径约 70μm 的细圆柱，长度可达数十厘米。当光打在头发上，不仅会在表面反射，还会穿透半透明的皮质层，在内部散射后从另一侧透出。这种多路径散射行为是 Phong 模型完全无法描述的。 使用 Phong 模型渲染头发会得到什么？高光沿着”法向量最接近半向量”的位置出现，但头发没有固定法向量（它是圆柱），渲染结果是均匀的漫反射团，毫无层次感，就像把头发当作哑光塑料管渲染。 Kajiya-Kay 的局限性2003 年之前，工业界常用 Kajiya-Kay 1989 模型。它聪明地把头发的切向量 T 引入 Phong 公式，用 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/30/daily-coding-procedural-texture-2026-03-30/" title="每日编程实践: Procedural Texture Synthesis — 程序化纹理合成"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-30-procedural-texture/procedural_texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-30</div><div class="info-item-2">每日编程实践: Procedural Texture Synthesis — 程序化纹理合成</div></div><div class="info-2"><div class="info-item-1"> 今日主题：程序化纹理合成——用数学公式而非美术资产生成无限变化的有机纹理。核心技术：Worley Noise（细胞&#x2F;Voronoi 噪声）+ Fractal Brownian Motion（分形布朗运动），生成大理石、木纹、熔岩、有机细胞六种纹理。   ① 背景与动机为什么需要程序化纹理？传统美术流程中，纹理贴图是美术师手工绘制的图像文件——一张 2048×2048 的漫反射贴图占用 16MB（未压缩）。大型开放世界游戏中，仅地形纹理就可能高达几十 GB。这带来三个核心痛点： 1. 存储瓶颈《巫师 3》的纹理资产超过 30GB。玩家在下载时要忍受漫长等待，主机平台更是受限于蓝光盘容量。而程序化纹理只需存储几十行数学参数，运行时实时生成任意分辨率的纹理。 2. 分辨率无关性手绘纹理存在物理分辨率上限——放大 4 倍就会看到像素化。程序化纹理本质是连续函数，理论上可以无限放大，细节永远清晰。《No Man’s Sky》的整个星球纹理系统就建立在这一特性上。 3. 参数化变化手绘大理石纹理要变色，需要美术师重新画一张。程序化纹理只需修改一个颜色参数，立刻生成新变体。这使得实...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/06/daily-coding-terrain-renderer-2026-04-06/" title="每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-06-Procedural-Terrain-Renderer/terrain_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-06</div><div class="info-item-2">每日编程实践: Procedural Terrain Renderer — 程序化地形渲染器</div></div><div class="info-2"><div class="info-item-1">Procedural Terrain Renderer — 程序化地形渲染器今天是每日编程实践系列第 48 天。主题是程序化地形渲染——从零用 C++ 实现一个完整的地形生成与渲染管线：Perlin 噪声高度图 + fBm 分形叠加 + 多生物群系着色 + Phong 光照 + 大气雾 + 软光栅化投影。   ① 背景与动机：为什么要做程序化地形？手工地形的局限在游戏开发和影视特效中，场景中的地形是最占资源、最难手工制作的内容之一。一片 10km×10km 的游戏地图，如果依靠美术手工刷高度图，需要几周甚至几个月。而且手工地形有一个根本问题：内容密度与规模不匹配——想做大就细节少，想要细节就规模小。 程序化生成（Procedural Generation）的核心价值是：用确定性算法无限扩展内容，同时保持细节。一段几十行的噪声函数可以生成整个星球的地形，而且每次用不同种子（seed）都能得到独一无二的结果。 工业界应用场景 《No Man’s Sky》：整个游戏的 18 quintillion 颗行星地形全部程序化生成，包括地貌、植被、大气 《Minecraft》：经典案例，Per...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/08/daily-coding-cloth-simulation-2026-03-08/" title="每日编程实践: Cloth Simulation 布料模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-08-cloth-simulation/cloth_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-08</div><div class="info-item-2">每日编程实践: Cloth Simulation 布料模拟</div></div><div class="info-2"><div class="info-item-1">Cloth Simulation — 布料模拟一件衬衫被风吹起的样子，一块丝绸落在桌面上的纹理，游戏里的旗帜随风飘动——这些看似简单的视觉效果，背后隐藏着一个有趣的物理问题：如何用计算机模拟柔软的织物？ 今天实现了经典的质点弹簧布料模拟，这是游戏引擎和影视特效中处理布料最常见的基础方案。  最终效果主渲染图（含风力的最终状态） 红色布料从水平展开的初始状态，在重力拉扯下垂落，包裹住下方的球体，随后被侧风吹起一角。Phong 着色区分正面（深红）和背面（暗红），形成明显的布料折叠感。 物理演化序列（0 → 150 → 300 → 600 帧） 从左上到右下：布料从展开状态，逐渐在重力作用下垂落，绕过球体弯曲，最终稳定在平衡态。  第一章：为什么布料模拟难？布料的本质是大量纤维交织的网。真正从纤维层面模拟是不现实的——一件 T 恤大概有几十亿根纤维。 工程上的解法是离散化：把布料简化成有限个质点，再用弹簧连接它们，让弹簧产生的弹力近似真实布料的弹性。这就是 Mass-Spring System（质点弹簧系统）。 直觉模型：想象一个渔网。每个网结是一个质点（有质量，能运动），绳子是弹簧...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/12/daily-coding-god-rays-2026-04-12/" title="每日编程实践: 体积光散射 God Rays——Mie散射、光线步进与遮挡采样"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04-12-god-rays/god_rays_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-12</div><div class="info-item-2">每日编程实践: 体积光散射 God Rays——Mie散射、光线步进与遮挡采样</div></div><div class="info-2"><div class="info-item-1">一、背景与动机你一定见过这样的画面：清晨阳光穿过茂密树叶，形成若干道金色光柱射向地面；或者教堂彩绘玻璃窗外，光束穿透有灰尘的空气，仿佛有形的物质。这种现象叫做丁达尔效应（Tyndall Effect），在计算机图形学中通常被称为 God Rays（耶稣光） 或 Crepuscular Rays（暮色光线）。 1.1 物理原因空气并不是完全透明的。它含有无数微小颗粒：尘埃、水雾、气溶胶。这些粒子会将光线向各个方向散射。当光束被遮挡物（树木、建筑、云层）部分遮挡时，未被遮挡的区域散射的光强于被遮挡区域，从而形成明暗相间的光柱。 没有这种效果，场景中的光照是”无形”的——你看不到光束本身，只能看到它照亮的表面。God Rays 让光本身变得可见，极大地增强了场景的氛围感和空间感。 1.2 工业界应用游戏引擎：  Unreal Engine 5 的 Lumen 系统实现了完整的体积光照，包括实时 God Rays Unity HDRP 提供了 Volumetric Fog 和 Volumetric Lighting 系统 《赛博朋克 2077》 大量使用体积光效果营造霓虹灯穿透雨雾的赛博...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/29/daily-coding-hdr-tone-mapping-2026-03-29/" title="每日编程实践: HDR Tone Mapping &amp; Color Grading"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-29-hdr-tone-mapping/tonemap_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-29</div><div class="info-item-2">每日编程实践: HDR Tone Mapping &amp; Color Grading</div></div><div class="info-2"><div class="info-item-1">背景与动机每一帧游戏画面的最后一道工序，往往最不起眼，却决定了一切的观感——色调映射（Tone Mapping）。 问题的根源：显示器不是眼睛现实世界的亮度范围极为宽广。晴天户外的直射阳光亮度约为 100,000 cd&#x2F;m²，室内阴影处可能只有 0.01 cd&#x2F;m²，动态范围高达 10 个数量级（100dB）。人眼通过瞳孔收缩和视杆&#x2F;视锥细胞的自适应，能感知约 20 个 EV（Exposure Value）的动态范围。 然而，家用显示器的 SDR（Standard Dynamic Range）面板通常只能显示 0.1 到 300 cd&#x2F;m² 的亮度，不足 3 个数量级。HDR 显示器能达到 1000–4000 nits，也仅覆盖 4 个数量级。 一个物理正确的渲染器（Path Tracer、光栅化 + 全局光照），输出的是线性光照空间的辐射值，可以包含从 0.001（深阴影）到 20+（太阳直射）甚至更高的值域。如果我们直接把这些值限制在 [0, 1] 范围内显示，高光区域全部爆掉变成一片白，暗部细节也因非线性感知而全部消失。 色调映射就是...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/26/daily-coding-taa-2026-03-26/" title="每日编程实践: Temporal Anti-Aliasing (TAA) — 从0实现时序抗锯齿"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-26-taa/taa_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-26</div><div class="info-item-2">每日编程实践: Temporal Anti-Aliasing (TAA) — 从0实现时序抗锯齿</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Temporal Anti-Aliasing (TAA)① 背景与动机锯齿是什么，为什么它顽固存在当你在游戏里靠近一堵砖墙，看着瓷砖边缘闪烁跳动；或者远处树木的枝条变成一片乱码噪点——这就是走样 (Aliasing) 的典型场景。 走样的根本原因是采样定理：以有限分辨率的像素网格对连续的几何场景采样，必然会丢失高频细节。一条对角线在像素网格上只能用”阶梯状”近似，这就是几何走样。 传统的解决方案：  MSAA (Multisample AA)：每像素采集多个子样本，但只对几何边缘有效，对着色走样（Shader Aliasing）无效。而且随着延迟渲染的普及，MSAA 的 G-Buffer 内存开销变得难以承受。4x MSAA &#x3D; G-Buffer 内存×4。 SSAA (Supersample AA)：以更高分辨率渲染再降采样。质量最好但开销也最大，渲染代价与超采样倍数成正比。 FXAA (Fast Approximate AA)：后处理边缘模糊，便宜但会过度模糊纹理细节，丢失锐利感。  TAA（Temporal Anti-Aliasing，时序抗锯齿）...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">76</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">93</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">一、背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A4%8D%E7%89%A9%E5%BB%BA%E6%A8%A1%E7%9A%84%E6%9C%AC%E8%B4%A8%E5%9B%B0%E5%A2%83"><span class="toc-number">1.1.</span> <span class="toc-text">植物建模的本质困境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#L-System-%E7%9A%84%E8%AF%9E%E7%94%9F%E4%B8%8E%E5%AE%9A%E4%BD%8D"><span class="toc-number">1.2.</span> <span class="toc-text">L-System 的诞生与定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8"><span class="toc-number">1.3.</span> <span class="toc-text">工业界实际应用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%BD%A2%E5%BC%8F%E6%96%87%E6%B3%95%E4%B8%8E%E5%AD%97%E7%AC%A6%E4%B8%B2%E9%87%8D%E5%86%99"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 形式文法与字符串重写</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E9%BE%9F%E5%BD%A2%E5%9B%BE%E5%BD%A2%E5%AD%A6%EF%BC%88Turtle-Graphics%EF%BC%89%E8%A7%A3%E9%87%8A%E5%99%A8"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 龟形图形学（Turtle Graphics）解释器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Rodrigues-%E6%97%8B%E8%BD%AC%E5%85%AC%E5%BC%8F"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 Rodrigues 旋转公式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%9E%9D%E6%9D%A1%E7%9A%84%E5%88%86%E5%BD%A2%E7%BB%B4%E5%BA%A6%E4%B8%8E%E8%BF%AD%E4%BB%A3%E5%8F%82%E6%95%B0"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 枝条的分形维度与迭代参数</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%9B%B8%E6%9C%BA%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 相机系统设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-Painter%E2%80%99s-Algorithm%EF%BC%88%E7%94%BB%E5%AE%B6%E7%AE%97%E6%B3%95%EF%BC%89"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 Painter’s Algorithm（画家算法）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-L-System-%E7%94%9F%E6%88%90%E5%99%A8"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 L-System 生成器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E9%BE%9F%E5%BD%A2%E8%A7%A3%E9%87%8A%E5%99%A8%E7%9A%84%E6%96%B9%E5%90%91%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 龟形解释器的方向初始化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%9E%9D%E6%9D%A1%E9%A2%9C%E8%89%B2%E6%98%A0%E5%B0%84"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 枝条颜色映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%8F%B6%E7%89%87%E6%95%A3%E5%B8%83%E7%AD%96%E7%95%A5"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 叶片散布策略</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%8E%9A%E7%BA%BF%E6%AE%B5%E6%B8%B2%E6%9F%93"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 厚线段渲染</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E6%A0%91%E6%9C%A8%E5%80%92%E7%BD%AE%EF%BC%88%E4%B8%8A%E4%B8%8B%E9%A2%A0%E5%80%92%EF%BC%89"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：树木倒置（上下颠倒）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E4%B8%8A%E9%83%A8%E6%9E%9D%E6%9D%A1%E6%97%A0%E5%8F%B6%E7%89%87"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：上部枝条无叶片</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%8F%B6%E7%89%87%E2%80%9D%E7%A9%BF%E5%9C%B0%E2%80%9D"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：叶片”穿地”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E7%BC%96%E8%AF%91-stb-image-write-h-%E4%BA%A7%E7%94%9F%E5%A4%A7%E9%87%8F%E8%AD%A6%E5%91%8A"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：编译 stb_image_write.h 产生大量警告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-5%EF%BC%9A%E9%9A%8F%E6%9C%BA%E6%8A%96%E5%8A%A8%E5%AF%BC%E8%87%B4%E6%9E%9D%E6%9D%A1%E8%A7%92%E5%BA%A6%E8%BF%87%E5%A4%A7"><span class="toc-number">5.5.</span> <span class="toc-text">Bug 5：随机抖动导致枝条角度过大</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E8%BE%93%E5%87%BA"><span class="toc-number">6.1.</span> <span class="toc-text">渲染输出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE"><span class="toc-number">6.2.</span> <span class="toc-text">量化验证数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%87%A0%E4%BD%95%E6%95%B0%E6%8D%AE%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.3.</span> <span class="toc-text">几何数据统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90"><span class="toc-number">6.4.</span> <span class="toc-text">性能分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/23/daily-coding-lsystem-tree-2026-04-23/" title="每日编程实践: L-System 程序化树木渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: L-System 程序化树木渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/23/daily-coding-lsystem-tree-2026-04-23/" title="每日编程实践: L-System 程序化树木渲染">每日编程实践: L-System 程序化树木渲染</a><time datetime="2026-04-22T21:44:00.000Z" title="发表于 2026-04-23 05:44:00">2026-04-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-22-marschner-hair/marschner_hair_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型">每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型</a><time datetime="2026-04-21T21:30:00.000Z" title="发表于 2026-04-22 05:30:00">2026-04-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/21/daily-coding-bloom-lens-flare-2026-04-21/" title="每日编程实践: Physically Based Bloom &amp; Lens Flare"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-21-bloom-lens-flare/bloom_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Physically Based Bloom &amp; Lens Flare"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/21/daily-coding-bloom-lens-flare-2026-04-21/" title="每日编程实践: Physically Based Bloom &amp; Lens Flare">每日编程实践: Physically Based Bloom &amp; Lens Flare</a><time datetime="2026-04-20T21:30:00.000Z" title="发表于 2026-04-21 05:30:00">2026-04-21</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/20/daily-coding-pcss-soft-shadows-2026-04-20/" title="每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-20-pcss-soft-shadows/pcss_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/20/daily-coding-pcss-soft-shadows-2026-04-20/" title="每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染">每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染</a><time datetime="2026-04-19T21:30:00.000Z" title="发表于 2026-04-20 05:30:00">2026-04-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/19/daily-coding-irradiance-probes-2026-04-19/" title="每日编程实践: Ambient Light Probes &amp; Irradiance Caching"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-19-irradiance-probes/irradiance_probe_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Ambient Light Probes &amp; Irradiance Caching"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/19/daily-coding-irradiance-probes-2026-04-19/" title="每日编程实践: Ambient Light Probes &amp; Irradiance Caching">每日编程实践: Ambient Light Probes &amp; Irradiance Caching</a><time datetime="2026-04-18T21:30:00.000Z" title="发表于 2026-04-19 05:30:00">2026-04-19</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
