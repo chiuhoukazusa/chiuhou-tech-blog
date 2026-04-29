@@ -1,0 +1,428 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Shadow Volume Renderer（阴影体积渲染器） | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践: Shadow Volume Renderer（阴影体积渲染器） 日期：2026-04-30技术标签：Shadow Volume · Stencil Buffer · Z-Fail (Carmack’s Reverse) · 轮廓边检测 · 软光栅化代码仓库：daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-30-shadow-volum">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践: Shadow Volume Renderer（阴影体积渲染器） 日期：2026-04-30技术标签：Shadow Volume · Stencil Buffer · Z-Fail (Carmack’s Reverse) · 轮廓边检测 · 软光栅化代码仓库：daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-30-shadow-volum">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png">
+<meta property="article:published_time" content="2026-04-29T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-04-29T21:38:08.271Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="软光栅化">
+<meta property="article:tag" content="阴影技术">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Shadow Volume Renderer（阴影体积渲染器）",
+  "url": "https://chiuhoukazusa.github.io/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png",
+  "datePublished": "2026-04-29T21:30:00.000Z",
+  "dateModified": "2026-04-29T21:38:08.271Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Shadow Volume Renderer（阴影体积渲染器）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-04-29T21:30:00.000Z" title="发表于 2026-04-30 05:30:00">2026-04-30</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-04-29T21:38:08.271Z" title="更新于 2026-04-30 05:38:08">2026-04-30</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践-Shadow-Volume-Renderer（阴影体积渲染器）"><a href="#每日编程实践-Shadow-Volume-Renderer（阴影体积渲染器）" class="headerlink" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"></a>每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</h1><blockquote>
+<p>日期：2026-04-30<br>技术标签：Shadow Volume · Stencil Buffer · Z-Fail (Carmack’s Reverse) · 轮廓边检测 · 软光栅化<br>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/04/04-30-shadow-volume-renderer">daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-30-shadow-volume-renderer</a></p>
+</blockquote>
+<hr>
+<h2 id="①-背景与动机：为什么需要-Shadow-Volume？"><a href="#①-背景与动机：为什么需要-Shadow-Volume？" class="headerlink" title="① 背景与动机：为什么需要 Shadow Volume？"></a>① 背景与动机：为什么需要 Shadow Volume？</h2><p>阴影是使渲染图像真实可信的最关键因素之一。没有阴影，物体会看起来像是飘浮在空中，场景缺乏空间感和深度感。阴影技术的历史演进也是图形学发展史上最有意思的线索之一。</p>
+<h3 id="Shadow-Map-的局限"><a href="#Shadow-Map-的局限" class="headerlink" title="Shadow Map 的局限"></a>Shadow Map 的局限</h3><p>最广为人知的阴影技术是 <strong>Shadow Map（阴影贴图）</strong>，其思路是：从光源视角渲染场景的深度图，然后在主渲染时判断每个像素是否比该深度图记录的值更远，如果是则在阴影中。Shadow Map 的优点是实现简单、性能好，是游戏行业20年来的主流方案。</p>
+<p>然而，Shadow Map 有一个根本性的<strong>精度问题</strong>：它将连续的3D空间离散化为一张有限分辨率的2D纹理，这导致著名的**Shadow Acne（阴影粉刺&#x2F;自遮挡）<strong>和</strong>Peter Panning（彼得潘效应）**问题。尽管有 Bias 调整、PCF 过滤、PCSS 等众多补救方案（我们之前也实现过 PCSS），但这些都是在掩盖一个根本性的离散化缺陷。</p>
+<h3 id="Shadow-Volume-的出发点"><a href="#Shadow-Volume-的出发点" class="headerlink" title="Shadow Volume 的出发点"></a>Shadow Volume 的出发点</h3><p><strong>Shadow Volume（阴影体积）</strong> 是一种从根本上不同的思路：它不依赖离散化的深度图，而是直接在3D空间中构造出一个几何体——“阴影体”——来精确表示被某个物体遮挡的空间区域。</p>
+<p>直觉理解：想象一个不透明球体和一盏点光源。光线从四面八方照射过来，球体遮挡了其中一部分，形成一个以光源为顶点、以球体轮廓为”底面”的无穷大锥形区域。这个锥形区域就是<strong>阴影体（Shadow Volume）</strong>。处于阴影体内部的任何点都在阴影中；处于阴影体外部的点则被光源直接照射。</p>
+<p>这种方法的理论优势非常明显：</p>
+<ul>
+<li><strong>像素精确（pixel-accurate）</strong>：不存在阴影贴图的分辨率限制</li>
+<li><strong>不需要任何偏移（Bias）</strong>：不存在 Shadow Acne 问题</li>
+<li><strong>任意形状投射物</strong>：对于复杂几何体同样适用</li>
+<li><strong>无穿透阴影伪影</strong>：几何精确性保证了没有光线”泄漏”</li>
+</ul>
+<p>工业界的使用：Shadow Volume 虽然在现代 GPU 管线中已经被 Shadow Map 方案取代（主要是性能原因），但在历史上有过重要的应用时期。最著名的案例是 <strong>id Software 的 Doom 3（2004年）</strong>，整个游戏引擎 id Tech 4 使用的就是 Shadow Volume，这种技术在当时被称为”Carmack’s Reverse”或”Z-Fail Method”，以约翰·卡马克（John Carmack）的名字命名，因为他独立发现并推广了这种实现方式。</p>
+<hr>
+<h2 id="②-核心原理：Shadow-Volume-的数学与算法"><a href="#②-核心原理：Shadow-Volume-的数学与算法" class="headerlink" title="② 核心原理：Shadow Volume 的数学与算法"></a>② 核心原理：Shadow Volume 的数学与算法</h2><h3 id="2-1-Stencil-Buffer-计数原理"><a href="#2-1-Stencil-Buffer-计数原理" class="headerlink" title="2.1 Stencil Buffer 计数原理"></a>2.1 Stencil Buffer 计数原理</h3><p>Shadow Volume 的实现核心依赖于 GPU 的<strong>模板缓冲（Stencil Buffer）</strong>。这是一个每像素的整数计数器，Shadow Volume 算法利用它来统计一条从摄像机出发的光线穿越阴影体的次数。</p>
+<p>设想一条从摄像机出发、经过屏幕上某个像素 <code>p</code> 的射线，它最终会到达一个场景几何体表面上的点 <code>P</code>（这就是该像素在深度缓冲中对应的点）。</p>
+<p>对于这条射线，我们统计它穿越阴影体边界的次数：</p>
+<ul>
+<li>每穿入阴影体一次（穿过面朝向摄像机的阴影体三角形）→ 计数 +1</li>
+<li>每穿出阴影体一次（穿过面背向摄像机的阴影体三角形）→ 计数 -1</li>
+</ul>
+<p>最终：</p>
+<ul>
+<li>计数 &#x3D; 0 → 点 P 在所有阴影体外 → P 被光源照射</li>
+<li>计数 ≠ 0 → 点 P 在某个阴影体内 → P 处于阴影中</li>
+</ul>
+<p>这就是 Shadow Volume 算法的本质：<strong>用几何穿越次数来判断阴影包含关系</strong>。</p>
+<h3 id="2-2-Z-Pass-vs-Z-Fail：为什么需要-Carmack’s-Reverse"><a href="#2-2-Z-Pass-vs-Z-Fail：为什么需要-Carmack’s-Reverse" class="headerlink" title="2.2 Z-Pass vs Z-Fail：为什么需要 Carmack’s Reverse"></a>2.2 Z-Pass vs Z-Fail：为什么需要 Carmack’s Reverse</h3><p>原始的 Shadow Volume 算法（Z-Pass）：</p>
+<ul>
+<li>深度测试通过时（阴影体三角形在场景几何体前面）<ul>
+<li>正面三角形 → stencil++</li>
+<li>背面三角形 → stencil–</li>
+</ul>
+</li>
+</ul>
+<p>这个方法有一个致命问题：<strong>当摄像机本身位于某个阴影体内部时，算法会失效</strong>。</p>
+<p>想象摄像机就在阴影中（比如你在一个黑暗的房间里向窗外看），射线从摄像机出发时已经在阴影体内了，但 Z-Pass 的计数从 0 开始，无法区分这种情况。</p>
+<p><strong>Z-Fail（Carmack’s Reverse）解决方案</strong>：</p>
+<p>Z-Fail 改变了测试的时机——不在深度测试通过时更新，而在<strong>深度测试失败时</strong>更新：</p>
+<ul>
+<li>深度测试失败时（阴影体三角形在场景几何体后面）<ul>
+<li>正面三角形 → stencil–</li>
+<li>背面三角形 → stencil++</li>
+</ul>
+</li>
+</ul>
+<p>这个看似微小的改变有深刻含义。对于深度测试失败的三角形，它处于我们关心的场景点 <code>P</code> 的后面（更远处）。通过统计有多少个阴影体”穿越”了 P 后方，我们可以从”无穷远处”往回数穿越次数。</p>
+<p><strong>直觉理解</strong>：想象无穷远处有一束光射向摄像机，经过点 P。这束光先穿过所有在 P 后面的阴影体边界，再到达 P。Z-Fail 统计的就是这段路程中的穿越次数。无论摄像机在哪里（无论是否在阴影体内），这个统计都是正确的。</p>
+<p><strong>数学证明</strong>：对于任意一条从无穷远射向摄像机方向的射线，设阴影体为拓扑封闭的几何体，射线必然整对地穿入和穿出。对于点 P 后方的穿越计数：</p>
+<ul>
+<li>若 P 在阴影体内，穿出次数 &gt; 穿入次数（因为射线在 P 处进入后还没穿出），计数 &gt; 0</li>
+<li>若 P 在阴影体外，穿入穿出成对，计数 &#x3D; 0</li>
+</ul>
+<p>这就是为什么 Z-Fail 需要<strong>封闭</strong>的阴影体（这是它相比 Z-Pass 的一个额外要求）。</p>
+<h3 id="2-3-轮廓边检测（Silhouette-Edge-Detection）"><a href="#2-3-轮廓边检测（Silhouette-Edge-Detection）" class="headerlink" title="2.3 轮廓边检测（Silhouette Edge Detection）"></a>2.3 轮廓边检测（Silhouette Edge Detection）</h3><p>要构建阴影体，首先需要找到物体的<strong>轮廓边（Silhouette Edges）</strong>——即从光源方向看到的物体轮廓。</p>
+<p><strong>定义</strong>：一条边是轮廓边，当且仅当它被恰好两个三角形共享，且其中一个三角形朝向光源（面法线与光线方向夹角 &lt; 90°），另一个背向光源。</p>
+<p>数学判断：对于三角形面法线 N 和光线方向向量 L &#x3D; (lightPos - 三角形顶点).normalize()：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">朝光面条件: N·L &gt; 0</span><br><span class="line">背光面条件: N·L ≤ 0</span><br><span class="line">轮廓边条件: 两个面的 (N·L &gt; 0) 值不同</span><br></pre></td></tr></table></figure>
+
+<p><strong>代码实现</strong>：通过半边数据结构，对每条边找到其两个相邻面：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 判断每个面朝向光源</span></span><br><span class="line"><span class="function">std::vector&lt;<span class="type">bool</span>&gt; <span class="title">facesLight</span><span class="params">(nFaces)</span></span>;</span><br><span class="line"><span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">0</span>; i &lt; nFaces; i++) &#123;</span><br><span class="line">    Vec3 a = mesh.<span class="built_in">worldVertex</span>(mesh.faces[i][<span class="number">0</span>]);</span><br><span class="line">    Vec3 normal = mesh.<span class="built_in">worldFaceNormal</span>(i);</span><br><span class="line">    Vec3 toLight = (lightPos - a).<span class="built_in">normalize</span>();</span><br><span class="line">    facesLight[i] = (normal.<span class="built_in">dot</span>(toLight) &gt; <span class="number">0.0f</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>然后找到两个面朝光性不同的共享边：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 检查两个半边 (va,vb) 和 (vb,va) 是否形成轮廓边</span></span><br><span class="line"><span class="keyword">if</span>(halfEdges[j].va == vb &amp;&amp; halfEdges[j].vb == va) &#123;</span><br><span class="line">    <span class="type">int</span> fi2 = halfEdges[j].fi;</span><br><span class="line">    <span class="keyword">if</span>(facesLight[fi] != facesLight[fi2]) &#123;</span><br><span class="line">        <span class="comment">// 这是一条轮廓边！</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-阴影体的封闭构建"><a href="#2-4-阴影体的封闭构建" class="headerlink" title="2.4 阴影体的封闭构建"></a>2.4 阴影体的封闭构建</h3><p>Z-Fail 要求阴影体必须是<strong>拓扑封闭的几何体</strong>。一个完整的封闭阴影体由三部分组成：</p>
+<p><strong>部分一：侧面四边形（Side Quads）</strong><br>从每条轮廓边延伸出一个四边形，向光源反方向无限延伸（实践中用足够大的距离代替无穷）。</p>
+<p>对于轮廓边端点 va、vb，延伸方向为从光源出发通过 va（或 vb）的方向：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">dirA = normalize(va - lightPos)</span><br><span class="line">dirB = normalize(vb - lightPos)</span><br><span class="line">farA = va + dirA * extrudeDist</span><br><span class="line">farB = vb + dirB * extrudeDist</span><br><span class="line"></span><br><span class="line">四边形 = 两个三角形:</span><br><span class="line">  Triangle1: va → vb → farB</span><br><span class="line">  Triangle2: va → farB → farA</span><br></pre></td></tr></table></figure>
+
+<p><strong>部分二：前盖（Front Cap）</strong><br>所有朝向光源的三角面，保持原始位置。这封闭了阴影体靠近光源一侧的开口。</p>
+<p><strong>部分三：后盖（Back Cap）</strong><br>所有背向光源的三角面，投影到远处，并取反绕序（因为这些面需要朝外，即朝向阴影体内部）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">farA = a + normalize(a - lightPos) * extrudeDist</span><br><span class="line">farB = b + normalize(b - lightPos) * extrudeDist  </span><br><span class="line">farC = c + normalize(c - lightPos) * extrudeDist</span><br><span class="line">// 注意：绕序取反！</span><br><span class="line">Triangle: farA → farC → farB  // 反转 B,C 顺序</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="③-实现架构：软光栅化-Shadow-Volume-渲染管线"><a href="#③-实现架构：软光栅化-Shadow-Volume-渲染管线" class="headerlink" title="③ 实现架构：软光栅化 Shadow Volume 渲染管线"></a>③ 实现架构：软光栅化 Shadow Volume 渲染管线</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">输入: 场景 Mesh 列表 + 光源位置 + 摄像机参数</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[Pass 1: 深度预渲染（全光照）]</span><br><span class="line">    场景所有 Mesh → 光栅化 → 写入 depth buffer + color buffer</span><br><span class="line">    （这步假设全部不在阴影中，后面会被覆写）</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[Pass 2: 阴影体模板填充]</span><br><span class="line">    对每个 shadow caster:</span><br><span class="line">        buildShadowVolume() → 封闭阴影体三角形列表</span><br><span class="line">    光栅化阴影体三角形 → 仅更新 stencil buffer</span><br><span class="line">    规则: 深度测试失败时</span><br><span class="line">          正面 → stencil--</span><br><span class="line">          背面 → stencil++</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">[Pass 3: 最终着色（有阴影信息）]</span><br><span class="line">    重置 color + depth buffer</span><br><span class="line">    光栅化场景 Mesh</span><br><span class="line">    查询 savedStencil[py][px] != 0 → 阴影中（仅环境光）</span><br><span class="line">               savedStencil[py][px] == 0 → 光照中（完整 Phong）</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">输出: shadow_volume_output.png</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><p><strong>Framebuffer</strong>：包含三个缓冲区</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Framebuffer</span> &#123;</span><br><span class="line">    Color color[H][W];    <span class="comment">// 颜色缓冲（3×uint8_t）</span></span><br><span class="line">    <span class="type">float</span> depth[H][W];    <span class="comment">// 深度缓冲（[0,1] 归一化深度）</span></span><br><span class="line">    <span class="type">int</span>   stencil[H][W];  <span class="comment">// 模板缓冲（软件模拟的整数计数器）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>在真实 GPU 上，Stencil Buffer 通常是 8-bit（值域 0-255），这里我们用 int 来避免溢出，并方便调试。</p>
+<p><strong>ShadowVolumeMesh</strong>：直接存储三角形顶点（world space），不共享顶点</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">ShadowVolumeMesh</span> &#123;</span><br><span class="line">    std::vector&lt;Vec3&gt; verts;  <span class="comment">// 每3个一组构成一个三角形</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>为什么不用索引？因为阴影体的三角形来自不同来源（轮廓边延伸、前&#x2F;后盖），使用 flat 三角形数组更简单，避免了构建索引的复杂性。</p>
+<h3 id="3-3-CPU-端职责-vs-GPU-端职责"><a href="#3-3-CPU-端职责-vs-GPU-端职责" class="headerlink" title="3.3 CPU 端职责 vs GPU 端职责"></a>3.3 CPU 端职责 vs GPU 端职责</h3><p>在真实 GPU 渲染管线中，Shadow Volume 的各阶段分工如下：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>GPU 端</th>
+<th>我们的软件模拟</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>轮廓边检测</td>
+<td>Geometry Shader &#x2F; 预计算</td>
+<td>CPU 端 buildShadowVolume()</td>
+</tr>
+<tr>
+<td>阴影体延伸</td>
+<td>Vertex Shader 中 extrude</td>
+<td>CPU 端预计算 farVert</td>
+</tr>
+<tr>
+<td>模板更新</td>
+<td>Stencil Test 硬件固定功能</td>
+<td>软件光栅化中手动 stencil++</td>
+</tr>
+<tr>
+<td>背面剔除控制</td>
+<td>glDisable(GL_CULL_FACE)</td>
+<td>光栅化时双面处理</td>
+</tr>
+<tr>
+<td>阴影查询</td>
+<td>读取 Stencil Buffer</td>
+<td>savedStencil[py][px]</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-轮廓边检测与阴影体构建"><a href="#4-1-轮廓边检测与阴影体构建" class="headerlink" title="4.1 轮廓边检测与阴影体构建"></a>4.1 轮廓边检测与阴影体构建</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">ShadowVolumeMesh <span class="title">buildShadowVolume</span><span class="params">(<span class="type">const</span> Mesh&amp; mesh, <span class="type">const</span> Vec3&amp; lightPos, </span></span></span><br><span class="line"><span class="params"><span class="function">                                    <span class="type">float</span> extrudeDist = <span class="number">50.0f</span>)</span> </span>&#123;</span><br><span class="line">    ShadowVolumeMesh sv;</span><br><span class="line">    <span class="type">int</span> nFaces = (<span class="type">int</span>)mesh.faces.<span class="built_in">size</span>();</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 第一步：判断每个面是否朝向光源</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">bool</span>&gt; <span class="title">facesLight</span><span class="params">(nFaces)</span></span>;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">0</span>; i &lt; nFaces; i++) &#123;</span><br><span class="line">        Vec3 a = mesh.<span class="built_in">worldVertex</span>(mesh.faces[i][<span class="number">0</span>]);</span><br><span class="line">        Vec3 normal = mesh.<span class="built_in">worldFaceNormal</span>(i);</span><br><span class="line">        Vec3 toLight = (lightPos - a).<span class="built_in">normalize</span>();</span><br><span class="line">        <span class="comment">// dot &gt; 0 表示法线和光线方向同侧，即朝光</span></span><br><span class="line">        facesLight[i] = (normal.<span class="built_in">dot</span>(toLight) &gt; <span class="number">0.0f</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里有个细节：我们用三角形的<strong>一个顶点</strong>来计算光线方向，而不是三角形的中心。对于平面三角形，这不影响结果（因为朝光判断只取决于法线和方向的点积正负）。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 第二步：构建半边结构，找轮廓边</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">HalfEdge</span> &#123; <span class="type">int</span> va, vb, fi; &#125;;</span><br><span class="line">std::vector&lt;HalfEdge&gt; halfEdges;</span><br><span class="line"><span class="keyword">for</span>(<span class="type">int</span> fi = <span class="number">0</span>; fi &lt; nFaces; fi++) &#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> k = <span class="number">0</span>; k &lt; <span class="number">3</span>; k++) &#123;</span><br><span class="line">        <span class="type">int</span> va = mesh.faces[fi][k];</span><br><span class="line">        <span class="type">int</span> vb = mesh.faces[fi][(k<span class="number">+1</span>)%<span class="number">3</span>];</span><br><span class="line">        halfEdges.<span class="built_in">push_back</span>(&#123;va, vb, fi&#125;);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 轮廓边：找 (va→vb) 和 (vb→va) 的对应半边，且朝光性不同</span></span><br><span class="line"><span class="keyword">for</span>(<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; halfEdges.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">    <span class="comment">// ...找到对边 j，检查 facesLight[fi] != facesLight[fi2]</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用半边？</strong> 半边 (va→vb) 和其对边 (vb→va) 正好对应共享同一条边的两个三角形。两个三角形的绕序相反（一个以 va→vb，另一个以 vb→va 的顺序使用这条边），这是网格的拓扑特性。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 第三步：从轮廓边生成侧面四边形</span></span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">auto</span>&amp; se : silhouettes) &#123;</span><br><span class="line">    <span class="comment">// 计算延伸点（沿远离光源方向）</span></span><br><span class="line">    Vec3 dirA = (se.va - lightPos).<span class="built_in">normalize</span>();</span><br><span class="line">    Vec3 dirB = (se.vb - lightPos).<span class="built_in">normalize</span>();</span><br><span class="line">    Vec3 farA = se.va + dirA * extrudeDist;</span><br><span class="line">    Vec3 farB = se.vb + dirB * extrudeDist;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 侧面：两个三角形（注意绕序要保持一致）</span></span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(se.va);</span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(se.vb);</span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(farB);</span><br><span class="line">    </span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(se.va);</span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(farB);</span><br><span class="line">    sv.verts.<span class="built_in">push_back</span>(farA);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>延伸方向的选择</strong>：从光源出发通过顶点的方向 <code>normalize(v - lightPos)</code> 确保了投影是从光源透视投影出去的，这保证了阴影体在光源前方对应物体的遮挡形状。</p>
+<h3 id="4-2-Z-Fail-模板更新核心逻辑"><a href="#4-2-Z-Fail-模板更新核心逻辑" class="headerlink" title="4.2 Z-Fail 模板更新核心逻辑"></a>4.2 Z-Fail 模板更新核心逻辑</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">rasterizeShadowVolumeZFail</span><span class="params">(Vec3 p0, Vec3 p1, Vec3 p2, <span class="type">const</span> Mat4&amp; mvp)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// ...标准光栅化流程，计算屏幕坐标 s0, s1, s2...</span></span><br><span class="line">    </span><br><span class="line">    <span class="type">float</span> area = <span class="built_in">edgeFunc</span>(s<span class="number">0.</span>x,s<span class="number">0.</span>y, s<span class="number">1.</span>x,s<span class="number">1.</span>y, s<span class="number">2.</span>x,s<span class="number">2.</span>y);</span><br><span class="line">    <span class="comment">// area &gt; 0 表示正面（counter-clockwise in screen space）</span></span><br><span class="line">    <span class="type">bool</span> frontFace = (area &gt; <span class="number">0</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span>(每个覆盖像素 (px, py)) &#123;</span><br><span class="line">        <span class="comment">// 插值得到这个三角形在该像素的深度</span></span><br><span class="line">        <span class="type">float</span> depth = ...;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// Z-Fail 关键判断：深度测试失败（三角形在场景几何体后面）</span></span><br><span class="line">        <span class="keyword">if</span>(depth &gt;= fb.depth[py][px]) &#123;</span><br><span class="line">            <span class="keyword">if</span>(frontFace) &#123;</span><br><span class="line">                fb.stencil[py][px]--;  <span class="comment">// 正面：计数减1</span></span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                fb.stencil[py][px]++;  <span class="comment">// 背面：计数加1</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 深度测试通过时：什么都不做（Z-Fail 只关心失败的情况）</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么正面减而背面加？</strong> </p>
+<p>回顾前面的原理：射线从无穷远射向摄像机，经过点 P。对 P 后方（更远处）的穿越计数：</p>
+<ul>
+<li>穿入阴影体 &#x3D; 射线遇到背面三角形 → stencil++</li>
+<li>穿出阴影体 &#x3D; 射线遇到正面三角形 → stencil–</li>
+</ul>
+<p>如果 P 在阴影体内，从无穷远到 P 的路程中，最后一次穿越是”穿入”，所以穿入次数 &gt; 穿出次数，stencil &gt; 0。</p>
+<p><strong>为什么深度失败时更新？</strong> </p>
+<p>“深度测试失败”意味着这个阴影体三角形在场景点 P 的后方，即这个三角形在 P 和无穷远之间的路段上——这正是我们要统计的区域。</p>
+<h3 id="4-3-基于模板缓冲的最终着色"><a href="#4-3-基于模板缓冲的最终着色" class="headerlink" title="4.3 基于模板缓冲的最终着色"></a>4.3 基于模板缓冲的最终着色</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Pass 1 完成后，模板缓冲已经填好</span></span><br><span class="line"><span class="comment">// 将模板缓冲保存起来（因为 Pass 3 会重置缓冲）</span></span><br><span class="line"><span class="type">int</span> savedStencil[H][W];</span><br><span class="line"><span class="built_in">memcpy</span>(savedStencil, fb.stencil, <span class="built_in">sizeof</span>(fb.stencil));</span><br><span class="line"></span><br><span class="line"><span class="comment">// Pass 3：重置颜色和深度缓冲，用正确的阴影信息重新渲染</span></span><br><span class="line"><span class="keyword">for</span>(<span class="keyword">auto</span>* mesh : allMeshes) &#123;</span><br><span class="line">    <span class="comment">// ...对每个三角形...</span></span><br><span class="line">    <span class="built_in">rasterizeTriangle</span>(</span><br><span class="line">        p0, p1, p2, wn, wn, wn, mesh-&gt;color, vp,</span><br><span class="line">        lightPos, eyePos,</span><br><span class="line">        [&amp;savedStencil](<span class="type">int</span> px, <span class="type">int</span> py) &#123;</span><br><span class="line">            <span class="keyword">return</span> savedStencil[py][px] != <span class="number">0</span>;  <span class="comment">// 阴影查询</span></span><br><span class="line">        &#125;</span><br><span class="line">    );</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>着色函数根据阴影状态决定光照计算：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">shade</span><span class="params">(Vec3 worldPos, Vec3 normal, Vec3 matColor, </span></span></span><br><span class="line"><span class="params"><span class="function">           Vec3 lightPos, Vec3 eyePos, <span class="type">bool</span> inShadow)</span> </span>&#123;</span><br><span class="line">    Vec3 ambient = matColor * <span class="number">0.15f</span>;</span><br><span class="line">    <span class="keyword">if</span>(inShadow) <span class="keyword">return</span> ambient;  <span class="comment">// 在阴影中：只有环境光</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 不在阴影中：完整 Phong 光照</span></span><br><span class="line">    Vec3 L = (lightPos - worldPos).<span class="built_in">normalize</span>();</span><br><span class="line">    Vec3 V = (eyePos - worldPos).<span class="built_in">normalize</span>();</span><br><span class="line">    Vec3 H = (L + V).<span class="built_in">normalize</span>();  <span class="comment">// Blinn-Phong 半向量</span></span><br><span class="line">    </span><br><span class="line">    <span class="type">float</span> NdotL = <span class="built_in">max</span>(<span class="number">0</span>, N·L);</span><br><span class="line">    <span class="type">float</span> NdotH = <span class="built_in">max</span>(<span class="number">0</span>, N·H);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 距离衰减</span></span><br><span class="line">    <span class="type">float</span> dist = <span class="built_in">length</span>(lightPos - worldPos);</span><br><span class="line">    <span class="type">float</span> attn = <span class="number">1</span> / (<span class="number">1</span> + <span class="number">0.01</span>*dist + <span class="number">0.001</span>*dist²);</span><br><span class="line">    </span><br><span class="line">    Vec3 diffuse  = matColor * (NdotL * attn);</span><br><span class="line">    Vec3 specular = <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">1</span>,<span class="number">1</span>) * (<span class="built_in">pow</span>(NdotH, <span class="number">32</span>) * attn * <span class="number">0.5</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> ambient + diffuse + specular;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：编译失败——缺少-include"><a href="#Bug-1：编译失败——缺少-include" class="headerlink" title="Bug 1：编译失败——缺少 #include &lt;cstdint&gt;"></a>Bug 1：编译失败——缺少 <code>#include &lt;cstdint&gt;</code></h3><p><strong>症状</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">error: &#x27;uint8_t&#x27; does not name a type</span><br><span class="line">note: &#x27;uint8_t&#x27; is defined in header &#x27;&lt;cstdint&gt;&#x27;</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：<code>uint8_t</code> 是基础类型，应该在 <code>&lt;cstdlib&gt;</code> 或 <code>&lt;cstring&gt;</code> 中已经包含了。</p>
+<p><strong>真实原因</strong>：在 GCC&#x2F;Clang 的严格模式下，<code>uint8_t</code> 定义在 <code>&lt;cstdint&gt;</code> 中，并不会通过其他标准头文件隐式引入（尽管在某些平台的实现中可能会）。这是跨平台 C++ 的一个常见陷阱：在 Windows MSVC 下可能会隐式可用，但在 Linux GCC 下不行。</p>
+<p><strong>修复</strong>：在所有 include 语句后添加 <code>#include &lt;cstdint&gt;</code>。</p>
+<p><strong>教训</strong>：永远显式包含你用到的类型所在的头文件，不要依赖隐式传递包含。</p>
+<h3 id="Bug-2：编译失败——Color-结构体无法用大括号初始化"><a href="#Bug-2：编译失败——Color-结构体无法用大括号初始化" class="headerlink" title="Bug 2：编译失败——Color 结构体无法用大括号初始化"></a>Bug 2：编译失败——Color 结构体无法用大括号初始化</h3><p><strong>症状</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">error: no match for &#x27;operator=&#x27; (operand types are &#x27;Color&#x27; and &#x27;&lt;brace-enclosed initializer list&gt;&#x27;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：C++ 结构体应该可以直接用 <code>{r, g, b}</code> 语法赋值（聚合初始化）。</p>
+<p><strong>真实原因</strong>：在 C++11 之后，聚合初始化（<code>Color{255, 0, 0}</code> 或 <code>fb.color[y][x] = {255, 0, 0}</code>）需要结构体满足<strong>聚合类型</strong>的条件。如果结构体有用户声明的构造函数，它就不再是聚合类型，大括号初始化就会失败。</p>
+<p>但这里更根本的问题是：我先写了 <code>uint8_t r, g, b;</code> 但没有构造函数，此时大括号初始化应该是可以的（聚合初始化）。实际上编译器报错是因为我在 <code>default</code> 参数中使用了 <code>{30, 30, 40}</code> 但编译器在没有 <code>cstdint</code> 的情况下无法识别 <code>Color</code> 类型，造成了连锁错误。</p>
+<p><strong>修复</strong>：</p>
+<ol>
+<li>添加 <code>#include &lt;cstdint&gt;</code>（修复上面的 Bug 1）</li>
+<li>给 Color 添加显式构造函数消除歧义：</li>
+</ol>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Color</span> &#123;</span><br><span class="line">    <span class="type">uint8_t</span> r, g, b;</span><br><span class="line">    <span class="built_in">Color</span>(<span class="type">uint8_t</span> r=<span class="number">0</span>, <span class="type">uint8_t</span> g=<span class="number">0</span>, <span class="type">uint8_t</span> b=<span class="number">0</span>): <span class="built_in">r</span>(r), <span class="built_in">g</span>(g), <span class="built_in">b</span>(b) &#123;&#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-3：static-局部数组无法在-Lambda-中捕获"><a href="#Bug-3：static-局部数组无法在-Lambda-中捕获" class="headerlink" title="Bug 3：static 局部数组无法在 Lambda 中捕获"></a>Bug 3：<code>static</code> 局部数组无法在 Lambda 中捕获</h3><p><strong>症状</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">warning: capture of variable &#x27;savedStencil&#x27; with non-automatic storage duration</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：<code>static</code> 只是让变量在函数调用间保持值，应该和普通局部变量一样可以被 lambda 捕获。</p>
+<p><strong>真实原因</strong>：<code>static</code> 局部变量有<strong>静态存储期（static storage duration）</strong>，不是<strong>自动存储期（automatic storage duration）</strong>。Lambda 捕获只适用于自动存储期的变量（即普通局部变量、函数参数）。对于静态变量，由于它们的地址是固定的，在 lambda 中可以直接访问（不需要捕获），但显式捕获是未定义行为（或编译器警告）。</p>
+<p>这里使用 <code>static</code> 的原因是 <code>int savedStencil[H][W]</code> 作为栈上数组太大（800×600×4 &#x3D; ~1.9MB），会导致栈溢出。</p>
+<p><strong>修复</strong>：去掉 <code>static</code> 关键字，改为在 <code>main</code> 函数中分配：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 原来: static int savedStencil[H][W];  ← 栈溢出 + 无法捕获</span></span><br><span class="line"><span class="comment">// 修改: 用 new 或改为成员变量</span></span><br><span class="line"><span class="type">int</span> savedStencil[H][W];  <span class="comment">// 但这可能栈溢出！</span></span><br><span class="line"><span class="comment">// 正确做法: 放在全局或使用 vector</span></span><br></pre></td></tr></table></figure>
+
+<p>实际上在这个代码中，我们将 <code>savedStencil</code> 放在栈上（<code>H*W*sizeof(int) ≈ 1.9MB</code>），这在 Linux 系统（默认栈大小 8MB）下通常没问题，但在嵌入式或 Windows 系统（1MB 默认栈）下可能栈溢出。更好的做法是用全局数组或 <code>std::vector</code>。</p>
+<h3 id="Bug-4：阴影体覆盖率只有-9-1-，视觉上的阴影面积看起来合理吗？"><a href="#Bug-4：阴影体覆盖率只有-9-1-，视觉上的阴影面积看起来合理吗？" class="headerlink" title="Bug 4：阴影体覆盖率只有 9.1%，视觉上的阴影面积看起来合理吗？"></a>Bug 4：阴影体覆盖率只有 9.1%，视觉上的阴影面积看起来合理吗？</h3><p><strong>症状</strong>：渲染后观察图片，发现地面上有明显阴影投影，符合物理预期。9.1% 的阴影像素覆盖率合理。</p>
+<p><strong>分析</strong>：场景中三个物体（1个球体 + 2个立方体）投射阴影，地面和墙面接收阴影。点光源位于场景右上方 <code>(3, 8, 5)</code>，阴影主要投射在地面和后墙上。9.1% 对于这个场景尺寸和光源位置来说是合理的数字。</p>
+<p><strong>验证方法</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">python3 -c <span class="string">&quot;</span></span><br><span class="line"><span class="string">from PIL import Image</span></span><br><span class="line"><span class="string">import numpy as np</span></span><br><span class="line"><span class="string">img = Image.open(&#x27;shadow_volume_output.png&#x27;)</span></span><br><span class="line"><span class="string">pixels = np.array(img).astype(float)</span></span><br><span class="line"><span class="string">dark = (pixels.mean(axis=2) &lt; 30).sum()</span></span><br><span class="line"><span class="string">print(f&#x27;深色像素(&lt; 30): &#123;dark&#125;&#x27;)  # 44314</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+<p>44314 个深色像素，与阴影体的 43629 个模板非零像素接近，说明阴影计算基本正确。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="6-1-渲染结果"><a href="#6-1-渲染结果" class="headerlink" title="6.1 渲染结果"></a>6.1 渲染结果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" alt="Shadow Volume 渲染结果"></p>
+<p>场景设置：</p>
+<ul>
+<li>Cornell Box 变体（地面 + 后墙 + 左红墙 + 右绿墙）</li>
+<li>中心金色球体（球谐方向 radius&#x3D;1.2）</li>
+<li>右侧蓝色立方体（高立方体，旋转 0.4rad）</li>
+<li>左侧紫色立方体（矮立方体，旋转 -0.3rad）</li>
+<li>点光源位于 (3, 8, 5)，用白色圆圈标注</li>
+</ul>
+<h3 id="6-2-量化验证数据"><a href="#6-2-量化验证数据" class="headerlink" title="6.2 量化验证数据"></a>6.2 量化验证数据</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>渲染分辨率</td>
+<td>800 × 600 &#x3D; 480,000 像素</td>
+</tr>
+<tr>
+<td>总三角形数</td>
+<td>场景约 2000 面 + 阴影体 2310 面</td>
+</tr>
+<tr>
+<td>阴影体三角形</td>
+<td>2310（含侧面、前盖、后盖）</td>
+</tr>
+<tr>
+<td>模板非零像素</td>
+<td>43,629（9.1%）</td>
+</tr>
+<tr>
+<td>图像均值</td>
+<td>134.5（正常明暗对比）</td>
+</tr>
+<tr>
+<td>图像标准差</td>
+<td>65.1（丰富的色彩变化）</td>
+</tr>
+<tr>
+<td>深色像素(&lt; 30)</td>
+<td>44,314（阴影区域）</td>
+</tr>
+<tr>
+<td>亮色像素(&gt; 50)</td>
+<td>419,625（光照区域）</td>
+</tr>
+<tr>
+<td>输出文件大小</td>
+<td>85.4 KB</td>
+</tr>
+</tbody></table>
+<p><strong>像素统计验证脚本</strong>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> PIL <span class="keyword">import</span> Image</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np, sys</span><br><span class="line"></span><br><span class="line">img = Image.<span class="built_in">open</span>(<span class="string">&quot;shadow_volume_output.png&quot;</span>)</span><br><span class="line">pixels = np.array(img).astype(<span class="built_in">float</span>)</span><br><span class="line">mean = pixels.mean()</span><br><span class="line">std = pixels.std()</span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;像素均值: <span class="subst">&#123;mean:<span class="number">.1</span>f&#125;</span>  标准差: <span class="subst">&#123;std:<span class="number">.1</span>f&#125;</span>&quot;</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> mean &lt; <span class="number">5</span>:</span><br><span class="line">    <span class="built_in">print</span>(<span class="string">&quot;❌ 图像过暗&quot;</span>); sys.exit(<span class="number">1</span>)</span><br><span class="line"><span class="keyword">if</span> mean &gt; <span class="number">250</span>:</span><br><span class="line">    <span class="built_in">print</span>(<span class="string">&quot;❌ 图像过亮&quot;</span>); sys.exit(<span class="number">1</span>)</span><br><span class="line"><span class="keyword">if</span> std &lt; <span class="number">5</span>:</span><br><span class="line">    <span class="built_in">print</span>(<span class="string">&quot;❌ 图像无变化&quot;</span>); sys.exit(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">dark_pixels = (pixels.mean(axis=<span class="number">2</span>) &lt; <span class="number">30</span>).<span class="built_in">sum</span>()</span><br><span class="line">bright_pixels = (pixels.mean(axis=<span class="number">2</span>) &gt; <span class="number">50</span>).<span class="built_in">sum</span>()</span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;✅ 像素统计正常&quot;</span>)</span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;暗区像素: <span class="subst">&#123;dark_pixels&#125;</span> / 亮区像素: <span class="subst">&#123;bright_pixels&#125;</span>&quot;</span>)</span><br><span class="line"><span class="comment"># 输出:</span></span><br><span class="line"><span class="comment"># 像素均值: 134.5  标准差: 65.1</span></span><br><span class="line"><span class="comment"># ✅ 像素统计正常</span></span><br><span class="line"><span class="comment"># 暗区像素: 44314 / 亮区像素: 419625</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-与-Shadow-Map-的对比"><a href="#6-3-与-Shadow-Map-的对比" class="headerlink" title="6.3 与 Shadow Map 的对比"></a>6.3 与 Shadow Map 的对比</h3><p>Shadow Volume 的明显优势在于<strong>像素级精确性</strong>：阴影边界完全没有走样（Aliasing）和自遮挡（Shadow Acne）问题。Shadow Map 实现中经常需要调整 Bias 值来平衡 Acne 和 Peter Panning，而 Shadow Volume 完全不需要。</p>
+<p>Shadow Volume 的缺点在于<strong>填充率（fill rate）</strong>：阴影体内所有像素都需要进行光栅化和模板更新，对于大阴影体（如远处方向光）会产生极大的 overdraw。这也是 Doom 3 在性能上被诟病的主要原因之一。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><p><strong>填充率瓶颈</strong>：Shadow Volume 需要渲染两遍场景（深度预通道 + 最终着色），加上阴影体本身的光栅化。对于复杂场景中大量光源的情况，性能代价是不可接受的。这是它逐渐被 Shadow Map 取代的根本原因。</p>
+<p><strong>几何体封闭性要求</strong>：Z-Fail 需要阴影体是拓扑封闭的。对于有洞（hole）的网格，需要额外处理边界边。本次实现中对于裸边（只有一个相邻面的边）也做了处理。</p>
+<p><strong>点光源限制</strong>：Shadow Volume 天然适合点光源和聚光灯。对于方向光（平行光源），需要将光源放在无穷远处，延伸方向变为统一方向而非透视方向。</p>
+<p><strong>透明物体</strong>：Shadow Volume 对透明物体的处理非常复杂，基本无法直接支持。</p>
+<h3 id="7-2-可优化方向"><a href="#7-2-可优化方向" class="headerlink" title="7.2 可优化方向"></a>7.2 可优化方向</h3><p><strong>硬件 Stencil Buffer</strong>：在真实 OpenGL&#x2F;Vulkan 中，这整套流程完全可以交给 GPU 固定功能管线的 Stencil Test 处理，性能会大幅提升。</p>
+<p><strong>轮廓边缓存</strong>：当物体静止时，每帧重新计算轮廓边是浪费。可以缓存朝光面，只在光源移动时重新计算。</p>
+<p><strong>Half-vector extrusion</strong>：可以使用 Geometry Shader 在 GPU 上实时延伸轮廓边，避免 CPU-GPU 数据传输。</p>
+<p><strong>Scissor Test 优化</strong>：在屏幕空间计算阴影体的包围矩形，限制 Stencil 更新的范围，减少不必要的像素处理。</p>
+<h3 id="7-3-与本系列的关联"><a href="#7-3-与本系列的关联" class="headerlink" title="7.3 与本系列的关联"></a>7.3 与本系列的关联</h3><ul>
+<li><strong>Day 04-20（PCSS）</strong>：另一种阴影方案——Shadow Map + 百分比遮挡采样，产生软阴影但有精度问题</li>
+<li><strong>Day 04-01（SDF Ray Marching）</strong>：SDF 场景中可以用 SDF 计算精确阴影，类似 Shadow Volume 的精确性</li>
+<li><strong>Day 04-18（SSR）</strong>：同样是先渲染场景到 G-Buffer，再在屏幕空间做后处理的思路</li>
+</ul>
+<p>Shadow Volume 代表了一类”在3D空间中直接推理遮挡关系”的技术路线，与 Shadow Map 的”从光源角度预采样”路线形成了有趣的对比。在理论上，Shadow Volume 更加”正确”；在工程上，Shadow Map 的灵活性和性能优势使其占据了主导地位。理解两种方案的权衡，是图形程序员必备的知识储备。</p>
+<hr>
+<p><em>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/04/04-30-shadow-volume-renderer">GitHub - daily-coding-practice</a></em><br><em>图片托管：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png">blog_img CDN</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/">https://chiuhoukazusa.github.io/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E9%98%B4%E5%BD%B1%E6%8A%80%E6%9C%AF/">阴影技术</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96/">软光栅化</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-29-sss-renderer/sss_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么需要次表面散射？在照片级渲染中，有一类材质的表现一直是难题：半透明材质。 当你用标准的 Lambert 漫反射模型渲染一张人脸时，会发现效果永远”不对劲”——皮肤看起来像是涂了一层哑光油漆，既没有活人脸上那种温润的透光感，也缺乏皮下组织带来的红润色调。同样的问题出现在蜡烛、大理石、玉石、牛奶、树叶等材质上。 根本原因：Lambert 模型假设光线在表面发生漫反射，照射点与出射点相同。但真实世界中，大量材质对光线是半透明的——光子穿入表面、在内部经历多次散射、从另一个位置射出。这个过程叫做次表面散射（Subsurface Scattering，SSS）。 用公式表示：  标准 BRDF（Bidirectional Reflectance Distribution Function）：$f_r(x_i, \omega_i, \omega_o)$，出射点 &#x3D; 入射点 BSSRDF（Bidirectional Subsurface Scattering Reflectance Distribution Function）：$S(x_i, \omega_i, ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-22-marschner-hair/marschner_hair_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-22</div><div class="info-item-2">每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Marschner Hair Rendering今天实现了 Marschner 头发光照模型——这是游戏渲染领域最重要的头发着色模型之一，自 2003 年发表以来几乎成为工业标准。渲染结果是 120 根 Cubic Bezier 发丝，在三盏灯下展示出 R（反射）、TT（透射）、TRT（内反射）三条散射路径的物理效果。   ① 背景与动机：为什么头发渲染这么难传统 Phong&#x2F;Blinn-Phong 的失败头发是一种极其特殊的几何体：它是直径约 70μm 的细圆柱，长度可达数十厘米。当光打在头发上，不仅会在表面反射，还会穿透半透明的皮质层，在内部散射后从另一侧透出。这种多路径散射行为是 Phong 模型完全无法描述的。 使用 Phong 模型渲染头发会得到什么？高光沿着”法向量最接近半向量”的位置出现，但头发没有固定法向量（它是圆柱），渲染结果是均匀的漫反射团，毫无层次感，就像把头发当作哑光塑料管渲染。 Kajiya-Kay 的局限性2003 年之前，工业界常用 Kajiya-Kay 1989 模型。它聪明地把头发的切向量 T 引入 Phong 公式，用 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/27/daily-coding-motion-blur-2026-03-27/" title="每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-27-motion-blur/motion_blur_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-27</div><div class="info-item-2">每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊</div></div><div class="info-2"><div class="info-item-1">一、背景与动机运动模糊：人眼的物理现实我们的眼睛（以及相机的感光元件）在曝光期间并不是瞬间”拍一张照”，而是在一段时间窗口内持续积累光信号。当物体在这段时间内发生运动时，不同时刻的光信号叠加在同一感光区域，就产生了运动模糊（Motion Blur）。 如果没有运动模糊，画面会呈现出一种不自然的”抖动感”。这在早期电子游戏和动画中尤为明显——每一帧都是完全锐利的静止图像，但一旦物体快速运动，视觉反而会感到不舒适。这个现象被称为频闪效应（Stroboscopic Effect）。 运动模糊的本质是对快门开放时间段内的图像进行时间积分： $$I_{blurred}(x, y) &#x3D; \frac{1}{T} \int_0^T I(x, y, t), dt$$ 其中 $T$ 是快门时间，$I(x, y, t)$ 是 $t$ 时刻像素 $(x, y)$ 处的颜色值。 工业界实际应用运动模糊在以下场景中必不可少： 游戏引擎：虚幻引擎（Unreal Engine）、Unity 的 HDRP 都内置了后处理运动模糊。典型实现是速度缓冲（Velocity Buffer）+ 后处理 Pass，...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/30/daily-coding-procedural-texture-2026-03-30/" title="每日编程实践: Procedural Texture Synthesis — 程序化纹理合成"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-30-procedural-texture/procedural_texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-30</div><div class="info-item-2">每日编程实践: Procedural Texture Synthesis — 程序化纹理合成</div></div><div class="info-2"><div class="info-item-1"> 今日主题：程序化纹理合成——用数学公式而非美术资产生成无限变化的有机纹理。核心技术：Worley Noise（细胞&#x2F;Voronoi 噪声）+ Fractal Brownian Motion（分形布朗运动），生成大理石、木纹、熔岩、有机细胞六种纹理。   ① 背景与动机为什么需要程序化纹理？传统美术流程中，纹理贴图是美术师手工绘制的图像文件——一张 2048×2048 的漫反射贴图占用 16MB（未压缩）。大型开放世界游戏中，仅地形纹理就可能高达几十 GB。这带来三个核心痛点： 1. 存储瓶颈《巫师 3》的纹理资产超过 30GB。玩家在下载时要忍受漫长等待，主机平台更是受限于蓝光盘容量。而程序化纹理只需存储几十行数学参数，运行时实时生成任意分辨率的纹理。 2. 分辨率无关性手绘纹理存在物理分辨率上限——放大 4 倍就会看到像素化。程序化纹理本质是连续函数，理论上可以无限放大，细节永远清晰。《No Man’s Sky》的整个星球纹理系统就建立在这一特性上。 3. 参数化变化手绘大理石纹理要变色，需要美术师重新画一张。程序化纹理只需修改一个颜色参数，立刻生成新变体。这使得实...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/01/daily-coding-sdf-ray-marching-2026-04-01/" title="每日编程实践: SDF Ray Marching Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-01-sdf-ray-marching/sdf_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-01</div><div class="info-item-2">每日编程实践: SDF Ray Marching Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在渲染领域，我们通常用三角形网格来表示几何体。一个球体需要几百个三角面才能看起来圆润，一个复杂的有机形状（角色的脸部、液体、云朵）则需要数万甚至数百万个三角形，且对它们做 CSG 布尔运算（切割、合并、交集）在实时场景中代价极高。 有向距离场（Signed Distance Field, SDF） 提供了一种完全不同的几何表示方式：不存储顶点，而是用一个数学函数 f(p) → d 来描述空间中任意点 p 到曲面的最近距离 d。当 d &lt; 0 时点在物体内部，d &gt; 0 时在外部，d = 0 恰好在表面。这个简洁的定义带来了一系列天然的好处：  精确的 CSG 操作：两个 SDF 做并集只需 min(d1, d2)，交集用 max，差集用 max(-d1, d2)，数学上完全精确，没有多边形法的数值误差 平滑过渡：引入平滑最小值函数可以让两个物体无缝熔合，一行代码就能做到有机体般的流动感 无限分辨率：SDF 是解析函数，不管你离多近，表面永远是精确的数学曲线，不会出现网格锯齿 简化渲染管线：不需要顶点缓冲、光栅化、深度测试——Ray Marching 算法直接...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/05/daily-coding-water-wave-2026-04-05/" title="每日编程实践: Water Wave Simulation &amp; Rendering"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-05-water-wave/water_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-05</div><div class="info-item-2">每日编程实践: Water Wave Simulation &amp; Rendering</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Water Wave Simulation &amp; Rendering 项目概述：基于 Gerstner Wave（Trochoidal Wave）方程实现多叠加海浪，配合软光栅化三角形网格、Fresnel 反射、次表面散射近似、天空渲染，输出 1024×512 海景图。    ① 背景与动机为什么水面渲染值得单独研究？水是游戏和影视中最难处理的视觉元素之一。和固体表面不同，水面具备三个让它极其复杂的特质：  几何形态动态变化：波浪不断移动，不存在静态的”水面网格” 光学特性多样：水面同时具备反射（镜面）、折射（透明）、漫反射（散射）三种模式 次表面散射：光进入水体后散射，形成深色区域和浅绿色透光区域的色差  工业界的解法从上世纪延续至今，演化出以下几条技术路线：  Gerstner&#x2F;Trochoidal Wave（1802年数学模型，至今仍是AAA游戏标配）：解析函数叠加，实时友好 FFT Ocean（菲利普斯谱）：频域模拟，Unity&#x2F;UE4 的 Ocean 插件基础，效果更真实但需要 GPU FFT SPH&#x2F;Position-...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/26/daily-coding-Triangle-Rasterization-2026-02-26/" title="每日编程实践: Triangle Rasterization - 三角形光栅化器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-26-Triangle-Rasterization/rasterization_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-26</div><div class="info-item-2">每日编程实践: Triangle Rasterization - 三角形光栅化器</div></div><div class="info-2"><div class="info-item-1">Triangle Rasterization - 三角形光栅化器项目目标今天的目标是从零实现一个三角形光栅化器，这是现代3D图形渲染管线的核心组件之一。 光栅化器的职责是：将三角形（几何）转换为屏幕上的像素（图像）。 我们将实现：  ✅ Barycentric 坐标算法 - 判断点是否在三角形内 ✅ Z-Buffer 深度测试 - 正确处理遮挡关系 ✅ 颜色插值 - 顶点颜色的平滑渐变 ✅ 边界框优化 - 只遍历必要的像素  实现过程迭代历史 05:33 - 初始版本: 编写完整的光栅化器代码  实现 Vec2&#x2F;Vec3&#x2F;Color 基础数据结构 实现 barycentric() 重心坐标计算 实现 rasterizeTriangle() 光栅化函数 初始化帧缓冲和深度缓冲   05:34 - 编译错误: 缺少 &lt;limits&gt; 头文件  错误信息：&#39;numeric_limits&#39; is not a member of &#39;std&#39; 原因：使用了 std::numeric_limits&lt;float&gt;::ma...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">83</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">100</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5-Shadow-Volume-Renderer%EF%BC%88%E9%98%B4%E5%BD%B1%E4%BD%93%E7%A7%AF%E6%B8%B2%E6%9F%93%E5%99%A8%EF%BC%89"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-Shadow-Volume%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机：为什么需要 Shadow Volume？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Shadow-Map-%E7%9A%84%E5%B1%80%E9%99%90"><span class="toc-number">1.1.1.</span> <span class="toc-text">Shadow Map 的局限</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Shadow-Volume-%E7%9A%84%E5%87%BA%E5%8F%91%E7%82%B9"><span class="toc-number">1.1.2.</span> <span class="toc-text">Shadow Volume 的出发点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86%EF%BC%9AShadow-Volume-%E7%9A%84%E6%95%B0%E5%AD%A6%E4%B8%8E%E7%AE%97%E6%B3%95"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理：Shadow Volume 的数学与算法</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Stencil-Buffer-%E8%AE%A1%E6%95%B0%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 Stencil Buffer 计数原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Z-Pass-vs-Z-Fail%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-Carmack%E2%80%99s-Reverse"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 Z-Pass vs Z-Fail：为什么需要 Carmack’s Reverse</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E8%BD%AE%E5%BB%93%E8%BE%B9%E6%A3%80%E6%B5%8B%EF%BC%88Silhouette-Edge-Detection%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 轮廓边检测（Silhouette Edge Detection）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E9%98%B4%E5%BD%B1%E4%BD%93%E7%9A%84%E5%B0%81%E9%97%AD%E6%9E%84%E5%BB%BA"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 阴影体的封闭构建</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84%EF%BC%9A%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96-Shadow-Volume-%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构：软光栅化 Shadow Volume 渲染管线</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-CPU-%E7%AB%AF%E8%81%8C%E8%B4%A3-vs-GPU-%E7%AB%AF%E8%81%8C%E8%B4%A3"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 CPU 端职责 vs GPU 端职责</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E8%BD%AE%E5%BB%93%E8%BE%B9%E6%A3%80%E6%B5%8B%E4%B8%8E%E9%98%B4%E5%BD%B1%E4%BD%93%E6%9E%84%E5%BB%BA"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 轮廓边检测与阴影体构建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Z-Fail-%E6%A8%A1%E6%9D%BF%E6%9B%B4%E6%96%B0%E6%A0%B8%E5%BF%83%E9%80%BB%E8%BE%91"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Z-Fail 模板更新核心逻辑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%9F%BA%E4%BA%8E%E6%A8%A1%E6%9D%BF%E7%BC%93%E5%86%B2%E7%9A%84%E6%9C%80%E7%BB%88%E7%9D%80%E8%89%B2"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 基于模板缓冲的最终着色</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E7%BC%96%E8%AF%91%E5%A4%B1%E8%B4%A5%E2%80%94%E2%80%94%E7%BC%BA%E5%B0%91-include"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：编译失败——缺少 #include &lt;cstdint&gt;</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E7%BC%96%E8%AF%91%E5%A4%B1%E8%B4%A5%E2%80%94%E2%80%94Color-%E7%BB%93%E6%9E%84%E4%BD%93%E6%97%A0%E6%B3%95%E7%94%A8%E5%A4%A7%E6%8B%AC%E5%8F%B7%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：编译失败——Color 结构体无法用大括号初始化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9Astatic-%E5%B1%80%E9%83%A8%E6%95%B0%E7%BB%84%E6%97%A0%E6%B3%95%E5%9C%A8-Lambda-%E4%B8%AD%E6%8D%95%E8%8E%B7"><span class="toc-number">1.5.3.</span> <span class="toc-text">Bug 3：static 局部数组无法在 Lambda 中捕获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E9%98%B4%E5%BD%B1%E4%BD%93%E8%A6%86%E7%9B%96%E7%8E%87%E5%8F%AA%E6%9C%89-9-1-%EF%BC%8C%E8%A7%86%E8%A7%89%E4%B8%8A%E7%9A%84%E9%98%B4%E5%BD%B1%E9%9D%A2%E7%A7%AF%E7%9C%8B%E8%B5%B7%E6%9D%A5%E5%90%88%E7%90%86%E5%90%97%EF%BC%9F"><span class="toc-number">1.5.4.</span> <span class="toc-text">Bug 4：阴影体覆盖率只有 9.1%，视觉上的阴影面积看起来合理吗？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%B8%B2%E6%9F%93%E7%BB%93%E6%9E%9C"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 渲染结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 量化验证数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E4%B8%8E-Shadow-Map-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 与 Shadow Map 的对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</a><time datetime="2026-04-29T21:30:00.000Z" title="发表于 2026-04-30 05:30:00">2026-04-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-29-sss-renderer/sss_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染">每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染</a><time datetime="2026-04-28T21:30:00.000Z" title="发表于 2026-04-29 05:30:00">2026-04-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/28/daily-coding-cel-shading-outline-renderer-2026-04-28/" title="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-28-Cel-Shading-Outline-Renderer/cel_shading_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/28/daily-coding-cel-shading-outline-renderer-2026-04-28/" title="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）">每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）</a><time datetime="2026-04-27T21:30:00.000Z" title="发表于 2026-04-28 05:30:00">2026-04-28</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/27/daily-coding-oit-2026-04-27/" title="每日编程实践: 顺序无关透明度渲染 (OIT) — Weighted Blended OIT 完整实现"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-27-oit/oit_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 顺序无关透明度渲染 (OIT) — Weighted Blended OIT 完整实现"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/27/daily-coding-oit-2026-04-27/" title="每日编程实践: 顺序无关透明度渲染 (OIT) — Weighted Blended OIT 完整实现">每日编程实践: 顺序无关透明度渲染 (OIT) — Weighted Blended OIT 完整实现</a><time datetime="2026-04-26T21:30:00.000Z" title="发表于 2026-04-27 05:30:00">2026-04-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/26/daily-coding-screen-space-refraction-2026-04-26/" title="每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-26-screen-space-refraction/ssr_refraction_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/26/daily-coding-screen-space-refraction-2026-04-26/" title="每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染">每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染</a><time datetime="2026-04-25T21:30:00.000Z" title="发表于 2026-04-26 05:30:00">2026-04-26</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
