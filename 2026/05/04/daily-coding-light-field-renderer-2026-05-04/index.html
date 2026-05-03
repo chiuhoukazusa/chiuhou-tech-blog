@@ -1,0 +1,439 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Light Field Renderer — 光场渲染器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践：Light Field Renderer — 光场渲染器今天实现了一个基于**双平面参数化（Two-Plane Parameterization）**的 4D 光场渲染器。光场这个概念在计算机图形学和计算摄影学的交汇处，它回答了一个根本性的问题：如果我们能捕捉所有方向上所有光线的颜色，我们能重建任意视角的图像吗？   一、背景与动机传统渲染的视角限制传统的实时或离线渲染器，每一帧都需">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Light Field Renderer — 光场渲染器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/04/daily-coding-light-field-renderer-2026-05-04/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践：Light Field Renderer — 光场渲染器今天实现了一个基于**双平面参数化（Two-Plane Parameterization）**的 4D 光场渲染器。光场这个概念在计算机图形学和计算摄影学的交汇处，它回答了一个根本性的问题：如果我们能捕捉所有方向上所有光线的颜色，我们能重建任意视角的图像吗？   一、背景与动机传统渲染的视角限制传统的实时或离线渲染器，每一帧都需">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png">
+<meta property="article:published_time" content="2026-05-03T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-03T21:38:08.440Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="光场">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="视角合成">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Light Field Renderer — 光场渲染器",
+  "url": "https://chiuhoukazusa.github.io/2026/05/04/daily-coding-light-field-renderer-2026-05-04/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png",
+  "datePublished": "2026-05-03T21:30:00.000Z",
+  "dateModified": "2026-05-03T21:38:08.440Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/04/daily-coding-light-field-renderer-2026-05-04/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Light Field Renderer — 光场渲染器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Light Field Renderer — 光场渲染器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Light Field Renderer — 光场渲染器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-03T21:30:00.000Z" title="发表于 2026-05-04 05:30:00">2026-05-04</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-03T21:38:08.440Z" title="更新于 2026-05-04 05:38:08">2026-05-04</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践：Light-Field-Renderer-—-光场渲染器"><a href="#每日编程实践：Light-Field-Renderer-—-光场渲染器" class="headerlink" title="每日编程实践：Light Field Renderer — 光场渲染器"></a>每日编程实践：Light Field Renderer — 光场渲染器</h1><p>今天实现了一个基于**双平面参数化（Two-Plane Parameterization）**的 4D 光场渲染器。光场这个概念在计算机图形学和计算摄影学的交汇处，它回答了一个根本性的问题：<strong>如果我们能捕捉所有方向上所有光线的颜色，我们能重建任意视角的图像吗？</strong></p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png" alt="光场渲染结果"></p>
+<hr>
+<h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><h3 id="传统渲染的视角限制"><a href="#传统渲染的视角限制" class="headerlink" title="传统渲染的视角限制"></a>传统渲染的视角限制</h3><p>传统的实时或离线渲染器，每一帧都需要从特定相机位置重新追踪光线或执行光栅化。如果你想改变观察角度，整套计算必须重来。在游戏引擎中，这通常是可以接受的——GPU 足够快，每帧 16ms 内完成渲染不是难事。</p>
+<p>但想象以下场景：</p>
+<ol>
+<li><strong>VR 头显中的头部追踪</strong>：微小的头部移动（几毫米）就需要精确的视差变化。如果每次移动都重新渲染完整场景，延迟会让人晕眩。</li>
+<li><strong>全息显示器</strong>：需要从极其密集的角度阵列同时呈现不同图像，传统渲染完全无法应对。</li>
+<li><strong>神经辐射场（NeRF）之前的自由视角视频</strong>：捕捉真实场景后，想从任意角度观看，但不可能在后期重建完整的几何模型。</li>
+<li><strong>光场相机（Lytro）</strong>：拍摄后重新对焦，本质就是从捕捉到的光场中重新渲染图像。</li>
+</ol>
+<p>光场渲染提供了一种不同的思路：<strong>预先捕捉场景在多个视角下的外观，然后通过插值重建任意中间视角</strong>，而不需要了解场景的几何结构。</p>
+<h3 id="工业界实际应用"><a href="#工业界实际应用" class="headerlink" title="工业界实际应用"></a>工业界实际应用</h3><ul>
+<li><strong>Google Immersive View</strong>：使用类似光场的技术在 Google Maps 中实现沉浸式鸟瞰视角</li>
+<li><strong>Meta Presence Platform</strong>：Codec Avatars 项目利用密集相机阵列捕捉光场，实现照片级真实的虚拟形象</li>
+<li><strong>Lytro Cinema</strong>：电影拍摄中使用光场相机，后期可以改变焦平面和视角</li>
+<li><strong>Microsoft HoloLens</strong>：AR 显示中利用光场原理优化近眼显示的景深感知</li>
+<li><strong>游戏引擎的 Lightmap</strong>：某种意义上，预烘焙光照贴图也是一种低分辨率的光场近似</li>
+</ul>
+<h3 id="光场-vs-其他视角合成方法"><a href="#光场-vs-其他视角合成方法" class="headerlink" title="光场 vs 其他视角合成方法"></a>光场 vs 其他视角合成方法</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>原理</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>光场渲染</td>
+<td>捕捉多视角插值</td>
+<td>不需要几何重建</td>
+<td>存储量大，视角范围有限</td>
+</tr>
+<tr>
+<td>NeRF</td>
+<td>神经网络隐式表达</td>
+<td>任意视角，存储小</td>
+<td>训练慢，推理慢</td>
+</tr>
+<tr>
+<td>3D Gaussian Splatting</td>
+<td>显式高斯基元</td>
+<td>实时渲染</td>
+<td>需要几何重建</td>
+</tr>
+<tr>
+<td>基于深度的视角合成</td>
+<td>深度图 + 重投影</td>
+<td>实时可行</td>
+<td>遮挡区域填补困难</td>
+</tr>
+<tr>
+<td>IBR（图像插值）</td>
+<td>直接图像空间操作</td>
+<td>简单快速</td>
+<td>视差大时失效</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-光场的数学定义"><a href="#2-1-光场的数学定义" class="headerlink" title="2.1 光场的数学定义"></a>2.1 光场的数学定义</h3><p>光场（Light Field）的概念由 Adelson &amp; Bergen (1991) 提出，称为”全光函数”（Plenoptic Function）：</p>
+<p>$$L(x, y, z, \theta, \phi, \lambda, t)$$</p>
+<p>它描述了在空间中任意一点 $(x,y,z)$、向任意方向 $(\theta, \phi)$ 观察时、波长 $\lambda$ 的光、在时刻 $t$ 的辐射亮度（radiance）。</p>
+<p>这是一个 7 维函数，存储它需要天文数字的空间。实际应用中必须降维简化。</p>
+<p><strong>关键观察</strong>：在<strong>自由空间</strong>（没有参与介质、没有吸收）中，沿一条光线传播时辐射亮度不变。因此，一条光线可以用它与两个平行平面的交点完全确定。</p>
+<h3 id="2-2-双平面参数化（Two-Plane-Parameterization）"><a href="#2-2-双平面参数化（Two-Plane-Parameterization）" class="headerlink" title="2.2 双平面参数化（Two-Plane Parameterization）"></a>2.2 双平面参数化（Two-Plane Parameterization）</h3><p>Levoy &amp; Hanrahan (1996) 和 Gortler et al. (1996) 分别独立提出了相同的参数化方案：使用两个平行平面上的坐标 $(u,v)$ 和 $(s,t)$ 描述一条光线。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">UV平面（相机平面）      ST平面（图像平面）</span><br><span class="line">        |                        |</span><br><span class="line">   v ↑  |                        |  t ↑</span><br><span class="line">     |  |   相机阵列             |  |   图像像素</span><br><span class="line">   --+--+---→                 --+--+---→</span><br><span class="line">     |  u                        |  s</span><br></pre></td></tr></table></figure>
+
+<p>具体来说：</p>
+<ul>
+<li><strong>UV 平面</strong>：放置相机阵列，$(u,v)$ 是第几个相机</li>
+<li><strong>ST 平面</strong>：每个相机拍摄的图像，$(s,t)$ 是像素坐标</li>
+<li><strong>一条光线</strong> $&#x3D; (u, v, s, t)$：从 UV 平面上 $(u,v)$ 位置的相机，拍摄 ST 像素 $(s,t)$</li>
+</ul>
+<p>这将 7D 函数降为 4D：$L(u, v, s, t)$。</p>
+<p><strong>物理直觉</strong>：想象一个相机阵列，每台相机拍摄相同场景。相机 $(u_0, v_0)$ 拍到的像素 $(s, t)$ 和相机 $(u_1, v_1)$ 拍到的像素 $(s, t)$，对应的是空间中完全不同的光线——前者由 $(u_0,v_0) \to (s,t)$ 确定，后者由 $(u_1,v_1) \to (s,t)$ 确定。</p>
+<h3 id="2-3-光场重建：如何合成新视角？"><a href="#2-3-光场重建：如何合成新视角？" class="headerlink" title="2.3 光场重建：如何合成新视角？"></a>2.3 光场重建：如何合成新视角？</h3><p>已知在 UV 网格上若干相机的图像，如何合成 UV 平面上任意位置 $(u^<em>, v^</em>)$ 处相机看到的图像？</p>
+<p>最简单的方法是<strong>双线性插值</strong>：</p>
+<p>给定查询位置 $(u^<em>, v^</em>)$，找到 UV 网格中四个最近的相机：</p>
+<ul>
+<li>$(u_0, v_0)$，$(u_1, v_0)$，$(u_0, v_1)$，$(u_1, v_1)$，其中 $u_0 \le u^* \le u_1$，$v_0 \le v^* \le v_1$</li>
+</ul>
+<p>定义插值权重：<br>$$\alpha &#x3D; \frac{u^* - u_0}{u_1 - u_0}, \quad \beta &#x3D; \frac{v^* - v_0}{v_1 - v_0}$$</p>
+<p>对于合成图像的每个像素 $(s, t)$：<br>$$L(u^<em>, v^</em>, s, t) &#x3D; (1-\beta) \cdot [(1-\alpha) \cdot L(u_0,v_0,s,t) + \alpha \cdot L(u_1,v_0,s,t)]$$<br>$$+ \beta \cdot [(1-\alpha) \cdot L(u_0,v_1,s,t) + \alpha \cdot L(u_1,v_1,s,t)]$$</p>
+<p><strong>直觉解释</strong>：这就是在相机阵列中做”位置插值”——新视点位于四个已知相机之间，它看到的每个方向的光近似等于四个相邻相机对同一方向光的加权平均。</p>
+<p><strong>为什么这个近似可行？</strong><br>当相机间距相对于场景深度足够小时，同一像素 $(s,t)$ 在相邻相机中对应的是几乎相同的场景区域（只有微小的视差）。插值结果在视差小的区域非常准确，在视差大的区域（前景物体边缘）会有”重影”（ghosting）。</p>
+<h3 id="2-4-深度辅助重建（理论，本次实现简化版）"><a href="#2-4-深度辅助重建（理论，本次实现简化版）" class="headerlink" title="2.4 深度辅助重建（理论，本次实现简化版）"></a>2.4 深度辅助重建（理论，本次实现简化版）</h3><p>更精确的方法是使用深度信息进行”光线重定向”：</p>
+<p>已知新视点 $(u^<em>, v^</em>)$ 要渲染像素 $(s, t)$，该像素对应的场景深度为 $d$。则：</p>
+<p>在平行于 UV 的深度 $d$ 处，新视点的光线与深度 $d$ 平面交点为：<br>$$(s’, t’) &#x3D; (s + (u^* - u_0) \cdot \frac{f}{d}, ; t + (v^* - v_0) \cdot \frac{f}{d})$$</p>
+<p>其中 $f$ 是焦距。然后从参考相机 $(u_0, v_0)$ 中采样 $(s’, t’)$ 而不是 $(s, t)$。</p>
+<p>这可以大幅减少重影，是 Lumigraph 的核心改进。本次实现采用简化的纯双线性插值（不做深度校正），以保证代码在 C++17 标准库内完成，无外部依赖。</p>
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">场景定义 (spheres + planes + lights)</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">光场采集阶段：</span><br><span class="line">  for vi in [0, UV_RES):</span><br><span class="line">    for ui in [0, UV_RES):</span><br><span class="line">      Camera cam = getCameraPos(ui, vi)</span><br><span class="line">      for each pixel (s, t) in ST_RES x ST_RES:</span><br><span class="line">        ray = cam.getRay(s, t)</span><br><span class="line">        color = scene.shade(ray)         ← 软光追</span><br><span class="line">        depth = scene.intersect(ray).t   ← 深度记录</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">LightField[vi][ui] = SubImage(ST_RES x ST_RES)</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">输出图像合成阶段：</span><br><span class="line">  ① UV 网格可视化（5×5 缩略图）</span><br><span class="line">  ② 信息面板（参数展示、相机分布图）</span><br><span class="line">  ③ 新视角合成（3个插值视角）</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">PNG 写出（无外部依赖）</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><p><strong>SubImage</strong>：存储单个相机拍摄的图像</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">SubImage</span> &#123;</span><br><span class="line">    std::vector&lt;Color&gt; pixels;  <span class="comment">// ST_RES * ST_RES 个颜色</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; depth;   <span class="comment">// 对应深度值（用于后续深度校正扩展）</span></span><br><span class="line">    </span><br><span class="line">    <span class="function">Color&amp; <span class="title">at</span><span class="params">(<span class="type">int</span> s, <span class="type">int</span> t)</span> </span>&#123; <span class="keyword">return</span> pixels[t * ST_RES + s]; &#125;</span><br><span class="line">    <span class="function"><span class="type">float</span>&amp; <span class="title">depthAt</span><span class="params">(<span class="type">int</span> s, <span class="type">int</span> t)</span> </span>&#123; <span class="keyword">return</span> depth[t * ST_RES + s]; &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>LightField</strong>：整个 4D 光场</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">LightField</span> &#123;</span><br><span class="line">    std::vector&lt;std::vector&lt;SubImage&gt;&gt; images; <span class="comment">// images[v][u]</span></span><br><span class="line">    <span class="type">float</span> uvSpacing = <span class="number">0.25f</span>;  <span class="comment">// UV 平面相机间距</span></span><br><span class="line">    Vec3 baseTarget = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">-2.5f</span>&#125;;  <span class="comment">// 所有相机的目标点</span></span><br><span class="line">    <span class="type">float</span> cameraZ = <span class="number">2.5f</span>;  <span class="comment">// 相机平面的 Z 坐标</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>为什么用 <code>images[v][u]</code> 而非 <code>images[u][v]</code>？<br>因为图像的内存访问模式是行优先（row-major）：外层索引 v 对应”行”，内层 u 对应”列”，与 y-x 坐标系一致，有利于后续按行渲染时的缓存命中。</p>
+<h3 id="3-3-相机布局设计"><a href="#3-3-相机布局设计" class="headerlink" title="3.3 相机布局设计"></a>3.3 相机布局设计</h3><p>5×5 &#x3D; 25 个相机均匀分布在 UV 平面上：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">相机间距 uvSpacing = 0.25 units</span><br><span class="line">中心相机 (ui=2, vi=2) 在 (0, 0, 2.5)</span><br><span class="line">左上角相机 (0,0) 在 (-0.5, -0.5, 2.5)</span><br><span class="line">右下角相机 (4,4) 在 (+0.5, +0.5, 2.5)</span><br></pre></td></tr></table></figure>
+
+<p>相机间距 0.25 units 相对于场景深度（2.5<del>7.5 units）的比例约为 1:10</del>1:30，保证了插值区域视差适中——不至于全黑（间距太小），也不会鬼影严重（间距太大）。</p>
+<h3 id="3-4-职责划分"><a href="#3-4-职责划分" class="headerlink" title="3.4 职责划分"></a>3.4 职责划分</h3><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>CPU&#x2F;Memory</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Scene</code></td>
+<td>几何体 + 着色，提供 <code>shade()</code> 和 <code>intersect()</code></td>
+<td>纯 CPU 光追</td>
+</tr>
+<tr>
+<td><code>LightField</code></td>
+<td>4D 数组存储 + <code>capture()</code> + <code>queryView()</code></td>
+<td>CPU，~25×128×128×3×4B ≈ 1.5MB</td>
+</tr>
+<tr>
+<td><code>Image</code></td>
+<td>输出像素缓冲 + 基础绘图</td>
+<td>CPU，900×900×3 ≈ 2.4MB</td>
+</tr>
+<tr>
+<td>PNG 写出</td>
+<td>deflate-store + zlib + CRC32</td>
+<td>CPU</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-光场采集"><a href="#4-1-光场采集" class="headerlink" title="4.1 光场采集"></a>4.1 光场采集</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">capture</span><span class="params">(<span class="type">const</span> Scene&amp; scene)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> vi = <span class="number">0</span>; vi &lt; UV_RES; vi++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> ui = <span class="number">0</span>; ui &lt; UV_RES; ui++) &#123;</span><br><span class="line">            Vec3 camPos = <span class="built_in">getCameraPos</span>(ui, vi);</span><br><span class="line">            <span class="function">Camera <span class="title">cam</span><span class="params">(camPos, baseTarget, ST_RES, ST_RES, <span class="number">55.0f</span>)</span></span>;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> t = <span class="number">0</span>; t &lt; ST_RES; t++) &#123;</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; ST_RES; s++) &#123;</span><br><span class="line">                    Ray ray = cam.<span class="built_in">getRay</span>(s + <span class="number">0.5f</span>, t + <span class="number">0.5f</span>);</span><br><span class="line">                    images[vi][ui].<span class="built_in">at</span>(s, t) = scene.<span class="built_in">shade</span>(ray).<span class="built_in">clamp</span>();</span><br><span class="line">                    <span class="comment">// 存储深度，备用（深度校正视角合成）</span></span><br><span class="line">                    <span class="keyword">auto</span> hit = scene.<span class="built_in">intersect</span>(ray);</span><br><span class="line">                    <span class="keyword">if</span> (hit.hit) &#123;</span><br><span class="line">                        images[vi][ui].<span class="built_in">depthAt</span>(s, t) = hit.t;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么使用 <code>s + 0.5f</code>？</strong><br>像素采样时取像素中心而非左上角，避免系统性偏移。如果用 <code>s + 0.0f</code>，所有射线都穿过像素左上角，导致图像在亚像素级别有半像素偏移，在不同相机视图之间插值时会引入可见的对齐错误。</p>
+<h3 id="4-2-相机模型"><a href="#4-2-相机模型" class="headerlink" title="4.2 相机模型"></a>4.2 相机模型</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Ray <span class="title">getRay</span><span class="params">(<span class="type">float</span> px, <span class="type">float</span> py)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> aspect = (<span class="type">float</span>)width / height;</span><br><span class="line">    <span class="type">float</span> tanHalfFov = std::<span class="built_in">tan</span>(fov * <span class="number">3.14159265f</span> / <span class="number">360.0f</span>);</span><br><span class="line">    <span class="comment">// 将像素坐标归一化到 [-1, 1] 范围，考虑宽高比</span></span><br><span class="line">    <span class="type">float</span> u = (<span class="number">2.0f</span> * px / width - <span class="number">1.0f</span>) * aspect * tanHalfFov;</span><br><span class="line">    <span class="comment">// 注意 y 轴翻转：PNG 坐标 y 向下，但世界坐标 y 向上</span></span><br><span class="line">    <span class="type">float</span> v = (<span class="number">1.0f</span> - <span class="number">2.0f</span> * py / height) * tanHalfFov;</span><br><span class="line">    Vec3 dir = (forward + right * u + up * v).<span class="built_in">normalize</span>();</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Ray</span>(pos, dir);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要乘以 <code>tanHalfFov</code>？</strong><br>投影矩阵的数学来源：在视锥体中，当 z &#x3D; 1 时，x 方向的范围是 <code>[-tan(fov/2), tan(fov/2)]</code>。直接用归一化坐标不乘这个因子，等效于 FOV &#x3D; 45° 或 90°（取决于缩放方式），导致视角错误。</p>
+<p><strong><code>aspect * tanHalfFov</code> 的作用</strong>：<br>宽度方向的”张开角度”需要乘以宽高比，否则宽屏相机看到的物体会被横向压缩。</p>
+<h3 id="4-3-双线性插值核心"><a href="#4-3-双线性插值核心" class="headerlink" title="4.3 双线性插值核心"></a>4.3 双线性插值核心</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Color <span class="title">queryView</span><span class="params">(<span class="type">float</span> u_norm, <span class="type">float</span> v_norm, <span class="type">int</span> s, <span class="type">int</span> t)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 将浮点 UV 坐标限制在合法范围内</span></span><br><span class="line">    <span class="type">float</span> ui_f = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, std::<span class="built_in">min</span>((<span class="type">float</span>)(UV_RES<span class="number">-1</span>), u_norm));</span><br><span class="line">    <span class="type">float</span> vi_f = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, std::<span class="built_in">min</span>((<span class="type">float</span>)(UV_RES<span class="number">-1</span>), v_norm));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 找到四个最近的网格点</span></span><br><span class="line">    <span class="type">int</span> ui0 = (<span class="type">int</span>)ui_f, ui1 = std::<span class="built_in">min</span>(ui0 + <span class="number">1</span>, UV_RES - <span class="number">1</span>);</span><br><span class="line">    <span class="type">int</span> vi0 = (<span class="type">int</span>)vi_f, vi1 = std::<span class="built_in">min</span>(vi0 + <span class="number">1</span>, UV_RES - <span class="number">1</span>);</span><br><span class="line">    <span class="type">float</span> uFrac = ui_f - ui0;  <span class="comment">// U 方向插值权重</span></span><br><span class="line">    <span class="type">float</span> vFrac = vi_f - vi0;  <span class="comment">// V 方向插值权重</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 取四个邻近相机在 (s,t) 处的颜色</span></span><br><span class="line">    <span class="keyword">auto</span>&amp; c00 = images[vi0][ui0].<span class="built_in">at</span>(s, t);  <span class="comment">// 左上</span></span><br><span class="line">    <span class="keyword">auto</span>&amp; c10 = images[vi0][ui1].<span class="built_in">at</span>(s, t);  <span class="comment">// 右上</span></span><br><span class="line">    <span class="keyword">auto</span>&amp; c01 = images[vi1][ui0].<span class="built_in">at</span>(s, t);  <span class="comment">// 左下</span></span><br><span class="line">    <span class="keyword">auto</span>&amp; c11 = images[vi1][ui1].<span class="built_in">at</span>(s, t);  <span class="comment">// 右下</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 双线性插值：先在 U 方向插值，再在 V 方向插值</span></span><br><span class="line">    <span class="keyword">return</span> Color::<span class="built_in">lerp4</span>(c00, c10, c01, c11, uFrac, vFrac).<span class="built_in">clamp</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>双线性插值的数学本质</strong>：<br>它等价于在四个点定义的双曲面上进行采样。对于颜色 $C$：</p>
+<p>$$C(u,v) &#x3D; (1-v)[(1-u)C_{00} + u \cdot C_{10}] + v[(1-u)C_{01} + u \cdot C_{11}]$$</p>
+<p>这是一个<strong>双线性</strong>（非线性！）函数——单独对 u 或 v 是线性的，但对两者同时是二次的。不过对于光场中视角变化幅度不大的情况，这种近似已经足够准确。</p>
+<p><strong>为什么不用更高阶的插值？</strong><br>双三次（Bicubic）插值能减少”模糊感”，但在光场渲染中，颜色值跨越深度不连续的边缘时，高阶插值会引入振铃（Ringing）效应，看起来比双线性更差。光场插值的核心挑战不在于平滑度，而在于深度不连续处的处理。</p>
+<h3 id="4-4-场景着色器"><a href="#4-4-场景着色器" class="headerlink" title="4.4 场景着色器"></a>4.4 场景着色器</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Color <span class="title">shade</span><span class="params">(<span class="type">const</span> Ray&amp; ray, <span class="type">int</span> depth = <span class="number">0</span>)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (depth &gt; <span class="number">3</span>) <span class="keyword">return</span> <span class="built_in">Color</span>(<span class="number">0.1f</span>, <span class="number">0.15f</span>, <span class="number">0.25f</span>);  <span class="comment">// 递归限制</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">auto</span> hit = <span class="built_in">intersect</span>(ray);</span><br><span class="line">    <span class="keyword">if</span> (!hit.hit) &#123;</span><br><span class="line">        <span class="comment">// 天空渐变：y 方向 [-1,1] 映射到蓝色渐变</span></span><br><span class="line">        <span class="type">float</span> t = <span class="number">0.5f</span> * (ray.dir.y + <span class="number">1.0f</span>);</span><br><span class="line">        t = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, std::<span class="built_in">min</span>(<span class="number">1.0f</span>, t));</span><br><span class="line">        <span class="function">Color <span class="title">sky0</span><span class="params">(<span class="number">0.6f</span>, <span class="number">0.7f</span>, <span class="number">1.0f</span>)</span></span>;   <span class="comment">// 地平线颜色（浅蓝）</span></span><br><span class="line">        <span class="function">Color <span class="title">sky1</span><span class="params">(<span class="number">0.15f</span>, <span class="number">0.2f</span>, <span class="number">0.5f</span>)</span></span>;  <span class="comment">// 天顶颜色（深蓝）</span></span><br><span class="line">        <span class="keyword">return</span> sky<span class="number">0.l</span>erp(sky1, t);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 环境光</span></span><br><span class="line">    Color finalColor = hit.material.albedo * <span class="number">0.08f</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 对每个光源计算漫反射 + 镜面</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; light : lights) &#123;</span><br><span class="line">        Vec3 L = (light - hit.point).<span class="built_in">normalize</span>();</span><br><span class="line">        <span class="type">float</span> NdotL = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, N.<span class="built_in">dot</span>(L));</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!<span class="built_in">shadowRay</span>(hit.point, light)) &#123;</span><br><span class="line">            <span class="comment">// Lambert 漫反射</span></span><br><span class="line">            Color diffuse = hit.material.albedo * NdotL * <span class="number">0.85f</span>;</span><br><span class="line"></span><br><span class="line">            <span class="comment">// Blinn-Phong 镜面</span></span><br><span class="line">            Vec3 H = (L + V).<span class="built_in">normalize</span>();  <span class="comment">// Half vector</span></span><br><span class="line">            <span class="type">float</span> NdotH = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, N.<span class="built_in">dot</span>(H));</span><br><span class="line">            <span class="type">float</span> specPow = std::<span class="built_in">max</span>(<span class="number">1.0f</span>, (<span class="number">1.0f</span> - hit.material.roughness) * <span class="number">128.0f</span>);</span><br><span class="line">            <span class="type">float</span> spec = std::<span class="built_in">pow</span>(NdotH, specPow) * (<span class="number">1.0f</span> - hit.material.roughness);</span><br><span class="line">            Color specular = <span class="built_in">Color</span>(<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>) * spec * <span class="number">0.6f</span>;</span><br><span class="line"></span><br><span class="line">            finalColor += (diffuse + specular) * (<span class="number">1.0f</span> / lights.<span class="built_in">size</span>());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 金属球的镜面反射（递归）</span></span><br><span class="line">    <span class="keyword">if</span> (hit.material.metallic &gt; <span class="number">0.1f</span> &amp;&amp; depth &lt; <span class="number">2</span>) &#123;</span><br><span class="line">        Vec3 reflDir = Vec3::<span class="built_in">reflect</span>(ray.dir * (<span class="number">-1.0f</span>), N).<span class="built_in">normalize</span>();</span><br><span class="line">        <span class="function">Ray <span class="title">reflRay</span><span class="params">(hit.point + N * <span class="number">0.001f</span>, reflDir)</span></span>;</span><br><span class="line">        Color reflColor = <span class="built_in">shade</span>(reflRay, depth + <span class="number">1</span>);</span><br><span class="line">        <span class="type">float</span> fresnel = hit.material.metallic;</span><br><span class="line">        <span class="comment">// 金属：反射色 = 球本身颜色 × 反射颜色（菲涅尔混合）</span></span><br><span class="line">        finalColor = finalColor * (<span class="number">1.0f</span> - fresnel * <span class="number">0.7f</span>) + </span><br><span class="line">                     reflColor * hit.material.albedo * (fresnel * <span class="number">0.7f</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> finalColor;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 Blinn-Phong 用 Half vector 而不是 Reflect vector？</strong><br>经典 Phong 模型使用视线反射向量 $R &#x3D; 2(N \cdot L)N - L$ 计算 $\max(0, R \cdot V)^n$。Blinn 改进版用 half vector $H &#x3D; \text{normalize}(L + V)$ 计算 $\max(0, N \cdot H)^n$：</p>
+<ol>
+<li><strong>更快</strong>：半角向量计算比反射向量少一次向量运算</li>
+<li><strong>更准</strong>：在掠射角（grazing angle）时，Blinn-Phong 的高光衰减更物理正确</li>
+<li><strong>更稳定</strong>：当 $R \cdot V &lt; 0$（相机在高光背面）时 Phong 会截断，Blinn-Phong 的 $N \cdot H$ 不会出现这个问题</li>
+</ol>
+<p><strong>光照乘以 <code>1.0f / lights.size()</code> 的原因</strong>：<br>多个光源简单累加会过曝。除以光源数量使得总能量守恒——无论几个光源，场景的整体亮度保持一致。真实物理中应该用每个光的实际强度，但这里用归一化的艺术化近似。</p>
+<h3 id="4-5-软阴影射线"><a href="#4-5-软阴影射线" class="headerlink" title="4.5 软阴影射线"></a>4.5 软阴影射线</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">shadowRay</span><span class="params">(<span class="type">const</span> Vec3&amp; from, <span class="type">const</span> Vec3&amp; to)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    Vec3 dir = (to - from).<span class="built_in">normalize</span>();</span><br><span class="line">    <span class="type">float</span> dist = (to - from).<span class="built_in">length</span>();</span><br><span class="line">    <span class="function">Ray <span class="title">r</span><span class="params">(from + dir * <span class="number">0.01f</span>, dir)</span></span>;  <span class="comment">// ← 关键：偏移起点</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; s : spheres) &#123;</span><br><span class="line">        <span class="keyword">auto</span> h = s.<span class="built_in">intersect</span>(r);</span><br><span class="line">        <span class="keyword">if</span> (h.hit &amp;&amp; h.t &lt; dist - <span class="number">0.01f</span>) <span class="keyword">return</span> <span class="literal">true</span>;  <span class="comment">// ← 关键：只计算光源前方的遮挡</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ... 平面同理</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>from + dir * 0.01f</code> 的意义（自相交偏移）</strong>：<br>如果阴影射线从完全在表面上的点出发，由于浮点精度问题，它可能立即与发射它的表面相交（自阴影），导致所有点都认为自己在阴影中（全黑）。</p>
+<p>偏移 0.01 units 将起点略微推离表面，跳过自身几何体。偏移量需要在”足够大以避免自交”和”足够小以不越过细薄几何体”之间权衡。本场景最小几何特征约 0.3 units，0.01 是安全的。</p>
+<p><strong><code>h.t &lt; dist - 0.01f</code> 的意义</strong>：<br>阴影射线只在 <code>[0.01, dist-0.01]</code> 范围内检测遮挡。减去末端偏移是为了防止光源位置本身（如球形光源）被当成遮挡物。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="Bug-1：FONT-数组的-designated-initializer-编译失败"><a href="#Bug-1：FONT-数组的-designated-initializer-编译失败" class="headerlink" title="Bug 1：FONT 数组的 designated initializer 编译失败"></a>Bug 1：FONT 数组的 designated initializer 编译失败</h3><p><strong>症状</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sorry, unimplemented: non-trivial designated initializers not supported</span><br></pre></td></tr></table></figure>
+
+<p>编译器报了几十行完全相同的错误，令人困惑。</p>
+<p><strong>错误假设</strong>：<br>以为是 C++17 不支持 designated initializers，打算升级到 C++20。</p>
+<p><strong>真实原因</strong>：<br>GCC 的 C++17 只支持<strong>简单 designated initializers</strong>（<code>struct Foo { int a; }; Foo f = {.a = 1};</code>），不支持数组的 designated initializers（<code>int arr[] = { [5] = 42 }</code>）。虽然 C99 的 C 语言标准支持，C++ 要到 C++20 才正式支持，而且 GCC 的 C++20 实现中对”non-trivial”类型（含构造函数的 struct）仍有限制。</p>
+<p>我的 FONT 数组使用了 <code>[&#39; &#39;] = {0x00,...}</code> 语法，在这个 GCC 版本下完全不支持。</p>
+<p><strong>修复方式</strong>：<br>将静态 designated initializer 改为通过 <code>initFont()</code> 函数动态初始化：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">uint8_t</span> FONT[<span class="number">128</span>][<span class="number">7</span>];</span><br><span class="line"><span class="type">static</span> <span class="type">bool</span> FONT_INITIALIZED = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">initFont</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (FONT_INITIALIZED) <span class="keyword">return</span>;</span><br><span class="line">    FONT_INITIALIZED = <span class="literal">true</span>;</span><br><span class="line">    <span class="comment">// 先全部清零</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">128</span>; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; <span class="number">7</span>; j++)</span><br><span class="line">            FONT[i][j] = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 再逐字符赋值</span></span><br><span class="line">    <span class="type">uint8_t</span> d0[<span class="number">7</span>] = &#123;<span class="number">0x0E</span>,<span class="number">0x11</span>,<span class="number">0x13</span>,<span class="number">0x15</span>,<span class="number">0x19</span>,<span class="number">0x11</span>,<span class="number">0x0E</span>&#125;;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>;i&lt;<span class="number">7</span>;i++) FONT[<span class="string">&#x27;0&#x27;</span>][i] = d0[i];</span><br><span class="line">    <span class="comment">// ... 以此类推</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：  </p>
+<ul>
+<li>C++17 ≠ C99。C 语言的很多”当然支持”的语法在 C++ 中是扩展或尚未标准化的</li>
+<li>看到大量重复的”sorry, unimplemented”时，第一反应应该是”这个语法不被支持”，而不是”代码逻辑错了”</li>
+</ul>
+<h3 id="Bug-2：unused-variable-警告"><a href="#Bug-2：unused-variable-警告" class="headerlink" title="Bug 2：unused variable 警告"></a>Bug 2：unused variable 警告</h3><p><strong>症状</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">warning: variable &#x27;V&#x27; set but not used [-Wunused-but-set-variable]</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>：<br>在 <code>shade()</code> 函数中，我在 diffuse 计算块内定义了 <code>Vec3 V</code>，但是在反射部分的代码重构时，反射代码块里重新计算了方向，导致之前定义的 <code>V</code> 在 diffuse 块后未被使用。</p>
+<p><strong>修复</strong>：<br>删除 diffuse&#x2F;specular 部分中计算 <code>V</code> 的那行（<code>V</code> 只在反射部分需要，而反射是独立的 if 块，在那里直接用 <code>ray.dir</code> 更清晰）。</p>
+<p><strong>教训</strong>：<br><code>-Wall -Wextra</code> 的 <code>-Wunused-but-set-variable</code> 会捕获”赋值了但从未读取”的变量——这种情况比”声明了但从未赋值”更隐蔽，通常说明代码有逻辑重构后的残留。</p>
+<h3 id="架构陷阱：光场存储顺序-images-v-u-vs-images-u-v"><a href="#架构陷阱：光场存储顺序-images-v-u-vs-images-u-v" class="headerlink" title="架构陷阱：光场存储顺序 images[v][u] vs images[u][v]"></a>架构陷阱：光场存储顺序 images[v][u] vs images[u][v]</h3><p>在代码中，光场使用 <code>images[vi][ui]</code> 存储。这个顺序不是随意的。</p>
+<p>考虑渲染循环：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> t = <span class="number">0</span>; t &lt; ST_RES; t++) &#123;      <span class="comment">// 外层：行</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; ST_RES; s++) &#123;  <span class="comment">// 内层：列</span></span><br><span class="line">        Color c = lf.<span class="built_in">queryView</span>(u, v, s, t);</span><br><span class="line">        out.<span class="built_in">setPixel</span>(ox + s, oy + t + <span class="number">12</span>, c);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>queryView</code> 中访问的是 <code>images[vi][ui].at(s, t)</code>，即 <code>pixels[t * ST_RES + s]</code>。外层循环枚举 <code>t</code>，内层枚举 <code>s</code>，使得内存访问是连续的（步长 1），L1 缓存命中率最高。</p>
+<p>如果写成 <code>images[ui][vi]</code> 并且渲染循环不变，查询时仍然需要 <code>images[vi][ui]</code>，会产生混淆。统一使用”v-first”（行主序）是标准做法。</p>
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="量化输出检验"><a href="#量化输出检验" class="headerlink" title="量化输出检验"></a>量化输出检验</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> PIL <span class="keyword">import</span> Image</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"></span><br><span class="line">img = Image.<span class="built_in">open</span>(<span class="string">&#x27;light_field_output.png&#x27;</span>)</span><br><span class="line">pixels = np.array(img).astype(<span class="built_in">float</span>)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;图像尺寸: <span class="subst">&#123;img.size&#125;</span>&quot;</span>)          <span class="comment"># (900, 900)</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;像素均值: <span class="subst">&#123;pixels.mean():<span class="number">.1</span>f&#125;</span>&quot;</span>) <span class="comment"># 74.6</span></span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;像素标准差: <span class="subst">&#123;pixels.std():<span class="number">.1</span>f&#125;</span>&quot;</span>)<span class="comment"># 52.8</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>验证结果</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>值</th>
+<th>标准</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件大小</td>
+<td>2.4 MB</td>
+<td>&gt; 10 KB</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>像素均值</td>
+<td>74.6</td>
+<td>10~240</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>像素标准差</td>
+<td>52.8</td>
+<td>&gt; 5</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>输出尺寸</td>
+<td>900×900</td>
+<td>900×900</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<h3 id="性能数据"><a href="#性能数据" class="headerlink" title="性能数据"></a>性能数据</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">光场采集：25 个相机 × 128×128 像素 = 409,600 条光线</span><br><span class="line">光追深度：最多 3 次递归（环境光 + 2 次反射）</span><br><span class="line">阴影射线：每像素最多 2 条（对应 2 个光源）</span><br><span class="line">最坏情况射线数：409,600 × (1 + 2 + 2) ≈ 2,048,000 条</span><br><span class="line">实际运行时间：~0.11 秒</span><br><span class="line">吞吐量：约 18,600,000 次/秒（包括相交测试 + 着色）</span><br></pre></td></tr></table></figure>
+
+<h3 id="光场插值可视化"><a href="#光场插值可视化" class="headerlink" title="光场插值可视化"></a>光场插值可视化</h3><p>输出图像布局：</p>
+<ul>
+<li><strong>上部 5×5 网格</strong>（630×630 px）：25 个原始捕捉视图缩略图，中心相机用金色边框标注</li>
+<li><strong>右侧信息面板</strong>（260×630 px）：光场参数 + 相机阵列可视化图（25 个圆点，金色为中心）</li>
+<li><strong>下部 3 个合成视角</strong>（280×220 px × 3）：<ul>
+<li>Novel-1：u&#x3D;0.7, v&#x3D;0.7（左上区域，靠近第一个网格点的内插）</li>
+<li>Novel-2：u&#x3D;2.0, v&#x3D;2.0（正中心，恰好落在一个网格点，无插值误差）</li>
+<li>Novel-3：u&#x3D;3.3, v&#x3D;3.3（右下区域，四格插值）</li>
+</ul>
+</li>
+</ul>
+<p>Novel-2 视图与 images[2][2]（中心相机）完全一致，验证了插值在网格点处的一致性。</p>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="局限性"><a href="#局限性" class="headerlink" title="局限性"></a>局限性</h3><ol>
+<li><p><strong>存储量随分辨率快速增长</strong>：4D 光场的存储是 O(U × V × S × T)。本次 5×5×128×128×3 &#x3D; ~1.2M 颜色值约 4.8MB。真实 Lytro 相机的 100×100×376×376 约需要 4.2GB——必须压缩。</p>
+</li>
+<li><p><strong>视角范围有限</strong>：只能合成 UV 网格覆盖范围内的视角。超出范围需要外推，而外推的光场质量很差。</p>
+</li>
+<li><p><strong>深度不连续处的重影</strong>：本实现使用纯双线性插值，在前景&#x2F;背景边界处会出现”双重图像”（ghosting）。深度校正可以大幅减少这个问题，但需要深度图和更复杂的重采样。</p>
+</li>
+<li><p><strong>不支持动态场景</strong>：光场是预捕捉的，场景变化后必须重新采集全部视图。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><p><strong>深度校正插值（Depth-Corrected Light Field Rendering）</strong>：已有深度缓存，下一步可以实现 Levoy-Hanrahan 论文中的深度辅助重采样，消除重影。</p>
+</li>
+<li><p><strong>压缩光场（Compressed Light Field）</strong>：使用 PCA 或小波变换压缩 4D 数组，能以 10:1 到 50:1 的压缩比保持视觉质量。</p>
+</li>
+<li><p><strong>神经光场（NeRF &#x2F; Neural Light Field）</strong>：用 MLP 隐式表达光场 $L(u,v,s,t)$，存储仅需几 MB，且理论上支持无限分辨率。</p>
+</li>
+<li><p><strong>GPU 加速</strong>：25 个独立视角完全可以并行渲染——将光场采集映射到 CUDA kernel，理论上应有 25× 加速。</p>
+</li>
+<li><p><strong>相机阵列可变密度</strong>：在视角差异大的区域（遮挡边缘附近）使用更密的相机采样，在平坦区域减少采样，类似于 MIP 映射的思路。</p>
+</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong><a href="../prt">PRT（预计算辐射传输）</a>（05-03）</strong>：同样是”预计算”思路，但 PRT 预计算的是光照与表面响应的乘积（球谐系数），光场预计算的是观察方向函数；两者都是用离散化+插值换取实时渲染能力</li>
+<li><strong><a href="../restir">ReSTIR 直接光照</a>（05-01）</strong>：都涉及采样与重用——ReSTIR 重用时间域和空间域的采样，光场重用不同相机的预计算结果</li>
+<li><strong><a href="../radiance-cascade">Radiance Cascade GI</a>（05-02）</strong>：辐射级联也是多分辨率分层存储光照信息，与光场的 UV 多分辨率扩展有相似的结构思路</li>
+</ul>
+<p>光场渲染是一座连接传统计算机图形学和现代神经渲染的桥梁。理解了双平面参数化的本质，再看 NeRF 的输入设计（也是相机位置 + 方向两组参数）、3DGS 的视角相关着色，会发现它们都在用不同的方式回答同一个问题：<strong>如何高效地表达和重建任意视角下的光照信息？</strong></p>
+<hr>
+<p><em>代码仓库: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/05/05-04-light-field-renderer">daily-coding-practice&#x2F;2026&#x2F;05&#x2F;05-04-light-field-renderer</a></em><br><em>运行环境: C++17, g++ -O2, ~0.11s</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/04/daily-coding-light-field-renderer-2026-05-04/">https://chiuhoukazusa.github.io/2026/05/04/daily-coding-light-field-renderer-2026-05-04/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%89%E5%9C%BA/">光场</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%A7%86%E8%A7%92%E5%90%88%E6%88%90/">视角合成</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-03-prt-renderer/prt_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Precomputed Radiance Transfer (PRT) 技术标签: 球谐函数(SH)、辐射传输、预计算光照、SH旋转、Wigner D矩阵、余弦卷积、软光栅化代码仓库: GitHub难度: ⭐⭐⭐⭐   ① 背景与动机：实时全局光照的代价问题的起点在实时渲染中，我们最头疼的问题之一就是环境光照：物体不只是被一个方向光照亮，它被四面八方的天空、反射光、漫射光共同照亮。真正的物理正确做法是对半球积分： $$L_o(x, \omega_o) &#x3D; \int_{\Omega} f_r(\omega_i, \omega_o) \cdot L_i(x, \omega_i) \cdot \max(0, n \cdot \omega_i) , d\omega_i$$ 这个积分在光线追踪里需要对每个像素打出数百条光线才能收敛，帧率从 60fps 直接掉到 0.001fps。早年间游戏里的全局光照一般是用烘焙好的光照贴图（Lightmap）来做，缺点是一旦光源动了，立刻失效。 PRT 要解决的核心矛盾Precomputed Radiance Transfer（...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-21</div><div class="info-item-2">每日编程实践: SPPM 随机渐进光子映射</div></div><div class="info-2"><div class="info-item-1">① 背景与动机为什么需要全局光照？在实时渲染的世界里，我们长期依赖”直接光照 + 环境光假设”来模拟光照效果。这类方法速度快，但有一个根本性缺陷：它忽略了光线在场景中多次弹射的间接照明。 想象一个 Cornell Box——一个封闭的盒子，左墙红色，右墙绿色，天花板有一盏灯。在纯直接光照渲染中，你会看到墙面上均匀涂抹的红色和绿色；但在现实世界（或使用全局光照的渲染器）里，红墙的颜色会”流血”到白色地板和天花板上——这就是颜色渗色（Color Bleeding），是全局光照的典型特征。 此外，当场景中有镜面反射物体或玻璃时，光线可能经过多次折射&#x2F;反射后才照亮某个漫反射表面。直接光照模型根本无法处理这类焦散（Caustics）效果——例如玻璃球下方那一圈明亮的光斑。 全局光照真正解决的问题：  漫反射间接照明（颜色渗色、角落变暗） 焦散（通过玻璃&#x2F;镜面聚焦的光） 柔和阴影的物理正确计算 色调一致性（整个场景的光能守恒）  工业界实际应用全局光照在以下场景中有大量实际应用： 离线渲染（影视&#x2F;动画）：  Pixar 的 RenderMan 使用路径追踪 + ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-29-sss-renderer/sss_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-29</div><div class="info-item-2">每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么需要次表面散射？在照片级渲染中，有一类材质的表现一直是难题：半透明材质。 当你用标准的 Lambert 漫反射模型渲染一张人脸时，会发现效果永远”不对劲”——皮肤看起来像是涂了一层哑光油漆，既没有活人脸上那种温润的透光感，也缺乏皮下组织带来的红润色调。同样的问题出现在蜡烛、大理石、玉石、牛奶、树叶等材质上。 根本原因：Lambert 模型假设光线在表面发生漫反射，照射点与出射点相同。但真实世界中，大量材质对光线是半透明的——光子穿入表面、在内部经历多次散射、从另一个位置射出。这个过程叫做次表面散射（Subsurface Scattering，SSS）。 用公式表示：  标准 BRDF（Bidirectional Reflectance Distribution Function）：$f_r(x_i, \omega_i, \omega_o)$，出射点 &#x3D; 入射点 BSSRDF（Bidirectional Subsurface Scattering Reflectance Distribution Function）：$S(x_i, \omega_i, ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/13/daily-coding-spectral-dispersion-2026-04-13/" title="每日编程实践: Spectral Dispersion Ray Tracer — 光谱色散光线追踪"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-13-spectral-dispersion/spectral_dispersion_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-13</div><div class="info-item-2">每日编程实践: Spectral Dispersion Ray Tracer — 光谱色散光线追踪</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么自然界的玻璃能分解白光？当你把一块三棱镜对着阳光，光线从另一侧射出时不再是白色，而是一道美丽的彩虹。这个现象在1666年被牛顿第一次系统研究，但它背后的物理机制直到波动光学建立后才被完整解释：不同波长的光在介质中传播速度不同，因此折射角也不同。这就是色散（Dispersion）。 在计算机图形学中，如果我们想要真实模拟玻璃、钻石、水晶的光学特性，就不能用一个固定的折射率——我们需要让折射率随波长变化。传统光线追踪器通常使用单一IOR（Index of Refraction），这导致玻璃看起来永远是”无色透明”的，缺乏那种真实的彩虹边缘效果。 实际应用场景游戏与电影渲染：  Unreal Engine 5 的 Lumen 中，玻璃材质支持色散属性（Dispersion Amount），可以产生逼真的彩色边缘 《赛博朋克2077》中的霓虹灯透过玻璃的效果使用了近似色散 光学镜头的设计软件（如 Zemax）完全依赖精确的色散模型来模拟镜头像差  视觉效果（VFX）：  钻石的”火彩”（Fire）效果正是色散：白光进入钻石后，不同颜色光以不同角度全内反射，从切面射出时...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-02</div><div class="info-item-2">每日编程实践: Radiance Cascade Global Illumination</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Radiance Cascade Global Illumination  Cornell Box 场景中的辐射级联全局光照：红墙的色溢打到中心球上，绿墙反光照亮黄盒侧面，间接光照让整个场景更真实可信。   ① 背景与动机为什么需要全局光照？实时渲染长期困扰于一个根本矛盾：现实世界中的光线会在物体之间反复弹跳，但传统的局部光照模型（Blinn-Phong、甚至 PBR）只计算光源到表面的直接照射，完全忽视了光在场景中的多次反弹。 没有全局光照时，你会看到什么问题？  漏光：阴影区域完全漆黑，即便现实中附近墙面的反射光应该能照进去 色溢缺失：红墙旁边的白色物体不会带上红色，场景像纸板模型 接触阴影过硬：物体之间的缝隙没有柔和的 ambient occlusion 感 环境光 hack 代价：为了弥补这些缺陷，引擎往往用一个魔法常量 ambient = 0.1 来糊弄过去，但这是完全假的  这就是为什么游戏从 PS3 时代看起来总像玩具——光照是错的，哪怕模型多精细也难掩这种廉价感。 工业界是怎么做的？全局光照（Global Illumination, GI）在工业界...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/17/daily-coding-marching-cubes-2026-04-17/" title="每日编程实践: Marching Cubes 等值面提取"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-17-marching-cubes/marching_cubes_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-17</div><div class="info-item-2">每日编程实践: Marching Cubes 等值面提取</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在图形学、医学影像、科学可视化等领域，我们经常需要将体积数据（Volume Data）转化为可以被 GPU 渲染的三角形网格。想象一下 CT 扫描得到的骨骼数据——每个体素有一个密度值，我们希望提取出骨骼表面；或者流体模拟中粒子浓度场，我们希望看到水面的形状；又或者 SDF（有向距离场）隐式表达的几何体，需要显式化为网格送给光栅化管线。 没有等值面提取会怎样？最朴素的方案是用体积光线步进（Ray Marching）直接渲染 SDF，这确实可行——本系列 04-01 那天就做过。但 Ray Marching 有几个硬伤：  每帧都要步进：GPU 负担重，不适合实时场景的动态几何 无法与传统光栅化管线结合：物理引擎需要三角形网格做碰撞检测，不能用 SDF 场 法线需要重新计算：每次采样都要跑一次梯度，Ray Marching 本身不产生”顶点”  如果我们能把 SDF 或密度场预先转化为三角形网格，就能走标准的 VBO&#x2F;EBO 路径，享受 GPU 硬件加速光栅化的所有好处。 Marching Cubes 的工业地位Marching Cubes（MC）是 198...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/25/daily-coding-ssao-2026-03-25/" title="每日编程实践: Screen Space Ambient Occlusion (SSAO)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-25-ssao/ssao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-25</div><div class="info-item-2">每日编程实践: Screen Space Ambient Occlusion (SSAO)</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么需要环境光遮蔽？在传统 Phong&#x2F;Blinn-Phong 光照模型中，环境光（Ambient）是一个常量——整个场景里所有点的环境光照贡献完全相同，不管这个点是在空旷的平台中央，还是被夹在两堵墙的角落里。这在物理上显然是错误的：角落里的点被周围几何体遮挡，从半球方向射来的间接光理应更少。 没有环境光遮蔽的场景会显得”扁平”、”塑料感强”——所有表面的暗部都亮得不自然。加上 AO 之后，角落变暗、物体底部变暗、缝隙变暗，整体立体感和质感都会有质的提升。 工业界的实际使用场景Ambient Occlusion 的概念最早由 Zhukov 等人在 1998 年提出，但直到 Crytek 在 2007 年 GDC 上介绍 Screen Space Ambient Occlusion (SSAO) 之后才真正走入实时渲染的主流——当时是为了给《孤岛危机》服务的。 今天，AO 技术在各大引擎里几乎无处不在：  Unity：有 SSAO（URP&#x2F;HDRP 均支持），HDRP 还有基于射线的 RTAO Unreal Engine：内置 SSAO，后来又加了 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">87</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">104</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5%EF%BC%9ALight-Field-Renderer-%E2%80%94-%E5%85%89%E5%9C%BA%E6%B8%B2%E6%9F%93%E5%99%A8"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践：Light Field Renderer — 光场渲染器</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">一、背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%A0%E7%BB%9F%E6%B8%B2%E6%9F%93%E7%9A%84%E8%A7%86%E8%A7%92%E9%99%90%E5%88%B6"><span class="toc-number">1.1.1.</span> <span class="toc-text">传统渲染的视角限制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8"><span class="toc-number">1.1.2.</span> <span class="toc-text">工业界实际应用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%89%E5%9C%BA-vs-%E5%85%B6%E4%BB%96%E8%A7%86%E8%A7%92%E5%90%88%E6%88%90%E6%96%B9%E6%B3%95"><span class="toc-number">1.1.3.</span> <span class="toc-text">光场 vs 其他视角合成方法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%85%89%E5%9C%BA%E7%9A%84%E6%95%B0%E5%AD%A6%E5%AE%9A%E4%B9%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 光场的数学定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%8F%8C%E5%B9%B3%E9%9D%A2%E5%8F%82%E6%95%B0%E5%8C%96%EF%BC%88Two-Plane-Parameterization%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 双平面参数化（Two-Plane Parameterization）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%85%89%E5%9C%BA%E9%87%8D%E5%BB%BA%EF%BC%9A%E5%A6%82%E4%BD%95%E5%90%88%E6%88%90%E6%96%B0%E8%A7%86%E8%A7%92%EF%BC%9F"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 光场重建：如何合成新视角？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%B7%B1%E5%BA%A6%E8%BE%85%E5%8A%A9%E9%87%8D%E5%BB%BA%EF%BC%88%E7%90%86%E8%AE%BA%EF%BC%8C%E6%9C%AC%E6%AC%A1%E5%AE%9E%E7%8E%B0%E7%AE%80%E5%8C%96%E7%89%88%EF%BC%89"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 深度辅助重建（理论，本次实现简化版）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%9B%B8%E6%9C%BA%E5%B8%83%E5%B1%80%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 相机布局设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%85%89%E5%9C%BA%E9%87%87%E9%9B%86"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 光场采集</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E7%9B%B8%E6%9C%BA%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 相机模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%8F%8C%E7%BA%BF%E6%80%A7%E6%8F%92%E5%80%BC%E6%A0%B8%E5%BF%83"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 双线性插值核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%9C%BA%E6%99%AF%E7%9D%80%E8%89%B2%E5%99%A8"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 场景着色器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E8%BD%AF%E9%98%B4%E5%BD%B1%E5%B0%84%E7%BA%BF"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 软阴影射线</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9AFONT-%E6%95%B0%E7%BB%84%E7%9A%84-designated-initializer-%E7%BC%96%E8%AF%91%E5%A4%B1%E8%B4%A5"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：FONT 数组的 designated initializer 编译失败</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9Aunused-variable-%E8%AD%A6%E5%91%8A"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：unused variable 警告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%B6%E6%9E%84%E9%99%B7%E9%98%B1%EF%BC%9A%E5%85%89%E5%9C%BA%E5%AD%98%E5%82%A8%E9%A1%BA%E5%BA%8F-images-v-u-vs-images-u-v"><span class="toc-number">1.5.3.</span> <span class="toc-text">架构陷阱：光场存储顺序 images[v][u] vs images[u][v]</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E8%BE%93%E5%87%BA%E6%A3%80%E9%AA%8C"><span class="toc-number">1.6.1.</span> <span class="toc-text">量化输出检验</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.2.</span> <span class="toc-text">性能数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%89%E5%9C%BA%E6%8F%92%E5%80%BC%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">1.6.3.</span> <span class="toc-text">光场插值可视化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/04/daily-coding-light-field-renderer-2026-05-04/" title="每日编程实践: Light Field Renderer — 光场渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Light Field Renderer — 光场渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/04/daily-coding-light-field-renderer-2026-05-04/" title="每日编程实践: Light Field Renderer — 光场渲染器">每日编程实践: Light Field Renderer — 光场渲染器</a><time datetime="2026-05-03T21:30:00.000Z" title="发表于 2026-05-04 05:30:00">2026-05-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-03-prt-renderer/prt_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照">每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照</a><time datetime="2026-05-02T21:30:00.000Z" title="发表于 2026-05-03 05:30:00">2026-05-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Radiance Cascade Global Illumination"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination">每日编程实践: Radiance Cascade Global Illumination</a><time datetime="2026-05-01T21:36:19.000Z" title="发表于 2026-05-02 05:36:19">2026-05-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/01/daily-coding-restir-direct-illumination-2026-05-01/" title="每日编程实践: ReSTIR Direct Illumination Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-01-restir-direct-illumination/restir_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: ReSTIR Direct Illumination Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/01/daily-coding-restir-direct-illumination-2026-05-01/" title="每日编程实践: ReSTIR Direct Illumination Renderer">每日编程实践: ReSTIR Direct Illumination Renderer</a><time datetime="2026-04-30T21:30:00.000Z" title="发表于 2026-05-01 05:30:00">2026-05-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</a><time datetime="2026-04-29T21:30:00.000Z" title="发表于 2026-04-30 05:30:00">2026-04-30</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
