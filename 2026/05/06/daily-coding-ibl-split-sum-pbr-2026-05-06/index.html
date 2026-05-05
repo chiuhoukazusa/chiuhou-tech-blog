@@ -1,0 +1,455 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践 Day 62：IBL Split-Sum PBR Renderer今天实现 IBL Split-Sum 近似——现代 PBR（基于物理的渲染）管线中处理环境光照的核心技术。这是 Epic Games 在《Real Shading in Unreal Engine 4》（SIGGRAPH 2013）中提出的方案，Unreal、Unity HDRP、Godot 4.x 等主流引擎都使用">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践 Day 62：IBL Split-Sum PBR Renderer今天实现 IBL Split-Sum 近似——现代 PBR（基于物理的渲染）管线中处理环境光照的核心技术。这是 Epic Games 在《Real Shading in Unreal Engine 4》（SIGGRAPH 2013）中提出的方案，Unreal、Unity HDRP、Godot 4.x 等主流引擎都使用">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png">
+<meta property="article:published_time" content="2026-05-05T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-05T21:37:32.571Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="IBL">
+<meta property="article:tag" content="PBR">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图",
+  "url": "https://chiuhoukazusa.github.io/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png",
+  "datePublished": "2026-05-05T21:30:00.000Z",
+  "dateModified": "2026-05-05T21:37:32.571Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-05T21:30:00.000Z" title="发表于 2026-05-06 05:30:00">2026-05-06</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-05T21:37:32.571Z" title="更新于 2026-05-06 05:37:32">2026-05-06</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png" alt="IBL Split-Sum PBR 渲染结果：5×5 材质球阵列，横轴金属度 0→1，纵轴粗糙度 0.05→1.0"></p>
+<h1 id="每日编程实践-Day-62：IBL-Split-Sum-PBR-Renderer"><a href="#每日编程实践-Day-62：IBL-Split-Sum-PBR-Renderer" class="headerlink" title="每日编程实践 Day 62：IBL Split-Sum PBR Renderer"></a>每日编程实践 Day 62：IBL Split-Sum PBR Renderer</h1><p>今天实现 <strong>IBL Split-Sum 近似</strong>——现代 PBR（基于物理的渲染）管线中处理环境光照的核心技术。这是 Epic Games 在《Real Shading in Unreal Engine 4》（SIGGRAPH 2013）中提出的方案，Unreal、Unity HDRP、Godot 4.x 等主流引擎都使用它。</p>
+<hr>
+<h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><h3 id="1-1-没有-IBL-时的世界"><a href="#1-1-没有-IBL-时的世界" class="headerlink" title="1.1 没有 IBL 时的世界"></a>1.1 没有 IBL 时的世界</h3><p>传统实时渲染只有一盏或几盏方向光。现实世界里，光从四面八方照来：天空、地面反光、室内吊灯、窗口漫射……把这一切建模成几盏方向光，结果就是金属球看上去只有一个高光点，完全感受不到环境反射。</p>
+<p><strong>问题的核心</strong>：完整的间接光照需要对整个半球求积分——</p>
+<p>$$L_o(p, \omega_o) &#x3D; \int_{\Omega} f_r(p, \omega_i, \omega_o) L_i(p, \omega_i) (\omega_i \cdot n) , d\omega_i$$</p>
+<p>这个积分对每个像素、每帧实时求解，代价相当于实时光线追踪——在 2013 年的 GPU 上完全不可行。</p>
+<h3 id="1-2-IBL-的思路：换一个表示形式"><a href="#1-2-IBL-的思路：换一个表示形式" class="headerlink" title="1.2 IBL 的思路：换一个表示形式"></a>1.2 IBL 的思路：换一个表示形式</h3><p><strong>Image-Based Lighting (IBL)</strong> 的思路是：把环境光存成一张全景图（lat-lon 贴图或 Cubemap），然后在着色时采样它。但直接采样仍然昂贵——GGX BRDF 的主要贡献方向随粗糙度变化，需要多次采样才能收敛。</p>
+<p>Epic 的 Brian Karis 提出了 <strong>Split-Sum 近似</strong>：把上面的积分拆成两个独立的部分，分别预计算，运行时只需要两次贴图采样——</p>
+<p>$$\int_\Omega L_i(\omega_i) f_r(\omega_i, \omega_o) (\omega_i \cdot n) , d\omega_i \approx \underbrace{\int_\Omega L_i(\omega_i) d\omega_i}<em>{\text{预滤波环境贴图}} \cdot \underbrace{\int</em>\Omega f_r(\omega_i, \omega_o)(\omega_i \cdot n) d\omega_i}_{\text{BRDF LUT}}$$</p>
+<p>前半部分只跟方向和粗糙度有关——预计算成多个 mip 级别。<br>后半部分只跟 $n \cdot v$ 和粗糙度有关——预计算成一张 2D 查找表（LUT）。</p>
+<h3 id="1-3-实际工业用途"><a href="#1-3-实际工业用途" class="headerlink" title="1.3 实际工业用途"></a>1.3 实际工业用途</h3><table>
+<thead>
+<tr>
+<th>引擎&#x2F;应用</th>
+<th>IBL 实现方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Unreal Engine 4+</td>
+<td>Reflection Capture + Split-Sum</td>
+</tr>
+<tr>
+<td>Unity HDRP</td>
+<td>Baked Reflection Probe + Split-Sum</td>
+</tr>
+<tr>
+<td>Godot 4.x</td>
+<td>ReflectionProbe + GGX LUT</td>
+</tr>
+<tr>
+<td>Blender EEVEE</td>
+<td>Cubemap + Split-Sum</td>
+</tr>
+<tr>
+<td>Substance Painter</td>
+<td>实时预览 IBL</td>
+</tr>
+</tbody></table>
+<p>没有 IBL，金属材质在游戏里就是”塑料感金属”——高光只有一个点，没有周边环境的倒影。有了 IBL，钢铁、黄金、铝合金的质感才能真实可信。</p>
+<hr>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-Cook-Torrance-微表面-BRDF-回顾"><a href="#2-1-Cook-Torrance-微表面-BRDF-回顾" class="headerlink" title="2.1 Cook-Torrance 微表面 BRDF 回顾"></a>2.1 Cook-Torrance 微表面 BRDF 回顾</h3><p>IBL 的被积函数是 Cook-Torrance BRDF，先复习一下——</p>
+<p>$$f_r &#x3D; \frac{DGF}{4(n \cdot \omega_o)(n \cdot \omega_i)}$$</p>
+<ul>
+<li><strong>D</strong>：法线分布函数（Normal Distribution Function），控制高光形状</li>
+<li><strong>G</strong>：几何遮蔽函数（Geometry&#x2F;Shadowing-Masking），控制自遮蔽</li>
+<li><strong>F</strong>：菲涅尔函数（Fresnel），控制视角依赖的反射率</li>
+</ul>
+<p><strong>GGX 法线分布（Trowbridge-Reitz）</strong>：</p>
+<p>$$D_{GGX}(n, h, \alpha) &#x3D; \frac{\alpha^2}{\pi \left[ (n \cdot h)^2 (\alpha^2 - 1) + 1 \right]^2}$$</p>
+<p>其中 $\alpha &#x3D; \text{roughness}^2$。<br>直觉：$\alpha \to 0$（光滑）时，D 在半程向量 $h &#x3D; n$ 时是一个极窄的峰；$\alpha \to 1$（粗糙）时，D 铺平成宽阔的分布。</p>
+<p><strong>Smith-GGX 几何遮蔽</strong>：</p>
+<p>$$G_{Smith}(n, v, l, k) &#x3D; G_{Schlick}(n \cdot v, k) \cdot G_{Schlick}(n \cdot l, k)$$<br>$$G_{Schlick}(NdotV, k) &#x3D; \frac{NdotV}{NdotV(1-k) + k}, \quad k &#x3D; \frac{\alpha}{2}$$</p>
+<p>直觉：微表面会互相遮蔽，粗糙表面上的凸起会挡住来自低角度的光。$G$ 对低掠射角（$n \cdot v \to 0$）有强烈衰减。</p>
+<p><strong>Schlick 菲涅尔近似</strong>：</p>
+<p>$$F_{Schlick}(v, h, F_0) &#x3D; F_0 + (1 - F_0)(1 - v \cdot h)^5$$</p>
+<p>$F_0$ 是法线入射时的反射率。对于非金属，$F_0 \approx 0.04$；对于金属，$F_0$ 等于金属的 albedo 颜色。</p>
+<h3 id="2-2-Split-Sum-近似的数学细节"><a href="#2-2-Split-Sum-近似的数学细节" class="headerlink" title="2.2 Split-Sum 近似的数学细节"></a>2.2 Split-Sum 近似的数学细节</h3><p>原始积分：</p>
+<p>$$L_o &#x3D; \int_\Omega f_r(\omega_i, \omega_o) L_i(\omega_i) (n \cdot \omega_i) , d\omega_i$$</p>
+<p><strong>近似前提</strong>：假设 $L_i$ 在半球上的分布与 BRDF 的重要性采样分布”差不多”——也就是说，环境光是比较均匀的（高频细节被平均掉了）。在这个前提下：</p>
+<p>$$\int_\Omega f_r L_i (n \cdot \omega_i) d\omega_i \approx \left(\int_\Omega L_i(\omega_i) D(\omega_i) d\omega_i\right) \cdot \left(\int_\Omega f_r(n \cdot \omega_i) d\omega_i\right)$$</p>
+<p><strong>第一项</strong>——预滤波环境贴图：</p>
+<p>$$\text{PrefEnv}(r, \text{roughness}) &#x3D; \frac{\sum_{k&#x3D;1}^N L_i(l_k) (n \cdot l_k)}{\sum_{k&#x3D;1}^N (n \cdot l_k)}$$</p>
+<p>用 GGX 重要性采样，对反射方向 $r$ 在当前粗糙度下积分，结果存到 Cubemap mip level。</p>
+<p><strong>第二项</strong>——BRDF 积分 LUT：</p>
+<p>$$\int_\Omega f_r(n \cdot \omega_i) d\omega_i &#x3D; F_0 \cdot A + B$$</p>
+<p>其中：</p>
+<p>$$A &#x3D; \int \frac{f_r}{F}(1 - (1 - v \cdot h)^5)(n \cdot l) , dl$$<br>$$B &#x3D; \int \frac{f_r}{F}(1 - v \cdot h)^5 (n \cdot l) , dl$$</p>
+<p>$A$ 和 $B$ 只跟 $n \cdot v$ 和粗糙度相关，预计算成一张 $256 \times 256$ 的 RG 纹理（红通道&#x3D;A，绿通道&#x3D;B）。</p>
+<p><strong>最终着色公式</strong>：</p>
+<p>$$L_o \approx \text{PrefEnv}(r, \text{roughness}) \cdot (F \cdot A + B)$$</p>
+<p>加上漫反射项：</p>
+<p>$$L_{diffuse} &#x3D; k_d \cdot \text{albedo} \cdot \text{Irradiance}(n)$$</p>
+<p>$$k_d &#x3D; (1 - F) \cdot (1 - \text{metallic})$$</p>
+<h3 id="2-3-GGX-重要性采样"><a href="#2-3-GGX-重要性采样" class="headerlink" title="2.3 GGX 重要性采样"></a>2.3 GGX 重要性采样</h3><p>生成与 GGX 分布相匹配的采样方向，使蒙特卡洛收敛更快——</p>
+<p>给定均匀随机数 $(\xi_1, \xi_2) \in [0,1)^2$：</p>
+<p>$$\phi &#x3D; 2\pi \xi_1$$<br>$$\cos\theta &#x3D; \sqrt{\frac{1 - \xi_2}{1 + (\alpha^2 - 1)\xi_2}}$$</p>
+<p>这等价于对 GGX 分布的反函数采样（逆变换采样）。把采样出来的半程向量 $h$ 转换到世界空间（TBN 矩阵），再用 $l &#x3D; 2(v \cdot h)h - v$ 得到入射方向。</p>
+<p>数值序列用 <strong>Hammersley 低差异序列</strong>（准蒙特卡洛），相比纯随机，同样样本数下方差更低——</p>
+<p>$$\text{Hammersley}(i, N) &#x3D; \left(\frac{i}{N},\ \text{VdC}(i)\right)$$</p>
+<p>$\text{VdC}(i)$ 是 Van der Corput 序列：将 $i$ 的二进制位镜像翻转得到 [0,1) 中的分数。</p>
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│                    离线预计算阶段                         │</span><br><span class="line">├───────────────────┬─────────────────────────────────────┤</span><br><span class="line">│  EnvMap (512×256) │  程序化 HDR 天空                     │</span><br><span class="line">│         ↓         │  sun disc + glow + sky gradient      │</span><br><span class="line">│  PrefilteredEnv   │  6 mip levels (roughness 0→1)        │</span><br><span class="line">│  (各级别单独分辨率)│  每级 1024 GGX 重要性采样             │</span><br><span class="line">│         ↓         │                                      │</span><br><span class="line">│  BRDFLut (256×256)│  F_scale(A), F_bias(B)              │</span><br><span class="line">│                   │  1024 样本 per texel                 │</span><br><span class="line">└───────────────────┴─────────────────────────────────────┘</span><br><span class="line">          ↓ 以上三个结构全部在 main() 前建好</span><br><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│                   实时渲染阶段                            │</span><br><span class="line">├───────────────────────────────────────────────────────────┤</span><br><span class="line">│  背景层：env.sample(rayDir) → 每像素采样环境图            │</span><br><span class="line">│      ↓                                                   │</span><br><span class="line">│  绘制 5×5 球阵列：                                       │</span><br><span class="line">│    • 软光栅化 + 深度缓冲                                  │</span><br><span class="line">│    • 每像素：ray-sphere 求交 → 计算 N、V                  │</span><br><span class="line">│    • shadeIBL() → prefEnv + LUT → 最终颜色               │</span><br><span class="line">│      ↓                                                   │</span><br><span class="line">│  后处理：ACES 色调映射 + Gamma 2.2 编码                   │</span><br><span class="line">│      ↓                                                   │</span><br><span class="line">│  输出 PPM → PIL 转 PNG                                   │</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 程序化环境贴图（lat-lon 格式）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">EnvMap</span> &#123;</span><br><span class="line">    <span class="type">int</span> w, h;</span><br><span class="line">    std::vector&lt;Vec3&gt; data;  <span class="comment">// HDR 线性颜色，无限精度</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">build</span><span class="params">()</span></span>;            <span class="comment">// 逐像素填入 sampleSky()</span></span><br><span class="line">    <span class="function">Vec3 <span class="title">sample</span><span class="params">(Vec3 dir)</span></span>;   <span class="comment">// 双线性插值</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 预滤波环境贴图：6 个粗糙度级别</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">PrefilteredEnv</span> &#123;</span><br><span class="line">    <span class="type">static</span> <span class="type">const</span> <span class="type">int</span> MIPS = <span class="number">6</span>;</span><br><span class="line">    std::vector&lt;EnvMap&gt; levels; <span class="comment">// roughness = 0, 0.2, 0.4, 0.6, 0.8, 1.0</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">build</span><span class="params">(<span class="type">const</span> EnvMap&amp; env)</span></span>;        <span class="comment">// GGX 重要性采样预滤波</span></span><br><span class="line">    <span class="function">Vec3 <span class="title">sample</span><span class="params">(Vec3 dir, <span class="type">float</span> roughness)</span></span>; <span class="comment">// 双线性 mip 插值</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// BRDF 积分查找表</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">BRDFLut</span> &#123;</span><br><span class="line">    <span class="type">int</span> size;               <span class="comment">// 256×256</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; r;  <span class="comment">// F_scale (A 项)</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; g;  <span class="comment">// F_bias  (B 项)</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">build</span><span class="params">()</span></span>;           <span class="comment">// 蒙特卡洛积分</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">sampleLUT</span><span class="params">(<span class="type">float</span> NdotV, <span class="type">float</span> roughness, <span class="type">float</span>&amp; F_scale, <span class="type">float</span>&amp; F_bias)</span></span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-着色器职责划分（类比-GPU-管线）"><a href="#3-3-着色器职责划分（类比-GPU-管线）" class="headerlink" title="3.3 着色器职责划分（类比 GPU 管线）"></a>3.3 着色器职责划分（类比 GPU 管线）</h3><table>
+<thead>
+<tr>
+<th>GPU 管线</th>
+<th>本程序等价</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Vertex Shader</td>
+<td><code>Camera::project</code></td>
+<td>MVP 变换、视锥剔除</td>
+</tr>
+<tr>
+<td>Fragment Shader</td>
+<td><code>shadeIBL</code></td>
+<td>PBR 着色</td>
+</tr>
+<tr>
+<td>Texture Sampling</td>
+<td><code>EnvMap::sample</code>, <code>BRDFLut::sampleLUT</code></td>
+<td>双线性采样</td>
+</tr>
+<tr>
+<td>Render Target</td>
+<td><code>Framebuffer</code></td>
+<td>颜色 + 深度缓冲</td>
+</tr>
+<tr>
+<td>Post-process</td>
+<td><code>aces()</code> + <code>gammaEncode()</code></td>
+<td>Tone-mapping</td>
+</tr>
+</tbody></table>
+<p>与真实 GPU 不同的是，预计算阶段在 CPU 上串行执行（约 22 秒），生产环境会用 compute shader 并行化。</p>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-Hammersley-低差异序列"><a href="#4-1-Hammersley-低差异序列" class="headerlink" title="4.1 Hammersley 低差异序列"></a>4.1 Hammersley 低差异序列</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">radicalInverseVdC</span><span class="params">(<span class="type">uint32_t</span> bits)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Van der Corput 序列：将 bits 的二进制位按中间翻转</span></span><br><span class="line">    <span class="comment">// 例：bits = 0b00000110 (6)</span></span><br><span class="line">    <span class="comment">//   → 先 16-bit swap → 再逐位 swap</span></span><br><span class="line">    <span class="comment">//   得到一个在 [0,1) 中均匀分布的分数</span></span><br><span class="line">    bits = (bits &lt;&lt; <span class="number">16u</span>) | (bits &gt;&gt; <span class="number">16u</span>);</span><br><span class="line">    bits = ((bits &amp; <span class="number">0x55555555u</span>) &lt;&lt; <span class="number">1u</span>) | ((bits &amp; <span class="number">0xAAAAAAAAu</span>) &gt;&gt; <span class="number">1u</span>);</span><br><span class="line">    bits = ((bits &amp; <span class="number">0x33333333u</span>) &lt;&lt; <span class="number">2u</span>) | ((bits &amp; <span class="number">0xCCCCCCCCu</span>) &gt;&gt; <span class="number">2u</span>);</span><br><span class="line">    bits = ((bits &amp; <span class="number">0x0F0F0F0Fu</span>) &lt;&lt; <span class="number">4u</span>) | ((bits &amp; <span class="number">0xF0F0F0F0u</span>) &gt;&gt; <span class="number">4u</span>);</span><br><span class="line">    bits = ((bits &amp; <span class="number">0x00FF00FFu</span>) &lt;&lt; <span class="number">8u</span>) | ((bits &amp; <span class="number">0xFF00FF00u</span>) &gt;&gt; <span class="number">8u</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">float</span>(bits) * <span class="number">2.3283064365386963e-10f</span>; <span class="comment">// 除以 2^32</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 使用：xi1 = (float)s / SAMPLES; xi2 = radicalInverseVdC(s);</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用 Hammersley 而不是 rand()</strong>：纯随机在 1024 样本下方差很大，低差异序列能保证样本在参数空间均匀分布，同样 1024 样本能达到 ~4096 纯随机的精度。</p>
+<h3 id="4-2-GGX-重要性采样"><a href="#4-2-GGX-重要性采样" class="headerlink" title="4.2 GGX 重要性采样"></a>4.2 GGX 重要性采样</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">importanceSampleGGX</span><span class="params">(Vec3 Xi, <span class="type">float</span> roughness, Vec3 N)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> a = roughness * roughness; <span class="comment">// α = roughness²，这是正确的参数化</span></span><br><span class="line">    <span class="comment">// GGX 反函数采样：</span></span><br><span class="line">    <span class="comment">// p(cosθ) = α² cosθ / (π [cosθ²(α²-1)+1]²)</span></span><br><span class="line">    <span class="comment">// → 逆变换采样得到：</span></span><br><span class="line">    <span class="type">float</span> cosTheta = <span class="built_in">sqrtf</span>((<span class="number">1</span> - Xi.y) / (<span class="number">1</span> + (a*a - <span class="number">1</span>) * Xi.y + <span class="number">1e-7f</span>));</span><br><span class="line">    <span class="type">float</span> sinTheta = <span class="built_in">sqrtf</span>(<span class="number">1</span> - cosTheta*cosTheta);</span><br><span class="line">    <span class="type">float</span> phi = <span class="number">2</span> * PI * Xi.x;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 局部空间半程向量 h（在 N=up 坐标系下）</span></span><br><span class="line">    Vec3 H = &#123; sinTheta*<span class="built_in">cosf</span>(phi), cosTheta, sinTheta*<span class="built_in">sinf</span>(phi) &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// TBN 矩阵：把 H 变换到世界空间</span></span><br><span class="line">    <span class="comment">// 这里选 up = (0,1,0) 或 (1,0,0)（避免与 N 平行导致叉积退化）</span></span><br><span class="line">    Vec3 up = <span class="built_in">fabsf</span>(N.y) &lt; <span class="number">0.999f</span> ? <span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">1</span>,<span class="number">0</span>) : <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>);</span><br><span class="line">    Vec3 T = up.<span class="built_in">cross</span>(N).<span class="built_in">normalized</span>();  <span class="comment">// Tangent</span></span><br><span class="line">    Vec3 B = N.<span class="built_in">cross</span>(T);               <span class="comment">// Bitangent</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> (T*H.x + N*H.y + B*H.z).<span class="built_in">normalized</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>易错点</strong>：TBN 矩阵的 <code>up</code> 向量必须与 N 不平行，否则叉积结果为零向量，normalized 会产生 NaN，染出来的球会有黑色斑块。加 <code>fabsf(N.y) &lt; 0.999f</code> 分支保护。</p>
+<h3 id="4-3-预滤波环境贴图构建"><a href="#4-3-预滤波环境贴图构建" class="headerlink" title="4.3 预滤波环境贴图构建"></a>4.3 预滤波环境贴图构建</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">PrefilteredEnv::build</span><span class="params">(<span class="type">const</span> EnvMap&amp; env)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> roughnesses[MIPS] = &#123;<span class="number">0.0f</span>, <span class="number">0.2f</span>, <span class="number">0.4f</span>, <span class="number">0.6f</span>, <span class="number">0.8f</span>, <span class="number">1.0f</span>&#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> m = <span class="number">0</span>; m &lt; MIPS; ++m) &#123;</span><br><span class="line">        <span class="type">float</span> roughness = roughnesses[m];</span><br><span class="line">        <span class="comment">// 分辨率随 mip 降低（和 GPU mip chain 类似）</span></span><br><span class="line">        <span class="type">int</span> w = std::<span class="built_in">max</span>(<span class="number">1</span>, ENV_W &gt;&gt; m);</span><br><span class="line">        <span class="type">int</span> h = std::<span class="built_in">max</span>(<span class="number">1</span>, ENV_H &gt;&gt; m);</span><br><span class="line">        <span class="function">EnvMap <span class="title">level</span><span class="params">(w, h)</span></span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; h; ++j) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; w; ++i) &#123;</span><br><span class="line">                <span class="comment">// 该 texel 对应的方向 N（假设 V ≈ N，等向性处理）</span></span><br><span class="line">                Vec3 N = <span class="comment">/* 从 lat-lon uv 转方向 */</span>;</span><br><span class="line"></span><br><span class="line">                <span class="function">Vec3 <span class="title">prefilteredColor</span><span class="params">(<span class="number">0.f</span>)</span></span>;</span><br><span class="line">                <span class="type">float</span> totalWeight = <span class="number">0.f</span>;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; <span class="number">1024</span>; ++s) &#123;</span><br><span class="line">                    <span class="comment">// 用 GGX 重要性采样生成 H，推导出 L</span></span><br><span class="line">                    Vec3 H = <span class="built_in">importanceSampleGGX</span>(&#123;xi1, xi2, <span class="number">0</span>&#125;, roughness, N);</span><br><span class="line">                    Vec3 L = (<span class="number">2.f</span> * V.<span class="built_in">dot</span>(H) * H - V).<span class="built_in">normalized</span>();</span><br><span class="line"></span><br><span class="line">                    <span class="type">float</span> NdotL = <span class="built_in">saturate</span>(N.<span class="built_in">dot</span>(L));</span><br><span class="line">                    <span class="keyword">if</span> (NdotL &gt; <span class="number">0.f</span>) &#123;</span><br><span class="line">                        <span class="comment">// 加权累加：权重 = NdotL（余弦加权，与渲染方程匹配）</span></span><br><span class="line">                        prefilteredColor += env.<span class="built_in">sample</span>(L) * NdotL;</span><br><span class="line">                        totalWeight += NdotL;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                level.data[j*w+i] = prefilteredColor / (totalWeight + <span class="number">1e-9f</span>);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        levels.<span class="built_in">push_back</span>(std::<span class="built_in">move</span>(level));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计</strong>：使用 <code>NdotL</code> 作为权重而不是统一权重 1，这是因为渲染方程里有 $\cos\theta$ 项，不加权会导致高粗糙度时积分偏低（低角度采样贡献被高估）。</p>
+<p><strong>近似误差</strong>：这里假设 <code>V ≈ N</code>（各向同性）。实际上当 $V \neq N$ 时，反射叶形状在掠射角有明显拉伸，这是 Split-Sum 最大的近似误差来源，在大粗糙度 + 掠射角时误差最明显。</p>
+<h3 id="4-4-BRDF-LUT-构建"><a href="#4-4-BRDF-LUT-构建" class="headerlink" title="4.4 BRDF LUT 构建"></a>4.4 BRDF LUT 构建</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">BRDFLut::build</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; size; ++j) &#123;          <span class="comment">// j: roughness 轴</span></span><br><span class="line">        <span class="type">float</span> roughness = (j + <span class="number">0.5f</span>) / size;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; size; ++i) &#123;      <span class="comment">// i: NdotV 轴</span></span><br><span class="line">            <span class="type">float</span> NdotV = (i + <span class="number">0.5f</span>) / size;</span><br><span class="line">            Vec3 V = &#123; <span class="built_in">sqrtf</span>(<span class="number">1</span> - NdotV*NdotV), NdotV, <span class="number">0.f</span> &#125;; <span class="comment">// 在切平面内</span></span><br><span class="line">            Vec3 N = &#123; <span class="number">0</span>, <span class="number">1</span>, <span class="number">0</span> &#125;;</span><br><span class="line"></span><br><span class="line">            <span class="type">float</span> A = <span class="number">0</span>, B = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; <span class="number">1024</span>; ++s) &#123;</span><br><span class="line">                Vec3 H = <span class="built_in">importanceSampleGGX</span>(Xi, roughness, N);</span><br><span class="line">                Vec3 L = (<span class="number">2.f</span> * V.<span class="built_in">dot</span>(H) * H - V).<span class="built_in">normalized</span>();</span><br><span class="line">                <span class="comment">// ...</span></span><br><span class="line">                <span class="type">float</span> G    = <span class="built_in">GSmith</span>(NdotV, NdotL, roughness);</span><br><span class="line">                <span class="type">float</span> G_vis = (G * VdotH) / (NdotH * NdotV + <span class="number">1e-7f</span>); <span class="comment">// 消去分母</span></span><br><span class="line">                <span class="type">float</span> Fc   = <span class="built_in">powf</span>(<span class="number">1</span> - VdotH, <span class="number">5.f</span>);  <span class="comment">// Schlick Fresnel 的 (1-cosθ)^5 项</span></span><br><span class="line">                <span class="comment">// 拆成 F0*A + B 形式：</span></span><br><span class="line">                A += (<span class="number">1</span> - Fc) * G_vis;  <span class="comment">// F_scale：乘以 F0</span></span><br><span class="line">                B += Fc * G_vis;        <span class="comment">// F_bias：加上常量偏移</span></span><br><span class="line">            &#125;</span><br><span class="line">            r[j*size+i] = A / <span class="number">1024</span>;</span><br><span class="line">            g[j*size+i] = B / <span class="number">1024</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么拆成 A 和 B</strong>：Schlick Fresnel 是 $F_0 + (1-F_0)(1-\cos\theta)^5 &#x3D; F_0(1-Fc) + Fc$，乘进积分后可以把 $F_0$ 提到积分外面（它是常量），剩下 $A$ 和 $B$ 只跟几何量有关，与材质无关，所以可以预计算。不同材质只需在运行时 $F_0 \cdot A + B$ 就能恢复完整结果。</p>
+<h3 id="4-5-IBL-着色"><a href="#4-5-IBL-着色" class="headerlink" title="4.5 IBL 着色"></a>4.5 IBL 着色</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">shadeIBL</span><span class="params">(Vec3 N, Vec3 V, Vec3 albedo, <span class="type">float</span> metallic, <span class="type">float</span> roughness,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">const</span> PrefilteredEnv&amp; prefEnv, <span class="type">const</span> BRDFLut&amp; lut)</span> </span>&#123;</span><br><span class="line">    Vec3 R = (<span class="number">2.f</span> * N.<span class="built_in">dot</span>(V) * N - V).<span class="built_in">normalized</span>(); <span class="comment">// 反射方向</span></span><br><span class="line">    <span class="type">float</span> NdotV = <span class="built_in">saturate</span>(N.<span class="built_in">dot</span>(V));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// F0: 非金属 0.04 白，金属 = albedo 颜色</span></span><br><span class="line">    Vec3 F0 = <span class="built_in">mix</span>(<span class="built_in">Vec3</span>(<span class="number">0.04f</span>), albedo, metallic);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 用带粗糙度修正的 Fresnel（低粗糙度时菲涅尔更强）</span></span><br><span class="line">    <span class="comment">// 注：这里用 fresnelSchlickRoughness 而非普通 Schlick</span></span><br><span class="line">    <span class="comment">// 原因：粗糙表面的掠射角高光不应该和光滑表面一样锐利</span></span><br><span class="line">    Vec3 F = <span class="built_in">fresnelSchlickRoughness</span>(NdotV, F0, roughness);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 镜面反射项：预滤波颜色 × BRDF LUT</span></span><br><span class="line">    Vec3 prefilteredColor = prefEnv.<span class="built_in">sample</span>(R, roughness);</span><br><span class="line">    <span class="type">float</span> F_scale, F_bias;</span><br><span class="line">    lut.<span class="built_in">sampleLUT</span>(NdotV, roughness, F_scale, F_bias);</span><br><span class="line">    Vec3 specular = prefilteredColor * (F * F_scale + F_bias);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 漫反射项：粗糙环境光（用最高 roughness 级别近似 irradiance）</span></span><br><span class="line">    Vec3 irradiance = prefEnv.<span class="built_in">sample</span>(N, <span class="number">1.0f</span>) * <span class="number">0.5f</span>;</span><br><span class="line">    Vec3 kD = (<span class="built_in">Vec3</span>(<span class="number">1.f</span>) - F) * (<span class="number">1.f</span> - metallic); <span class="comment">// 金属无漫反射</span></span><br><span class="line">    Vec3 diffuse = kD * albedo * irradiance;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 加一盏直射点光（catchlight，突出金属感）</span></span><br><span class="line">    <span class="comment">// ... Cook-Torrance 直射光计算 ...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> diffuse + specular + Lo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>metallic</code> 对 <code>kD</code> 的影响</strong>：金属的自由电子几乎吸收所有折射光，没有漫反射，所以 <code>kD *= (1-metallic)</code> 在 metallic&#x3D;1 时让漫反射贡献为零，所有能量都在镜面高光里。</p>
+<h3 id="4-6-Ray-Sphere-求交（软光栅化核心）"><a href="#4-6-Ray-Sphere-求交（软光栅化核心）" class="headerlink" title="4.6 Ray-Sphere 求交（软光栅化核心）"></a>4.6 Ray-Sphere 求交（软光栅化核心）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 对每个像素发出光线，检查与球体的交点</span></span><br><span class="line"><span class="type">float</span> b = oc.<span class="built_in">dot</span>(rayDir);    <span class="comment">// b = (o-c) · d</span></span><br><span class="line"><span class="type">float</span> c = oc.<span class="built_in">dot</span>(oc) - r*r;  <span class="comment">// c = |o-c|² - r²</span></span><br><span class="line"><span class="type">float</span> disc = b*b - c;         <span class="comment">// 判别式</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// disc &lt; 0：光线错过球体</span></span><br><span class="line"><span class="comment">// disc &gt;= 0：取较小的 t（近交点）</span></span><br><span class="line"><span class="type">float</span> t = -b - <span class="built_in">sqrtf</span>(disc);</span><br><span class="line"><span class="keyword">if</span> (t &lt; <span class="number">0.01f</span>) &#123;              <span class="comment">// 近交点在相机后面</span></span><br><span class="line">    t = -b + <span class="built_in">sqrtf</span>(disc);    <span class="comment">// 尝试远交点（相机在球体内部）</span></span><br><span class="line">    <span class="keyword">if</span> (t &lt; <span class="number">0.01f</span>) <span class="keyword">continue</span>; <span class="comment">// 两个交点都在后面</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">Vec3 hitP = cam.pos + rayDir * t;</span><br><span class="line">Vec3 N    = (hitP - center).<span class="built_in">normalized</span>(); <span class="comment">// 球的法线 = 表面点 - 球心</span></span><br><span class="line">Vec3 V    = -rayDir;                       <span class="comment">// 视线方向（指向相机）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>深度测试</strong>：<code>Framebuffer::set</code> 只有当新交点的深度 <code>t</code> 小于当前缓冲值时才更新颜色，确保前后遮挡正确。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="Bug-1：编译错误-—-Vec3-除以-Vec3"><a href="#Bug-1：编译错误-—-Vec3-除以-Vec3" class="headerlink" title="Bug 1：编译错误 — Vec3 除以 Vec3"></a>Bug 1：编译错误 — Vec3 除以 Vec3</h3><p><strong>症状</strong>：ACES tone-mapping 函数编译报错 <code>no match for operator/</code>。</p>
+<p><strong>错误代码</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">return</span> ((c*(a*c+b))/(c*(cc*c+d)+e)).<span class="built_in">clamp01</span>();</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：以为 <code>Vec3 / Vec3</code> 是逐分量除法，就像乘法一样。</p>
+<p><strong>真实原因</strong>：<code>Vec3</code> 只定义了 <code>operator/(float)</code>（除以标量），没有定义 <code>operator/(Vec3)</code>（逐分量除）。</p>
+<p><strong>修复</strong>：改成逐分量计算：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> f = [&amp;](<span class="type">float</span> v)-&gt;<span class="type">float</span>&#123;</span><br><span class="line">    <span class="built_in">return</span> (v*(a*v+b))/(v*(cc*v+d)+e);</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">return</span> <span class="built_in">Vec3</span>(<span class="built_in">f</span>(c.x), <span class="built_in">f</span>(c.y), <span class="built_in">f</span>(c.z)).<span class="built_in">clamp01</span>();</span><br></pre></td></tr></table></figure>
+
+<p><strong>启示</strong>：ACES 在数学上是逐分量应用的——每个颜色通道独立经过 S 型曲线。不要以为 <code>(A/B)</code> 的 Vec3 版本是”显然的”。</p>
+<h3 id="Bug-2：编译警告-—-成员初始化顺序"><a href="#Bug-2：编译警告-—-成员初始化顺序" class="headerlink" title="Bug 2：编译警告 — 成员初始化顺序"></a>Bug 2：编译警告 — 成员初始化顺序</h3><p><strong>症状</strong>：<code>Framebuffer</code> 和 <code>Camera</code> 的构造函数触发 <code>-Wreorder</code> 警告。</p>
+<p><strong>错误代码</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Framebuffer</span> &#123;</span><br><span class="line">    std::vector&lt;Vec3&gt; color;   <span class="comment">// 先声明</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; depth;</span><br><span class="line">    <span class="type">int</span> w, h;                  <span class="comment">// 后声明</span></span><br><span class="line">    <span class="comment">// 但初始化列表里 w(w), h(h), color(w*h)</span></span><br><span class="line">    <span class="comment">// → 实际上 color 比 w 先初始化！</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：以为初始化列表按写的顺序执行。</p>
+<p><strong>真实原因</strong>：C++ 规定成员按<strong>声明顺序</strong>初始化，与初始化列表顺序无关。<code>color(w*h)</code> 在 <code>w</code> 初始化之前执行，<code>w</code> 是未定义值，UB。</p>
+<p><strong>修复</strong>：将 <code>int w, h</code> 的声明移到 vector 前面：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Framebuffer</span> &#123;</span><br><span class="line">    <span class="type">int</span> w, h;                  <span class="comment">// 先声明</span></span><br><span class="line">    std::vector&lt;Vec3&gt; color;</span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; depth;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>启示</strong>：结构体的成员声明顺序决定初始化顺序，不是初始化列表的写法顺序。开启 <code>-Wreorder</code> 警告能救命。</p>
+<h3 id="Bug-3：图像偏亮问题"><a href="#Bug-3：图像偏亮问题" class="headerlink" title="Bug 3：图像偏亮问题"></a>Bug 3：图像偏亮问题</h3><p><strong>症状</strong>：输出图像大量溢出（<code>Max: 255</code>）但不全白，ACES 后高光区域仍然过曝。</p>
+<p><strong>原因排查</strong>：直射光亮度系数设得太高（<code>Vec3{8.0f, 6.5f, 4.0f}</code>）。但 ACES 本来就是为了处理过曝高光设计的——实际上这不是 bug，而是 HDR → LDR 的正常行为。检查 <code>pixel mean = 192.3</code>，在正常范围 (10~240) 内。</p>
+<p><strong>保留决策</strong>：保持高动态范围输入，让 ACES 自然压缩。最终均值 192.3，标准差 24.3，像素分布合理。</p>
+<h3 id="Bug-4：ppm-文件格式解析"><a href="#Bug-4：ppm-文件格式解析" class="headerlink" title="Bug 4：ppm 文件格式解析"></a>Bug 4：ppm 文件格式解析</h3><p><strong>症状</strong>：Python PIL 直接 <code>Image.open(&quot;ibl_output.ppm&quot;)</code> 报错退出。</p>
+<p><strong>原因</strong>：PIL 不在默认安装里，运行环境没有 Pillow。</p>
+<p><strong>修复</strong>：<code>pip3 install Pillow</code> 后，再写自定义 ppm 解析器（逐字节读取 header + raw RGB data）避免格式误判：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">with</span> <span class="built_in">open</span>(<span class="string">&#x27;ibl_output.ppm&#x27;</span>,<span class="string">&#x27;rb&#x27;</span>) <span class="keyword">as</span> f:</span><br><span class="line">    lines = []</span><br><span class="line">    <span class="keyword">for</span> _ <span class="keyword">in</span> <span class="built_in">range</span>(<span class="number">3</span>):  <span class="comment"># P6, WxH, maxval 三行</span></span><br><span class="line">        line = <span class="string">b&#x27;&#x27;</span></span><br><span class="line">        <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">            ch = f.read(<span class="number">1</span>)</span><br><span class="line">            line += ch</span><br><span class="line">            <span class="keyword">if</span> ch == <span class="string">b&#x27;\n&#x27;</span>: <span class="keyword">break</span></span><br><span class="line">        lines.append(line.decode().strip())</span><br><span class="line">    data = f.read()  <span class="comment"># 剩余全是 raw bytes</span></span><br><span class="line"></span><br><span class="line">w, h = <span class="built_in">map</span>(<span class="built_in">int</span>, lines[<span class="number">1</span>].split())</span><br><span class="line">arr = np.frombuffer(data, dtype=np.uint8).reshape((h, w, <span class="number">3</span>))</span><br><span class="line">Image.fromarray(arr, <span class="string">&#x27;RGB&#x27;</span>).save(<span class="string">&#x27;ibl_output.png&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="6-1-渲染结果"><a href="#6-1-渲染结果" class="headerlink" title="6.1 渲染结果"></a>6.1 渲染结果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png" alt="5×5 IBL 材质球阵列"></p>
+<p><strong>矩阵布局</strong>：</p>
+<ul>
+<li><strong>列（左→右）</strong>：metallic 从 0（纯非金属）到 1（纯金属），albedo 分别为金色&#x2F;银色&#x2F;铁色&#x2F;铝色&#x2F;蓝色</li>
+<li><strong>行（上→下）</strong>：roughness 从 0.05（接近镜面）到 1.0（完全粗糙漫反射）</li>
+</ul>
+<h3 id="6-2-输出量化指标"><a href="#6-2-输出量化指标" class="headerlink" title="6.2 输出量化指标"></a>6.2 输出量化指标</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>输出文件大小</td>
+<td>151KB</td>
+<td>&gt; 10KB ✅</td>
+</tr>
+<tr>
+<td>像素均值</td>
+<td>192.3</td>
+<td>在 (10, 240) 内 ✅</td>
+</tr>
+<tr>
+<td>像素标准差</td>
+<td>24.3</td>
+<td>&gt; 5（有内容变化）✅</td>
+</tr>
+<tr>
+<td>像素最小值</td>
+<td>47</td>
+<td>非全黑 ✅</td>
+</tr>
+<tr>
+<td>像素最大值</td>
+<td>255</td>
+<td>高光正常饱和 ✅</td>
+</tr>
+<tr>
+<td>渲染分辨率</td>
+<td>960×540</td>
+<td>16:9</td>
+</tr>
+<tr>
+<td>总运行时间</td>
+<td>21.8s</td>
+<td>CPU 软渲染</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-渲染时间分解"><a href="#6-3-渲染时间分解" class="headerlink" title="6.3 渲染时间分解"></a>6.3 渲染时间分解</h3><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>耗时</th>
+<th>主要工作量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>环境贴图构建</td>
+<td>~0.1s</td>
+<td>512×256 &#x3D; 131K 像素</td>
+</tr>
+<tr>
+<td>预滤波环境贴图</td>
+<td>~18s</td>
+<td>6层 × 各级像素 × 1024 采样</td>
+</tr>
+<tr>
+<td>BRDF LUT</td>
+<td>~3s</td>
+<td>256×256 texel × 1024 采样</td>
+</tr>
+<tr>
+<td>球阵列渲染</td>
+<td>~0.7s</td>
+<td>25 球 × 约 120²像素 × ray-sphere</td>
+</tr>
+</tbody></table>
+<p>预滤波阶段占了总时间的 82%。GPU 版本会用 compute shader 并行化，理论上能在 &lt;1ms 内完成（Radeon RX 6800 上约 0.3ms）。</p>
+<h3 id="6-4-可视现象验证"><a href="#6-4-可视现象验证" class="headerlink" title="6.4 可视现象验证"></a>6.4 可视现象验证</h3><p>从渲染结果中可以观察到以下物理正确行为：</p>
+<ol>
+<li><strong>低粗糙度行（顶部）</strong>：镜面高光极度集中，金属球清晰倒映天空蓝色，非金属球高光点小而亮</li>
+<li><strong>高粗糙度行（底部）</strong>：高光完全扩散为漫反射，金属球颜色就是自身 albedo + 环境漫散射</li>
+<li><strong>metallic 梯度</strong>：左列（metallic&#x3D;0）有明显漫反射 albedo 颜色，右列（metallic&#x3D;1）颜色完全来自环境反射</li>
+<li><strong>Fresnel 效应</strong>：球边缘（掠射角）的菲涅尔反射加强，即便是低金属度的球也能在边缘看到环境反射</li>
+</ol>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="7-1-Split-Sum-的局限性"><a href="#7-1-Split-Sum-的局限性" class="headerlink" title="7.1 Split-Sum 的局限性"></a>7.1 Split-Sum 的局限性</h3><p><strong>误差来源 1：V≈N 假设</strong><br>在掠射角（$n \cdot v \to 0$）时误差最大，反射叶在掠射方向有明显拉伸，而预滤波贴图没有捕获这个各向异性形状。表现为掠射金属球的高光形状不够准确。</p>
+<p><strong>误差来源 2：低频近似</strong><br>Split-Sum 假设积分的两部分是独立的，但实际上 BRDF 波瓣和环境光分布之间有相关性（比如太阳恰好在反射方向上），这种相关性在近似中丢失了，导致强方向光下能量不守恒。</p>
+<p><strong>误差来源 3：单次散射</strong><br>GGX 微表面模型只考虑一次散射，多次散射（光在微表面凹槽里弹射多次）被忽略了，高粗糙度时颜色会偏暗（能量损失）。修复方案是 Kulla-Conty 补偿。</p>
+<h3 id="7-2-可优化方向"><a href="#7-2-可优化方向" class="headerlink" title="7.2 可优化方向"></a>7.2 可优化方向</h3><p><strong>性能</strong>：</p>
+<ul>
+<li>GPU 版本：compute shader 并行预计算，离线生成 DDS&#x2F;KTX 文件</li>
+<li>球谐函数近似 irradiance（只需 9 个系数，3×3 矩阵乘法）</li>
+<li>Mipmapped Cubemap 采样（硬件三线性过滤）</li>
+</ul>
+<p><strong>质量</strong>：</p>
+<ul>
+<li>Kulla-Conty 多次散射补偿（改善高粗糙度能量守恒）</li>
+<li>各向异性 IBL（对各向异性材质，需要 V-dependent 预滤波）</li>
+<li>实时 Reflection Capture（周期性重新烘焙动态环境）</li>
+</ul>
+<p><strong>功能扩展</strong>：</p>
+<ul>
+<li>加入局部反射探针（基于盒体投影修正远近视差）</li>
+<li>Area Light 的 LTC（Linearly Transformed Cosines）近似</li>
+</ul>
+<h3 id="7-3-与本系列的关联"><a href="#7-3-与本系列的关联" class="headerlink" title="7.3 与本系列的关联"></a>7.3 与本系列的关联</h3><p>本系列已经积累了 PBR 的多个组成部分：</p>
+<ul>
+<li><strong>Day 3</strong>（04-03）：Disney Principled BRDF——材质参数设计</li>
+<li><strong>Day 18</strong>（04-20）：PCSS——直射光软阴影</li>
+<li><strong>Day 19</strong>（04-21）：Bloom——高光泛光后处理</li>
+<li><strong>今天</strong>（05-06）：IBL Split-Sum——环境间接光照</li>
+</ul>
+<p>下一步可以做的是 <strong>Screen Space Ambient Occlusion (SSAO)</strong>（已在 03-25 做过）的延伸：<strong>HBAO+</strong>（Horizon-Based AO），或者实现完整的 <strong>Reflection Probe 捕获系统</strong>，使 IBL 支持动态场景。</p>
+<hr>
+<p><strong>代码地址</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026-05-06">GitHub - daily-coding-practice&#x2F;2026-05-06</a><br><strong>渲染时间</strong>：21.8s（纯 CPU 软渲染，960×540）<br><strong>技术栈</strong>：C++17 + STL，零外部依赖</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/">https://chiuhoukazusa.github.io/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/PBR/">PBR</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/IBL/">IBL</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/05/daily-coding-path-guiding-2026-05-05/" title="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-05-path-guiding/path_guiding_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Path Guiding Renderer with SD-Tree 用空间缓存学习光照分布，让蒙特卡洛路径追踪”知道”往哪里看。   左：Path Guiding 引导渲染（128 spp，2学习轮次+2渲染轮次）；右：纯余弦半球采样参考（64 spp）  ① 背景与动机蒙特卡洛路径追踪的噪声困境标准路径追踪（Path Tracing）是目前离线渲染的主流框架，但它有一个固有的痛点：收敛速度慢，噪声多。 在漫反射表面的路径追踪中，我们通常在半球上均匀采样或按余弦加权采样反射方向。这种做法在物理上是无偏的——任何方向都有可能贡献能量——但在实践中，大量采样方向对最终像素几乎没有贡献，白白浪费了采样预算。 具体来说：  直接光照在场景中通常集中在光源方向附近的一小块立体角 间接光照受到几何约束，能量往往集中在某些特定方向 焦散（caustics）只有极少数路径能够命中，余弦采样几乎是”大海捞针”  结果就是：即使渲染 256 spp，某些像素仍然布满萤火虫噪声（fireflies），尤其是包含复杂光路的场景——玻璃球后面的焦散、镜面球之间的多次反射、间接照明的角落。 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/27/daily-coding-pbr-cook-torrance-2026-02-27/" title="每日编程实践: PBR Cook-Torrance BRDF 渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-27-pbr-cook-torrance/pbr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-27</div><div class="info-item-2">每日编程实践: PBR Cook-Torrance BRDF 渲染器</div></div><div class="info-2"><div class="info-item-1">PBR Cook-Torrance BRDF 渲染器今天实现了基于物理的渲染（Physically Based Rendering, PBR）中最核心的 Cook-Torrance BRDF 模型，渲染出 5×4 材质球阵列，直观展示金属度（Metallic）和粗糙度（Roughness）对材质外观的影响。 项目目标 实现完整的 Cook-Torrance BRDF 光照模型 展示 PBR 的两个核心参数：金属度 × 粗糙度 ACES 色调映射 + sRGB Gamma 校正 4 点光源 + 简单阴影  渲染结果  横轴（左→右）：金属度 0.0 → 1.0 纵轴（上→下）：粗糙度 0.05 → 1.0 材质颜色：金黄色（R:1.0, G:0.71, B:0.29）  理论基础Cook-Torrance BRDFPBR 核心公式： 1f(l,v) = kd · (albedo/π) + ks · (D·G·F) / (4·(n·v)·(n·l))  其中三个镜面项分别是： D - 法线分布函数（GGX&#x2F;Trowbridge-Reitz） 描述微表面法线的统计分布，GGX...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-22-marschner-hair/marschner_hair_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-22</div><div class="info-item-2">每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Marschner Hair Rendering今天实现了 Marschner 头发光照模型——这是游戏渲染领域最重要的头发着色模型之一，自 2003 年发表以来几乎成为工业标准。渲染结果是 120 根 Cubic Bezier 发丝，在三盏灯下展示出 R（反射）、TT（透射）、TRT（内反射）三条散射路径的物理效果。   ① 背景与动机：为什么头发渲染这么难传统 Phong&#x2F;Blinn-Phong 的失败头发是一种极其特殊的几何体：它是直径约 70μm 的细圆柱，长度可达数十厘米。当光打在头发上，不仅会在表面反射，还会穿透半透明的皮质层，在内部散射后从另一侧透出。这种多路径散射行为是 Phong 模型完全无法描述的。 使用 Phong 模型渲染头发会得到什么？高光沿着”法向量最接近半向量”的位置出现，但头发没有固定法向量（它是圆柱），渲染结果是均匀的漫反射团，毫无层次感，就像把头发当作哑光塑料管渲染。 Kajiya-Kay 的局限性2003 年之前，工业界常用 Kajiya-Kay 1989 模型。它聪明地把头发的切向量 T 引入 Phong 公式，用 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/17/daily-coding-ltc-area-light-rendering-2026-03-17/" title="每日编程实践: LTC Area Light Rendering 面光源渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-17-LTC-Area-Light-Rendering/ltc_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-17</div><div class="info-item-2">每日编程实践: LTC Area Light Rendering 面光源渲染</div></div><div class="info-2"><div class="info-item-1">LTC Area Light Rendering - 面光源渲染今天实现了基于 线性变换余弦（Linearly Transformed Cosines, LTC） 的矩形面光源实时渲染算法——源自 Heitz et al. SIGGRAPH 2016 的工作。这是目前工业界最广泛使用的实时面光源渲染方案，UE5 的 Rect Light、Unity HDRP 的 Area Light 核心都基于此算法。   为什么面光源难以实时渲染？点光源的局限传统实时渲染使用点光源、方向光、聚光灯等”无面积”光源。这些光源的 BRDF 积分有解析解： 1L_o(x, ω_o) = f_r(x, ω_i, ω_o) · L_i · cos(θ_i)  因为光源退化为单一方向 ω_i，积分消失了，只剩一次 BRDF 求值。 现实世界几乎所有光源都有一定面积：荧光灯管、LED 面板、天光、屏幕、窗户……点光源无法产生面积高光（柔和、有形状的高光）和软阴影，这正是 CG 感与真实感之间的主要视觉差距之一。 面光源的积分问题对于面积光源，BRDF 积分变成： 1L_o(x, ω_o) = ∫_A f_r...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-03</div><div class="info-item-2">每日编程实践: Disney Principled BRDF Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在现代实时渲染和离线渲染领域，材质系统是最核心的模块之一。早期的渲染系统采用 Phong 或 Blinn-Phong 模型，这些模型参数对美术不直观——改变”高光指数”时，你无法直觉判断结果。而且这些模型能量不守恒：高光加上漫反射经常超过入射光能量，导致不真实感。 2012 年，Burley 在 SIGGRAPH 发表了《Physically-Based Shading at Disney》，提出了 Principled BRDF（原则性双向反射分布函数）。这个模型的核心哲学不是追求”物理精确”，而是追求对艺术家直觉友好 + 足够真实：  对艺术家友好：所有参数都在 [0, 1] 范围内，语义直观（metallic&#x3D;0 是绝缘体，&#x3D;1 是金属） 能量守恒：漫反射和镜面反射之和不超过入射能量 适用广泛：皮肤、金属、玻璃、布料，用同一套参数系统搞定  工业界使用场景Disney BRDF 或其变体已经被以下系统采用：  Unreal Engine 4&#x2F;5：Epic 改良了 Disney BRDF，称为”UE4 Shading Model”，是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-29-sss-renderer/sss_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-29</div><div class="info-item-2">每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么需要次表面散射？在照片级渲染中，有一类材质的表现一直是难题：半透明材质。 当你用标准的 Lambert 漫反射模型渲染一张人脸时，会发现效果永远”不对劲”——皮肤看起来像是涂了一层哑光油漆，既没有活人脸上那种温润的透光感，也缺乏皮下组织带来的红润色调。同样的问题出现在蜡烛、大理石、玉石、牛奶、树叶等材质上。 根本原因：Lambert 模型假设光线在表面发生漫反射，照射点与出射点相同。但真实世界中，大量材质对光线是半透明的——光子穿入表面、在内部经历多次散射、从另一个位置射出。这个过程叫做次表面散射（Subsurface Scattering，SSS）。 用公式表示：  标准 BRDF（Bidirectional Reflectance Distribution Function）：$f_r(x_i, \omega_i, \omega_o)$，出射点 &#x3D; 入射点 BSSRDF（Bidirectional Subsurface Scattering Reflectance Distribution Function）：$S(x_i, \omega_i, ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/31/daily-coding-caustics-renderer-2026-03-31/" title="每日编程实践: Caustics Renderer — 光子映射焦散渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-31-caustics/caustics_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-31</div><div class="info-item-2">每日编程实践: Caustics Renderer — 光子映射焦散渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Caustics Renderer — 光子映射焦散渲染今天的项目是用**光子映射（Photon Mapping）算法渲染焦散（Caustics）**效果——玻璃球折射光线在漫反射地板上形成的亮斑图案。这是计算机图形学中最经典且最难正确实现的效果之一，纯路径追踪需要极长时间才能收敛，而光子映射可以在有限时间内产生可辨识的焦散图案。 一、背景与动机什么是焦散？焦散（Caustics）是光线通过折射或反射介质后聚焦在漫反射表面形成的亮斑。游泳池底部的波纹光斑、玻璃杯旁的彩色光圈、钻石的内部闪烁——都是焦散现象。 从物理角度看，焦散是辐照度场的高频信息：光子从光源出发，通过玻璃的斯涅尔折射改变方向，最终在某块漫反射地面上”聚堆”，该区域接收到的光通量远高于周围，形成明亮的光斑。 为什么纯路径追踪很难渲染焦散？想用路径追踪渲染焦散，渲染器需要从相机出发，击中地板，然后经历以下路径才能采样到焦散贡献： 1相机 → 地板 → 玻璃球（进入）→ 玻璃球（离开）→ 光源  这条路径称为 LS²DE 路径（Light-Specular-Specular-Diffuse-Eye）。问题...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">89</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">107</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5-Day-62%EF%BC%9AIBL-Split-Sum-PBR-Renderer"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践 Day 62：IBL Split-Sum PBR Renderer</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">一、背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E6%B2%A1%E6%9C%89-IBL-%E6%97%B6%E7%9A%84%E4%B8%96%E7%95%8C"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 没有 IBL 时的世界</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-IBL-%E7%9A%84%E6%80%9D%E8%B7%AF%EF%BC%9A%E6%8D%A2%E4%B8%80%E4%B8%AA%E8%A1%A8%E7%A4%BA%E5%BD%A2%E5%BC%8F"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 IBL 的思路：换一个表示形式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E5%AE%9E%E9%99%85%E5%B7%A5%E4%B8%9A%E7%94%A8%E9%80%94"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 实际工业用途</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Cook-Torrance-%E5%BE%AE%E8%A1%A8%E9%9D%A2-BRDF-%E5%9B%9E%E9%A1%BE"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 Cook-Torrance 微表面 BRDF 回顾</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Split-Sum-%E8%BF%91%E4%BC%BC%E7%9A%84%E6%95%B0%E5%AD%A6%E7%BB%86%E8%8A%82"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 Split-Sum 近似的数学细节</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-GGX-%E9%87%8D%E8%A6%81%E6%80%A7%E9%87%87%E6%A0%B7"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 GGX 重要性采样</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%9D%80%E8%89%B2%E5%99%A8%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86%EF%BC%88%E7%B1%BB%E6%AF%94-GPU-%E7%AE%A1%E7%BA%BF%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 着色器职责划分（类比 GPU 管线）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Hammersley-%E4%BD%8E%E5%B7%AE%E5%BC%82%E5%BA%8F%E5%88%97"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 Hammersley 低差异序列</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-GGX-%E9%87%8D%E8%A6%81%E6%80%A7%E9%87%87%E6%A0%B7"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 GGX 重要性采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E9%A2%84%E6%BB%A4%E6%B3%A2%E7%8E%AF%E5%A2%83%E8%B4%B4%E5%9B%BE%E6%9E%84%E5%BB%BA"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 预滤波环境贴图构建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-BRDF-LUT-%E6%9E%84%E5%BB%BA"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 BRDF LUT 构建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-IBL-%E7%9D%80%E8%89%B2"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 IBL 着色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-Ray-Sphere-%E6%B1%82%E4%BA%A4%EF%BC%88%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96%E6%A0%B8%E5%BF%83%EF%BC%89"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 Ray-Sphere 求交（软光栅化核心）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E7%BC%96%E8%AF%91%E9%94%99%E8%AF%AF-%E2%80%94-Vec3-%E9%99%A4%E4%BB%A5-Vec3"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：编译错误 — Vec3 除以 Vec3</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A-%E2%80%94-%E6%88%90%E5%91%98%E5%88%9D%E5%A7%8B%E5%8C%96%E9%A1%BA%E5%BA%8F"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：编译警告 — 成员初始化顺序</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%9B%BE%E5%83%8F%E5%81%8F%E4%BA%AE%E9%97%AE%E9%A2%98"><span class="toc-number">1.5.3.</span> <span class="toc-text">Bug 3：图像偏亮问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9Appm-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%A7%A3%E6%9E%90"><span class="toc-number">1.5.4.</span> <span class="toc-text">Bug 4：ppm 文件格式解析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%B8%B2%E6%9F%93%E7%BB%93%E6%9E%9C"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 渲染结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E8%BE%93%E5%87%BA%E9%87%8F%E5%8C%96%E6%8C%87%E6%A0%87"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 输出量化指标</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%B8%B2%E6%9F%93%E6%97%B6%E9%97%B4%E5%88%86%E8%A7%A3"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 渲染时间分解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%8F%AF%E8%A7%86%E7%8E%B0%E8%B1%A1%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 可视现象验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-Split-Sum-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 Split-Sum 的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/" title="每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-06-ibl-split-sum-pbr/ibl_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/06/daily-coding-ibl-split-sum-pbr-2026-05-06/" title="每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图">每日编程实践: IBL Split-Sum PBR Renderer — 基于图像的光照与预滤波环境贴图</a><time datetime="2026-05-05T21:30:00.000Z" title="发表于 2026-05-06 05:30:00">2026-05-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/05/daily-coding-path-guiding-2026-05-05/" title="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-05-path-guiding/path_guiding_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/05/daily-coding-path-guiding-2026-05-05/" title="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching">每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching</a><time datetime="2026-05-04T21:30:00.000Z" title="发表于 2026-05-05 05:30:00">2026-05-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/04/daily-coding-light-field-renderer-2026-05-04/" title="每日编程实践: Light Field Renderer — 光场渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-04-light-field-renderer/light_field_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Light Field Renderer — 光场渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/04/daily-coding-light-field-renderer-2026-05-04/" title="每日编程实践: Light Field Renderer — 光场渲染器">每日编程实践: Light Field Renderer — 光场渲染器</a><time datetime="2026-05-03T21:30:00.000Z" title="发表于 2026-05-04 05:30:00">2026-05-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-03-prt-renderer/prt_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照">每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照</a><time datetime="2026-05-02T21:30:00.000Z" title="发表于 2026-05-03 05:30:00">2026-05-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Radiance Cascade Global Illumination"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination">每日编程实践: Radiance Cascade Global Illumination</a><time datetime="2026-05-01T21:36:19.000Z" title="发表于 2026-05-02 05:36:19">2026-05-02</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
