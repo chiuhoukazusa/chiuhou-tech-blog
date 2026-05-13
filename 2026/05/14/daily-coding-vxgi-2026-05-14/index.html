@@ -1,0 +1,447 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: VXGI 体素全局光照渲染器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机全局光照（Global Illumination，GI）是真实感渲染中最核心也最昂贵的问题。光在现实世界中不只是从光源直射到表面，它还会在墙面、物体间多次弹射，产生漫反射互照（color bleeding）、焦散（caustics）、间接阴影和统一的光照感——这些效果让场景看起来”真实”，缺了它们场景就会显得塑料、干燥。 没有 GI 时：  所有阴影面都一片死黑（现实中背光面受到来自其他">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: VXGI 体素全局光照渲染器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/14/daily-coding-vxgi-2026-05-14/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机全局光照（Global Illumination，GI）是真实感渲染中最核心也最昂贵的问题。光在现实世界中不只是从光源直射到表面，它还会在墙面、物体间多次弹射，产生漫反射互照（color bleeding）、焦散（caustics）、间接阴影和统一的光照感——这些效果让场景看起来”真实”，缺了它们场景就会显得塑料、干燥。 没有 GI 时：  所有阴影面都一片死黑（现实中背光面受到来自其他">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png">
+<meta property="article:published_time" content="2026-05-13T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-13T21:53:25.906Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="体素">
+<meta property="article:tag" content="全局光照">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: VXGI 体素全局光照渲染器",
+  "url": "https://chiuhoukazusa.github.io/2026/05/14/daily-coding-vxgi-2026-05-14/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png",
+  "datePublished": "2026-05-13T21:30:00.000Z",
+  "dateModified": "2026-05-13T21:53:25.906Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/14/daily-coding-vxgi-2026-05-14/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: VXGI 体素全局光照渲染器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: VXGI 体素全局光照渲染器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: VXGI 体素全局光照渲染器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-13T21:30:00.000Z" title="发表于 2026-05-14 05:30:00">2026-05-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-13T21:53:25.906Z" title="更新于 2026-05-14 05:53:25">2026-05-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>全局光照（Global Illumination，GI）是真实感渲染中最核心也最昂贵的问题。光在现实世界中不只是从光源直射到表面，它还会在墙面、物体间多次弹射，产生漫反射互照（color bleeding）、焦散（caustics）、间接阴影和统一的光照感——这些效果让场景看起来”真实”，缺了它们场景就会显得塑料、干燥。</p>
+<p>没有 GI 时：</p>
+<ul>
+<li>所有阴影面都一片死黑（现实中背光面受到来自其他表面的漫射光）</li>
+<li>红墙旁边的白墙不会泛红（color bleeding 缺失）</li>
+<li>地面角落的细节完全丢失（缺少间接遮蔽感）</li>
+</ul>
+<p>游戏引擎中 GI 的实现方案经历了漫长的演进：</p>
+<ul>
+<li><strong>烘焙光照贴图（Baked Lightmap）</strong>：Unreal 3&#x2F;Unity 时代的主流方案。离线计算后写入贴图，动态物体无法接受 GI，更新慢，占内存。</li>
+<li><strong>光照探针（Light Probe）</strong>：Unreal 4 的 ILC，Unity 的 Probe Grid。低频近似，对小物体有伪影，不支持高频 specular GI。</li>
+<li><strong>SVOGI（Sparse Voxel Octree GI）</strong>：Unreal 4 的实验性功能，在稀疏体素八叉树上做锥追踪，效果惊艳但实时代价极高。</li>
+<li><strong>VXGI（Voxel Cone Tracing GI）</strong>：NVIDIA 2011 年由 Cyril Crassin 在 CryEngine 演示。将场景体素化到 3D 纹理（带 MIP），用少量锥追踪积分半球辐射，实现近似实时的动态 GI。</li>
+<li><strong>Radiance Cascade</strong>：2024 年 Lumen 的后续演进方向，多级探针级联。</li>
+</ul>
+<p>今天实现的是 VXGI 的软光栅版本：不使用 GPU，用纯 CPU 单线程实现，目标是搞清楚 VXGI 的核心思路而不是追求实时性能。</p>
+<p><strong>VXGI 在工业界的实际使用</strong>：</p>
+<ul>
+<li>CryEngine 3.8 引入 SVOGI，后因性能问题降格为预计算模式</li>
+<li>Unreal Engine 4.x 有 VXGI 插件（NVIDIA Gameworks），在 GPU 端实时跑</li>
+<li>Unity HDRP 的 Probe Volume（APV）借鉴了体素&#x2F;探针思路</li>
+<li>自研引擎（如 Naughty Dog、Guerrilla）用各种 GI Probes + 锥追踪组合</li>
+</ul>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="渲染方程与-GI-的本质"><a href="#渲染方程与-GI-的本质" class="headerlink" title="渲染方程与 GI 的本质"></a>渲染方程与 GI 的本质</h3><p>渲染方程（Kajiya 1986）：</p>
+<p>$$L_o(x, \omega_o) &#x3D; L_e(x, \omega_o) + \int_{\Omega} f_r(x, \omega_i, \omega_o) \cdot L_i(x, \omega_i) \cdot (\omega_i \cdot n) , d\omega_i$$</p>
+<p>其中：</p>
+<ul>
+<li>$L_o$ 是出射辐射（我们要求的量）</li>
+<li>$L_e$ 是自发光项</li>
+<li>$f_r$ 是 BRDF（双向反射分布函数）</li>
+<li>$L_i$ 是入射辐射——这里递归包含了间接光照</li>
+<li>$\omega_i \cdot n &#x3D; \cos\theta_i$ 是余弦因子（Lambert 定律）</li>
+</ul>
+<p>GI 的难点就在 $L_i$：它本身也是另一个表面的 $L_o$，形成无限递归。光线追踪用随机采样 + 俄罗斯轮盘赌截断这个递归。VXGI 则用体素预计算 + 锥追踪来近似积分。</p>
+<h3 id="体素化的本质"><a href="#体素化的本质" class="headerlink" title="体素化的本质"></a>体素化的本质</h3><p>体素化把连续的三角形表面转化为离散的 3D 网格，每个体素存储该位置的：</p>
+<ul>
+<li>平均反照率（albedo）</li>
+<li>平均法向量（normal）</li>
+<li>直接光照辐射（radiance，下一节注入）</li>
+<li>不透明度（opacity，0&#x3D;空气，1&#x3D;表面）</li>
+</ul>
+<p>体素化有多种方式：</p>
+<ol>
+<li><strong>光栅化投影法</strong>：对三角形分别投影到 XY&#x2F;YZ&#x2F;XZ 三个面，保守光栅化填充体素。GPU 可用 geometry shader 实现。</li>
+<li><strong>射线检测法</strong>（本实现）：从每个体素中心发射 6 方向射线，如果任何方向在 <code>VS*0.8</code> 距离内击中三角形，则认为该体素是表面体素。</li>
+</ol>
+<p>射线法简单但保守性差：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span>(<span class="type">const</span> <span class="keyword">auto</span>&amp; d : dirs[<span class="number">6</span>]) &#123;</span><br><span class="line">    <span class="type">float</span> bestT = VS * <span class="number">0.8f</span>;  <span class="comment">// 只检测距离 &lt; 0.8 个体素的碰撞</span></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">const</span> <span class="keyword">auto</span>&amp; tri : scene) &#123;</span><br><span class="line">        <span class="type">float</span> t;</span><br><span class="line">        <span class="keyword">if</span>(<span class="built_in">rayTriangle</span>(c, d, tri, t) &amp;&amp; t &lt; bestT) &#123;</span><br><span class="line">            bestT = t;</span><br><span class="line">            sumAlb += tri.albedo;</span><br><span class="line">            sumNorm += tri.<span class="built_in">normal</span>();</span><br><span class="line">            hits++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>VS * 0.8</code>：为什么用 0.8 而不是 1.0？因为体素中心到体素表面的最短距离是 <code>VS/2 = 0.5*VS</code>，用 0.8 给了一点容差。</p>
+<h3 id="直接光注入"><a href="#直接光注入" class="headerlink" title="直接光注入"></a>直接光注入</h3><p>体素化完成后，对每个实体体素预计算一次直接光照，结果存入 <code>voxel.radiance</code>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">injectDirectLight</span><span class="params">(VoxelGrid&amp; g, <span class="type">const</span> std::vector&lt;Triangle&gt;&amp; scene)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> each filled voxel &#123;</span><br><span class="line">        Vec3 c = grid.<span class="built_in">voxelCenter</span>(ix, iy, iz);</span><br><span class="line">        vox.radiance = <span class="built_in">directLight</span>(c, vox.normal, vox.albedo, scene)</span><br><span class="line">                     + vox.albedo * <span class="number">0.05f</span>;  <span class="comment">// 小量环境光底色</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的直接光用的是解析点光（area light 近似）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">L_direct = L_emit * albedo * ndotl * (LAREA / (dist² + 0.1)) / π</span><br></pre></td></tr></table></figure>
+
+<p>分解理解：</p>
+<ul>
+<li><code>L_emit * albedo</code>：光源强度乘以表面反照率（漫反射 BRDF 的 albedo&#x2F;π，π 在分母）</li>
+<li><code>ndotl</code>：Lambert 余弦因子（入射角越斜，受光越少）</li>
+<li><code>LAREA / dist²</code>：面积光的立体角近似（距离越远，光强越弱）</li>
+<li><code>/ π</code>：Lambertian BRDF 的归一化因子</li>
+</ul>
+<p><strong>重要</strong>：这里存的 <code>radiance</code> 是”该体素表面会向外辐射多少光”，用于后续 GI bounce 的积分源。</p>
+<h3 id="锥追踪（Cone-Tracing）原理"><a href="#锥追踪（Cone-Tracing）原理" class="headerlink" title="锥追踪（Cone Tracing）原理"></a>锥追踪（Cone Tracing）原理</h3><p>传统光线追踪用无限细的射线（aperture&#x3D;0），采样无穷多个方向求积分（蒙特卡洛）。锥追踪的关键洞察：<strong>用一条有宽度的锥代替多条细射线的平均</strong>。</p>
+<p>一条半角为 $\alpha$（aperture）的锥，在距离 $d$ 处的”截面半径”为：<br>$$r(d) &#x3D; d \cdot \tan(\alpha) \approx d \cdot \alpha$$</p>
+<p>在距离 $d$ 处采样体素时，我们不只采样一个点，而是对半径 $r(d)$ 范围内的体素做加权平均——这等价于 MIP 采样。GPU 实现中这就是 3D 纹理的 MIP LOD，CPU 实现中我们用一个空间模糊核模拟：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec4 <span class="title">sample</span><span class="params">(Vec3 p, <span class="type">float</span> r)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> kr = <span class="built_in">max</span>(<span class="number">1</span>, (<span class="type">int</span>)<span class="built_in">ceil</span>(r / VS));</span><br><span class="line">    kr = <span class="built_in">min</span>(kr, <span class="number">3</span>);  <span class="comment">// 最大 3 体素半径的模糊</span></span><br><span class="line">    <span class="comment">// 以 p 为中心，在 kr 半径内做距离加权平均</span></span><br><span class="line">    <span class="function"><span class="keyword">for</span> each <span class="title">neighbor</span> <span class="params">(dx, dy, dz)</span> in [-kr, kr+1]³ </span>&#123;</span><br><span class="line">        <span class="type">float</span> w = <span class="number">1.0f</span> / (<span class="number">1.0f</span> + dx² + dy² + dz²);  <span class="comment">// 距离平方的倒数权重</span></span><br><span class="line">        acc += voxel.radiance * voxel.opacity * w;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>锥追踪过程（前-后合成，Front-to-Back compositing）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">dist = VS * 2.0   // 起始距离（避开自身体素）</span><br><span class="line">acc = (0,0,0,0)   // RGB + alpha</span><br><span class="line"></span><br><span class="line">while dist &lt; maxDist and acc.alpha &lt; 0.95:</span><br><span class="line">    p = start + dir * dist</span><br><span class="line">    coneRadius = aperture * dist           // 锥半径随距离线性增大</span><br><span class="line">    sample = grid.sampleWithRadius(p, coneRadius)</span><br><span class="line">    </span><br><span class="line">    alpha = sample.w * (1 - acc.alpha)    // 前-后合成的 alpha</span><br><span class="line">    acc.rgb += alpha * sample.rgb</span><br><span class="line">    acc.alpha += alpha</span><br><span class="line">    </span><br><span class="line">    step = max(VS, coneRadius * 0.5)      // 步长随锥的扩张而增大</span><br><span class="line">    dist += step</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么前-后合成？</strong><br>我们希望近处的体素遮挡远处的体素（有体积感）。前-后合成公式 <code>alpha_new = sample.w * (1 - acc.alpha)</code> 保证：</p>
+<ul>
+<li>如果前面已经几乎不透明（<code>acc.alpha ≈ 1</code>），则后续采样对结果贡献很小</li>
+<li>每次累加的 alpha 不超过 <code>1 - acc.alpha</code>（不会超过100%透明）</li>
+</ul>
+<p><strong>步长自适应</strong>：<code>step = max(VS, coneRadius * 0.5)</code></p>
+<ul>
+<li>近处：锥很细，步长接近一个体素宽度，精确采样</li>
+<li>远处：锥很粗，步长可以更大（因为模糊核本身就很大了），提高效率</li>
+</ul>
+<h3 id="漫反射-GI：半球锥积分"><a href="#漫反射-GI：半球锥积分" class="headerlink" title="漫反射 GI：半球锥积分"></a>漫反射 GI：半球锥积分</h3><p>对一个表面点，漫反射 GI 要积分整个上半球的入射辐射：</p>
+<p>$$L_{diffuse-GI}(x) &#x3D; \frac{1}{\pi} \int_{\Omega^+} L_{incoming}(x, \omega) \cdot (\omega \cdot n) , d\omega$$</p>
+<p>VXGI 用 <strong>5 条固定方向的锥</strong>来近似这个积分（类似 4-point Gauss quadrature + 1条法向）：</p>
+<table>
+<thead>
+<tr>
+<th>锥方向</th>
+<th>余弦权重</th>
+<th>积分权重</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>沿法向 n</td>
+<td>1.0</td>
+<td>0.28</td>
+</tr>
+<tr>
+<td>n 旋转±45° (切线方向)</td>
+<td>cos45°&#x3D;0.71</td>
+<td>0.18</td>
+</tr>
+<tr>
+<td>n 旋转±45° (副切线方向)</td>
+<td>cos45°&#x3D;0.71</td>
+<td>0.18</td>
+</tr>
+</tbody></table>
+<p><strong>5 个权重之和为 1.0</strong>（0.28 + 4×0.18 &#x3D; 1.0），满足归一化条件。</p>
+<p>切线帧构建（需要一个与 n 不共线的向量做叉积）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">buildTangent</span><span class="params">(Vec3 n)</span> </span>&#123;</span><br><span class="line">    Vec3 up = <span class="built_in">abs</span>(n.y) &lt; <span class="number">0.9</span> ? <span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">1</span>,<span class="number">0</span>) : <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>);</span><br><span class="line">    <span class="keyword">return</span> n.<span class="built_in">cross</span>(up).<span class="built_in">normalized</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么要判断 <code>n.y &lt; 0.9</code>？如果法向量恰好接近 (0,1,0)，叉积会产生接近零向量（数值不稳定），改用 (1,0,0) 避免这个问题。</p>
+<h3 id="环境光遮蔽（AO-Cone-Tracing）"><a href="#环境光遮蔽（AO-Cone-Tracing）" class="headerlink" title="环境光遮蔽（AO Cone Tracing）"></a>环境光遮蔽（AO Cone Tracing）</h3><p>VXGI AO 的思路：发射几条紧密的锥（大孔径 → 小 aperture），检测周围有多少体素遮蔽了上半球：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">voxelAO</span><span class="params">(<span class="type">const</span> VoxelGrid&amp; g, Vec3 pos, Vec3 n)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 5条紧凑锥（30°半角）</span></span><br><span class="line">    Vec3 dirs[<span class="number">5</span>] = &#123;n, (n*ca+t*sa).<span class="built_in">norm</span>(), ...&#125;;</span><br><span class="line">    <span class="type">float</span> aperture = <span class="number">0.2f</span>;    <span class="comment">// 约 11°半角</span></span><br><span class="line">    <span class="type">float</span> maxDist  = <span class="number">2.5f</span>;    <span class="comment">// 只看近处的遮蔽</span></span><br><span class="line">    </span><br><span class="line">    <span class="type">float</span> occ = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>; i&lt;<span class="number">5</span>; i++) &#123;</span><br><span class="line">        Vec4 cone = <span class="built_in">traceCone</span>(grid, start, dirs[i], aperture, maxDist);</span><br><span class="line">        occ += cone.w;  <span class="comment">// cone.w 是积累的遮蔽 alpha</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1.0f</span> - <span class="built_in">min</span>(occ/<span class="number">5.0f</span>, <span class="number">1.0f</span>) * <span class="number">0.65f</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>0.65f</code> 是遮蔽强度系数——即使完全遮蔽（occ&#x3D;1），AO 最低只到 <code>1-0.65=0.35</code>，避免全黑阴影（现实中总有少量环境光）。</p>
+<h3 id="镜面-GI：反射锥"><a href="#镜面-GI：反射锥" class="headerlink" title="镜面 GI：反射锥"></a>镜面 GI：反射锥</h3><p>对于有粗糙度的表面，specular GI 用单条反射锥：</p>
+<p>$$L_{specular}(x) &#x3D; L_{incoming}(x, R(\omega_o))$$</p>
+<p>其中 $R(\omega_o) &#x3D; 2(n \cdot \omega_o)n - \omega_o$ 是反射向量。</p>
+<p>锥的孔径和粗糙度成正比：<code>aperture = roughness * 0.3 + 0.02</code></p>
+<ul>
+<li>光滑表面（roughness&#x3D;0）：aperture≈0.02，几乎是镜面反射</li>
+<li>粗糙表面（roughness&#x3D;1）：aperture≈0.32，积分较大角度范围</li>
+</ul>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><p>整个渲染管线分 5 个阶段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">Scene Triangles</span><br><span class="line">       │</span><br><span class="line">       ▼ voxelizeScene()</span><br><span class="line">   VoxelGrid (64³)</span><br><span class="line">   [albedo, normal, opacity]</span><br><span class="line">       │</span><br><span class="line">       ▼ injectDirectLight()</span><br><span class="line">   VoxelGrid</span><br><span class="line">   [+ radiance (direct light)]</span><br><span class="line">       │</span><br><span class="line">       ▼ render() — for each pixel:</span><br><span class="line">       ├─ Ray → Scene intersection</span><br><span class="line">       ├─ Direct Light (shadow ray)</span><br><span class="line">       ├─ diffuseGI (5 cones × traceCone)</span><br><span class="line">       ├─ voxelAO (5 cones × traceCone)</span><br><span class="line">       └─ specularGI (1 cone × traceCone)</span><br><span class="line">              │</span><br><span class="line">              ▼ toneMap (ACES) + gamma</span><br><span class="line">              │</span><br><span class="line">              ▼ writePNG (zlib compress)</span><br><span class="line">              │</span><br><span class="line">           vxgi_output.png</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><p><strong>VoxelGrid</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">int</span> VR = <span class="number">64</span>;       <span class="comment">// 64³ = 262144 个体素</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">float</span> VS = <span class="number">6.0</span>/VR; <span class="comment">// 每个体素 0.09375 世界单位</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Voxel</span> &#123;</span><br><span class="line">    Vec3 albedo;      <span class="comment">// 表面颜色（diffuse reflectance）</span></span><br><span class="line">    Vec3 normal;      <span class="comment">// 平均法向量（用于光照计算）</span></span><br><span class="line">    Vec3 radiance;    <span class="comment">// 预注入的直接辐射（GI 的&quot;能量源&quot;）</span></span><br><span class="line">    <span class="type">float</span> opacity;    <span class="comment">// 0=空气，1=表面体素</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>64³&#x3D;262144 个体素 × 40字节&#x2F;体素 ≈ 10MB，CPU 完全可以装下。</p>
+<p><strong>VoxelGrid::sample()</strong>：锥追踪的核心采样函数，用距离加权的空间模糊模拟 MIP LOD：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec4 <span class="title">VoxelGrid::sample</span><span class="params">(Vec3 p, <span class="type">float</span> r)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 计算体素坐标（使用 -0.5 偏移以对准体素中心）</span></span><br><span class="line">    Vec3 lp = p - origin;</span><br><span class="line">    <span class="type">float</span> fx = lp.x/VS - <span class="number">0.5f</span>;</span><br><span class="line">    <span class="type">int</span> x0 = (<span class="type">int</span>)<span class="built_in">floor</span>(fx);</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// kr = ceil(r/VS) 决定采样范围（最多3个体素半径）</span></span><br><span class="line">    <span class="type">int</span> kr = <span class="built_in">max</span>(<span class="number">1</span>, (<span class="type">int</span>)<span class="built_in">ceil</span>(r/VS));</span><br><span class="line">    kr = <span class="built_in">min</span>(kr, <span class="number">3</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 遍历 (2kr+2)³ 邻域（注意是 -kr 到 kr+1 包含边界）</span></span><br><span class="line">    <span class="keyword">for</span> dz=-kr to kr<span class="number">+1</span>:</span><br><span class="line">      <span class="keyword">for</span> dy=-kr to kr<span class="number">+1</span>:</span><br><span class="line">        <span class="keyword">for</span> dx=-kr to kr<span class="number">+1</span>:</span><br><span class="line">          <span class="comment">// 距离平方倒数权重（中心权重最大）</span></span><br><span class="line">          <span class="type">float</span> w = <span class="number">1.0</span> / (<span class="number">1.0</span> + dx²+dy²+dz²);</span><br><span class="line">          acc += voxel.radiance * voxel.opacity * w;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>场景构建</strong>：Cornell Box &#x3D; 5面墙 + 1个顶灯 + 2个盒子，共 32 个三角形。注意：<strong>不需要前墙</strong>，因为相机在场景外部朝内看。</p>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="1-体素化"><a href="#1-体素化" class="headerlink" title="1. 体素化"></a>1. 体素化</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">voxelizeScene</span><span class="params">(VoxelGrid&amp; g, <span class="type">const</span> std::vector&lt;Triangle&gt;&amp; scene)</span> </span>&#123;</span><br><span class="line">    <span class="type">static</span> <span class="type">const</span> Vec3 dirs[<span class="number">6</span>] = &#123;</span><br><span class="line">        &#123;<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>&#125;,&#123;<span class="number">-1</span>,<span class="number">0</span>,<span class="number">0</span>&#125;,&#123;<span class="number">0</span>,<span class="number">1</span>,<span class="number">0</span>&#125;,&#123;<span class="number">0</span>,<span class="number">-1</span>,<span class="number">0</span>&#125;,&#123;<span class="number">0</span>,<span class="number">0</span>,<span class="number">1</span>&#125;,&#123;<span class="number">0</span>,<span class="number">0</span>,<span class="number">-1</span>&#125;</span><br><span class="line">    &#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> iz=<span class="number">0</span>; iz&lt;VR; iz++)</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> iy=<span class="number">0</span>; iy&lt;VR; iy++)</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> ix=<span class="number">0</span>; ix&lt;VR; ix++) &#123;</span><br><span class="line">        Vec3 c = g.<span class="built_in">center</span>(ix, iy, iz);  <span class="comment">// 体素中心世界坐标</span></span><br><span class="line">        Vec3 sumAlb=&#123;&#125;, sumNorm=&#123;&#125;; <span class="type">int</span> hits=<span class="number">0</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span>(<span class="type">const</span> <span class="keyword">auto</span>&amp; d : dirs) &#123;</span><br><span class="line">            <span class="type">float</span> bestT = VS * <span class="number">0.8f</span>;    <span class="comment">// 只检测一个体素内的碰撞</span></span><br><span class="line">            <span class="keyword">for</span>(<span class="type">const</span> <span class="keyword">auto</span>&amp; tri : scene) &#123;</span><br><span class="line">                <span class="type">float</span> t;</span><br><span class="line">                <span class="keyword">if</span>(<span class="built_in">rayTriangle</span>(c, d, tri, t) &amp;&amp; t &lt; bestT) &#123;</span><br><span class="line">                    bestT = t;</span><br><span class="line">                    sumAlb += tri.albedo;    <span class="comment">// 累积颜色（后续平均）</span></span><br><span class="line">                    sumNorm += tri.<span class="built_in">normal</span>(); <span class="comment">// 累积法向（后续归一化）</span></span><br><span class="line">                    hits++;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span>(hits &gt; <span class="number">0</span>) &#123;</span><br><span class="line">            Voxel&amp; v = g.<span class="built_in">at</span>(ix, iy, iz);</span><br><span class="line">            v.albedo = sumAlb * (<span class="number">1.0f</span>/hits);   <span class="comment">// 平均颜色</span></span><br><span class="line">            v.normal = sumNorm.<span class="built_in">normalized</span>();    <span class="comment">// 归一化平均法向</span></span><br><span class="line">            v.opacity = <span class="number">1.0f</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么对 6 方向各自找最近交点，而不是一次找全部？</p>
+<ul>
+<li>我们想知道”这个体素是否在表面附近”，而不是要准确的交点</li>
+<li>每个方向独立找最近交点，然后累加，可以更好地处理薄曲面（比如从多个方向都能检测到的角落体素）</li>
+</ul>
+<p>时间复杂度：O(VR³ × 6 × N_triangles)，N_triangles&#x3D;32 时约为 262144×6×32 ≈ 5000万次射线测试。用 BVH 可以大幅加速，这里为了简单直接暴力。</p>
+<h3 id="2-锥追踪主循环"><a href="#2-锥追踪主循环" class="headerlink" title="2. 锥追踪主循环"></a>2. 锥追踪主循环</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> Vec4 <span class="title">traceCone</span><span class="params">(<span class="type">const</span> VoxelGrid&amp; g, Vec3 pos, Vec3 dir,</span></span></span><br><span class="line"><span class="params"><span class="function">                       <span class="type">float</span> aperture, <span class="type">float</span> maxD)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> dist = VS * <span class="number">2.0f</span>;   <span class="comment">// 初始步距：2个体素宽度（避开起点体素）</span></span><br><span class="line">    Vec4 acc = &#123;&#125;;             <span class="comment">// (R, G, B, alpha)</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">while</span>(dist &lt; maxD &amp;&amp; acc.w &lt; <span class="number">0.95f</span>) &#123;</span><br><span class="line">        Vec3 p = pos + dir * dist;</span><br><span class="line">        <span class="type">float</span> cr = <span class="built_in">max</span>(aperture * dist, VS * <span class="number">0.5f</span>);  <span class="comment">// 锥截面半径</span></span><br><span class="line">        <span class="comment">// 注意 min(cr, VS*0.5) 避免 cr 小于半个体素（无意义）</span></span><br><span class="line">        </span><br><span class="line">        Vec4 s = g.<span class="built_in">sample</span>(p, cr);  <span class="comment">// 在半径 cr 内采样</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 前-后合成：近处先合成，远处被遮挡后贡献少</span></span><br><span class="line">        <span class="type">float</span> alpha = s.w * (<span class="number">1.0f</span> - acc.w);</span><br><span class="line">        acc.x += alpha * s.x;</span><br><span class="line">        acc.y += alpha * s.y;</span><br><span class="line">        acc.z += alpha * s.z;</span><br><span class="line">        acc.w += alpha;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 自适应步长：锥越宽步长越大（减少远处的采样数）</span></span><br><span class="line">        dist += <span class="built_in">max</span>(VS, cr * <span class="number">0.5f</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> acc;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键参数选择</strong>：</p>
+<ul>
+<li><code>aperture = 0.5</code>（漫反射）：约 26.5°，适中的扩散范围</li>
+<li><code>aperture = 0.2</code>（AO）：约 11.3°，紧凑锥，只检测近处遮蔽</li>
+<li><code>maxDist = 5.0</code>（GI）：5 个世界单位，约 53 个体素距离</li>
+<li><code>maxDist = 2.5</code>（AO）：只看近处遮蔽，避免大范围假阴影</li>
+</ul>
+<h3 id="3-漫反射-GI"><a href="#3-漫反射-GI" class="headerlink" title="3. 漫反射 GI"></a>3. 漫反射 GI</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> Vec3 <span class="title">diffuseGI</span><span class="params">(<span class="type">const</span> VoxelGrid&amp; g, Vec3 pos, Vec3 n, <span class="type">float</span> strength)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 构建切线帧（正交基）</span></span><br><span class="line">    Vec3 t = <span class="built_in">buildTangent</span>(n);</span><br><span class="line">    Vec3 b = n.<span class="built_in">cross</span>(t).<span class="built_in">norm</span>();  <span class="comment">// 副切线 = n × t</span></span><br><span class="line">    </span><br><span class="line">    <span class="type">float</span> sa = <span class="built_in">sin</span>(<span class="number">0.7854f</span>);  <span class="comment">// sin(45°) = 0.707</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 5 个半球采样方向：法向 + 4个斜向</span></span><br><span class="line">    Vec3 dirs[<span class="number">5</span>] = &#123;</span><br><span class="line">        n,</span><br><span class="line">        (n + t*sa).<span class="built_in">normalized</span>(),</span><br><span class="line">        (n - t*sa).<span class="built_in">normalized</span>(),</span><br><span class="line">        (n + b*sa).<span class="built_in">normalized</span>(),</span><br><span class="line">        (n - b*sa).<span class="built_in">normalized</span>()</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="type">float</span> weights[<span class="number">5</span>] = &#123;<span class="number">0.28f</span>, <span class="number">0.18f</span>, <span class="number">0.18f</span>, <span class="number">0.18f</span>, <span class="number">0.18f</span>&#125;;</span><br><span class="line">    </span><br><span class="line">    Vec3 gi = &#123;&#125;;</span><br><span class="line">    Vec3 start = pos + n*(VS*<span class="number">3.0f</span>);  <span class="comment">// 起点偏移 3 个体素（避开表面）</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>; i&lt;<span class="number">5</span>; i++) &#123;</span><br><span class="line">        Vec4 cone = <span class="built_in">traceCone</span>(g, start, dirs[i], <span class="number">0.5f</span>, <span class="number">5.0f</span>);</span><br><span class="line">        <span class="type">float</span> ndotl = <span class="built_in">max</span>(<span class="number">0.0f</span>, dirs[i].<span class="built_in">dot</span>(n));  <span class="comment">// 余弦权重</span></span><br><span class="line">        gi += cone.<span class="built_in">xyz</span>() * (ndotl * weights[i]);  <span class="comment">// 加权积分</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> gi * strength;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么 <code>start = pos + n*VS*3</code>？</p>
+<ul>
+<li><code>VS*2</code> 是 traceCone 自己的初始步距</li>
+<li>但起点本身如果在表面体素内，第一次 <code>g.sample()</code> 可能采到自己</li>
+<li>用 <code>VS*3</code> 确保起点位于表面体素的上方（空气中），避免自遮挡</li>
+</ul>
+<h3 id="4-直接光照"><a href="#4-直接光照" class="headerlink" title="4. 直接光照"></a>4. 直接光照</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> Vec3 <span class="title">directLight</span><span class="params">(Vec3 pos, Vec3 norm, Vec3 albedo,</span></span></span><br><span class="line"><span class="params"><span class="function">                          <span class="type">const</span> std::vector&lt;Triangle&gt;&amp; scene)</span> </span>&#123;</span><br><span class="line">    Vec3 toL = LPOS - pos;</span><br><span class="line">    <span class="type">float</span> dist = toL.<span class="built_in">len</span>();</span><br><span class="line">    Vec3 lDir = toL / dist;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Lambert 余弦测试</span></span><br><span class="line">    <span class="type">float</span> ndotl = <span class="built_in">max</span>(<span class="number">0.0f</span>, norm.<span class="built_in">dot</span>(lDir));</span><br><span class="line">    <span class="keyword">if</span>(ndotl &lt; <span class="number">1e-5f</span>) <span class="keyword">return</span> &#123;&#125;;  <span class="comment">// 背光面直接返回 0</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 阴影测试：从表面沿法向偏移一点，避免自遮挡</span></span><br><span class="line">    Vec3 sro = pos + norm * <span class="number">0.005f</span>;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">const</span> <span class="keyword">auto</span>&amp; tri : scene) &#123;</span><br><span class="line">        <span class="keyword">if</span>(tri.isLight) <span class="keyword">continue</span>;  <span class="comment">// 光源三角形不参与遮挡</span></span><br><span class="line">        <span class="type">float</span> t;</span><br><span class="line">        <span class="keyword">if</span>(<span class="built_in">rayTriangle</span>(sro, lDir, tri, t) &amp;&amp; t &lt; dist - <span class="number">0.01f</span>)</span><br><span class="line">            <span class="keyword">return</span> &#123;&#125;;  <span class="comment">// 有遮挡</span></span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 面积光衰减近似：LAREA / (dist² + 0.1)</span></span><br><span class="line">    <span class="type">float</span> attn = LAREA / (dist*dist + <span class="number">0.1f</span>);</span><br><span class="line">    <span class="keyword">return</span> LEMIT * albedo * (ndotl * attn / M_PI);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>dist*dist + 0.1</code> 中的 <code>0.1</code>：防止极近处距离趋零时能量爆炸（正则化项）。</p>
+<h3 id="5-ACES-色调映射"><a href="#5-ACES-色调映射" class="headerlink" title="5. ACES 色调映射"></a>5. ACES 色调映射</h3><p>HDR 颜色值可能远大于 1.0（光源强度 12），需要 tone mapping 压缩到 [0,1]：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">acesApprox</span><span class="params">(<span class="type">float</span> x)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> a=<span class="number">2.51f</span>, b=<span class="number">0.03f</span>, c=<span class="number">2.43f</span>, d=<span class="number">0.59f</span>, e=<span class="number">0.14f</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">max</span>(<span class="number">0.0f</span>, <span class="built_in">min</span>(<span class="number">1.0f</span>, (x*(a*x+b)) / (x*(c*x+d)+e)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是 ACES Filmic 的 Narkowicz 近似（2015）。直觉：</p>
+<ul>
+<li>对小值（暗部）：近似线性（<code>x*b/e ≈ 0.214x</code>），保留细节</li>
+<li>对大值（亮部）：趋向饱和（分子和分母都是二次，比值趋向 <code>a/c ≈ 1.033</code>），防止高光爆掉</li>
+<li>整体 S 曲线：类似人眼感知的对数响应</li>
+</ul>
+<h3 id="6-PNG-写入（无第三方库）"><a href="#6-PNG-写入（无第三方库）" class="headerlink" title="6. PNG 写入（无第三方库）"></a>6. PNG 写入（无第三方库）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 构建 raw RGB 字节数组</span></span><br><span class="line"><span class="comment">// 2. 每行加滤波器字节（0=None）</span></span><br><span class="line"><span class="comment">// 3. zlib 压缩</span></span><br><span class="line"><span class="comment">// 4. 写 PNG 文件结构（IHDR + IDAT + IEND chunk）</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// chunk 格式：[4B长度][4B标签][NB数据][4B CRC]</span></span><br><span class="line"><span class="keyword">auto</span> writeChunk = [&amp;](<span class="type">const</span> <span class="type">char</span>* tag, <span class="type">const</span> <span class="type">unsigned</span> <span class="type">char</span>* d, <span class="type">size_t</span> l) &#123;</span><br><span class="line">    <span class="built_in">w32</span>((<span class="type">unsigned</span>)l);</span><br><span class="line">    <span class="built_in">fwrite</span>(tag, <span class="number">1</span>, <span class="number">4</span>, f);</span><br><span class="line">    <span class="keyword">if</span>(l &gt; <span class="number">0</span>) <span class="built_in">fwrite</span>(d, <span class="number">1</span>, l, f);</span><br><span class="line">    <span class="comment">// CRC 覆盖 tag+data</span></span><br><span class="line">    <span class="type">unsigned</span> crc2 = <span class="built_in">crc32</span>(<span class="built_in">crc32</span>(<span class="number">0L</span>,Z_NULL,<span class="number">0</span>), (Bytef*)tag, <span class="number">4</span>);</span><br><span class="line">    <span class="keyword">if</span>(l &gt; <span class="number">0</span>) crc2 = <span class="built_in">crc32</span>(crc2, d, (uInt)l);</span><br><span class="line">    <span class="built_in">w32</span>(crc2);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>PNG 的 IEND 块长度为 0，CRC 只覆盖 “IEND” 四字节标签，这里容易写错（见踩坑记录）。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：编译错误-ray-d-无法取一元负号"><a href="#Bug-1：编译错误-ray-d-无法取一元负号" class="headerlink" title="Bug 1：编译错误 -ray.d 无法取一元负号"></a>Bug 1：编译错误 <code>-ray.d</code> 无法取一元负号</h3><p><strong>症状</strong>：<code>error: no match for &#39;operator-&#39; (operand type is &#39;Vec3&#39;)</code></p>
+<p><strong>错误假设</strong>：以为所有 C++ 数学类型都支持一元负号。</p>
+<p><strong>真实原因</strong>：我的 <code>Vec3</code> 结构体只定义了二元 <code>operator-(Vec3 o)const</code>，没有定义一元 <code>operator-()const</code>。<code>-ray.d</code> 会被解析为一元负号。</p>
+<p><strong>修复</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误写法</span></span><br><span class="line">Vec3 specGI = <span class="built_in">specularGI</span>(..., -ray.d, ...);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 修复：显式乘以 -1</span></span><br><span class="line">Vec3 specGI = <span class="built_in">specularGI</span>(..., ray.d * <span class="number">-1.0f</span>, ...);</span><br><span class="line"><span class="comment">// 或者在 Vec3 加一元负号操作符</span></span><br><span class="line">Vec3 <span class="keyword">operator</span>-()<span class="type">const</span> &#123; <span class="keyword">return</span> &#123;-x,-y,-z&#125;; &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-2：全图输出单一颜色-byte-16（最难的-Bug）"><a href="#Bug-2：全图输出单一颜色-byte-16（最难的-Bug）" class="headerlink" title="Bug 2：全图输出单一颜色 byte&#x3D;16（最难的 Bug）"></a>Bug 2：全图输出单一颜色 byte&#x3D;16（最难的 Bug）</h3><p><strong>症状</strong>：渲染完成，PNG 写入成功，但图像所有像素均为 RGB(16,16,16)——一片灰色。</p>
+<p><strong>调试过程</strong>：</p>
+<ol>
+<li>首先验证 PNG 写入：手动解压缩 PNG 的 IDAT，检查 raw 字节，确认写入逻辑无误（1440600 字节 &#x3D; 800×600×3+600 filter bytes）。</li>
+<li>验证 framebuffer：在 <code>writePNG</code> 前打印 <code>fb[0]</code>，得到 <code>(0.0068, 0.0068, 0.0068)</code>。</li>
+<li>验证 tone mapping：<code>aces(0.0068) ≈ 0.00222</code>，<code>gamma(0.00222) ≈ 0.062</code>，<code>0.062*255 ≈ 16</code>——确实是 16！</li>
+<li>奇怪：为什么所有像素都是 0.0068？初始化是 Vec3(0)，不是 0.0068。</li>
+<li>在 render 循环里打印：<code>fb[0,0]=(0,0,0)</code>——framebuffer 就是 0！</li>
+<li>那 0.0068 从哪来？原来是我检查的是 <code>writePNG</code> 执行<strong>之后</strong>的数据——那时图像已经写完了，显示的是磁盘上读回的值（图片解码有偏差），实际 fb 内容是全0。</li>
+</ol>
+<p><strong>错误假设一</strong>：以为是 PNG 写入有 bug（花了很多时间调试）。</p>
+<p><strong>错误假设二</strong>：以为是 framebuffer 索引错误。</p>
+<p><strong>真实原因</strong>：场景中有一堵<strong>前墙</strong>（<code>z = -2.5</code>，法向 (0,0,-1)）。相机在 <code>z=-4.5</code> 向 +Z 方向看，第一个击中的几何体就是前墙的<strong>外侧</strong>。前墙外侧的法向是 (0,0,-1)（指向-Z，朝相机），光源在 <code>(0,2.45,0)</code>，<code>ndotl = (0,0,-1)·lDir ≤ 0</code>，所以 <code>directLight</code> 返回零向量。扩散 GI 也为零（体素 radiance 是 0 的直接光×体素——前墙自身也被前墙遮挡）。</p>
+<p><strong>修复</strong>：删除前墙。Cornell Box 的设计本来就没有前墙——相机就是从”开口”处看进去的。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 删除这行</span></span><br><span class="line"><span class="comment">// addQuad(&#123;-s,-s,-s&#125;,&#123;-s,s,-s&#125;,&#123;s,s,-s&#125;,&#123;s,-s,-s&#125;,&#123;...&#125;); // front wall</span></span><br></pre></td></tr></table></figure>
+
+<p>这是本次最有价值的教训：<strong>调试时要验证渲染出来的颜色，不能只看文件大小和 PNG 头部结构</strong>。</p>
+<h3 id="Bug-3：voxelizeScene-填充数量从-38949-下降到-18472"><a href="#Bug-3：voxelizeScene-填充数量从-38949-下降到-18472" class="headerlink" title="Bug 3：voxelizeScene 填充数量从 38949 下降到 18472"></a>Bug 3：voxelizeScene 填充数量从 38949 下降到 18472</h3><p>这是删除前墙后自然减少的——前墙贡献了约 20000 个体素。对 GI 质量有轻微影响（少了前墙的反射），可以接受。</p>
+<h3 id="Bug-4：render-函数调试耗时极长"><a href="#Bug-4：render-函数调试耗时极长" class="headerlink" title="Bug 4：render 函数调试耗时极长"></a>Bug 4：render 函数调试耗时极长</h3><p><code>-O0</code> 编译后运行 800×600 需要超过 60 秒（每像素 10 条锥，每锥 14-19 步），调试时SIGTERM。</p>
+<p><strong>经验</strong>：VXGI 即使是 CPU 实现也需要 <code>-O2</code> 才能在合理时间内完成。调试单像素时直接写一个单独的 <code>single_pixel.cpp</code> 快速验证逻辑，不要用完整 800×600 分辨率。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="量化像素统计"><a href="#量化像素统计" class="headerlink" title="量化像素统计"></a>量化像素统计</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">python3 -c <span class="string">&quot;</span></span><br><span class="line"><span class="string">from PIL import Image</span></span><br><span class="line"><span class="string">import numpy as np</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">img = Image.open(&#x27;vxgi_output.png&#x27;)</span></span><br><span class="line"><span class="string">pixels = np.array(img).astype(float)</span></span><br><span class="line"><span class="string">mean = pixels.mean()</span></span><br><span class="line"><span class="string">std = pixels.std()</span></span><br><span class="line"><span class="string">top = pixels[:100,:].mean()   # 上部（靠近顶灯）</span></span><br><span class="line"><span class="string">bottom = pixels[-100:,:].mean() # 下部（远离顶灯）</span></span><br><span class="line"><span class="string">print(f&#x27;尺寸: &#123;img.size&#125;&#x27;)</span></span><br><span class="line"><span class="string">print(f&#x27;像素均值: &#123;mean:.1f&#125;&#x27;)</span></span><br><span class="line"><span class="string">print(f&#x27;像素标准差: &#123;std:.1f&#125;&#x27;)</span></span><br><span class="line"><span class="string">print(f&#x27;上部均值: &#123;top:.1f&#125;, 下部均值: &#123;bottom:.1f&#125;&#x27;)</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>输出结果：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">尺寸: (800, 600)</span><br><span class="line">像素均值: 104.2    ✅（10~240之间，非全黑/全白）</span><br><span class="line">像素标准差: 63.4   ✅（&gt; 5，图像有内容变化）</span><br><span class="line">上部均值: 122.7    ✅（顶灯附近更亮）</span><br><span class="line">下部均值: 52.4     ✅（地板较暗，符合物理预期）</span><br><span class="line">文件大小: 185KB    ✅（&gt; 10KB）</span><br></pre></td></tr></table></figure>
+
+<h3 id="渲染效果"><a href="#渲染效果" class="headerlink" title="渲染效果"></a>渲染效果</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png" alt="VXGI 渲染结果"></p>
+<p>可以观察到的 GI 效果：</p>
+<ul>
+<li><strong>颜色渗透（Color Bleeding）</strong>：左侧红墙旁的地板和后墙略带红色调，右侧绿墙旁略带绿色调——这是漫反射 GI 的体现</li>
+<li><strong>间接光照</strong>：即使顶灯被两个盒子部分遮挡的区域，也不是纯黑，有来自墙面的间接光</li>
+<li><strong>环境光遮蔽</strong>：盒子与地板的接触角落较暗（AO 效果）</li>
+</ul>
+<h3 id="性能数据"><a href="#性能数据" class="headerlink" title="性能数据"></a>性能数据</h3><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>场景构建（32个三角形）</td>
+<td>&lt; 1ms</td>
+</tr>
+<tr>
+<td>体素化（64³×6方向×32三角形）</td>
+<td>~25s（CPU 暴力遍历）</td>
+</tr>
+<tr>
+<td>直接光注入（18472个体素×阴影测试）</td>
+<td>~2s</td>
+</tr>
+<tr>
+<td>渲染（800×600，10锥&#x2F;像素）</td>
+<td>~4s</td>
+</tr>
+<tr>
+<td>PNG 写入（zlib 压缩）</td>
+<td>&lt; 1s</td>
+</tr>
+</tbody></table>
+<p>总耗时约 31 秒（<code>-O2</code>）。</p>
+<p>GI 的主要开销：每像素 10 条锥（5 diffuse + 5 AO），每锥约 14-19 步，每步一次 <code>sample()</code> 调用（最多 8³&#x3D;512 次体素查找）。GPU 实现中，体素化 + 渲染都在 GPU 上并行，帧时可以压缩到 16ms 以内（1080p 约 8ms on RTX 3080，参考 NVIDIA 文档）。</p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="VXGI-的局限性"><a href="#VXGI-的局限性" class="headerlink" title="VXGI 的局限性"></a>VXGI 的局限性</h3><ol>
+<li><p><strong>体素分辨率限制细节</strong>：64³ 的分辨率无法表现小于一个体素宽度（约 9cm）的几何细节，薄面体素化容易丢失。实际引擎用稀疏体素八叉树（SVO）或级联体素（Cascaded Voxels）来解决。</p>
+</li>
+<li><p><strong>动态更新代价高</strong>：场景几何变化时需要重新体素化（本实现每帧体素化需要 25 秒）。GPU 实现用光栅化+几何着色器体素化，可以控制在 2-5ms，但对高频动态场景仍有挑战。</p>
+</li>
+<li><p><strong>漏光问题（Light Leaking）</strong>：锥追踪越过薄墙时可能采到错误的辐射。缓解方式：减小体素尺寸，或对锥追踪加法向一致性检查（只采样法向相似的体素）。</p>
+</li>
+<li><p><strong>AO 精度有限</strong>：5 条锥的半球采样太稀疏，拐角处 AO 可能不准确。实际引擎通常用 SSAO&#x2F;HBAO 做屏幕空间的精细化，VXGI AO 只做低频遮蔽。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><p><strong>BVH 加速体素化</strong>：当前 O(N_voxels × 6 × N_tris)，加 BVH 后变成 O(N_voxels × log N_tris)。对 32 个三角形差别不大，但场景复杂时至关重要。</p>
+</li>
+<li><p><strong>GPU 并行体素化</strong>：geometry shader + conservative rasterization，体素化速度提升 100x+。</p>
+</li>
+<li><p><strong>3D MIP Map</strong>：真正的 MIP 纹理采样比当前的空间模糊核更准确，且 GPU 硬件支持（<code>tex3Dlod()</code>）。</p>
+</li>
+<li><p><strong>时序重用（Temporal Reprojection）</strong>：帧间复用 GI 结果，用运动向量做反投影，减少每帧的锥追踪数量。</p>
+</li>
+<li><p><strong>Specular BRDF 改进</strong>：当前用了固定的 roughness&#x3D;0.7，实际应该从材质读取，并用 GGX 重要性采样替代锥孔径计算。</p>
+</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>05-01 ReSTIR</strong>：同样解决 GI 问题，但用的是 Reservoir 重要性采样，更适合多光源场景</li>
+<li><strong>05-03 PRT</strong>：预计算辐射传输，适合低频环境光，VXGI 可以当作运行时的 PRT 替代方案</li>
+<li><strong>04-24 Bent Normal AO</strong>：本实现的 <code>voxelAO()</code> 思路类似，Bent Normal AO 额外存储了主遮蔽方向</li>
+<li><strong>04-12 God Rays 体积光</strong>：同样用光线步进（ray marching），本实现的 <code>traceCone</code> 是带孔径的广义版本</li>
+</ul>
+<hr>
+<p><em>今天调试了很长时间，但把前墙的坐标系问题、PNG写入验证方法、以及如何快速定位”全黑图”的根因都搞清楚了。每次踩坑都是值得记录的经验。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/14/daily-coding-vxgi-2026-05-14/">https://chiuhoukazusa.github.io/2026/05/14/daily-coding-vxgi-2026-05-14/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%A8%E5%B1%80%E5%85%89%E7%85%A7/">全局光照</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E4%BD%93%E7%B4%A0/">体素</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-13-fxaa-antialiasing/fxaa_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: FXAA Anti-Aliasing Post-Process Renderer</div></div><div class="info-2"><div class="info-item-1">FXAA Anti-Aliasing Post-Process Renderer今天实现了 FXAA（Fast Approximate Anti-Aliasing）——一种在后处理阶段消除锯齿的高效算法。输出图左半为原始锯齿画面，右半为 FXAA 处理后的平滑结果。   ① 背景与动机锯齿的根本来源实时渲染中，几何体的边缘是连续的曲线或直线，但最终输出的帧缓冲是离散的像素网格。当一条斜线穿过像素网格时，像素只能表达”完全覆盖”或”完全不覆盖”，没有中间状态——这就产生了阶梯状的锯齿（Aliasing）。 数学上，这是采样定理的问题：我们用有限频率的像素网格来”采样”一个高频信号（几何边缘），必然产生走样。对于一条 45° 斜线，相邻两行的像素偏移 1px，视觉上就形成明显的阶梯。 传统抗锯齿的代价传统抗锯齿方案 MSAA（Multi-Sample Anti-Aliasing）从根本上解决问题：每个像素内部采样多次（4x &#x2F; 8x），取均值。这能精确处理几何边缘，但代价是：  带宽增加 4~8 倍：G-Buffer 和深度缓冲都要多倍尺寸 渲染管线重构：延迟渲染（Defe...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/03/daily-coding-prt-renderer-2026-05-03/" title="每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-03-prt-renderer/prt_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-03</div><div class="info-item-2">每日编程实践: Precomputed Radiance Transfer (PRT) — 用球谐函数预计算全局光照</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Precomputed Radiance Transfer (PRT) 技术标签: 球谐函数(SH)、辐射传输、预计算光照、SH旋转、Wigner D矩阵、余弦卷积、软光栅化代码仓库: GitHub难度: ⭐⭐⭐⭐   ① 背景与动机：实时全局光照的代价问题的起点在实时渲染中，我们最头疼的问题之一就是环境光照：物体不只是被一个方向光照亮，它被四面八方的天空、反射光、漫射光共同照亮。真正的物理正确做法是对半球积分： $$L_o(x, \omega_o) &#x3D; \int_{\Omega} f_r(\omega_i, \omega_o) \cdot L_i(x, \omega_i) \cdot \max(0, n \cdot \omega_i) , d\omega_i$$ 这个积分在光线追踪里需要对每个像素打出数百条光线才能收敛，帧率从 60fps 直接掉到 0.001fps。早年间游戏里的全局光照一般是用烘焙好的光照贴图（Lightmap）来做，缺点是一旦光源动了，立刻失效。 PRT 要解决的核心矛盾Precomputed Radiance Transfer（...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-02</div><div class="info-item-2">每日编程实践: Radiance Cascade Global Illumination</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Radiance Cascade Global Illumination  Cornell Box 场景中的辐射级联全局光照：红墙的色溢打到中心球上，绿墙反光照亮黄盒侧面，间接光照让整个场景更真实可信。   ① 背景与动机为什么需要全局光照？实时渲染长期困扰于一个根本矛盾：现实世界中的光线会在物体之间反复弹跳，但传统的局部光照模型（Blinn-Phong、甚至 PBR）只计算光源到表面的直接照射，完全忽视了光在场景中的多次反弹。 没有全局光照时，你会看到什么问题？  漏光：阴影区域完全漆黑，即便现实中附近墙面的反射光应该能照进去 色溢缺失：红墙旁边的白色物体不会带上红色，场景像纸板模型 接触阴影过硬：物体之间的缝隙没有柔和的 ambient occlusion 感 环境光 hack 代价：为了弥补这些缺陷，引擎往往用一个魔法常量 ambient = 0.1 来糊弄过去，但这是完全假的  这就是为什么游戏从 PS3 时代看起来总像玩具——光照是错的，哪怕模型多精细也难掩这种廉价感。 工业界是怎么做的？全局光照（Global Illumination, GI）在工业界...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/19/daily-coding-irradiance-probes-2026-04-19/" title="每日编程实践: Ambient Light Probes &amp; Irradiance Caching"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-19-irradiance-probes/irradiance_probe_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-19</div><div class="info-item-2">每日编程实践: Ambient Light Probes &amp; Irradiance Caching</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Ambient Light Probes &amp; Irradiance Caching 从零实现游戏引擎 GI 系统的核心基础设施：光探针 + SH2 球谐辐照度缓存 + 探针插值，90 毫秒内完成 9 探针烘焙 + 双侧对比渲染。  一、背景与动机全局光照：游戏引擎最难啃的骨头任何一个做过写实渲染的人都会遇到同一个问题：光线在现实中会多次反弹，但实时渲染只能做一次弹射。直接光照负责处理光源→物体→眼睛这一路径，但把直接光照做得再精细，结果看起来还是像”摆在虚空里的模型”——阴影生硬、暗面死黑、色彩渗透缺失。 这就是间接光照（Indirect Illumination &#x2F; Global Illumination）要解决的问题：光从光源出发，照到红墙上，红墙把能量弹向地面，地面因此染上红色——这一路的能量传递要被正确计算。 问题是，如果要在实时渲染中精确计算所有反弹，代价极高。路径追踪（Path Tracing）可以做到，但一帧要花几分钟甚至几小时，游戏完全没法用。于是游戏引擎发展出了一套预计算 + 近似的方案体系：  Lightmap：静态场景把间接...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-23-voxel-cone-tracing/vct_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-23</div><div class="info-item-2">每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机全局光照的工程困境光线追踪可以精确计算全局光照（Global Illumination，GI），但在实时渲染场景下代价极高。渲染一帧 1080P 图像，路径追踪往往需要每像素几十甚至上百条路径才能收敛——这对于 60FPS 的游戏来说显然不现实。 游戏引擎里用了哪些方案来”作弊”？  光照贴图（Lightmap）：离线烘焙，无法响应动态物体 Irradiance Volume（光照探针）：动态性好，但空间分辨率有限 SSAO（屏幕空间环境光遮蔽）：只用屏幕信息，遮蔽范围受限 Lumen（UE5）：混合 SDF 追踪 + Radiance Cache，非常复杂  2011 年，Cyril Crassin 等人提出了 Voxel Cone Tracing（VCT），发表在 SIGGRAPH 论文”Interactive Indirect Illumination Using Voxel Cone Tracing”中。VCT 的核心思想是：  把场景体素化成一个带 Mipmap 的 3D 纹理，然后在着色时沿锥形方向”扫描”这个 3D 纹理，近似计算来自各方向的间接辐射度...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/01/daily-coding-restir-direct-illumination-2026-05-01/" title="每日编程实践: ReSTIR Direct Illumination Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-01-restir-direct-illumination/restir_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-01</div><div class="info-item-2">每日编程实践: ReSTIR Direct Illumination Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 62: ReSTIR Direct Illumination Renderer今天实现了 ReSTIR（Reservoir-based Spatiotemporal Importance Resampling） 直接光照渲染器——这是目前工业界最前沿的实时多光源采样算法之一，已被应用于 NVIDIA Cyberpunk 2077 光线追踪、Unreal Engine 5 Lumen 等旗舰产品中。   一、背景与动机：多光源采样的难题传统方法的瓶颈在实时渲染中，直接光照（Direct Illumination）是场景亮度的主要来源。对于一个着色点 $\mathbf{x}$，直接光照的渲染方程为： $$L_o(\mathbf{x}, \omega_o) &#x3D; \int_{\mathcal{A}} f_r(\mathbf{x}, \omega_i, \omega_o) \cdot L_e(\mathbf{y} \to \mathbf{x}) \cdot G(\mathbf{x}, \mathbf{y}) \cdot V(\mathbf{x}, \math...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/05/daily-coding-path-guiding-2026-05-05/" title="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-05-path-guiding/path_guiding_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-05</div><div class="info-item-2">每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Path Guiding Renderer with SD-Tree 用空间缓存学习光照分布，让蒙特卡洛路径追踪”知道”往哪里看。   左：Path Guiding 引导渲染（128 spp，2学习轮次+2渲染轮次）；右：纯余弦半球采样参考（64 spp）  ① 背景与动机蒙特卡洛路径追踪的噪声困境标准路径追踪（Path Tracing）是目前离线渲染的主流框架，但它有一个固有的痛点：收敛速度慢，噪声多。 在漫反射表面的路径追踪中，我们通常在半球上均匀采样或按余弦加权采样反射方向。这种做法在物理上是无偏的——任何方向都有可能贡献能量——但在实践中，大量采样方向对最终像素几乎没有贡献，白白浪费了采样预算。 具体来说：  直接光照在场景中通常集中在光源方向附近的一小块立体角 间接光照受到几何约束，能量往往集中在某些特定方向 焦散（caustics）只有极少数路径能够命中，余弦采样几乎是”大海捞针”  结果就是：即使渲染 256 spp，某些像素仍然布满萤火虫噪声（fireflies），尤其是包含复杂光路的场景——玻璃球后面的焦散、镜面球之间的多次反射、间接照明的角落。 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">97</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">113</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%96%B9%E7%A8%8B%E4%B8%8E-GI-%E7%9A%84%E6%9C%AC%E8%B4%A8"><span class="toc-number">2.1.</span> <span class="toc-text">渲染方程与 GI 的本质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%93%E7%B4%A0%E5%8C%96%E7%9A%84%E6%9C%AC%E8%B4%A8"><span class="toc-number">2.2.</span> <span class="toc-text">体素化的本质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%B4%E6%8E%A5%E5%85%89%E6%B3%A8%E5%85%A5"><span class="toc-number">2.3.</span> <span class="toc-text">直接光注入</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%94%A5%E8%BF%BD%E8%B8%AA%EF%BC%88Cone-Tracing%EF%BC%89%E5%8E%9F%E7%90%86"><span class="toc-number">2.4.</span> <span class="toc-text">锥追踪（Cone Tracing）原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%BC%AB%E5%8F%8D%E5%B0%84-GI%EF%BC%9A%E5%8D%8A%E7%90%83%E9%94%A5%E7%A7%AF%E5%88%86"><span class="toc-number">2.5.</span> <span class="toc-text">漫反射 GI：半球锥积分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%8E%AF%E5%A2%83%E5%85%89%E9%81%AE%E8%94%BD%EF%BC%88AO-Cone-Tracing%EF%BC%89"><span class="toc-number">2.6.</span> <span class="toc-text">环境光遮蔽（AO Cone Tracing）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%95%9C%E9%9D%A2-GI%EF%BC%9A%E5%8F%8D%E5%B0%84%E9%94%A5"><span class="toc-number">2.7.</span> <span class="toc-text">镜面 GI：反射锥</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.1.</span> <span class="toc-text">关键数据结构</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E4%BD%93%E7%B4%A0%E5%8C%96"><span class="toc-number">4.1.</span> <span class="toc-text">1. 体素化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E9%94%A5%E8%BF%BD%E8%B8%AA%E4%B8%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">4.2.</span> <span class="toc-text">2. 锥追踪主循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E6%BC%AB%E5%8F%8D%E5%B0%84-GI"><span class="toc-number">4.3.</span> <span class="toc-text">3. 漫反射 GI</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E7%9B%B4%E6%8E%A5%E5%85%89%E7%85%A7"><span class="toc-number">4.4.</span> <span class="toc-text">4. 直接光照</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-ACES-%E8%89%B2%E8%B0%83%E6%98%A0%E5%B0%84"><span class="toc-number">4.5.</span> <span class="toc-text">5. ACES 色调映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-PNG-%E5%86%99%E5%85%A5%EF%BC%88%E6%97%A0%E7%AC%AC%E4%B8%89%E6%96%B9%E5%BA%93%EF%BC%89"><span class="toc-number">4.6.</span> <span class="toc-text">6. PNG 写入（无第三方库）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E7%BC%96%E8%AF%91%E9%94%99%E8%AF%AF-ray-d-%E6%97%A0%E6%B3%95%E5%8F%96%E4%B8%80%E5%85%83%E8%B4%9F%E5%8F%B7"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：编译错误 -ray.d 无法取一元负号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E5%85%A8%E5%9B%BE%E8%BE%93%E5%87%BA%E5%8D%95%E4%B8%80%E9%A2%9C%E8%89%B2-byte-16%EF%BC%88%E6%9C%80%E9%9A%BE%E7%9A%84-Bug%EF%BC%89"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：全图输出单一颜色 byte&#x3D;16（最难的 Bug）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9AvoxelizeScene-%E5%A1%AB%E5%85%85%E6%95%B0%E9%87%8F%E4%BB%8E-38949-%E4%B8%8B%E9%99%8D%E5%88%B0-18472"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：voxelizeScene 填充数量从 38949 下降到 18472</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9Arender-%E5%87%BD%E6%95%B0%E8%B0%83%E8%AF%95%E8%80%97%E6%97%B6%E6%9E%81%E9%95%BF"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：render 函数调试耗时极长</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.1.</span> <span class="toc-text">量化像素统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%95%88%E6%9E%9C"><span class="toc-number">6.2.</span> <span class="toc-text">渲染效果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">6.3.</span> <span class="toc-text">性能数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#VXGI-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">VXGI 的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/14/daily-coding-vxgi-2026-05-14/" title="每日编程实践: VXGI 体素全局光照渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: VXGI 体素全局光照渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/14/daily-coding-vxgi-2026-05-14/" title="每日编程实践: VXGI 体素全局光照渲染器">每日编程实践: VXGI 体素全局光照渲染器</a><time datetime="2026-05-13T21:30:00.000Z" title="发表于 2026-05-14 05:30:00">2026-05-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-13-fxaa-antialiasing/fxaa_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer">每日编程实践: FXAA Anti-Aliasing Post-Process Renderer</a><time datetime="2026-05-12T21:30:00.000Z" title="发表于 2026-05-13 05:30:00">2026-05-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/12/daily-coding-deferred-shading-2026-05-12/" title="每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-12-deferred-shading/deferred_shading_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/12/daily-coding-deferred-shading-2026-05-12/" title="每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）">每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）</a><time datetime="2026-05-11T21:30:00.000Z" title="发表于 2026-05-12 05:30:00">2026-05-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/11/daily-coding-aces-hdr-tone-mapping-2026-05-11/" title="每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-11-aces-hdr/aces_hdr_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/11/daily-coding-aces-hdr-tone-mapping-2026-05-11/" title="每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering">每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering</a><time datetime="2026-05-10T21:30:00.000Z" title="发表于 2026-05-11 05:30:00">2026-05-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/10/daily-coding-toon-water-shader-2026-05-10/" title="每日编程实践: Toon Water Shader"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-10-toon-water-shader/toon_water_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Toon Water Shader"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/10/daily-coding-toon-water-shader-2026-05-10/" title="每日编程实践: Toon Water Shader">每日编程实践: Toon Water Shader</a><time datetime="2026-05-09T21:30:00.000Z" title="发表于 2026-05-10 05:30:00">2026-05-10</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
