@@ -1,0 +1,440 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Parallax Occlusion Mapping Renderer | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践 Day 80：Parallax Occlusion Mapping Renderer今天实现 Parallax Occlusion Mapping（视差遮挡贴图，POM）——一种用高度图驱动 UV 偏移，在平面上营造真实立体感的经典实时渲染技术。与 Normal Map 只改法线不同，POM 会让 UV 本身”随视角移动”，使砖块、石板、地表看起来真正凸出平面。实现还包含沿光线方向的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Parallax Occlusion Mapping Renderer">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/17/daily-coding-pom-2026-05-17/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践 Day 80：Parallax Occlusion Mapping Renderer今天实现 Parallax Occlusion Mapping（视差遮挡贴图，POM）——一种用高度图驱动 UV 偏移，在平面上营造真实立体感的经典实时渲染技术。与 Normal Map 只改法线不同，POM 会让 UV 本身”随视角移动”，使砖块、石板、地表看起来真正凸出平面。实现还包含沿光线方向的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png">
+<meta property="article:published_time" content="2026-05-16T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-16T21:37:29.680Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="实时渲染">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="纹理技术">
+<meta property="article:tag" content="软光栅化">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Parallax Occlusion Mapping Renderer",
+  "url": "https://chiuhoukazusa.github.io/2026/05/17/daily-coding-pom-2026-05-17/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png",
+  "datePublished": "2026-05-16T21:30:00.000Z",
+  "dateModified": "2026-05-16T21:37:29.680Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/17/daily-coding-pom-2026-05-17/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Parallax Occlusion Mapping Renderer',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Parallax Occlusion Mapping Renderer</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Parallax Occlusion Mapping Renderer</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-16T21:30:00.000Z" title="发表于 2026-05-17 05:30:00">2026-05-17</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-16T21:37:29.680Z" title="更新于 2026-05-17 05:37:29">2026-05-17</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践-Day-80：Parallax-Occlusion-Mapping-Renderer"><a href="#每日编程实践-Day-80：Parallax-Occlusion-Mapping-Renderer" class="headerlink" title="每日编程实践 Day 80：Parallax Occlusion Mapping Renderer"></a>每日编程实践 Day 80：Parallax Occlusion Mapping Renderer</h1><p>今天实现 <strong>Parallax Occlusion Mapping（视差遮挡贴图，POM）</strong>——一种用高度图驱动 UV 偏移，在平面上营造真实立体感的经典实时渲染技术。与 Normal Map 只改法线不同，POM 会让 UV 本身”随视角移动”，使砖块、石板、地表看起来真正凸出平面。实现还包含沿光线方向的 <strong>自阴影（Self-Shadowing）</strong>，让高出部分在临近区域投射阴影。</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png" alt="渲染结果"></p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="为什么不够用-Normal-Map？"><a href="#为什么不够用-Normal-Map？" class="headerlink" title="为什么不够用 Normal Map？"></a>为什么不够用 Normal Map？</h3><p>Normal Map 是改变每个像素的法线方向，欺骗光照计算，让光影看起来像有凹凸。但它有一个根本性的局限：<strong>UV 不变</strong>。当你以掠射角（grazing angle）看砖墙时，一个真正凸出的砖块应该遮挡后面的区域，但 Normal Map 无法做到这一点——在接近 90° 的视角下，砖块与墙面依然是同一平面，轮廓完全平直。</p>
+<p>这在游戏场景中看起来非常假，特别是：</p>
+<ul>
+<li>近距离观察地板（如 FPS 游戏向下看）</li>
+<li>掠射角观察砖墙、石板路</li>
+<li>侧视角下的岩石、浮雕</li>
+</ul>
+<p><strong>Normal Map 在法线方向造假，但几何轮廓暴露了真相。</strong></p>
+<h3 id="Parallax-Mapping-的思路"><a href="#Parallax-Mapping-的思路" class="headerlink" title="Parallax Mapping 的思路"></a>Parallax Mapping 的思路</h3><p>Parallax Mapping（视差贴图）的核心思想很直接：</p>
+<blockquote>
+<p>如果表面上某点实际”高出”平面 h，那么当你从斜角看这个点时，你看到的位置应该比几何上的 UV 坐标向视线方向偏移了一定量。</p>
+</blockquote>
+<p>最简单的版本（Simple Parallax Mapping）只做一次近似偏移：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UV_offset = (height - 0.5) * parallax_scale * view_dir_tangent.xy / view_dir_tangent.z</span><br></pre></td></tr></table></figure>
+
+<p>这个近似在高度变化不剧烈时还好，但对高频细节（如深沟壑的砖缝）会产生明显错位。</p>
+<p><strong>Parallax Occlusion Mapping（POM）</strong> 是视差贴图的进阶版：沿视线方向在高度场中做<strong>射线步进（Ray Marching）</strong>，精确找到视线与高度场的交点。这是今天要实现的技术。</p>
+<h3 id="工业界使用场景"><a href="#工业界使用场景" class="headerlink" title="工业界使用场景"></a>工业界使用场景</h3><p>POM 是 UE4&#x2F;UE5 的 Material 编辑器标配节点（<code>Parallax Occlusion Mapping</code> 节点）。在以下场景几乎必用：</p>
+<ul>
+<li><strong>FPS 游戏地面&#x2F;墙面</strong>：COD、战地系列的石板路、砖墙</li>
+<li><strong>RPG 场景道具</strong>：武器铭文的金属浮雕感</li>
+<li><strong>建筑可视化</strong>：砖块、大理石铺地、混凝土墙面</li>
+<li><strong>车漆 &#x2F; 皮革纹理</strong>：皮革的细腻凸起感</li>
+</ul>
+<p>与全分辨率 Tessellation + Displacement Mapping 相比，POM 完全在像素着色器里做，<strong>不增加顶点数量</strong>，成本相对可控，适合中距离内的表面细节。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-问题建模"><a href="#2-1-问题建模" class="headerlink" title="2.1 问题建模"></a>2.1 问题建模</h3><p>设一张平面 quad，法线指向 +Z。有一张高度图 $h(u, v) \in [0, 1]$，表示表面在 Z 方向上的相对高度（1 &#x3D; 最高，0 &#x3D; 最低）。</p>
+<p>实际上，这个表面可以理解为一张三维函数图：</p>
+<p>$$<br>\text{surface point} &#x3D; (u, v, , h(u, v) \times \text{heightScale})<br>$$</p>
+<p>当视线方向（切线空间下）为 $\mathbf{V}_{ts} &#x3D; (v_x, v_y, v_z)$（z &lt; 0 表示向表面看），视线从 $(u_0, v_0, 1)$（切线空间上方）射向表面，参数化射线为：</p>
+<p>$$<br>(u(t), v(t), d(t)) &#x3D; (u_0 + t \cdot \frac{-v_x}{v_z}, ; v_0 + t \cdot \frac{-v_y}{v_z}, ; t)<br>$$</p>
+<p>其中 $d(t)$ 是从表面顶（高度&#x3D;1）向下的深度，$t$ 从 0 增大到 1。</p>
+<p><strong>POM 要解的方程</strong>：找最小的 $t^*$ 使得：</p>
+<p>$$<br>h(u(t^<em>), v(t^</em>)) &#x3D; 1 - t^*<br>$$</p>
+<p>即高度场值等于”我们还剩多少深度”。这就是视线与高度场的首次交点。</p>
+<h3 id="2-2-线性步进（Linear-Search）"><a href="#2-2-线性步进（Linear-Search）" class="headerlink" title="2.2 线性步进（Linear Search）"></a>2.2 线性步进（Linear Search）</h3><p>直接解析求解 $t^*$ 几乎不可能（高度场是任意噪声函数），所以用迭代步进：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">for i = 0 to linearSteps:</span><br><span class="line">    t = i / linearSteps</span><br><span class="line">    (u, v) = (u0 + du*t, v0 + dv*t)</span><br><span class="line">    h = heightMap(u, v)</span><br><span class="line">    if h &gt; (1 - t):</span><br><span class="line">        // 找到跨越点，记录 t_prev 和 t_curr</span><br><span class="line">        break</span><br></pre></td></tr></table></figure>
+
+<p>步进方向 <code>du, dv</code> 由切线空间视线方向决定：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> du = -Vts.x / (Vts.z + <span class="number">1e-6f</span>) * heightScale;</span><br><span class="line"><span class="type">float</span> dv = -Vts.y / (Vts.z + <span class="number">1e-6f</span>) * heightScale;</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>heightScale</code> 控制最大 UV 偏移量，通常取 0.05~0.20。</p>
+<p><strong>线性步进的问题</strong>：步数有限时，找到的交点是在上一步（未碰到）和这一步（已穿入）之间的某处，精度不足。</p>
+<h3 id="2-3-二分细化（Binary-Search-Refinement）"><a href="#2-3-二分细化（Binary-Search-Refinement）" class="headerlink" title="2.3 二分细化（Binary Search Refinement）"></a>2.3 二分细化（Binary Search Refinement）</h3><p>在线性步进找到跨越区间 $[t_{lo}, t_{hi}]$ 后，对区间做二分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">for j = 0 to binarySteps:</span><br><span class="line">    mid = (lo + hi) / 2</span><br><span class="line">    (u, v) = (u0 + du*mid, v0 + dv*mid)</span><br><span class="line">    h = heightMap(u, v)</span><br><span class="line">    if h &gt; (1 - mid):</span><br><span class="line">        hi = mid   // 已穿入，往回找</span><br><span class="line">    else:</span><br><span class="line">        lo = mid   // 未到，继续向前</span><br></pre></td></tr></table></figure>
+
+<p>8 次二分可将精度提升 $2^8 &#x3D; 256$ 倍。实现代价很小（每次只多一次高度图采样），但效果大幅改善。</p>
+<p><strong>直觉解释</strong>：线性步进找到”第一个穿入”的格子，二分在这个格子里精确找交点。就像用二分查找找到有序数组中的准确位置。</p>
+<h3 id="2-4-切线空间的必要性"><a href="#2-4-切线空间的必要性" class="headerlink" title="2.4 切线空间的必要性"></a>2.4 切线空间的必要性</h3><p>POM 必须在**切线空间（Tangent Space）**中进行，因为高度图的 UV 方向就定义在切线空间里。</p>
+<p>对于轴对齐的 quad：</p>
+<ul>
+<li>Tangent (T) &#x3D; (1, 0, 0)（对应 +U 方向）</li>
+<li>Bitangent (B) &#x3D; (0, 1, 0)（对应 +V 方向）</li>
+<li>Normal (N) &#x3D; (0, 0, 1)（表面法线）</li>
+</ul>
+<p>视线方向从世界空间变换到切线空间：<br>$$<br>\mathbf{V}_{ts} &#x3D; (V \cdot T, ; V \cdot B, ; V \cdot N)<br>$$</p>
+<p>对于我们的轴对齐 quad，切线空间 &#x3D; 世界空间，无需额外变换。但在真实引擎中，每个三角形都有自己的 TBN 矩阵，需要在顶点着色器中传递并在像素着色器中使用。</p>
+<h3 id="2-5-法线扰动（Normal-Perturbation-from-Height-Gradient）"><a href="#2-5-法线扰动（Normal-Perturbation-from-Height-Gradient）" class="headerlink" title="2.5 法线扰动（Normal Perturbation from Height Gradient）"></a>2.5 法线扰动（Normal Perturbation from Height Gradient）</h3><p>POM 确定了”我们在高度场的哪个位置”后，还需要计算该点的正确法线以进行光照。</p>
+<p>法线由高度场的梯度决定：</p>
+<p>$$<br>\frac{\partial h}{\partial u} \approx \frac{h(u + \epsilon, v) - h(u, v)}{\epsilon}<br>$$</p>
+<p>$$<br>\frac{\partial h}{\partial v} \approx \frac{h(u, v + \epsilon) - h(u, v)}{\epsilon}<br>$$</p>
+<p>切线空间法线：</p>
+<p>$$<br>\mathbf{N}_{ts} &#x3D; \text{normalize}\left(-\frac{\partial h}{\partial u} \cdot \mathbf{T}, ; -\frac{\partial h}{\partial v} \cdot \mathbf{B}, ; 1\right)<br>$$</p>
+<p>负号的原因：高度增大的方向，法线应该向反向倾斜（坡朝上的法线偏向”向上”）。</p>
+<h3 id="2-6-POM-自阴影（Self-Shadowing）"><a href="#2-6-POM-自阴影（Self-Shadowing）" class="headerlink" title="2.6 POM 自阴影（Self-Shadowing）"></a>2.6 POM 自阴影（Self-Shadowing）</h3><p>当光线从角度照射时，高度场的凸起应该在周围区域投下阴影。这需要从交点出发，沿光线方向在高度场中再做一次射线步进：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">for i = 1 to shadowSteps:</span><br><span class="line">    t = i * stepSize / surfaceH</span><br><span class="line">    (su, sv) = (u + lu*t, v + lv*t)</span><br><span class="line">    sh = heightMap(su, sv)</span><br><span class="line">    expectedDepth = (1 - surfaceH) + stepSize * i</span><br><span class="line">    if sh &gt; expectedDepth:</span><br><span class="line">        occlusion = (sh - expectedDepth) * 10</span><br><span class="line">        shadowAccum = max(shadowAccum, clamp(occlusion, 0, 1))</span><br></pre></td></tr></table></figure>
+
+<p><code>surfaceH</code> 是当前点的高度，<code>lu, lv</code> 是光线方向在切线空间的 UV 分量。</p>
+<p>这和 POM 步进几乎一样，只是方向换成了光线方向，起点是已知的高度场交点。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">程序化高度图定义 (sampleHeight)</span><br><span class="line">         ↓</span><br><span class="line">视线方向计算（从eye到surface point）</span><br><span class="line">         ↓</span><br><span class="line">POM 线性步进 → 二分细化 → 精确 UV 偏移 (pomTrace)</span><br><span class="line">         ↓</span><br><span class="line">法线计算（高度梯度）(heightNormal)</span><br><span class="line">         ↓</span><br><span class="line">自阴影步进 (pomShadow)</span><br><span class="line">         ↓</span><br><span class="line">Phong 着色（albedo × (ambient + diffuse × shadow + specular × shadow)）</span><br><span class="line">         ↓</span><br><span class="line">ACES Filmic 色调映射</span><br><span class="line">         ↓</span><br><span class="line">写入 PNG</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-高度图类型"><a href="#3-2-高度图类型" class="headerlink" title="3.2 高度图类型"></a>3.2 高度图类型</h3><p>实现了 4 种程序化高度图：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>名称</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HM_RIDGED</code></td>
+<td>脊状 FBM 岩石</td>
+<td>多倍频叠加，山脊感</td>
+</tr>
+<tr>
+<td><code>HM_BRICK</code></td>
+<td>砖墙</td>
+<td>周期性砖块+灰缝，测试 POM 直线边界</td>
+</tr>
+<tr>
+<td><code>HM_WAVES</code></td>
+<td>波浪</td>
+<td>正弦叠加+FBM 扰动，光滑渐变</td>
+</tr>
+<tr>
+<td><code>HM_CRATER</code></td>
+<td>月球陨石坑</td>
+<td>SDF 驱动的碗形 + 环形山脊</td>
+</tr>
+</tbody></table>
+<p>这 4 种覆盖了不同频率特征：高频噪声（RIDGED）、硬边界（BRICK）、低频平滑（WAVES）、特殊 SDF 形状（CRATER）。</p>
+<h3 id="3-3-关键数据结构"><a href="#3-3-关键数据结构" class="headerlink" title="3.3 关键数据结构"></a>3.3 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 图像缓冲区</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Image</span> &#123;</span><br><span class="line">    <span class="type">int</span> w, h;</span><br><span class="line">    std::vector&lt;Vec3&gt; pixels;  <span class="comment">// HDR float pixel buffer</span></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">save</span><span class="params">(<span class="type">const</span> <span class="type">char</span>* path)</span></span>; <span class="comment">// ACES tone-map + PNG write</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 面板描述</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Panel</span> &#123;</span><br><span class="line">    HeightMapType type;   <span class="comment">// 高度图类型</span></span><br><span class="line">    <span class="type">float</span> hmScale;        <span class="comment">// 高度图 UV 缩放（越大纹路越密）</span></span><br><span class="line">    <span class="type">float</span> heightScale;    <span class="comment">// 最大 POM 偏移量（越大立体感越强，但也越容易伪影）</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span>* name;</span><br><span class="line">    Vec3 border;          <span class="comment">// 面板边框颜色</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-视线构造"><a href="#3-4-视线构造" class="headerlink" title="3.4 视线构造"></a>3.4 视线构造</h3><p>每个像素对应 panel 内的 UV，然后根据 UV 在 $[-1, 1]^2$ 的世界空间 quad 上找到表面点，从固定眼睛位置 <code>eye = (0, -0.3, 2.5)</code> 射出视线：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> wx = (u * <span class="number">2.f</span> - <span class="number">1.f</span>);   <span class="comment">// UV [0,1] → world [-1,1]</span></span><br><span class="line"><span class="type">float</span> wy = (v * <span class="number">2.f</span> - <span class="number">1.f</span>);</span><br><span class="line"><span class="function">Vec3 <span class="title">surfPt</span><span class="params">(wx, wy, <span class="number">0.f</span>)</span></span>;</span><br><span class="line">Vec3 viewDir = (surfPt - eye).<span class="built_in">norm</span>();</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-高度图采样"><a href="#4-1-高度图采样" class="headerlink" title="4.1 高度图采样"></a>4.1 高度图采样</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">sampleHeight</span><span class="params">(<span class="type">float</span> u, <span class="type">float</span> v, HeightMapType type, <span class="type">float</span> scale=<span class="number">4.f</span>)</span></span>&#123;</span><br><span class="line">    u *= scale; v *= scale;</span><br><span class="line">    <span class="keyword">switch</span>(type)&#123;</span><br><span class="line">    <span class="keyword">case</span> HM_RIDGED:</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">ridgedFbm</span>(u, v, <span class="number">6</span>);</span><br><span class="line">    <span class="keyword">case</span> HM_BRICK: &#123;</span><br><span class="line">        <span class="type">float</span> row = <span class="built_in">floorf</span>(v);</span><br><span class="line">        <span class="type">float</span> shift = (<span class="built_in">fmodf</span>(row, <span class="number">2.f</span>) &lt; <span class="number">1.f</span>) ? <span class="number">0.5f</span> : <span class="number">0.f</span>;  <span class="comment">// 交错排列</span></span><br><span class="line">        <span class="type">float</span> uf = <span class="built_in">fract</span>(u + shift) * <span class="number">8.f</span>;   <span class="comment">// 在砖块内的位置（8砖/unit）</span></span><br><span class="line">        <span class="type">float</span> vf = <span class="built_in">fract</span>(v) * <span class="number">4.f</span>;</span><br><span class="line">        <span class="type">float</span> mx = <span class="built_in">sinf</span>(uf * <span class="number">3.14159f</span>) * <span class="built_in">sinf</span>(vf * <span class="number">3.14159f</span>);</span><br><span class="line">        mx = <span class="built_in">clampf</span>(mx * <span class="number">3.f</span>, <span class="number">0.f</span>, <span class="number">1.f</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1.f</span> - mx; <span class="comment">// 砖缝（mx接近0）高度=1（凸出），砖面高度=0</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ...</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>砖块高度图的设计</strong>：砖缝处 <code>mx ≈ 0</code>，<code>height ≈ 1</code>（凸出）；砖面中央 <code>mx ≈ 1</code>，<code>height ≈ 0</code>（凹陷）。这样 POM 会让视线偏向砖缝时”掉进”砖缝，产生深度感。</p>
+<p><strong>为什么用 sin 而不是 step？</strong> <code>sin</code> 产生平滑过渡，避免砖块边缘的硬跳变在 POM 步进时产生严重锯齿。</p>
+<h3 id="4-2-脊状-FBM（Ridged-FBM）"><a href="#4-2-脊状-FBM（Ridged-FBM）" class="headerlink" title="4.2 脊状 FBM（Ridged FBM）"></a>4.2 脊状 FBM（Ridged FBM）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">ridgedFbm</span><span class="params">(<span class="type">float</span> x, <span class="type">float</span> y, <span class="type">int</span> octaves=<span class="number">6</span>)</span></span>&#123;</span><br><span class="line">    <span class="type">float</span> v=<span class="number">0</span>, amp=<span class="number">0.5f</span>, freq=<span class="number">1.f</span>;</span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>;i&lt;octaves;i++)&#123;</span><br><span class="line">        <span class="type">float</span> n = <span class="built_in">smoothNoise</span>(x*freq, y*freq);</span><br><span class="line">        v += amp * (<span class="number">1.f</span> - <span class="built_in">fabsf</span>(n*<span class="number">2</span><span class="number">-1</span>));  <span class="comment">// 关键：1 - |2n-1|</span></span><br><span class="line">        amp  *= <span class="number">0.5f</span>;</span><br><span class="line">        freq *= <span class="number">2.f</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">clampf</span>(v, <span class="number">0</span>, <span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键变换 <code>1 - |2n - 1|</code>：</p>
+<ul>
+<li>普通 FBM 生成连续起伏（山丘感）</li>
+<li><code>|2n - 1|</code> 将 0.5 处折叠为 0，两端为 1（像 V 形）</li>
+<li><code>1 - |2n - 1|</code> 翻转，使 0.5 处为峰值（山脊感）</li>
+</ul>
+<p><strong>直觉</strong>：普通噪声是”丘陵”，ridged FBM 是”锋利的山脊”，非常适合模拟岩石、高山等地形。</p>
+<h3 id="4-3-POM-核心追踪"><a href="#4-3-POM-核心追踪" class="headerlink" title="4.3 POM 核心追踪"></a>4.3 POM 核心追踪</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec2 <span class="title">pomTrace</span><span class="params">(<span class="type">float</span> u0, <span class="type">float</span> v0, Vec3 Vts, HeightMapType type, <span class="type">float</span> scale,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">float</span> heightScale, <span class="type">int</span> linearSteps=<span class="number">32</span>, <span class="type">int</span> binarySteps=<span class="number">8</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="type">float</span> stepSize = <span class="number">1.f</span> / (<span class="type">float</span>)linearSteps;</span><br><span class="line">    <span class="type">float</span> curDepth = <span class="number">0.f</span>;</span><br><span class="line">    <span class="type">float</span> cu = u0, cv = v0;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// UV 在 Z 方向每增加 1 时的偏移量</span></span><br><span class="line">    <span class="comment">// 相当于：视线从表面顶部到底部时，UV 移动了多少</span></span><br><span class="line">    <span class="type">float</span> du = -Vts.x / (Vts.z + <span class="number">1e-6f</span>) * heightScale;</span><br><span class="line">    <span class="type">float</span> dv = -Vts.y / (Vts.z + <span class="number">1e-6f</span>) * heightScale;</span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> prevDepth = <span class="number">0.f</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">0</span>; i&lt;linearSteps; i++)&#123;</span><br><span class="line">        curDepth += stepSize;</span><br><span class="line">        <span class="type">float</span> nu = cu + du * curDepth;</span><br><span class="line">        <span class="type">float</span> nv = cv + dv * curDepth;</span><br><span class="line">        <span class="type">float</span> h  = <span class="built_in">sampleHeight</span>(nu, nv, type, scale);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span>(h &gt; <span class="number">1.f</span> - curDepth)&#123;  <span class="comment">// 穿入高度场</span></span><br><span class="line">            <span class="comment">// 二分细化</span></span><br><span class="line">            <span class="type">float</span> lo = prevDepth, hi = curDepth;</span><br><span class="line">            <span class="keyword">for</span>(<span class="type">int</span> j=<span class="number">0</span>; j&lt;binarySteps; j++)&#123;</span><br><span class="line">                <span class="type">float</span> mid = (lo+hi)*<span class="number">0.5f</span>;</span><br><span class="line">                <span class="type">float</span> mu  = cu + du * mid;</span><br><span class="line">                <span class="type">float</span> mv  = cv + dv * mid;</span><br><span class="line">                <span class="type">float</span> mh  = <span class="built_in">sampleHeight</span>(mu, mv, type, scale);</span><br><span class="line">                <span class="keyword">if</span>(mh &gt; <span class="number">1.f</span> - mid) hi = mid;</span><br><span class="line">                <span class="keyword">else</span>                lo = mid;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="type">float</span> fd = (lo+hi)*<span class="number">0.5f</span>;</span><br><span class="line">            <span class="keyword">return</span> &#123;cu + du*fd, cv + dv*fd&#125;;</span><br><span class="line">        &#125;</span><br><span class="line">        prevDepth = curDepth;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &#123;cu + du*curDepth, cv + dv*curDepth&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么是 <code>h &gt; 1.f - curDepth</code>？</strong></p>
+<p>我们用深度 $d \in [0, 1]$ 从顶部往下走：</p>
+<ul>
+<li>$d &#x3D; 0$：表面最顶（高度最高处）</li>
+<li>$d &#x3D; 1$：表面最底（高度最低处）</li>
+</ul>
+<p>“视线在 depth &#x3D; d 处，期望高度 &#x3D; 1 - d”。如果高度场 $h &gt; 1 - d$，说明地形比视线当前位置高，即视线已穿入地形内部，交点就在此之前。</p>
+<p><strong><code>+ 1e-6f</code> 的作用</strong>：防止视线完全垂直于表面时（<code>Vts.z = 0</code>）的除零错误。</p>
+<h3 id="4-4-法线扰动"><a href="#4-4-法线扰动" class="headerlink" title="4.4 法线扰动"></a>4.4 法线扰动</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">heightNormal</span><span class="params">(<span class="type">float</span> u, <span class="type">float</span> v, HeightMapType type, <span class="type">float</span> scale=<span class="number">4.f</span>,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">float</span> eps=<span class="number">0.001f</span>, <span class="type">float</span> bumpScale=<span class="number">0.1f</span>)</span></span>&#123;</span><br><span class="line">    <span class="type">float</span> h  = <span class="built_in">sampleHeight</span>(u,     v,   type, scale);</span><br><span class="line">    <span class="type">float</span> hx = <span class="built_in">sampleHeight</span>(u+eps, v,   type, scale);</span><br><span class="line">    <span class="type">float</span> hy = <span class="built_in">sampleHeight</span>(u,   v+eps, type, scale);</span><br><span class="line">    <span class="type">float</span> dhdx = (hx - h) / eps * bumpScale;</span><br><span class="line">    <span class="type">float</span> dhdy = (hy - h) / eps * bumpScale;</span><br><span class="line">    <span class="comment">// 切线空间法线：平面法线 (0,0,1) 加上梯度扰动</span></span><br><span class="line">    Vec3 n = <span class="built_in">Vec3</span>(-dhdx, -dhdy, <span class="number">1.f</span>).<span class="built_in">norm</span>();</span><br><span class="line">    <span class="keyword">return</span> n;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么是负号 <code>-dhdx</code>？</strong></p>
+<p>考虑 U 方向上高度增加（$\partial h &#x2F; \partial u &gt; 0$），这意味着表面向 +U 方向倾斜向上。这个坡面的法线应该向 -U 方向（向左）倾斜，所以法线 X 分量 &#x3D; $-\partial h &#x2F; \partial u$。</p>
+<p><strong><code>eps = 0.001f</code> 的选择</strong>：太大会使梯度估计不准（高度场变化太剧烈时），太小会因浮点精度损失产生噪声。0.001 对于 $[0,1]$ 范围的 UV 是合理的中间值。</p>
+<h3 id="4-5-自阴影步进"><a href="#4-5-自阴影步进" class="headerlink" title="4.5 自阴影步进"></a>4.5 自阴影步进</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">pomShadow</span><span class="params">(<span class="type">float</span> u, <span class="type">float</span> v, Vec3 Lts, HeightMapType type, <span class="type">float</span> scale,</span></span></span><br><span class="line"><span class="params"><span class="function">                <span class="type">float</span> heightScale, <span class="type">float</span> surfaceH, <span class="type">int</span> steps=<span class="number">16</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span>(Lts.z &lt;= <span class="number">0.f</span>) <span class="keyword">return</span> <span class="number">0.f</span>;  <span class="comment">// 光源在地面以下，无效</span></span><br><span class="line"></span><br><span class="line">    <span class="type">float</span> shadowAccum = <span class="number">0.f</span>;</span><br><span class="line">    <span class="type">float</span> du = Lts.x / (Lts.z + <span class="number">1e-6f</span>) * heightScale;</span><br><span class="line">    <span class="type">float</span> dv = Lts.y / (Lts.z + <span class="number">1e-6f</span>) * heightScale;</span><br><span class="line">    <span class="type">float</span> stepSize = surfaceH / (<span class="type">float</span>)steps;  <span class="comment">// 只步进到高度场顶部</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i=<span class="number">1</span>; i&lt;=steps; i++)&#123;</span><br><span class="line">        <span class="type">float</span> t  = i * stepSize / surfaceH;</span><br><span class="line">        <span class="type">float</span> su = u + du * t;</span><br><span class="line">        <span class="type">float</span> sv = v + dv * t;</span><br><span class="line">        <span class="type">float</span> sh = <span class="built_in">sampleHeight</span>(su, sv, type, scale);</span><br><span class="line">        <span class="type">float</span> expectedDepth = <span class="number">1.f</span> - surfaceH + stepSize * i;</span><br><span class="line">        <span class="keyword">if</span>(sh &gt; expectedDepth)&#123;</span><br><span class="line">            <span class="type">float</span> occlusion = (sh - expectedDepth) * <span class="number">10.f</span>;</span><br><span class="line">            shadowAccum = <span class="built_in">max</span>(shadowAccum, <span class="built_in">clampf</span>(occlusion, <span class="number">0.f</span>, <span class="number">1.f</span>));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1.f</span> - shadowAccum * <span class="number">0.8f</span>;  <span class="comment">// 0.8 防止完全黑</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>expectedDepth</code> 的计算</strong>：从当前点（高度 <code>surfaceH</code>，深度 <code>1 - surfaceH</code>）出发，沿光线方向步进 <code>i * stepSize</code> 个深度单位，期望该位置的高度场应在此深度以下（即 <code>sh ≤ expectedDepth</code>）。如果 <code>sh &gt; expectedDepth</code>，说明光线在前往光源的途中被更高的地形遮挡，产生自阴影。</p>
+<p><strong><code>* 0.8f</code> 的作用</strong>：保留 20% 的漏光（ambient），防止阴影处完全变黑，模拟间接光照的基本效果。</p>
+<h3 id="4-6-Phong-着色整合"><a href="#4-6-Phong-着色整合" class="headerlink" title="4.6 Phong 着色整合"></a>4.6 Phong 着色整合</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">shade</span><span class="params">(<span class="type">float</span> u, <span class="type">float</span> v, HeightMapType type, <span class="type">float</span> hmScale,</span></span></span><br><span class="line"><span class="params"><span class="function">           <span class="type">float</span> heightScale, Vec3 viewDir, Vec3 lightDir, ...)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 1. POM 追踪：找精确交点 UV</span></span><br><span class="line">    Vec3 Vts = <span class="built_in">Vec3</span>(-viewDir.x, -viewDir.y, -viewDir.z);</span><br><span class="line">    Vec2 uvNew = <span class="built_in">pomTrace</span>(u, v, Vts, type, hmScale, heightScale);</span><br><span class="line">    <span class="type">float</span> uu = uvNew.x, vv = uvNew.y;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 获取交点高度</span></span><br><span class="line">    <span class="type">float</span> h = <span class="built_in">sampleHeight</span>(uu, vv, type, hmScale);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 扰动法线</span></span><br><span class="line">    Vec3 N = <span class="built_in">heightNormal</span>(uu, vv, type, hmScale, <span class="number">0.001f</span>, <span class="number">0.15f</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. Albedo</span></span><br><span class="line">    Vec3 albedo = <span class="built_in">albedoFromType</span>(type, uu, vv);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 5. 自阴影</span></span><br><span class="line">    <span class="type">float</span> shadowFactor = <span class="built_in">pomShadow</span>(uu, vv, lightDir, type, hmScale, heightScale, h);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 6. Phong 光照</span></span><br><span class="line">    Vec3 L = lightDir.<span class="built_in">norm</span>();</span><br><span class="line">    Vec3 V = viewDir.<span class="built_in">norm</span>();</span><br><span class="line">    Vec3 H = (L + V).<span class="built_in">norm</span>();                 <span class="comment">// Halfway vector</span></span><br><span class="line">    <span class="type">float</span> diff = <span class="built_in">max</span>(<span class="number">0.f</span>, N.<span class="built_in">dot</span>(L));          <span class="comment">// Lambertian</span></span><br><span class="line">    <span class="type">float</span> spec = <span class="built_in">powf</span>(<span class="built_in">max</span>(<span class="number">0.f</span>, N.<span class="built_in">dot</span>(H)), <span class="number">64.f</span>);  <span class="comment">// Blinn-Phong</span></span><br><span class="line"></span><br><span class="line">    Vec3 ambient  = ambientColor * albedo * <span class="number">0.15f</span>;</span><br><span class="line">    Vec3 diffuse  = lightColor * albedo * diff * shadowFactor;</span><br><span class="line">    Vec3 specular = lightColor * <span class="built_in">Vec3</span>(<span class="number">0.8f</span>) * spec * shadowFactor;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ambient + diffuse + specular;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意 specular 不依赖 albedo（用固定的 0.8 灰白），这是 Blinn-Phong 的常见做法，防止颜色饱和的表面镜面高光颜色失真。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：uint8-t-未声明"><a href="#Bug-1：uint8-t-未声明" class="headerlink" title="Bug 1：uint8_t 未声明"></a>Bug 1：<code>uint8_t</code> 未声明</h3><p><strong>症状</strong>：编译错误 <code>&#39;uint8_t&#39; was not declared in this scope</code></p>
+<p><strong>错误假设</strong>：以为 <code>&lt;cstdio&gt;</code> 或 <code>&lt;vector&gt;</code> 会隐式包含整数类型。</p>
+<p><strong>真实原因</strong>：<code>uint8_t</code> 定义在 <code>&lt;cstdint&gt;</code> 中。<code>&lt;cstdio&gt;</code> 不保证包含它，即使在某些平台上能用（可能通过其他头文件的间接包含），也不应该依赖这个行为。</p>
+<p><strong>修复</strong>：在 <code>#include</code> 列表中明确加入 <code>#include &lt;cstdint&gt;</code>。</p>
+<p><strong>教训</strong>：标准 fixed-width 整数类型（<code>uint8_t</code>、<code>int32_t</code> 等）必须显式包含 <code>&lt;cstdint&gt;</code>，不要依赖其他头文件的间接包含。</p>
+<hr>
+<h3 id="Bug-2：stb-头文件编译警告"><a href="#Bug-2：stb-头文件编译警告" class="headerlink" title="Bug 2：stb 头文件编译警告"></a>Bug 2：stb 头文件编译警告</h3><p><strong>症状</strong>：<code>-Wall -Wextra</code> 下，stb_image_write.h 产生大量 <code>-Wmissing-field-initializers</code> 警告，导致目标”0 warnings”未能达标。</p>
+<p><strong>错误假设</strong>：以为第三方库的警告无需处理，或以为 <code>-Wextra</code> 不会触发 stb。</p>
+<p><strong>真实原因</strong>：stb 是单头文件库，使用了 <code>{ 0 }</code> 的部分初始化方式，触发 GCC <code>-Wmissing-field-initializers</code> 警告。这是 stb 的已知问题，不影响功能，但会污染编译输出。</p>
+<p><strong>修复</strong>：用 <code>#pragma GCC diagnostic</code> 包裹 include：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic push</span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic ignored <span class="string">&quot;-Wmissing-field-initializers&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;../stb_image_write.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic pop</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>教训</strong>：第三方头文件导致的警告用 pragma 局部关闭，不要全局关闭，以免真正的自身代码警告被淹没。</p>
+<hr>
+<h3 id="Bug-3：未使用变量-prevHeight"><a href="#Bug-3：未使用变量-prevHeight" class="headerlink" title="Bug 3：未使用变量 prevHeight"></a>Bug 3：未使用变量 <code>prevHeight</code></h3><p><strong>症状</strong>：<code>warning: variable &#39;prevHeight&#39; set but not used</code></p>
+<p><strong>原因</strong>：最初设计 POM 时打算用 <code>prevHeight</code> 做插值，但最终只用了 <code>prevDepth</code> 做二分区间，<code>prevHeight</code> 成了死变量。</p>
+<p><strong>修复</strong>：直接删除 <code>prevHeight</code> 和相关赋值，改为 <code>(void)sampleHeight(...)</code> 的注释调用仅做记录（实际上也直接删掉了）。</p>
+<hr>
+<h3 id="Bug-4：视线方向传递错误（需要取反）"><a href="#Bug-4：视线方向传递错误（需要取反）" class="headerlink" title="Bug 4：视线方向传递错误（需要取反）"></a>Bug 4：视线方向传递错误（需要取反）</h3><p><strong>症状</strong>：POM 追踪返回的 UV 偏移方向相反，视差效果是”反的”（当视角向右看，凸起应该向左偏移，但实际向右偏移）。</p>
+<p><strong>原因</strong>：<code>pomTrace</code> 接收的 <code>Vts</code> 参数应该是”进入表面的方向”（z 为负），但我传入了 <code>viewDir</code>（从眼睛到表面，z 也为负，但 xy 分量符号需要配合）。具体来说：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误：直接传 viewDir（视线朝向表面，Vts.z &lt; 0 ✓，但偏移方向算错）</span></span><br><span class="line">Vec2 uvNew = <span class="built_in">pomTrace</span>(u, v, viewDir, type, ...);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 正确：取反后传入（进入表面的方向与视线方向相反）</span></span><br><span class="line">Vec3 Vts = <span class="built_in">Vec3</span>(-viewDir.x, -viewDir.y, -viewDir.z);</span><br><span class="line">Vec2 uvNew = <span class="built_in">pomTrace</span>(u, v, Vts, type, ...);</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>pomTrace</code> 内部：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> du = -Vts.x / (Vts.z + <span class="number">1e-6f</span>) * heightScale;</span><br></pre></td></tr></table></figure>
+
+<p>如果 Vts 是”进入方向”（Vts.z &lt; 0），则 <code>du = -Vts.x / Vts.z * scale</code>，当视线从右上方射入（Vts.x &gt; 0, Vts.z &lt; 0）时，<code>du</code> 为正，UV 向 +U 方向偏移，正确！</p>
+<p><strong>修复</strong>：在调用 <code>pomTrace</code> 前对 <code>viewDir</code> 取反。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="输出图像统计"><a href="#输出图像统计" class="headerlink" title="输出图像统计"></a>输出图像统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">文件名: pom_output.png</span><br><span class="line">分辨率: 1200 × 700</span><br><span class="line">文件大小: 769 KB（&gt; 10KB ✅）</span><br><span class="line">渲染耗时: 3.9 秒</span><br></pre></td></tr></table></figure>
+
+<p>像素采样验证结果：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Pixel mean: 67.2  std: 57.4</span><br><span class="line">✅ 均值在 10~240 之间（非全黑/全白）</span><br><span class="line">✅ 标准差 &gt; 5（图像有内容变化）</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-种材质面板表现"><a href="#4-种材质面板表现" class="headerlink" title="4 种材质面板表现"></a>4 种材质面板表现</h3><table>
+<thead>
+<tr>
+<th>面板</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ridged FBM Rock（左上）</td>
+<td>山脊噪声产生清晰的立体岩石纹理，掠射角可见明显深度</td>
+</tr>
+<tr>
+<td>Brick Wall（右上）</td>
+<td>砖缝处明显凹陷，砖面边缘可见视差偏移</td>
+</tr>
+<tr>
+<td>Procedural Waves（左下）</td>
+<td>蓝色波浪面，光滑渐变，自阴影在波谷处清晰可见</td>
+</tr>
+<tr>
+<td>Lunar Craters（右下）</td>
+<td>环形陨石坑结构，坑沿的环形山脊明显凸出</td>
+</tr>
+</tbody></table>
+<h3 id="性能分析"><a href="#性能分析" class="headerlink" title="性能分析"></a>性能分析</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>图像分辨率</td>
+<td>1200 × 700 &#x3D; 840,000 像素</td>
+</tr>
+<tr>
+<td>POM 线性步数</td>
+<td>32 步</td>
+</tr>
+<tr>
+<td>POM 二分步数</td>
+<td>8 步</td>
+</tr>
+<tr>
+<td>自阴影步数</td>
+<td>16 步</td>
+</tr>
+<tr>
+<td>高度图采样次数&#x2F;像素</td>
+<td>~32 + 8 + 16 + 3(法线) ≈ 59 次</td>
+</tr>
+<tr>
+<td>总采样次数</td>
+<td>840,000 × 59 ≈ 49.6M 次</td>
+</tr>
+<tr>
+<td>总耗时</td>
+<td>3.9 秒（CPU 单线程）</td>
+</tr>
+<tr>
+<td>每秒采样数</td>
+<td>~12.7M 次&#x2F;秒</td>
+</tr>
+</tbody></table>
+<p>在真实 GPU 实现中，shader 是大规模并行的，59 次纹理采样在中端 GPU 上只需 ~0.5ms，足以支持 60fps 实时渲染。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>接缝（Seam）问题</strong>：POM 会导致 UV 越界，需要纹理设置 <code>WRAP</code> 模式或做边界检查</li>
+<li><strong>步数与质量权衡</strong>：步数少会产生条纹状伪影（stepping artifacts），步数多会增加着色器开销</li>
+<li><strong>高度变化剧烈时失效</strong>：当 <code>heightScale</code> 过大，线性步进找不到正确交点，出现”透视穿透”</li>
+<li><strong>视角垂直时无效果</strong>：当 <code>Vts.z = -1</code>（正视），<code>du = dv = 0</code>，POM 退化为 Normal Map</li>
+<li><strong>轮廓依然正确性</strong>：POM 依然无法解决几何轮廓问题（从外部看球的边缘），对此需要 Tessellation</li>
+</ol>
+<h3 id="优化方向"><a href="#优化方向" class="headerlink" title="优化方向"></a>优化方向</h3><ol>
+<li><strong>变步数（Adaptive Steps）</strong>：根据视角倾斜程度动态调整步数。正视时少步，掠射时多步</li>
+<li><strong>Relaxed Cone Stepping</strong>：预计算每个高度图像素的”安全步进圆锥半径”，允许更大步长，减少步数</li>
+<li><strong>Relief Mapping</strong>：将 POM 推广到两次二分（内部反射也追踪），更适合凹槽较深的材质</li>
+<li><strong>结合 Normal Map</strong>：先用 Normal Map 做 coarse 估计，再用 POM 精确追踪</li>
+<li><strong>GPU 并行</strong>：在实际引擎中，此算法完全在 Pixel Shader 中执行，可以开全分辨率渲染</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>Normal Map（基础）</strong> → <strong>Parallax Mapping（UV 偏移）</strong> → <strong>POM（射线步进）</strong> → <strong>Relief Mapping（完整追踪）</strong>：这是表面细节技术的渐进演化链</li>
+<li>参考本系列第 29 天（PCSS 软阴影）：自阴影的步进逻辑与 PCSS 遮挡搜索非常相似</li>
+<li>参考本系列第 14 天（SDF Ray Marching）：POM 是高度场上的特化 Ray Marching，思想相通</li>
+</ul>
+<h3 id="代码仓库"><a href="#代码仓库" class="headerlink" title="代码仓库"></a>代码仓库</h3><ul>
+<li>GitHub: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026-05-17-pom">daily-coding-practice&#x2F;2026-05-17-pom</a></li>
+<li>编译命令: <code>g++ main.cpp -o output -std=c++17 -O2 &amp;&amp; ./output</code></li>
+<li>生成: <code>pom_output.png</code>（1200×700，4 种材质对比）</li>
+</ul>
+<hr>
+<p><em>下次实现方向：Cone Step Mapping（CSM，基于安全锥的加速 POM）或 Shell Texturing（毛皮&#x2F;草地渲染）。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/17/daily-coding-pom-2026-05-17/">https://chiuhoukazusa.github.io/2026/05/17/daily-coding-pom-2026-05-17/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%AE%9E%E6%97%B6%E6%B8%B2%E6%9F%93/">实时渲染</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96/">软光栅化</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%BA%B9%E7%90%86%E6%8A%80%E6%9C%AF/">纹理技术</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/16/daily-coding-volumetric-cloud-2026-05-16/" title="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-16-volumetric-cloud/volumetric_cloud_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践：体积云光线步进渲染 ① 背景与动机为什么云很难渲染？云是大气中最常见的视觉现象之一，但它偏偏是渲染领域最棘手的挑战之一。传统的多边形渲染流水线非常擅长处理”有固定表面”的物体——一张桌子、一颗球、一栋建筑，都可以用三角形网格精确描述。但云没有确定的边界，它是一团半透明的气态介质，光子在其中反复散射、吸收、穿透。 如果强行用传统方法来做：  Billboard 贴图（早期游戏常用）：远看还行，靠近立刻穿帮，旋转时会露馅，无法与场景光照联动 粒子系统：大量烟雾粒子叠加，性能消耗爆炸，还是无法模拟内部光散射 Mesh 近似：哪个美术愿意手刻一朵积雨云的三角面？而且形状固定、无法动态变化  Ray Marching（光线步进） 解决了这个问题的根本——它不要求物体有一个明确的数学表面，只需要你能在任意三维坐标处回答一个问题：”这个点的云密度是多少？” 工业界怎么用？几乎所有现代 AAA 游戏和电影的天空系统都基于这一思路：  Horizon Zero Dawn &#x2F; Forbidden West：Guerrilla Games 的 “Nubis” 云系统，以 4D ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-30</div><div class="info-item-2">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Shadow Volume Renderer（阴影体积渲染器） 日期：2026-04-30技术标签：Shadow Volume · Stencil Buffer · Z-Fail (Carmack’s Reverse) · 轮廓边检测 · 软光栅化代码仓库：daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-30-shadow-volume-renderer   ① 背景与动机：为什么需要 Shadow Volume？阴影是使渲染图像真实可信的最关键因素之一。没有阴影，物体会看起来像是飘浮在空中，场景缺乏空间感和深度感。阴影技术的历史演进也是图形学发展史上最有意思的线索之一。 Shadow Map 的局限最广为人知的阴影技术是 Shadow Map（阴影贴图），其思路是：从光源视角渲染场景的深度图，然后在主渲染时判断每个像素是否比该深度图记录的值更远，如果是则在阴影中。Shadow Map 的优点是实现简单、性能好，是游戏行业20年来的主流方案。 然而，Shadow Map 有一个根本性的精度问题：它将连续的3D空间离散...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/13/daily-coding-ssao-screen-space-ambient-occlusion-2026-03-13/" title="每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-13-SSAO/ssao_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-13</div><div class="info-item-2">每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽</div></div><div class="info-2"><div class="info-item-1">SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽今天实现了 SSAO（Screen Space Ambient Occlusion）——现代实时渲染管线中最重要的后处理技术之一。从 Crysis（2007）开始被引入游戏工业，此后成为 UE、Unity 等引擎的标配功能，也是《赛博朋克 2077》、《荒野大镖客2》等 AAA 游戏中真实感的重要来源。 本项目在纯 CPU + 软光栅化器上从零实现完整的 SSAO 管线，不依赖 GPU 或任何图形 API，完整掌控每个数学细节。   为什么需要 SSAO？传统环境光的问题实时渲染中，处理全局光照（Global Illumination）在计算上开销极大。最简单的近似是用一个常数环境光项代替所有间接光照： 1ambient = albedo × k_a × L_ambient  这意味着场景中所有点受到同样强度的环境光，结果是球体底部贴地处和空旷的墙面获得完全相同的环境光强度——不真实，缺乏层次感。 现实中，环境光不是均匀到达的：  狭窄缝隙里的光线被周围几何体阻挡 凹陷区域（角落、裂缝）...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/26/daily-coding-taa-2026-03-26/" title="每日编程实践: Temporal Anti-Aliasing (TAA) — 从0实现时序抗锯齿"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-26-taa/taa_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-26</div><div class="info-item-2">每日编程实践: Temporal Anti-Aliasing (TAA) — 从0实现时序抗锯齿</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Temporal Anti-Aliasing (TAA)① 背景与动机锯齿是什么，为什么它顽固存在当你在游戏里靠近一堵砖墙，看着瓷砖边缘闪烁跳动；或者远处树木的枝条变成一片乱码噪点——这就是走样 (Aliasing) 的典型场景。 走样的根本原因是采样定理：以有限分辨率的像素网格对连续的几何场景采样，必然会丢失高频细节。一条对角线在像素网格上只能用”阶梯状”近似，这就是几何走样。 传统的解决方案：  MSAA (Multisample AA)：每像素采集多个子样本，但只对几何边缘有效，对着色走样（Shader Aliasing）无效。而且随着延迟渲染的普及，MSAA 的 G-Buffer 内存开销变得难以承受。4x MSAA &#x3D; G-Buffer 内存×4。 SSAA (Supersample AA)：以更高分辨率渲染再降采样。质量最好但开销也最大，渲染代价与超采样倍数成正比。 FXAA (Fast Approximate AA)：后处理边缘模糊，便宜但会过度模糊纹理细节，丢失锐利感。  TAA（Temporal Anti-Aliasing，时序抗锯齿）...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-02</div><div class="info-item-2">每日编程实践: Radiance Cascade Global Illumination</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Radiance Cascade Global Illumination  Cornell Box 场景中的辐射级联全局光照：红墙的色溢打到中心球上，绿墙反光照亮黄盒侧面，间接光照让整个场景更真实可信。   ① 背景与动机为什么需要全局光照？实时渲染长期困扰于一个根本矛盾：现实世界中的光线会在物体之间反复弹跳，但传统的局部光照模型（Blinn-Phong、甚至 PBR）只计算光源到表面的直接照射，完全忽视了光在场景中的多次反弹。 没有全局光照时，你会看到什么问题？  漏光：阴影区域完全漆黑，即便现实中附近墙面的反射光应该能照进去 色溢缺失：红墙旁边的白色物体不会带上红色，场景像纸板模型 接触阴影过硬：物体之间的缝隙没有柔和的 ambient occlusion 感 环境光 hack 代价：为了弥补这些缺陷，引擎往往用一个魔法常量 ambient = 0.1 来糊弄过去，但这是完全假的  这就是为什么游戏从 PS3 时代看起来总像玩具——光照是错的，哪怕模型多精细也难掩这种廉价感。 工业界是怎么做的？全局光照（Global Illumination, GI）在工业界...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/27/daily-coding-motion-blur-2026-03-27/" title="每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-27-motion-blur/motion_blur_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-27</div><div class="info-item-2">每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊</div></div><div class="info-2"><div class="info-item-1">一、背景与动机运动模糊：人眼的物理现实我们的眼睛（以及相机的感光元件）在曝光期间并不是瞬间”拍一张照”，而是在一段时间窗口内持续积累光信号。当物体在这段时间内发生运动时，不同时刻的光信号叠加在同一感光区域，就产生了运动模糊（Motion Blur）。 如果没有运动模糊，画面会呈现出一种不自然的”抖动感”。这在早期电子游戏和动画中尤为明显——每一帧都是完全锐利的静止图像，但一旦物体快速运动，视觉反而会感到不舒适。这个现象被称为频闪效应（Stroboscopic Effect）。 运动模糊的本质是对快门开放时间段内的图像进行时间积分： $$I_{blurred}(x, y) &#x3D; \frac{1}{T} \int_0^T I(x, y, t), dt$$ 其中 $T$ 是快门时间，$I(x, y, t)$ 是 $t$ 时刻像素 $(x, y)$ 处的颜色值。 工业界实际应用运动模糊在以下场景中必不可少： 游戏引擎：虚幻引擎（Unreal Engine）、Unity 的 HDRP 都内置了后处理运动模糊。典型实现是速度缓冲（Velocity Buffer）+ 后处理 Pass，...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/20/daily-coding-pcss-soft-shadows-2026-04-20/" title="每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-20-pcss-soft-shadows/pcss_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-20</div><div class="info-item-2">每日编程实践: PCSS - Percentage Closer Soft Shadows 软阴影渲染</div></div><div class="info-2"><div class="info-item-1">PCSS — Percentage Closer Soft Shadows 左侧：硬阴影（Sharp PCF）；右侧：PCSS 软阴影（自适应半影）  ① 背景与动机为什么需要软阴影？在真实世界里，几乎所有阴影都是”软”的——靠近遮挡物的地方有一道锐利的本影（umbra），而离遮挡物越远，阴影边缘越模糊，形成半影（penumbra）。当你用手遮挡阳光，近处手的阴影是清晰的，但随着距离增加，阴影边缘会逐渐模糊扩散。 然而，传统的 Shadow Mapping 只能产生”硬阴影”——一个像素要么在阴影中（0），要么被照亮（1），毫无过渡。这在游戏和电影渲染中会产生明显的走样、锯齿，看起来极不真实。 工业界的痛点：  硬阴影锯齿：Shadow Map 分辨率有限，当投影到大范围地面时，阴影边缘出现明显的像素化方块感。 缺乏真实感：高处的悬浮物（如游戏中的飞行单位）投影到地面的阴影应该非常模糊，但硬阴影使其依然锐利，破坏了深度感知。 光源大小信息丢失：太阳是一个扩展光源（角直径约 0.5°），路灯是有尺寸的灯泡，这些都不应该产生无限锐利的硬阴影。  PCF：最早的软化尝试Percenta...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">100</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">117</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5-Day-80%EF%BC%9AParallax-Occlusion-Mapping-Renderer"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践 Day 80：Parallax Occlusion Mapping Renderer</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E5%A4%9F%E7%94%A8-Normal-Map%EF%BC%9F"><span class="toc-number">1.1.1.</span> <span class="toc-text">为什么不够用 Normal Map？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Parallax-Mapping-%E7%9A%84%E6%80%9D%E8%B7%AF"><span class="toc-number">1.1.2.</span> <span class="toc-text">Parallax Mapping 的思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.1.3.</span> <span class="toc-text">工业界使用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%97%AE%E9%A2%98%E5%BB%BA%E6%A8%A1"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 问题建模</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%BA%BF%E6%80%A7%E6%AD%A5%E8%BF%9B%EF%BC%88Linear-Search%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 线性步进（Linear Search）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E4%BA%8C%E5%88%86%E7%BB%86%E5%8C%96%EF%BC%88Binary-Search-Refinement%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 二分细化（Binary Search Refinement）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%88%87%E7%BA%BF%E7%A9%BA%E9%97%B4%E7%9A%84%E5%BF%85%E8%A6%81%E6%80%A7"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 切线空间的必要性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E6%B3%95%E7%BA%BF%E6%89%B0%E5%8A%A8%EF%BC%88Normal-Perturbation-from-Height-Gradient%EF%BC%89"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 法线扰动（Normal Perturbation from Height Gradient）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-POM-%E8%87%AA%E9%98%B4%E5%BD%B1%EF%BC%88Self-Shadowing%EF%BC%89"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 POM 自阴影（Self-Shadowing）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E9%AB%98%E5%BA%A6%E5%9B%BE%E7%B1%BB%E5%9E%8B"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 高度图类型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E8%A7%86%E7%BA%BF%E6%9E%84%E9%80%A0"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 视线构造</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E9%AB%98%E5%BA%A6%E5%9B%BE%E9%87%87%E6%A0%B7"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 高度图采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E8%84%8A%E7%8A%B6-FBM%EF%BC%88Ridged-FBM%EF%BC%89"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 脊状 FBM（Ridged FBM）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-POM-%E6%A0%B8%E5%BF%83%E8%BF%BD%E8%B8%AA"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 POM 核心追踪</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%B3%95%E7%BA%BF%E6%89%B0%E5%8A%A8"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 法线扰动</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E8%87%AA%E9%98%B4%E5%BD%B1%E6%AD%A5%E8%BF%9B"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 自阴影步进</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-Phong-%E7%9D%80%E8%89%B2%E6%95%B4%E5%90%88"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 Phong 着色整合</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9Auint8-t-%E6%9C%AA%E5%A3%B0%E6%98%8E"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：uint8_t 未声明</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9Astb-%E5%A4%B4%E6%96%87%E4%BB%B6%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：stb 头文件编译警告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E6%9C%AA%E4%BD%BF%E7%94%A8%E5%8F%98%E9%87%8F-prevHeight"><span class="toc-number">1.5.3.</span> <span class="toc-text">Bug 3：未使用变量 prevHeight</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E8%A7%86%E7%BA%BF%E6%96%B9%E5%90%91%E4%BC%A0%E9%80%92%E9%94%99%E8%AF%AF%EF%BC%88%E9%9C%80%E8%A6%81%E5%8F%96%E5%8F%8D%EF%BC%89"><span class="toc-number">1.5.4.</span> <span class="toc-text">Bug 4：视线方向传递错误（需要取反）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%93%E5%87%BA%E5%9B%BE%E5%83%8F%E7%BB%9F%E8%AE%A1"><span class="toc-number">1.6.1.</span> <span class="toc-text">输出图像统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E7%A7%8D%E6%9D%90%E8%B4%A8%E9%9D%A2%E6%9D%BF%E8%A1%A8%E7%8E%B0"><span class="toc-number">1.6.2.</span> <span class="toc-text">4 种材质面板表现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90"><span class="toc-number">1.6.3.</span> <span class="toc-text">性能分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">与本系列的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81%E4%BB%93%E5%BA%93"><span class="toc-number">1.7.4.</span> <span class="toc-text">代码仓库</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/17/daily-coding-pom-2026-05-17/" title="每日编程实践: Parallax Occlusion Mapping Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Parallax Occlusion Mapping Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/17/daily-coding-pom-2026-05-17/" title="每日编程实践: Parallax Occlusion Mapping Renderer">每日编程实践: Parallax Occlusion Mapping Renderer</a><time datetime="2026-05-16T21:30:00.000Z" title="发表于 2026-05-17 05:30:00">2026-05-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/16/daily-coding-volumetric-cloud-2026-05-16/" title="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-16-volumetric-cloud/volumetric_cloud_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/16/daily-coding-volumetric-cloud-2026-05-16/" title="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染">每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染</a><time datetime="2026-05-15T21:30:00.000Z" title="发表于 2026-05-16 05:30:00">2026-05-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/15/daily-coding-fft-ocean-2026-05-15/" title="每日编程实践: FFT Ocean Surface Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-15-fft-ocean/fft_ocean_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: FFT Ocean Surface Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/15/daily-coding-fft-ocean-2026-05-15/" title="每日编程实践: FFT Ocean Surface Renderer">每日编程实践: FFT Ocean Surface Renderer</a><time datetime="2026-05-14T21:30:00.000Z" title="发表于 2026-05-15 05:30:00">2026-05-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/14/daily-coding-vxgi-2026-05-14/" title="每日编程实践: VXGI 体素全局光照渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: VXGI 体素全局光照渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/14/daily-coding-vxgi-2026-05-14/" title="每日编程实践: VXGI 体素全局光照渲染器">每日编程实践: VXGI 体素全局光照渲染器</a><time datetime="2026-05-13T21:30:00.000Z" title="发表于 2026-05-14 05:30:00">2026-05-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-13-fxaa-antialiasing/fxaa_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer">每日编程实践: FXAA Anti-Aliasing Post-Process Renderer</a><time datetime="2026-05-12T21:30:00.000Z" title="发表于 2026-05-13 05:30:00">2026-05-13</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
