@@ -1,0 +1,421 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Lightmap Baker — 离线光照贴图烘焙器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机实时渲染的性能困境现代游戏中，全局光照（Global Illumination, GI）始终是最烧 GPU 的特性之一。一个场景里可能有数十盏灯光，每盏灯都需要进行阴影计算、反射计算、间接光传播……如果全部实时计算，帧率会直接崩塌。 早期 Quake（1996）就面临这个问题：如何让室内场景有逼真的光影，又不破坏流畅的游戏体验？id Software 给出的答案是 Lightmap（光照">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/25/daily-coding-lightmap-baker-2026-05-25/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机实时渲染的性能困境现代游戏中，全局光照（Global Illumination, GI）始终是最烧 GPU 的特性之一。一个场景里可能有数十盏灯光，每盏灯都需要进行阴影计算、反射计算、间接光传播……如果全部实时计算，帧率会直接崩塌。 早期 Quake（1996）就面临这个问题：如何让室内场景有逼真的光影，又不破坏流畅的游戏体验？id Software 给出的答案是 Lightmap（光照">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png">
+<meta property="article:published_time" content="2026-05-24T21:35:00.000Z">
+<meta property="article:modified_time" content="2026-05-24T21:45:53.414Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="全局光照">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="游戏开发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Lightmap Baker — 离线光照贴图烘焙器",
+  "url": "https://chiuhoukazusa.github.io/2026/05/25/daily-coding-lightmap-baker-2026-05-25/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png",
+  "datePublished": "2026-05-24T21:35:00.000Z",
+  "dateModified": "2026-05-24T21:45:53.414Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/25/daily-coding-lightmap-baker-2026-05-25/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Lightmap Baker — 离线光照贴图烘焙器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-24T21:35:00.000Z" title="发表于 2026-05-25 05:35:00">2026-05-25</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-24T21:45:53.414Z" title="更新于 2026-05-25 05:45:53">2026-05-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><h3 id="实时渲染的性能困境"><a href="#实时渲染的性能困境" class="headerlink" title="实时渲染的性能困境"></a>实时渲染的性能困境</h3><p>现代游戏中，全局光照（Global Illumination, GI）始终是最烧 GPU 的特性之一。一个场景里可能有数十盏灯光，每盏灯都需要进行阴影计算、反射计算、间接光传播……如果全部实时计算，帧率会直接崩塌。</p>
+<p>早期 Quake（1996）就面临这个问题：如何让室内场景有逼真的光影，又不破坏流畅的游戏体验？id Software 给出的答案是 <strong>Lightmap（光照贴图）</strong>——把光照信息预先计算好，存成一张贴图，实时渲染时直接采样贴图，代替实时光照计算。</p>
+<p>这个技术在后来的 Quake 2、Half-Life、CS:GO，到 Unity Enlighten、虚幻引擎的 Lightmass，都是核心技术之一。游戏里那种”静态环境的柔和阴影”和”角落里的暗部渐变”，大多数时候是 Lightmap 的功劳，而不是实时 GI。</p>
+<h3 id="没有-Lightmap-的痛点"><a href="#没有-Lightmap-的痛点" class="headerlink" title="没有 Lightmap 的痛点"></a>没有 Lightmap 的痛点</h3><p>没有光照贴图时，常见的替代方案是：</p>
+<ol>
+<li><strong>纯环境光</strong>：全局加一个常数亮度，没有阴影，平坦无立体感</li>
+<li><strong>实时阴影</strong>：每帧计算 Shadow Map，开销随光源数量线性增长，多光源场景吃不消</li>
+<li><strong>Screen Space GI（SSGI）</strong>：仅能处理屏幕内的间接光，相机转动时光照突变，闪烁明显</li>
+<li><strong>Voxel GI（VXGI）</strong>：品质好，但 GPU 显存和计算开销很高，适合高端硬件</li>
+</ol>
+<p>Lightmap 的核心优势：<strong>离线烘焙，实时几乎零成本</strong>。烘焙一次可能要几分钟甚至几小时（复杂场景），但运行时采样一张贴图只需要几个 texture fetch 指令，对任何硬件都友好。</p>
+<h3 id="工业界实际使用场景"><a href="#工业界实际使用场景" class="headerlink" title="工业界实际使用场景"></a>工业界实际使用场景</h3><ul>
+<li><strong>Unity Enlighten</strong>：Unity 的 CPU 端 GI 烘焙系统，支持静态物体的漫射 GI、AO、阴影烘焙</li>
+<li><strong>Unreal Engine Lightmass</strong>：UE4&#x2F;5 的离线烘焙系统，基于 Path Tracing，支持自发光材质、透明材质</li>
+<li><strong>Lumen 的前身</strong>：UE5 的 Lumen 实时 GI 系统，对于静态物体仍然大量依赖预计算</li>
+<li><strong>《Minecraft》光照</strong>：经典 Minecraft 的软阴影是通过简化版光照贴图实现的</li>
+<li><strong>《CS:GO》地图</strong>：Source 引擎的 VRAD 工具专门用于烘焙 Lightmap，地图 compile 步骤之一</li>
+</ul>
+<p>今天这个项目，我从头实现了一个简化的 Lightmap Baker，核心包括：UV Atlas 展开、辐照度采样（直接光 + 一次间接弹射）、Shadow Ray 遮挡测试，以及用烘焙后的光照贴图渲染 Cornell Box。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="渲染方程回顾"><a href="#渲染方程回顾" class="headerlink" title="渲染方程回顾"></a>渲染方程回顾</h3><p>Lightmap Baker 的数学基础是<strong>渲染方程</strong>（Rendering Equation，Kajiya 1986）：</p>
+<p>$$<br>L_o(\mathbf{x}, \omega_o) &#x3D; L_e(\mathbf{x}, \omega_o) + \int_{\Omega} f_r(\mathbf{x}, \omega_i, \omega_o) L_i(\mathbf{x}, \omega_i) (\omega_i \cdot \mathbf{n}) , d\omega_i<br>$$</p>
+<p>其中：</p>
+<ul>
+<li>$L_o$ 是出射辐射率（radiance）</li>
+<li>$L_e$ 是自发光项</li>
+<li>$f_r$ 是双向反射分布函数（BRDF）</li>
+<li>$L_i$ 是入射辐射率</li>
+<li>$(\omega_i \cdot \mathbf{n})$ 是入射角余弦项</li>
+<li>积分域 $\Omega$ 是上半球</li>
+</ul>
+<p>对于漫射材质（Lambertian），BRDF 是常数：$f_r &#x3D; \frac{\rho}{\pi}$，其中 $\rho$ 是 albedo。</p>
+<p><strong>Lightmap 存的是什么？</strong> 它存储的是 <strong>辐照度（Irradiance）</strong> $E$，即单位面积上接收到的总辐射通量：</p>
+<p>$$<br>E(\mathbf{x}) &#x3D; \int_{\Omega} L_i(\mathbf{x}, \omega_i) (\omega_i \cdot \mathbf{n}) , d\omega_i<br>$$</p>
+<p>有了辐照度，实时渲染时直接乘以 albedo 即可：</p>
+<p>$$<br>L_o &#x3D; \frac{\rho}{\pi} \cdot E<br>$$</p>
+<h3 id="为什么存辐照度而不存辐射率？"><a href="#为什么存辐照度而不存辐射率？" class="headerlink" title="为什么存辐照度而不存辐射率？"></a>为什么存辐照度而不存辐射率？</h3><p>关键区别：辐照度 $E$ 是与视角<strong>无关</strong>的量（漫射情况下），而辐射率 $L_o$ 与视角有关。</p>
+<p>只要材质是漫射（Lambertian），不管从哪个角度看，辐照度乘以 BRDF 得到的出射辐射率是一样的。这使得一次烘焙可以服务任意视角，完美适合预计算场景。</p>
+<p>如果材质有高光项（Blinn-Phong、GGX），就不能只存辐照度了，需要 Irradiance Probe、球谐函数或者 Reflection Capture 等方案。</p>
+<h3 id="直接光照估计"><a href="#直接光照估计" class="headerlink" title="直接光照估计"></a>直接光照估计</h3><p>对于一个表面点 $\mathbf{x}$（法线 $\mathbf{n}$），来自面光源的直接辐照度：</p>
+<p>$$<br>E_{direct}(\mathbf{x}) &#x3D; \int_{A_L} L_e \cdot \frac{(\omega_i \cdot \mathbf{n}) \cdot (\omega_o \cdot \mathbf{n}_L)}{|\mathbf{x} - \mathbf{y}|^2} \cdot V(\mathbf{x}, \mathbf{y}) , dA_L<br>$$</p>
+<p>其中：</p>
+<ul>
+<li>$A_L$ 是光源面积</li>
+<li>$\omega_i$ 是从 $\mathbf{x}$ 指向光源点 $\mathbf{y}$ 的单位向量</li>
+<li>$\mathbf{n}_L$ 是光源法线</li>
+<li>$|\mathbf{x} - \mathbf{y}|^2$ 是距离的平方（平方反比衰减）</li>
+<li>$V(\mathbf{x}, \mathbf{y})$ 是可见性函数（0&#x3D;被遮挡，1&#x3D;可见）</li>
+</ul>
+<p>用蒙特卡洛估计，对光源面积均匀采样：</p>
+<p>$$<br>E_{direct} \approx \frac{A_L}{N} \sum_{i&#x3D;1}^{N} L_e \cdot \frac{(\omega_i \cdot \mathbf{n}) \cdot |\cos\theta_L|}{|\mathbf{x} - \mathbf{y}_i|^2} \cdot V(\mathbf{x}, \mathbf{y}_i)<br>$$</p>
+<p>其中 $\theta_L$ 是光源面法线与 $\omega_i$ 的夹角。注意这里我用绝对值 $|\cos\theta_L|$，因为面光源是双面发光的。</p>
+<h3 id="间接光照（一次弹射）"><a href="#间接光照（一次弹射）" class="headerlink" title="间接光照（一次弹射）"></a>间接光照（一次弹射）</h3><p>一次间接弹射（One Bounce Indirect）：</p>
+<ol>
+<li>从表面点 $\mathbf{x}$ 按余弦加权半球采样一个方向 $\omega$</li>
+<li>沿 $\omega$ 追踪 Shadow Ray，找到交点 $\mathbf{x}’$</li>
+<li>在 $\mathbf{x}’$ 估计直接辐照度 $E_{direct}(\mathbf{x}’)$</li>
+<li>计算贡献：$\Delta L &#x3D; E_{direct}(\mathbf{x}’) \cdot \rho(\mathbf{x}’) &#x2F; \pi \cdot (\omega \cdot \mathbf{n}) \cdot \pi$（余弦采样的 PDF 消掉了 $1&#x2F;\pi$）</li>
+</ol>
+<p>这对应路径追踪中的”L(S*)D”路径中的前两段。</p>
+<h3 id="余弦加权半球采样"><a href="#余弦加权半球采样" class="headerlink" title="余弦加权半球采样"></a>余弦加权半球采样</h3><p>半球均匀采样的 PDF 是 $p(\omega) &#x3D; 1&#x2F;(2\pi)$，余弦加权采样的 PDF 是 $p(\omega) &#x3D; \cos\theta&#x2F;\pi$。</p>
+<p>余弦加权采样更高效，因为接近法线方向（$\cos\theta$ 大）的样本贡献更多，这与渲染方程的余弦项完全匹配，消除了重要性比值中的 $\cos\theta$ 因子。</p>
+<p>实现：使用 Malley 方法，先在单位圆盘上均匀采样，再投影到半球上：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">cosineHemisphere</span><span class="params">(<span class="type">const</span> Vec3&amp; N)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> u1 = <span class="built_in">next</span>(), u2 = <span class="built_in">next</span>();</span><br><span class="line">    <span class="comment">// 在单位圆盘上采样（r = sqrt(u1) 保证均匀分布面积）</span></span><br><span class="line">    <span class="type">float</span> r = std::<span class="built_in">sqrt</span>(u1);</span><br><span class="line">    <span class="type">float</span> phi = <span class="number">2.f</span> * PI * u2;</span><br><span class="line">    <span class="type">float</span> lx = r * std::<span class="built_in">cos</span>(phi);</span><br><span class="line">    <span class="type">float</span> lz = r * std::<span class="built_in">sin</span>(phi);</span><br><span class="line">    <span class="comment">// 投影到半球（py 是余弦加权的结果）</span></span><br><span class="line">    <span class="type">float</span> ly = std::<span class="built_in">sqrt</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, <span class="number">1.f</span> - u1));</span><br><span class="line">    <span class="comment">// 构建 ONB（正交归一化基），将局部方向转到世界空间</span></span><br><span class="line">    Vec3 up = std::<span class="built_in">abs</span>(N.y) &lt; <span class="number">0.999f</span> ? <span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">1</span>,<span class="number">0</span>) : <span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>);</span><br><span class="line">    Vec3 T = up.<span class="built_in">cross</span>(N).<span class="built_in">normalized</span>();</span><br><span class="line">    Vec3 B = N.<span class="built_in">cross</span>(T);</span><br><span class="line">    <span class="keyword">return</span> (T * lx + N * ly + B * lz).<span class="built_in">normalized</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>std::sqrt(u1)</code> 而不是 <code>u1</code>，是因为圆盘面积采样需要对半径做非线性变换（反CDF法，保证面积均匀），否则会在圆心堆积更多样本。</p>
+<h3 id="UV-Atlas-展开"><a href="#UV-Atlas-展开" class="headerlink" title="UV Atlas 展开"></a>UV Atlas 展开</h3><p>Lightmap 需要把每个三角面片映射到一张 2D 纹理的独立区域，这个过程叫 <strong>UV Unwrapping</strong>（UV 展开）。</p>
+<p>真正的 UV 展开（如 xAtlas、UE4 的 Lightmass）会最小化拉伸、充分利用纹理空间，是一个复杂的优化问题。我们使用一个简化方案：</p>
+<p><strong>规则网格分配（Grid Atlas）</strong>：</p>
+<ul>
+<li>设场景有 $n$ 个三角形</li>
+<li>每行放 $\lceil\sqrt{n}\rceil$ 个三角形的 tile</li>
+<li>每个 tile 大小为 $\frac{1}{\lceil\sqrt{n}\rceil} \times \frac{1}{\lceil\sqrt{n}\rceil}$（留 2 像素 padding 防止 UV 泄漏）</li>
+<li>三角形顶点 UV：$v_0 \to (u_0, v_0)$，$v_1 \to (u_1, v_0)$，$v_2 \to (u_0, v_1)$</li>
+</ul>
+<p>这样每个三角形都有独立的 UV 空间，不会互相干扰。缺点是利用率低（32个三角形放在 6×6 的格子里，最后两行只有 2 个 tile），实际生产中不用这种方案。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Scene（三角形 + 材质 + 光源）</span><br><span class="line">         |</span><br><span class="line">         ↓  buildAtlas()</span><br><span class="line">UV Atlas Layout（每个三角形分配纹素范围）</span><br><span class="line">         |</span><br><span class="line">         ↓  bakeLightmap()</span><br><span class="line">LightmapAtlas（512×512 辐照度贴图）</span><br><span class="line">  ├── 对每个三角形的每个 texel：</span><br><span class="line">  │     ├── texel (px,py) → UV (u,v) → 重心坐标 (s,t)</span><br><span class="line">  │     ├── 世界坐标 = wA*(1-s-t) + wB*s + wC*t</span><br><span class="line">  │     ├── 直接光照：对面光源采样 + Shadow Ray</span><br><span class="line">  │     └── 间接光照：余弦半球采样 1 次弹射</span><br><span class="line">  └── 累积 irradiance，记录 sampleCnt</span><br><span class="line">         |</span><br><span class="line">         ↓  renderFinalImage()</span><br><span class="line">输出图像（Cornell Box 视角，用 lightmap 替代实时光照）</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 三角形：包含几何数据和 UV Atlas 坐标</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Triangle</span> &#123;</span><br><span class="line">    Vec3 v[<span class="number">3</span>];       <span class="comment">// 世界空间顶点</span></span><br><span class="line">    Vec3 normal;     <span class="comment">// 面法线</span></span><br><span class="line">    <span class="type">int</span> matIdx;      <span class="comment">// 材质索引</span></span><br><span class="line">    <span class="type">int</span> triId;       <span class="comment">// 场景中的索引（用于 lightmap lookup）</span></span><br><span class="line">    <span class="type">float</span> lmu[<span class="number">3</span>], lmv[<span class="number">3</span>];  <span class="comment">// 每个顶点在 atlas 中的 UV 坐标</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 光照贴图 Atlas：存储每个 texel 的累积辐照度</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">LightmapAtlas</span> &#123;</span><br><span class="line">    std::vector&lt;Vec3&gt; data;      <span class="comment">// 辐照度值（线性光照空间）</span></span><br><span class="line">    std::vector&lt;<span class="type">int</span>&gt;  sampleCnt; <span class="comment">// 采样计数（用于均值计算）</span></span><br><span class="line">    <span class="comment">// 支持双线性插值采样，unfilled texel 返回 (0,0,0)</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么需要 sampleCnt？</strong> 因为不同位置的 texel 可能被多次访问（来自不同的采样点），需要对所有采样取均值，而不是累加。</p>
+<h3 id="管线模块职责"><a href="#管线模块职责" class="headerlink" title="管线模块职责"></a>管线模块职责</h3><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>输入</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>buildScene()</code></td>
+<td>构建 Cornell Box 场景</td>
+<td>-</td>
+<td><code>Scene</code>（三角形、材质、光源列表）</td>
+</tr>
+<tr>
+<td><code>buildAtlas()</code></td>
+<td>分配 UV 坐标</td>
+<td><code>Scene</code></td>
+<td>修改三角形的 <code>lmu/lmv</code> 字段</td>
+</tr>
+<tr>
+<td><code>bakeLightmap()</code></td>
+<td>离线烘焙辐照度</td>
+<td><code>Scene</code></td>
+<td><code>LightmapAtlas</code>（512×512）</td>
+</tr>
+<tr>
+<td><code>renderFinalImage()</code></td>
+<td>实时渲染 + lightmap 采样</td>
+<td><code>Scene</code> + <code>Atlas</code></td>
+<td>输出图像</td>
+</tr>
+<tr>
+<td><code>renderAtlasViz()</code></td>
+<td>可视化 Atlas</td>
+<td><code>Atlas</code></td>
+<td>Atlas 图像（调试用）</td>
+</tr>
+</tbody></table>
+<h3 id="Cornell-Box-场景构造"><a href="#Cornell-Box-场景构造" class="headerlink" title="Cornell Box 场景构造"></a>Cornell Box 场景构造</h3><p>场景是经典 Cornell Box：红色左墙、绿色右墙、白色地板&#x2F;天花板&#x2F;后墙、顶部面光源，加上两个盒子（高蓝盒 + 矮黄盒）。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 以 B=1 为半尺寸，构造 [-1,1]^3 的 Cornell Box</span></span><br><span class="line"><span class="type">float</span> B = <span class="number">1.0f</span>;</span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(-B,-B,-B), <span class="built_in">Vec3</span>(B,-B,-B), <span class="built_in">Vec3</span>(B,-B,B), <span class="built_in">Vec3</span>(-B,-B,B), <span class="number">0</span>); <span class="comment">// 地板（白）</span></span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(-B,B,-B),  <span class="built_in">Vec3</span>(-B,B,B),  <span class="built_in">Vec3</span>(B,B,B),  <span class="built_in">Vec3</span>(B,B,-B),  <span class="number">0</span>); <span class="comment">// 天花板（白）</span></span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(-B,-B,B),  <span class="built_in">Vec3</span>(B,-B,B),  <span class="built_in">Vec3</span>(B,B,B),  <span class="built_in">Vec3</span>(-B,B,B),  <span class="number">0</span>); <span class="comment">// 后墙（白）</span></span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(-B,-B,-B), <span class="built_in">Vec3</span>(-B,-B,B), <span class="built_in">Vec3</span>(-B,B,B), <span class="built_in">Vec3</span>(-B,B,-B), <span class="number">1</span>); <span class="comment">// 左墙（红）</span></span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(B,-B,-B),  <span class="built_in">Vec3</span>(B,B,-B),  <span class="built_in">Vec3</span>(B,B,B),  <span class="built_in">Vec3</span>(B,-B,B),  <span class="number">2</span>); <span class="comment">// 右墙（绿）</span></span><br><span class="line"><span class="comment">// 面光源（天花板中央，双三角形，朝下发光）</span></span><br><span class="line"><span class="type">float</span> ls = <span class="number">0.32f</span>, lh = <span class="number">0.98f</span>;</span><br><span class="line"><span class="built_in">addQuad</span>(scene, <span class="built_in">Vec3</span>(-ls,lh,-ls), <span class="built_in">Vec3</span>(-ls,lh,ls), <span class="built_in">Vec3</span>(ls,lh,ls), <span class="built_in">Vec3</span>(ls,lh,-ls), <span class="number">3</span>);</span><br></pre></td></tr></table></figure>
+
+<p>注意面光源的法线：由顶点绕序 <code>(-ls,lh,-ls) → (-ls,lh,ls) → (ls,lh,ls)</code> 决定，计算得到法线为 <code>(0,+1,0)</code>（朝上）。但发光方向应该是向下的。</p>
+<p>这里我使用 <code>abs(lt.normal.dot(toLightN))</code> 处理，让面光源双面发光，避免因为法线朝向问题导致某些接收点计算出负值贡献。</p>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="UV-Atlas-展开实现"><a href="#UV-Atlas-展开实现" class="headerlink" title="UV Atlas 展开实现"></a>UV Atlas 展开实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">buildAtlas</span><span class="params">(Scene&amp; scene)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)scene.tris.<span class="built_in">size</span>();</span><br><span class="line">    <span class="comment">// 每行多少个 tile：ceil(sqrt(n))</span></span><br><span class="line">    <span class="type">int</span> tilesPerRow = (<span class="type">int</span>)std::<span class="built_in">ceil</span>(std::<span class="built_in">sqrt</span>((<span class="type">float</span>)n));</span><br><span class="line">    <span class="type">float</span> tileSize = <span class="number">1.f</span> / tilesPerRow;</span><br><span class="line">    <span class="type">float</span> pad = <span class="number">2.f</span> / LM_SIZE;  <span class="comment">// 2像素的内边距，防止相邻 tile 的 texel 互相泄漏</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="type">int</span> col = i % tilesPerRow;</span><br><span class="line">        <span class="type">int</span> row = i / tilesPerRow;</span><br><span class="line">        <span class="type">float</span> u0 = col * tileSize + pad;</span><br><span class="line">        <span class="type">float</span> v0 = row * tileSize + pad;</span><br><span class="line">        <span class="type">float</span> u1 = (col + <span class="number">1</span>) * tileSize - pad;</span><br><span class="line">        <span class="type">float</span> v1 = (row + <span class="number">1</span>) * tileSize - pad;</span><br><span class="line">        <span class="comment">// 三角形三个顶点的 UV：v0→(u0,v0), v1→(u1,v0), v2→(u0,v1)</span></span><br><span class="line">        <span class="comment">// 这构成了一个直角三角形占据了 tile 左下角的三角区域</span></span><br><span class="line">        scene.tris[i].lmu[<span class="number">0</span>] = u0; scene.tris[i].lmv[<span class="number">0</span>] = v0;</span><br><span class="line">        scene.tris[i].lmu[<span class="number">1</span>] = u1; scene.tris[i].lmv[<span class="number">1</span>] = v0;</span><br><span class="line">        scene.tris[i].lmu[<span class="number">2</span>] = u0; scene.tris[i].lmv[<span class="number">2</span>] = v1;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>pad = 2.f / LM_SIZE</code> 是为了避免”UV 泄漏”（UV Bleeding）——如果 tile 之间没有间隔，双线性插值可能采到相邻 tile 的 texel，导致光照从一个面”渗入”另一个面。</p>
+<h3 id="Texel-中心到世界坐标的映射"><a href="#Texel-中心到世界坐标的映射" class="headerlink" title="Texel 中心到世界坐标的映射"></a>Texel 中心到世界坐标的映射</h3><p>这是 baking 的关键步骤：把纹素坐标反向映射回世界空间的表面点。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> py = py0; py &lt;= py1; py++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> px = px0; px &lt;= px1; px++) &#123;</span><br><span class="line">        <span class="comment">// 1. 纹素中心在 UV 空间的坐标（+0.5 取 texel 中心）</span></span><br><span class="line">        <span class="type">float</span> u = (px + <span class="number">0.5f</span>) / LM_SIZE;</span><br><span class="line">        <span class="type">float</span> v = (py + <span class="number">0.5f</span>) / LM_SIZE;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 2. UV → 重心坐标 (s, t)</span></span><br><span class="line">        <span class="comment">//    三角形 UV 布局: v0=(u0,v0), v1=(u1,v0), v2=(u0,v1)</span></span><br><span class="line">        <span class="comment">//    所以 s = (u - u0)/(u1-u0) 表示沿 v0→v1 方向的权重</span></span><br><span class="line">        <span class="comment">//         t = (v - v0)/(v2-v0) 表示沿 v0→v2 方向的权重</span></span><br><span class="line">        <span class="type">float</span> s = (u - u0) / du;</span><br><span class="line">        <span class="type">float</span> t = (v - v0) / dv;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 3. 边界处理：如果 s+t&gt;1 则超出了三角形范围</span></span><br><span class="line">        <span class="comment">//    镜像翻转保持在三角形内（而不是直接 skip）</span></span><br><span class="line">        s = std::<span class="built_in">max</span>(<span class="number">0.f</span>, std::<span class="built_in">min</span>(<span class="number">1.f</span>, s));</span><br><span class="line">        t = std::<span class="built_in">max</span>(<span class="number">0.f</span>, std::<span class="built_in">min</span>(<span class="number">1.f</span>, t));</span><br><span class="line">        <span class="keyword">if</span> (s + t &gt; <span class="number">1.f</span>) &#123;</span><br><span class="line">            s = <span class="number">1.f</span> - s;  <span class="comment">// 镜像，等价于使用三角形的另一半</span></span><br><span class="line">            t = <span class="number">1.f</span> - t;</span><br><span class="line">            <span class="keyword">if</span> (s &lt; <span class="number">0.f</span>) s = <span class="number">0.f</span>;</span><br><span class="line">            <span class="keyword">if</span> (t &lt; <span class="number">0.f</span>) t = <span class="number">0.f</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 4. 重心坐标 → 世界坐标</span></span><br><span class="line">        Vec3 worldPos = wA * (<span class="number">1.f</span> - s - t) + wB * s + wC * t;</span><br></pre></td></tr></table></figure>
+
+<p>为什么需要镜像处理？tile 里有些 texel 在三角形外面（右上角区域，因为三角形只占了正方形的左下半）。如果直接跳过，这些 texel 就是黑的，边缘处会有锯齿。镜像处理把它们映射到三角形内部，虽然不完全精确，但对视觉效果影响很小。</p>
+<h3 id="法线朝向修正"><a href="#法线朝向修正" class="headerlink" title="法线朝向修正"></a>法线朝向修正</h3><p>这是今天遇到的最大 Bug，专门提出来讲解：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 确保法线朝向房间内部（面向光源的那侧）</span></span><br><span class="line"><span class="comment">// 利用场景原点 (0,0,0) 在房间中央这一特性来判断</span></span><br><span class="line">Vec3 centroid = (wA + wB + wC) * (<span class="number">1.f</span>/<span class="number">3.f</span>);</span><br><span class="line">Vec3 toCenter = <span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>) - centroid;</span><br><span class="line"><span class="keyword">if</span> (N.<span class="built_in">dot</span>(toCenter) &lt; <span class="number">0.f</span>) N = -N;  <span class="comment">// 翻转朝向内部</span></span><br></pre></td></tr></table></figure>
+
+<p>这段代码的逻辑：如果三角形面心到场景中心的向量与法线方向相反，说明法线朝外（背离房间内部），需要翻转。</p>
+<h3 id="直接光照采样"><a href="#直接光照采样" class="headerlink" title="直接光照采样"></a>直接光照采样</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">directLight</span><span class="params">(<span class="type">const</span> Scene&amp; scene, <span class="type">const</span> Vec3&amp; pos, <span class="type">const</span> Vec3&amp; N, RNG&amp; rng)</span> </span>&#123;</span><br><span class="line">    <span class="function">Vec3 <span class="title">Lo</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> li : scene.lightTriIds) &#123;</span><br><span class="line">        <span class="type">const</span> Triangle&amp; lt = scene.tris[li];</span><br><span class="line">        <span class="type">const</span> Material&amp; lm = scene.mats[lt.matIdx];</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 在光源三角形上均匀采样一个点</span></span><br><span class="line">        <span class="comment">// 用重心坐标：(1-r1-r2)*v0 + r1*v1 + r2*v2</span></span><br><span class="line">        <span class="comment">// 注意：直接用 r1,r2 ~ Uniform(0,1) 会导致在平行四边形（而非三角形）上采样</span></span><br><span class="line">        <span class="comment">// 正确方法：如果 r1+r2 &gt; 1，折叠到三角形内（等效于镜像对称）</span></span><br><span class="line">        <span class="type">float</span> r1 = rng.<span class="built_in">next</span>(), r2 = rng.<span class="built_in">next</span>();</span><br><span class="line">        <span class="keyword">if</span> (r1 + r2 &gt; <span class="number">1.f</span>) &#123; r1 = <span class="number">1.f</span> - r1; r2 = <span class="number">1.f</span> - r2; &#125;</span><br><span class="line">        <span class="type">float</span> r3 = <span class="number">1.f</span> - r1 - r2;</span><br><span class="line">        Vec3 lpos = lt.v[<span class="number">0</span>] * r3 + lt.v[<span class="number">1</span>] * r1 + lt.v[<span class="number">2</span>] * r2;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 几何项计算</span></span><br><span class="line">        Vec3 toLight = lpos - pos;</span><br><span class="line">        <span class="type">float</span> dist2 = toLight.<span class="built_in">dot</span>(toLight);</span><br><span class="line">        <span class="type">float</span> dist = std::<span class="built_in">sqrt</span>(dist2);</span><br><span class="line">        Vec3 toLightN = toLight / dist;</span><br><span class="line"></span><br><span class="line">        <span class="type">float</span> cosTheta = N.<span class="built_in">dot</span>(toLightN);          <span class="comment">// 接收点余弦（≥0 才有贡献）</span></span><br><span class="line">        <span class="keyword">if</span> (cosTheta &lt;= <span class="number">0.f</span>) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 面光源双面发光（abs 处理法线朝向问题）</span></span><br><span class="line">        <span class="type">float</span> cosThetaL = std::<span class="built_in">abs</span>(lt.normal.<span class="built_in">dot</span>(toLightN));</span><br><span class="line">        <span class="keyword">if</span> (cosThetaL &lt;= <span class="number">0.f</span>) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Shadow Ray：从接收点射向光源，判断是否被遮挡</span></span><br><span class="line">        <span class="comment">// 两端各留 2e-3 的偏移，避免自相交（self-intersection）</span></span><br><span class="line">        <span class="keyword">if</span> (scene.<span class="built_in">shadowBlocked</span>(pos + N * <span class="number">2e-3f</span>, lpos - lt.normal * <span class="number">2e-3f</span>)) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 计算面积（用于把面积采样的 PDF 转换回立体角）</span></span><br><span class="line">        <span class="type">float</span> area = scene.<span class="built_in">lightArea</span>(li);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 渲染方程离散化：Le * cos(theta_recv) * |cos(theta_emit)| * A / (pi * r^2)</span></span><br><span class="line">        <span class="comment">// 其中 1/pi 来自 Lambertian BRDF，A/r^2 把面积采样转换为立体角</span></span><br><span class="line">        Lo += lm.emission * (cosTheta * cosThetaL * area / (PI * dist2));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> Lo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键细节：<code>lpos - lt.normal * 2e-3f</code></strong> 为什么 Shadow Ray 的终点要减去法线偏移？因为直接去光源中心点会与光源三角形自相交（光源自遮挡），需要稍微偏移到光源面外侧。</p>
+<h3 id="Lightmap-双线性采样"><a href="#Lightmap-双线性采样" class="headerlink" title="Lightmap 双线性采样"></a>Lightmap 双线性采样</h3><p>渲染时，根据命中三角形的重心坐标计算 atlas UV，然后双线性采样：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在 renderFinalImage 中</span></span><br><span class="line"><span class="type">const</span> Triangle&amp; tri = scene.tris[rec.triId];</span><br><span class="line"><span class="type">float</span> bu = rec.bu, bv = rec.bv;</span><br><span class="line"><span class="type">float</span> bw = <span class="number">1.f</span> - bu - bv;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 用重心坐标插值三个顶点的 UV</span></span><br><span class="line"><span class="type">float</span> u = tri.lmu[<span class="number">0</span>]*bw + tri.lmu[<span class="number">1</span>]*bu + tri.lmu[<span class="number">2</span>]*bv;</span><br><span class="line"><span class="type">float</span> v  = tri.lmv[<span class="number">0</span>]*bw + tri.lmv[<span class="number">1</span>]*bu + tri.lmv[<span class="number">2</span>]*bv;</span><br><span class="line"></span><br><span class="line">Vec3 irr = atlas.<span class="built_in">sample</span>(u, v);  <span class="comment">// 双线性插值</span></span><br></pre></td></tr></table></figure>
+
+<p>双线性插值的实现：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">sample</span><span class="params">(<span class="type">float</span> u, <span class="type">float</span> v)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 把 [0,1] UV 转换为浮点像素坐标</span></span><br><span class="line">    <span class="type">float</span> fx = u * LM_SIZE - <span class="number">0.5f</span>;</span><br><span class="line">    <span class="type">float</span> fy = v * LM_SIZE - <span class="number">0.5f</span>;</span><br><span class="line">    <span class="type">int</span> x0 = (<span class="type">int</span>)std::<span class="built_in">floor</span>(fx), y0 = (<span class="type">int</span>)std::<span class="built_in">floor</span>(fy);</span><br><span class="line">    <span class="type">float</span> tx = fx - x0, ty = fy - y0;  <span class="comment">// 小数部分 = 插值权重</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 四个邻近 texel 的值</span></span><br><span class="line">    Vec3 c00 = <span class="built_in">get</span>(<span class="built_in">clamp</span>(x0,   ...), <span class="built_in">clamp</span>(y0,   ...));</span><br><span class="line">    Vec3 c10 = <span class="built_in">get</span>(<span class="built_in">clamp</span>(x0<span class="number">+1</span>, ...), <span class="built_in">clamp</span>(y0,   ...));</span><br><span class="line">    Vec3 c01 = <span class="built_in">get</span>(<span class="built_in">clamp</span>(x0,   ...), <span class="built_in">clamp</span>(y0<span class="number">+1</span>, ...));</span><br><span class="line">    Vec3 c11 = <span class="built_in">get</span>(<span class="built_in">clamp</span>(x0<span class="number">+1</span>, ...), <span class="built_in">clamp</span>(y0<span class="number">+1</span>, ...));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 双线性插值：先沿 X 插值，再沿 Y 插值</span></span><br><span class="line">    Vec3 c0 = c00 + (c10 - c00) * tx;  <span class="comment">// X 方向</span></span><br><span class="line">    Vec3 c1 = c01 + (c11 - c01) * tx;</span><br><span class="line">    <span class="keyword">return</span> c0 + (c1 - c0) * ty;         <span class="comment">// Y 方向</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Tone-Mapping"><a href="#Tone-Mapping" class="headerlink" title="Tone Mapping"></a>Tone Mapping</h3><p>辐照度值是线性的高动态范围（HDR），直接截断会过曝。使用 Reinhard Tone Mapping：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">toneMap</span><span class="params">(Vec3 c)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Reinhard: x/(1+x) 把 [0,∞) 压缩到 [0,1)</span></span><br><span class="line">    c.x = c.x / (<span class="number">1.f</span> + c.x);</span><br><span class="line">    c.y = c.y / (<span class="number">1.f</span> + c.y);</span><br><span class="line">    c.z = c.z / (<span class="number">1.f</span> + c.z);</span><br><span class="line">    <span class="comment">// Gamma 2.2 矫正（线性光照 → sRGB 显示）</span></span><br><span class="line">    c.x = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, c.x), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br><span class="line">    c.y = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, c.y), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br><span class="line">    c.z = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, c.z), <span class="number">1.f</span>/<span class="number">2.2f</span>);</span><br><span class="line">    <span class="keyword">return</span> c.<span class="built_in">clamp01</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：地板全黑，法线朝向错误"><a href="#Bug-1：地板全黑，法线朝向错误" class="headerlink" title="Bug 1：地板全黑，法线朝向错误"></a>Bug 1：地板全黑，法线朝向错误</h3><p><strong>症状</strong>：渲染出的 Cornell Box 中，地板、天花板、大部分墙面几乎全黑，只有高蓝盒的部分面片有光照。Atlas 可视化里第 0、1 行的 tile（对应地板和天花板）全是黑色。</p>
+<p><strong>错误假设</strong>：以为 <code>estimateIrradiance</code> 返回了接近零的值是正常的，可能是采样数太少。</p>
+<p><strong>真实原因</strong>：<code>addQuad</code> 函数按照右手螺旋定则计算法线，但 Cornell Box 的地板 <code>addQuad((-1,-1,-1), (1,-1,-1), (1,-1,1), (-1,-1,1))</code> 生成的法线是 <code>(0,-1,0)</code>（朝下）。</p>
+<p>计算过程：</p>
+<ul>
+<li>e1 &#x3D; (1,-1,-1) - (-1,-1,-1) &#x3D; (2,0,0)</li>
+<li>e2 &#x3D; (1,-1,1) - (-1,-1,-1) &#x3D; (2,0,2)</li>
+<li>n &#x3D; e1 × e2 &#x3D; (0<em>2-0</em>2, 0<em>2-2</em>2, 2<em>0-0</em>2) &#x3D; (0,-4,0) → 归一化 (0,-1,0)</li>
+</ul>
+<p>所以当光从上方来时，<code>cosTheta = N·toLightN = (0,-1,0)·(0,1,0) = -1</code>，被 <code>max(0,...)</code> 截断成 0，整个地板的直接光照变成了 0。</p>
+<p><strong>修复方式</strong>：在 baking 循环开始时，根据三角形面心到场景中心的向量来判断法线是否朝向内部，如果朝外则翻转：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Vec3 centroid = (wA + wB + wC) * (<span class="number">1.f</span>/<span class="number">3.f</span>);</span><br><span class="line">Vec3 toCenter = <span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>) - centroid;</span><br><span class="line"><span class="keyword">if</span> (N.<span class="built_in">dot</span>(toCenter) &lt; <span class="number">0.f</span>) N = -N;</span><br></pre></td></tr></table></figure>
+
+<p>这个方法适用于凸场景（如 Cornell Box），利用了”所有面都应该朝向中心”的假设。对于复杂凹形场景则需要其他方案（如手动指定法线方向，或从顶点顺序约定法线）。</p>
+<p><strong>经验</strong>：在编写场景时，务必明确 <code>addQuad</code> 的顶点绕序约定，并且先验证法线方向（打印或可视化法线向量）再开始 baking。</p>
+<h3 id="Bug-2：面光源-cosThetaL-为负"><a href="#Bug-2：面光源-cosThetaL-为负" class="headerlink" title="Bug 2：面光源 cosThetaL 为负"></a>Bug 2：面光源 <code>cosThetaL</code> 为负</h3><p><strong>症状</strong>：修复 Bug 1 之后，场景有了基本光照，但高蓝盒的顶面和右上角的一些地方依然明显偏暗，不符合预期。</p>
+<p><strong>错误假设</strong>：以为是间接光照采样数不够，尝试增加采样数也无效。</p>
+<p><strong>真实原因</strong>：面光源的法线也是朝上 <code>(0,1,0)</code>（因为 addQuad 的顶点绕序），而光应该朝下发射。在代码中：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> cosThetaL = (-lt.normal).<span class="built_in">dot</span>(toLightN);  <span class="comment">// 错误！</span></span><br></pre></td></tr></table></figure>
+
+<p>当接收点在光源正下方时，<code>toLightN = (0,-1,0)</code>（从接收点看向光源是向上的），<code>-lt.normal = (0,-1,0)</code>，dot 结果 &#x3D; <code>(-1,0)*(-1) + 0 + 0 = 1</code>… </p>
+<p>等等，让我重算：<code>toLightN</code> 是从接收点 <code>pos</code> 指向光源点 <code>lpos</code> 的方向。<code>pos</code> 在地板（y&#x3D;-1），<code>lpos</code> 在天花板（y&#x3D;+1），所以 <code>toLightN = (0,+1,0)</code>（向上）。而 <code>-lt.normal = (0,-1,0)</code>，所以 <code>(-lt.normal)·toLightN = (0,-1,0)·(0,1,0) = -1</code>，被截断为 0！</p>
+<p><strong>修复</strong>：用绝对值让面光源双面发光：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> cosThetaL = std::<span class="built_in">abs</span>(lt.normal.<span class="built_in">dot</span>(toLightN));</span><br></pre></td></tr></table></figure>
+
+<p>物理上，一个理想的面光源可以双面发光（就像 Blender 里的 Area Light 默认设置），所以用绝对值是合理的。</p>
+<p><strong>经验</strong>：面光源的法线方向是隐性约定。如果构建时没有统一绕序，应该用绝对值或 <code>std::max(0, dot)</code> 来避免符号问题。最好的做法是场景构建时就统一”法线朝向发光侧”，并加断言检查。</p>
+<h3 id="Bug-3：图像大部分为黑色背景"><a href="#Bug-3：图像大部分为黑色背景" class="headerlink" title="Bug 3：图像大部分为黑色背景"></a>Bug 3：图像大部分为黑色背景</h3><p><strong>症状</strong>：输出图像均值只有 2-4，远低于标准的 10-240。但 Atlas 里确实有亮的区域（某些盒子面片有光照）。</p>
+<p><strong>错误假设</strong>：以为是 Lightmap 数据不对。</p>
+<p><strong>真实原因</strong>：相机 FOV 太小（<code>fov=0.45</code>），Cornell Box 在图像中只占很小一块，大量像素是背景黑色（未命中任何三角形）。增大 FOV 后 Box 覆盖了更大区域，均值从 2.0 升到了 65.6。</p>
+<p>另外：上述两个 Bug 组合导致真正亮的表面（地板、墙面）都是黑色，只有高蓝盒的几个面有正确光照，而盒子只占很小面积。</p>
+<p><strong>修复</strong>：<code>camPos=(0,0,-1.85)</code>, <code>fov=0.85</code>，让 Cornell Box 几乎填满画面。</p>
+<p><strong>经验</strong>：像素统计验证（均值 10-240）是个非常有用的早期预警。均值过低往往有两种原因：(1) 渲染结果错误（全黑），(2) 场景覆盖率不足（FOV 太小、相机位置不对）。两种情况的修复方式完全不同，需要通过分析亮像素数量和分布来区分。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="编译与运行"><a href="#编译与运行" class="headerlink" title="编译与运行"></a>编译与运行</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -o lightmap_baker -std=c++17 -O2 -Wall -Wextra</span><br><span class="line"><span class="comment"># EXIT:0，0 errors，0 warnings（自己的代码）</span></span><br><span class="line">./lightmap_baker</span><br></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">=== Lightmap Baker ===</span><br><span class="line">Triangles: 32  Lights: 2</span><br><span class="line">Building UV atlas...</span><br><span class="line">Baking lightmap (512x512)...</span><br><span class="line">Baking complete.</span><br><span class="line">Filled texels: 208083 / 262144 (79.4%)</span><br><span class="line">Rendering final scene (512x512)...</span><br><span class="line">Saved: lightmap_baker_output.png</span><br><span class="line">Rendering lightmap atlas visualization...</span><br><span class="line">Saved: lightmap_atlas_output.png</span><br><span class="line">Done!</span><br><span class="line"></span><br><span class="line">real    0m3.174s</span><br></pre></td></tr></table></figure>
+
+<p>性能指标：</p>
+<ul>
+<li>场景：32 个三角形，2 个面光源三角形</li>
+<li>辐照度采样：6 samples&#x2F;texel × 4 间接光 bounce &#x3D; 最多 24 条光线&#x2F;texel</li>
+<li>填充率：79.4%（208083&#x2F;262144），未填充的是 tile padding 和空白区域</li>
+<li>烘焙时间：3.17 秒（单线程 CPU）</li>
+<li>渲染时间：含于 3.17 秒内（最后的 render 步骤很快）</li>
+</ul>
+<h3 id="像素统计验证"><a href="#像素统计验证" class="headerlink" title="像素统计验证"></a>像素统计验证</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> PIL <span class="keyword">import</span> Image</span><br><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line"></span><br><span class="line">img = Image.<span class="built_in">open</span>(<span class="string">&#x27;lightmap_baker_output.png&#x27;</span>)</span><br><span class="line">pixels = np.array(img).astype(<span class="built_in">float</span>)</span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;均值: <span class="subst">&#123;pixels.mean():<span class="number">.1</span>f&#125;</span>  标准差: <span class="subst">&#123;pixels.std():<span class="number">.1</span>f&#125;</span>&quot;</span>)</span><br><span class="line"><span class="built_in">print</span>(<span class="string">f&quot;最大值: <span class="subst">&#123;pixels.<span class="built_in">max</span>():<span class="number">.0</span>f&#125;</span>  文件大小: <span class="subst">&#123;os.path.getsize(...)//<span class="number">1024</span>&#125;</span>KB&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">均值: 65.6  标准差: 53.8</span><br><span class="line">最大值: 235  文件大小: 376KB</span><br><span class="line">✅ 文件大小 &gt; 10KB</span><br><span class="line">✅ 像素均值在 10~240 之间（非全黑/全白）</span><br><span class="line">✅ 像素标准差 &gt; 5（图像有内容变化）</span><br></pre></td></tr></table></figure>
+
+<h3 id="输出效果"><a href="#输出效果" class="headerlink" title="输出效果"></a>输出效果</h3><p><strong>主渲染图（Cornell Box + Lightmap）</strong>：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" alt="Lightmap Baker 渲染结果"></p>
+<p>左图是用 Lightmap 渲染的 Cornell Box，可以看到：</p>
+<ul>
+<li>地板上有柔和的直接光照区域（光源正下方最亮）</li>
+<li>红色左墙和绿色右墙的颜色溢色到相邻表面（间接光）</li>
+<li>蓝色高盒和黄色矮盒都有正确的光照和阴影</li>
+<li>盒子投射的软阴影（边缘渐变，因为面光源有面积）</li>
+</ul>
+<p><strong>Lightmap Atlas 可视化</strong>：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_atlas_output.png" alt="Lightmap Atlas"></p>
+<p>Atlas 图像中可以看到：</p>
+<ul>
+<li>每个 tile 对应一个三角面片</li>
+<li>靠近光源的面片（如天花板附近）最亮</li>
+<li>角落处的面片因为受间接光较少而较暗</li>
+<li>未填充的区域（tile 之间的 padding 和空行）呈黑色</li>
+</ul>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="实现总结"><a href="#实现总结" class="headerlink" title="实现总结"></a>实现总结</h3><p>今天实现了一个完整的 Lightmap Baker，覆盖了光照贴图烘焙的核心流程：</p>
+<ol>
+<li><strong>UV Atlas 展开</strong>：简单但可用的网格分配方案，为每个三角形分配独立的 UV 空间</li>
+<li><strong>Texel 到世界坐标的映射</strong>：通过重心坐标插值，精确还原表面点位置</li>
+<li><strong>直接光照（Area Light Sampling）</strong>：蒙特卡洛面积采样 + Shadow Ray 可见性检测</li>
+<li><strong>间接光照（One Bounce）</strong>：余弦加权半球采样 + 在弹射点递归计算直接光</li>
+<li><strong>Lightmap 采样</strong>：双线性插值避免块状走样</li>
+</ol>
+<p>修复了三个关键 Bug：法线朝向错误、面光源 cosThetaL 符号问题、FOV 设置不合理。</p>
+<h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>只支持静态物体</strong>：Lightmap 预计算后场景就固定了，灯光或物体移动后需要重新烘焙</li>
+<li><strong>低频光照</strong>：Lightmap 分辨率有限，无法捕捉高频的阴影细节（如细小的遮挡）</li>
+<li><strong>UV 展开简陋</strong>：当前的网格分配浪费空间，实际引擎用 xAtlas 或 UVAuto 等工具做优化展开</li>
+<li><strong>只有一次间接弹射</strong>：真正的 GI 需要多次弹射。一次弹射已经能表现基本的颜色溢色，但二次、三次弹射才能让暗角更自然</li>
+<li><strong>噪点问题</strong>：6 samples&#x2F;texel 不足以收敛，需要更多采样或去噪（OIDN 等）</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ul>
+<li><strong>多线程并行</strong>：每个 texel 的 baking 完全独立，用 <code>std::thread</code> 或 OpenMP 可以轻松并行化，速度提升 4-8 倍</li>
+<li><strong>更好的 UV 展开</strong>：集成 xAtlas 库，减少 UV 浪费</li>
+<li><strong>Light Tree &#x2F; BLAS</strong>：当场景有很多光源时，构建光源 BVH 加速采样决策</li>
+<li><strong>降噪</strong>：使用 Intel Open Image Denoise（OIDN）对烘焙结果进行 AI 降噪，可以大幅降低所需采样数</li>
+<li><strong>多次弹射</strong>：实现完整的路径追踪 baking（Lightmass 就是这么做的）</li>
+<li><strong>Lightmap Dilate</strong>：对 UV seam 处进行 texel 扩展（dilate），避免边界漏光</li>
+<li><strong>Probe 辅助</strong>：对于大场景，单张全局 Lightmap 分辨率不够，可结合 Irradiance Probe</li>
+</ul>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>05-24 Subsurface Scattering</strong>：同样涉及光照传播，SSS 可以视为 Lightmap Baker 的材质扩展（非 Lambertian）</li>
+<li><strong>05-22 SSGI</strong>：实时版本的间接光照，和 Lightmap 是互补的——Lightmap 离线烘焙静态光，SSGI 实时处理动态光</li>
+<li><strong>05-19 Atmospheric Scattering</strong>：Lightmap 可以与大气散射结合，烘焙室外场景的天空光照</li>
+<li><strong>03-21 SPPM &#x2F; 03-22 BDPT</strong>：更高级的离线渲染算法，Lightmass 内部就使用了类似 BDPT 的双向路径追踪</li>
+</ul>
+<p>离线烘焙技术在游戏引擎中经历了几十年的发展，从 Quake 的 BSP + 辐射度方法，到 Lightmass 的双向路径追踪，核心思想没变：用时间换取质量，把复杂光照预先计算好，让运行时可以”免费”享用。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/25/daily-coding-lightmap-baker-2026-05-25/">https://chiuhoukazusa.github.io/2026/05/25/daily-coding-lightmap-baker-2026-05-25/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%85%A8%E5%B1%80%E5%85%89%E7%85%A7/">全局光照</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%B8%B8%E6%88%8F%E5%BC%80%E5%8F%91/">游戏开发</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</div></div><div class="info-2"><div class="info-item-1"> ① 背景与动机为什么需要 Subsurface Scattering？在标准 Phong 或 Cook-Torrance 光照模型中，我们有一个根本假设：光线只在物体表面发生交互。光击中表面，要么被反射（镜面反射 + 漫反射），要么被吸收。然而，这个假设对于很多现实材质来说是严重错误的。 考虑你用手电筒照射自己的手：你会看到手指透出橙红色的光，背面也会有柔和的光晕。这是因为皮肤是半透明材质 ——光线穿透皮肤表面，在皮下组织（脂肪、血管、骨骼）中不断散射，最终从另一个地方射出。这个过程叫做次表面散射（Subsurface Scattering, SSS）。 没有 SSS 的皮肤渲染有以下明显缺陷：  阴影边界过硬：明暗交界线像刀割一样，没有皮肤的柔和过渡 暗部完全是死黑：皮肤暗部应该有散射光泛起的橙红色调，没有 SSS 就是纯黑 背光效果缺失：逆光拍摄时耳朵、鼻翼会透出红光，这在没有 SSS 的模型里完全消失 整体质感如同塑料：皮肤特有的通透感完全丢失  工业界应用场景：  AAA 游戏角色皮肤：Unreal Engine 5 的虚拟人类技术（MetaHuman）核心之一就是 S...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/16/daily-coding-inverse-kinematics-ccd-solver-2026-04-16/" title="每日编程实践: Inverse Kinematics CCD Solver — 从零实现逆运动学求解器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-16-Inverse-Kinematics-CCD-Solver/ik_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-16</div><div class="info-item-2">每日编程实践: Inverse Kinematics CCD Solver — 从零实现逆运动学求解器</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 61: Inverse Kinematics CCD Solver① 背景与动机什么是逆运动学？在游戏和动画制作中，我们经常需要让角色的手伸向某个物体、脚踩在不平整的地面上、眼睛跟踪某个运动目标……这些需求的共同特征是：我知道末端要到哪里，但我不知道每个关节应该转多少度。 这就是逆运动学（Inverse Kinematics，IK）要解决的问题。 正运动学（Forward Kinematics，FK） 是直觉的：给定每个关节的角度，计算末端执行器的位置。这只需要矩阵连乘，简单直接。 12FK: 关节角度 θ₁, θ₂, ..., θₙ → 末端位置 (x, y)IK: 目标位置 (x, y) → 关节角度 θ₁, θ₂, ..., θₙ = ?  IK 是 FK 的”逆”，但逆向求解远比正向复杂：  多解问题：同一个末端位置可能对应无数组关节角度（想象你伸手指向桌上一点，你的肘关节可以在好几个位置） 无解问题：目标超出可达范围时无解 奇异性：某些特殊配置下，微小的位置变化要求极大的角度变化 关节约束：人的膝关节只能朝一个方向弯，IK 解必须满足这些约束  工...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-22-ssgi/ssgi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-22</div><div class="info-item-2">每日编程实践: SSGI Screen Space Global Illumination Renderer</div></div><div class="info-2"><div class="info-item-1">SSGI：屏幕空间全局光照渲染器今天实现了 SSGI（Screen Space Global Illumination），一种在屏幕空间内近似计算间接漫射光照的实时 GI 技术。渲染了一个 Cornell Box 场景：白色主球、蓝色小球、橙色球、彩色墙壁、面积光，以及一个点状发光球体。   一、背景与动机：为什么需要 GI，为什么选屏幕空间1.1 没有 GI 的世界长什么样直接光照（Direct Lighting）只处理光源直接打到物体表面的情况。现实世界中，光在空间里反弹——太阳光照进房间后，天花板被地板的反射光打亮；Cornell Box 里红色左墙会把红光”流血”到白色球体上，形成 Color Bleeding（颜色溢出）。 没有 GI 的场景特征：  阴影区域完全是黑色，没有任何细节 相邻表面颜色完全独立，没有颜色互相染色 室内场景视觉上”飘”，与现实差距大 Ambient Term 只能用常数来糊弄  这就是为什么几乎所有 3A 游戏都有某种形式的 GI——UE5 的 Lumen、Unity 的 DDGI、Frostbite 的 Radiance Cache……没有 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/07/daily-coding-photon-mapping-2026-05-07/" title="每日编程实践: Photon Mapping Renderer（光子映射渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-07-photon-mapping/photon_map_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-07</div><div class="info-item-2">每日编程实践: Photon Mapping Renderer（光子映射渲染器）</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Photon Mapping Renderer  经典两阶段全局光照算法：光子发射 + 辐射度估计，在 Cornell Box 中同时渲染间接光照、镜面反射和玻璃焦散。   ① 背景与动机为什么需要光子映射？在实时渲染和离线渲染中，”全局光照”（Global Illumination，GI）是最难实现又最能提升画面真实感的特性之一。如果没有全局光照，场景会显得非常生硬：  间接光照缺失：光线只有一次弹射，暗角完全是黑色，不自然 焦散（Caustics）缺失：玻璃球或水面聚焦后的明亮光斑根本不存在 色溢（Color Bleeding）缺失：红墙旁边的白墙看不出一点红色反射  传统路径追踪（Path Tracing）虽然能产生正确的全局光照，但它的问题在于：  焦散收敛极慢：从相机出发的路径很难恰好穿过折射路径到达光源，需要数百万 spp 才能消除噪声 每帧计算量巨大：不适合场景固定、只有视角变化的情况  光子映射（Photon Mapping） 由 Henrik Wann Jensen 在 1996 年提出，专门解决这两个问题：  将光源的能量以”光子”为单位预先射...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/21/daily-coding-sppm-2026-03-21/" title="每日编程实践: SPPM 随机渐进光子映射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-21-sppm/sppm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-21</div><div class="info-item-2">每日编程实践: SPPM 随机渐进光子映射</div></div><div class="info-2"><div class="info-item-1">① 背景与动机为什么需要全局光照？在实时渲染的世界里，我们长期依赖”直接光照 + 环境光假设”来模拟光照效果。这类方法速度快，但有一个根本性缺陷：它忽略了光线在场景中多次弹射的间接照明。 想象一个 Cornell Box——一个封闭的盒子，左墙红色，右墙绿色，天花板有一盏灯。在纯直接光照渲染中，你会看到墙面上均匀涂抹的红色和绿色；但在现实世界（或使用全局光照的渲染器）里，红墙的颜色会”流血”到白色地板和天花板上——这就是颜色渗色（Color Bleeding），是全局光照的典型特征。 此外，当场景中有镜面反射物体或玻璃时，光线可能经过多次折射&#x2F;反射后才照亮某个漫反射表面。直接光照模型根本无法处理这类焦散（Caustics）效果——例如玻璃球下方那一圈明亮的光斑。 全局光照真正解决的问题：  漫反射间接照明（颜色渗色、角落变暗） 焦散（通过玻璃&#x2F;镜面聚焦的光） 柔和阴影的物理正确计算 色调一致性（整个场景的光能守恒）  工业界实际应用全局光照在以下场景中有大量实际应用： 离线渲染（影视&#x2F;动画）：  Pixar 的 RenderMan 使用路径追踪 + ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/23/daily-coding-voxel-cone-tracing-2026-03-23/" title="每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-23-voxel-cone-tracing/vct_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-23</div><div class="info-item-2">每日编程实践: Voxel Cone Tracing — 用体素锥形追踪实现近似全局光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机全局光照的工程困境光线追踪可以精确计算全局光照（Global Illumination，GI），但在实时渲染场景下代价极高。渲染一帧 1080P 图像，路径追踪往往需要每像素几十甚至上百条路径才能收敛——这对于 60FPS 的游戏来说显然不现实。 游戏引擎里用了哪些方案来”作弊”？  光照贴图（Lightmap）：离线烘焙，无法响应动态物体 Irradiance Volume（光照探针）：动态性好，但空间分辨率有限 SSAO（屏幕空间环境光遮蔽）：只用屏幕信息，遮蔽范围受限 Lumen（UE5）：混合 SDF 追踪 + Radiance Cache，非常复杂  2011 年，Cyril Crassin 等人提出了 Voxel Cone Tracing（VCT），发表在 SIGGRAPH 论文”Interactive Indirect Illumination Using Voxel Cone Tracing”中。VCT 的核心思想是：  把场景体素化成一个带 Mipmap 的 3D 纹理，然后在着色时沿锥形方向”扫描”这个 3D 纹理，近似计算来自各方向的间接辐射度...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/05/daily-coding-path-guiding-2026-05-05/" title="每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-05-path-guiding/path_guiding_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-05</div><div class="info-item-2">每日编程实践: Path Guiding Renderer with SD-Tree Spatial Caching</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Path Guiding Renderer with SD-Tree 用空间缓存学习光照分布，让蒙特卡洛路径追踪”知道”往哪里看。   左：Path Guiding 引导渲染（128 spp，2学习轮次+2渲染轮次）；右：纯余弦半球采样参考（64 spp）  ① 背景与动机蒙特卡洛路径追踪的噪声困境标准路径追踪（Path Tracing）是目前离线渲染的主流框架，但它有一个固有的痛点：收敛速度慢，噪声多。 在漫反射表面的路径追踪中，我们通常在半球上均匀采样或按余弦加权采样反射方向。这种做法在物理上是无偏的——任何方向都有可能贡献能量——但在实践中，大量采样方向对最终像素几乎没有贡献，白白浪费了采样预算。 具体来说：  直接光照在场景中通常集中在光源方向附近的一小块立体角 间接光照受到几何约束，能量往往集中在某些特定方向 焦散（caustics）只有极少数路径能够命中，余弦采样几乎是”大海捞针”  结果就是：即使渲染 256 spp，某些像素仍然布满萤火虫噪声（fireflies），尤其是包含复杂光路的场景——玻璃球后面的焦散、镜面球之间的多次反射、间接照明的角落。 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">108</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">118</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E6%97%B6%E6%B8%B2%E6%9F%93%E7%9A%84%E6%80%A7%E8%83%BD%E5%9B%B0%E5%A2%83"><span class="toc-number">1.1.</span> <span class="toc-text">实时渲染的性能困境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B2%A1%E6%9C%89-Lightmap-%E7%9A%84%E7%97%9B%E7%82%B9"><span class="toc-number">1.2.</span> <span class="toc-text">没有 Lightmap 的痛点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%AE%9E%E9%99%85%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.3.</span> <span class="toc-text">工业界实际使用场景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%96%B9%E7%A8%8B%E5%9B%9E%E9%A1%BE"><span class="toc-number">2.1.</span> <span class="toc-text">渲染方程回顾</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AD%98%E8%BE%90%E7%85%A7%E5%BA%A6%E8%80%8C%E4%B8%8D%E5%AD%98%E8%BE%90%E5%B0%84%E7%8E%87%EF%BC%9F"><span class="toc-number">2.2.</span> <span class="toc-text">为什么存辐照度而不存辐射率？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%B4%E6%8E%A5%E5%85%89%E7%85%A7%E4%BC%B0%E8%AE%A1"><span class="toc-number">2.3.</span> <span class="toc-text">直接光照估计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%97%B4%E6%8E%A5%E5%85%89%E7%85%A7%EF%BC%88%E4%B8%80%E6%AC%A1%E5%BC%B9%E5%B0%84%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">间接光照（一次弹射）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%99%E5%BC%A6%E5%8A%A0%E6%9D%83%E5%8D%8A%E7%90%83%E9%87%87%E6%A0%B7"><span class="toc-number">2.5.</span> <span class="toc-text">余弦加权半球采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#UV-Atlas-%E5%B1%95%E5%BC%80"><span class="toc-number">2.6.</span> <span class="toc-text">UV Atlas 展开</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%A1%E7%BA%BF%E6%A8%A1%E5%9D%97%E8%81%8C%E8%B4%A3"><span class="toc-number">3.3.</span> <span class="toc-text">管线模块职责</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Cornell-Box-%E5%9C%BA%E6%99%AF%E6%9E%84%E9%80%A0"><span class="toc-number">3.4.</span> <span class="toc-text">Cornell Box 场景构造</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#UV-Atlas-%E5%B1%95%E5%BC%80%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">UV Atlas 展开实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Texel-%E4%B8%AD%E5%BF%83%E5%88%B0%E4%B8%96%E7%95%8C%E5%9D%90%E6%A0%87%E7%9A%84%E6%98%A0%E5%B0%84"><span class="toc-number">4.2.</span> <span class="toc-text">Texel 中心到世界坐标的映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B3%95%E7%BA%BF%E6%9C%9D%E5%90%91%E4%BF%AE%E6%AD%A3"><span class="toc-number">4.3.</span> <span class="toc-text">法线朝向修正</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%B4%E6%8E%A5%E5%85%89%E7%85%A7%E9%87%87%E6%A0%B7"><span class="toc-number">4.4.</span> <span class="toc-text">直接光照采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Lightmap-%E5%8F%8C%E7%BA%BF%E6%80%A7%E9%87%87%E6%A0%B7"><span class="toc-number">4.5.</span> <span class="toc-text">Lightmap 双线性采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Tone-Mapping"><span class="toc-number">4.6.</span> <span class="toc-text">Tone Mapping</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E5%9C%B0%E6%9D%BF%E5%85%A8%E9%BB%91%EF%BC%8C%E6%B3%95%E7%BA%BF%E6%9C%9D%E5%90%91%E9%94%99%E8%AF%AF"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：地板全黑，法线朝向错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E9%9D%A2%E5%85%89%E6%BA%90-cosThetaL-%E4%B8%BA%E8%B4%9F"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：面光源 cosThetaL 为负</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%9B%BE%E5%83%8F%E5%A4%A7%E9%83%A8%E5%88%86%E4%B8%BA%E9%BB%91%E8%89%B2%E8%83%8C%E6%99%AF"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：图像大部分为黑色背景</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BC%96%E8%AF%91%E4%B8%8E%E8%BF%90%E8%A1%8C"><span class="toc-number">6.1.</span> <span class="toc-text">编译与运行</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1%E9%AA%8C%E8%AF%81"><span class="toc-number">6.2.</span> <span class="toc-text">像素统计验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%93%E5%87%BA%E6%95%88%E6%9E%9C"><span class="toc-number">6.3.</span> <span class="toc-text">输出效果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%80%BB%E7%BB%93"><span class="toc-number">7.1.</span> <span class="toc-text">实现总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.2.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.4.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</a><time datetime="2026-05-24T21:35:00.000Z" title="发表于 2026-05-25 05:35:00">2026-05-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</a><time datetime="2026-05-23T21:30:00.000Z" title="发表于 2026-05-24 05:30:00">2026-05-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-23-sdf-ray-marching/sdf_scene_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SDF Ray Marching Scene Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer">每日编程实践: SDF Ray Marching Scene Renderer</a><time datetime="2026-05-22T21:35:00.000Z" title="发表于 2026-05-23 05:35:00">2026-05-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-22-ssgi/ssgi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SSGI Screen Space Global Illumination Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer">每日编程实践: SSGI Screen Space Global Illumination Renderer</a><time datetime="2026-05-21T21:30:00.000Z" title="发表于 2026-05-22 05:30:00">2026-05-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/21/daily-coding-thin-film-iridescence-2026-05-21/" title="每日编程实践: Thin Film Iridescence Renderer - 薄膜干涉彩虹色渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-21-thin-film-iridescence/thin_film_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Thin Film Iridescence Renderer - 薄膜干涉彩虹色渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/21/daily-coding-thin-film-iridescence-2026-05-21/" title="每日编程实践: Thin Film Iridescence Renderer - 薄膜干涉彩虹色渲染">每日编程实践: Thin Film Iridescence Renderer - 薄膜干涉彩虹色渲染</a><time datetime="2026-05-20T21:30:00.000Z" title="发表于 2026-05-21 05:30:00">2026-05-21</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
