@@ -1,0 +1,434 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Catmull-Clark 细分曲面渲染器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机在 3D 建模和计算机图形学中,有一个永恒的矛盾:低多边形网格(Low-poly)易于编辑,但看起来粗糙;高多边形网格(High-poly)渲染细腻,但难以手动编辑。 这个问题在上世纪 70-80 年代就困扰着皮克斯的工程师们。艺术家们希望用简单的粗糙网格控制形状,然后让计算机自动生成光滑版本。这就是**细分曲面(Subdivision Surface)**技术诞生的背景。 现实痛点考虑">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Catmull-Clark 细分曲面渲染器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/26/daily-coding-catmull-clark-2026-05-26/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机在 3D 建模和计算机图形学中,有一个永恒的矛盾:低多边形网格(Low-poly)易于编辑,但看起来粗糙;高多边形网格(High-poly)渲染细腻,但难以手动编辑。 这个问题在上世纪 70-80 年代就困扰着皮克斯的工程师们。艺术家们希望用简单的粗糙网格控制形状,然后让计算机自动生成光滑版本。这就是**细分曲面(Subdivision Surface)**技术诞生的背景。 现实痛点考虑">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png">
+<meta property="article:published_time" content="2026-05-25T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-25T21:40:47.787Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="曲面建模">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="细分算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Catmull-Clark 细分曲面渲染器",
+  "url": "https://chiuhoukazusa.github.io/2026/05/26/daily-coding-catmull-clark-2026-05-26/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png",
+  "datePublished": "2026-05-25T21:30:00.000Z",
+  "dateModified": "2026-05-25T21:40:47.787Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/26/daily-coding-catmull-clark-2026-05-26/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Catmull-Clark 细分曲面渲染器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Catmull-Clark 细分曲面渲染器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Catmull-Clark 细分曲面渲染器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-25T21:30:00.000Z" title="发表于 2026-05-26 05:30:00">2026-05-26</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-25T21:40:47.787Z" title="更新于 2026-05-26 05:40:47">2026-05-26</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>在 3D 建模和计算机图形学中,有一个永恒的矛盾:<strong>低多边形网格(Low-poly)易于编辑,但看起来粗糙;高多边形网格(High-poly)渲染细腻,但难以手动编辑</strong>。</p>
+<p>这个问题在上世纪 70-80 年代就困扰着皮克斯的工程师们。艺术家们希望用简单的粗糙网格控制形状,然后让计算机自动生成光滑版本。这就是**细分曲面(Subdivision Surface)**技术诞生的背景。</p>
+<h3 id="现实痛点"><a href="#现实痛点" class="headerlink" title="现实痛点"></a>现实痛点</h3><p>考虑一个实际场景:你要建模一个角色的脸。如果直接用高多边形(数万个面),每移动一个顶点就要同时调整周围的几十个顶点,工作量爆炸;如果用低多边形(几百个面),建模很快,但渲染出来像个塑料玩具–全是硬边和棱角,没有任何生物感。</p>
+<p>细分曲面的方案是:<strong>让艺术家只操作低多边形的”控制网格”(Control Cage),算法自动生成光滑的高多边形细分结果</strong>。控制网格和细分曲面之间有明确的数学关系,因此艺术家的每个操作都能精确地影响最终曲面形状。</p>
+<h3 id="工业界应用"><a href="#工业界应用" class="headerlink" title="工业界应用"></a>工业界应用</h3><p>Catmull-Clark 细分曲面是目前工业界最主流的细分方案:</p>
+<ul>
+<li><strong>皮克斯 RenderMan</strong>:《玩具总动员》(1995)及后续所有皮克斯电影,角色全部用 Catmull-Clark 细分曲面建模渲染</li>
+<li><strong>Autodesk Maya &#x2F; 3ds Max</strong>:内置 Catmull-Clark 细分,是电影&#x2F;游戏角色建模的标准工具</li>
+<li><strong>Blender</strong>:Subdivision Surface 修改器默认使用 Catmull-Clark 算法</li>
+<li><strong>游戏引擎 DirectX 11&#x2F;12、OpenGL</strong>:通过 Hull Shader + Domain Shader(Tessellation Pipeline)在 GPU 上实时执行细分</li>
+<li><strong>OpenSubdiv(Pixar 开源库)</strong>:专门为 Catmull-Clark 等细分算法做了高度优化的 CPU&#x2F;GPU 实现,UE4&#x2F;UE5 也集成了它</li>
+</ul>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="什么是-Catmull-Clark-细分"><a href="#什么是-Catmull-Clark-细分" class="headerlink" title="什么是 Catmull-Clark 细分?"></a>什么是 Catmull-Clark 细分?</h3><p>Catmull-Clark 细分由 Edwin Catmull 和 Jim Clark 在 1978 年提出。其核心思想是:<strong>给定一个任意多边形网格,通过一套规则插入新顶点并重新连接,生成一个拥有 4 倍面数的新网格,且新网格整体更光滑</strong>。反复执行这个过程,最终收敛到一张 B 样条曲面。</p>
+<h3 id="一次细分的三个步骤"><a href="#一次细分的三个步骤" class="headerlink" title="一次细分的三个步骤"></a>一次细分的三个步骤</h3><p>对一个有 $V$ 个顶点、$E$ 条边、$F$ 个面的网格,执行一次 Catmull-Clark 细分:</p>
+<p><strong>Step A:生成面点(Face Points)</strong></p>
+<p>对每个面 $f$,生成一个<strong>面点</strong> $\mathbf{f}$:</p>
+<p>$$\mathbf{f} &#x3D; \frac{1}{n} \sum_{i&#x3D;1}^{n} \mathbf{v}_i$$</p>
+<p>其中 $n$ 是该面的顶点数,$\mathbf{v}_i$ 是各顶点位置。直觉:面点就是面的重心,它是这个面内部的”中心代表”。</p>
+<p><strong>Step B:生成边点(Edge Points)</strong></p>
+<p>对每条内部边 $(v_0, v_1)$,生成一个<strong>边点</strong> $\mathbf{e}$:</p>
+<p>$$\mathbf{e} &#x3D; \frac{\mathbf{v}_0 + \mathbf{v}_1 + \mathbf{f}_1 + \mathbf{f}_2}{4}$$</p>
+<p>其中 $\mathbf{f}_1, \mathbf{f}_2$ 是这条边相邻的两个面的面点。直觉:边点是边的中点,但被两侧面的重心”拉向”面的中心,使边更平滑地嵌入曲面。</p>
+<p>对于<strong>边界边</strong>(只属于一个面),退化为简单中点:</p>
+<p>$$\mathbf{e}_{boundary} &#x3D; \frac{\mathbf{v}_0 + \mathbf{v}_1}{2}$$</p>
+<p><strong>Step C:更新原始顶点位置(Vertex Points)</strong></p>
+<p>这是最关键的一步,也是体现 B 样条收敛性的地方。对内部顶点 $\mathbf{v}$(连接 $n$ 条边,与 $n$ 个面相邻):</p>
+<p>$$\mathbf{v}’ &#x3D; \frac{\mathbf{F} + 2\mathbf{R} + (n-3)\mathbf{v}}{n}$$</p>
+<p>其中:</p>
+<ul>
+<li>$\mathbf{F}$ &#x3D; 相邻所有面点的平均(代表”附近曲面的平均位置”)</li>
+<li>$\mathbf{R}$ &#x3D; 相邻所有边中点的平均(代表”附近边的平均位置”)</li>
+<li>$n$ &#x3D; 顶点的 valence(连边数)</li>
+</ul>
+<p><strong>直觉解释</strong>:这个公式是一个加权平均,将原始顶点位置 $\mathbf{v}$、邻边中点 $\mathbf{R}$、邻面中心 $\mathbf{F}$ 混合在一起。权重 $(n-3)&#x2F;n$ 控制原始顶点的保留比例–当 $n&#x3D;4$(四边形网格的标准顶点度数),原始顶点权重为 $1&#x2F;4$,恰好产生 B 样条的权重关系。</p>
+<p>对边界顶点,使用特殊规则:</p>
+<p>$$\mathbf{v}’<em>{boundary} &#x3D; \frac{6\mathbf{v} + \sum</em>{neighbors} \mathbf{v}_{nb}}{6 + k}$$</p>
+<p>其中 $k$ 是该顶点在边界上的相邻边界顶点数(通常 $k&#x3D;2$),这保证边界上的细分收敛为均匀 B 样条曲线。</p>
+<p><strong>Step D:重新连接</strong></p>
+<p>用新生成的点构建新的四边形面。每个原始 $n$ 边形面会被分裂成 $n$ 个四边形:对面 $f$ 中的每个原始顶点 $v_i$,生成四边形:</p>
+<p>$$[f_{point},; e_{i-1},; v_i,; e_i]$$</p>
+<p>其中 $e_{i-1}$ 是 $v_i$ 前一条边的边点,$e_i$ 是 $v_i$ 后一条边的边点。</p>
+<h3 id="收敛性分析"><a href="#收敛性分析" class="headerlink" title="收敛性分析"></a>收敛性分析</h3><p>为什么这套规则能产生光滑曲面?关键在于<strong>极限曲面</strong>的性质:</p>
+<ul>
+<li><strong>C2 连续性</strong>(在普通顶点处):对于 valence &#x3D; 4 的顶点,极限曲面是双三次 B 样条,具有 C2 连续性(位置、一阶导数、二阶导数都连续)</li>
+<li><strong>C1 连续性</strong>(在非普通顶点处):对于 valence ≠ 4 的顶点(extraordinary points),曲面只有 C1 连续性</li>
+<li><strong>凸包性</strong>:细分曲面始终在控制网格的凸包内</li>
+</ul>
+<p>实际效果:执行 3 次细分后,立方体(6面,8顶点)变成 384 个四边形面,386 个顶点,肉眼已经看不出任何棱角,像一个光滑的圆角正方体。</p>
+<h3 id="与其他细分方法对比"><a href="#与其他细分方法对比" class="headerlink" title="与其他细分方法对比"></a>与其他细分方法对比</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>输入</th>
+<th>极限曲面</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Catmull-Clark</strong></td>
+<td>任意多边形</td>
+<td>双三次 B 样条</td>
+<td>通用建模(业界主流)</td>
+</tr>
+<tr>
+<td><strong>Loop</strong></td>
+<td>三角形网格</td>
+<td>四次 Box 样条</td>
+<td>三角网格(游戏引擎常用)</td>
+</tr>
+<tr>
+<td><strong>Doo-Sabin</strong></td>
+<td>任意多边形</td>
+<td>双二次 B 样条</td>
+<td>较少使用</td>
+</tr>
+<tr>
+<td><strong>Sqrt(3)</strong></td>
+<td>三角形网格</td>
+<td>特殊 C2 样条</td>
+<td>极少使用</td>
+</tr>
+</tbody></table>
+<p>Catmull-Clark 选择<strong>四边形为主</strong>,因为四边形是双三次 B 样条的自然参数域;Loop 选择三角形,因为三角网格更容易做拓扑操作。</p>
+<h3 id="极限位置-Limit-Surface-Points"><a href="#极限位置-Limit-Surface-Points" class="headerlink" title="极限位置(Limit Surface Points)"></a>极限位置(Limit Surface Points)</h3><p>反复细分后,原始顶点会收敛到极限曲面上的一个精确位置。不必真正执行无限次细分,可以直接计算极限位置:</p>
+<p>对 valence &#x3D; $n$ 的内部顶点,极限位置为:</p>
+<p>$$\mathbf{v}<em>{\infty} &#x3D; \frac{n^2 \mathbf{v} + 4 \sum</em>{k} \mathbf{e}<em>{mid,k} + \sum</em>{k} \mathbf{f}_k}{n^2 + 5n}$$</p>
+<p>其中 $\mathbf{e}_{mid,k}$ 是相邻边的中点,$\mathbf{f}_k$ 是相邻面的面点。这个公式来自 Catmull-Clark 细分矩阵的特征向量分析。本次实现未使用极限位置(靠多次细分逼近),但在需要精确曲面的场合(如 CAD 软件),应直接计算极限位置。</p>
+<h3 id="极限法线的计算"><a href="#极限法线的计算" class="headerlink" title="极限法线的计算"></a>极限法线的计算</h3><p>类似地,可以直接计算极限曲面上的切向量,进而得到精确法线。对 valence &#x3D; $n$ 的内部顶点,切向量为:</p>
+<p>$$\mathbf{t}<em>u &#x3D; \sum</em>{k&#x3D;0}^{n-1} \cos\left(\frac{2\pi k}{n}\right) \mathbf{v}_k$$<br>$$\mathbf{t}<em>v &#x3D; \sum</em>{k&#x3D;0}^{n-1} \sin\left(\frac{2\pi k}{n}\right) \mathbf{v}_k$$</p>
+<p>其中 $\mathbf{v}_k$ 是绕中心顶点逆时针排列的邻顶点。法线 $\mathbf{n} &#x3D; \mathbf{t}_u \times \mathbf{t}_v$。</p>
+<p>本次实现用粗略的顶点法线(周围三角形面法线的加权平均),精确渲染应用极限法线公式。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">粗糙网格(立方体)</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">catmullClarkSubdivide()  ─── x3 次 ───►  光滑网格</span><br><span class="line">    │                                        │</span><br><span class="line">    ▼                                        ▼</span><br><span class="line">Framebuffer(左)                   Framebuffer(右)</span><br><span class="line">    │                                        │</span><br><span class="line">    ▼                                        ▼</span><br><span class="line">renderMesh()                        renderMesh()</span><br><span class="line">    +                                    +</span><br><span class="line">drawWireframe()                     drawWireframe()</span><br><span class="line">    │                                        │</span><br><span class="line">    └─────────────► 拼合 800×400 PNG ◄───────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><p><strong>Mesh 结构</strong>(多边形网格,支持任意多边形):</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Mesh</span> &#123;</span><br><span class="line">    std::vector&lt;Vec3&gt; verts;              <span class="comment">// 顶点位置</span></span><br><span class="line">    std::vector&lt;std::vector&lt;<span class="type">int</span>&gt;&gt; faces;  <span class="comment">// 面(任意多边形,顶点索引列表)</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>选择用 <code>vector&lt;vector&lt;int&gt;&gt;</code> 而不是固定四边形,是因为 Catmull-Clark 的输入网格可以是三角形、四边形的混合,泛用性更好。细分后的结果始终是四边形,但输入不限制。</p>
+<p><strong>边的表示</strong>:用 <code>(min(a,b), max(a,b))</code> 作为 <code>std::map</code> 的 key:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> EdgeKey = std::pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt;;</span><br><span class="line"><span class="function"><span class="type">static</span> EdgeKey <span class="title">makeEdge</span><span class="params">(<span class="type">int</span> a, <span class="type">int</span> b)</span> </span>&#123; <span class="keyword">return</span> &#123;std::<span class="built_in">min</span>(a,b), std::<span class="built_in">max</span>(a,b)&#125;; &#125;</span><br></pre></td></tr></table></figure>
+
+<p>这样无论从哪个方向遍历同一条边,都能查到相同的记录,避免重复。</p>
+<p><strong>邻接查询</strong>:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">std::map&lt;EdgeKey, std::vector&lt;<span class="type">int</span>&gt;&gt; edgeFaces;  <span class="comment">// 边 → 相邻面索引</span></span><br><span class="line">std::vector&lt;std::vector&lt;<span class="type">int</span>&gt;&gt; <span class="built_in">vertFaces</span>(V);      <span class="comment">// 顶点 → 相邻面索引</span></span><br><span class="line">std::vector&lt;std::set&lt;<span class="type">int</span>&gt;&gt; <span class="built_in">vertNeighbors</span>(V);     <span class="comment">// 顶点 → 相邻顶点集合</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="渲染管线"><a href="#渲染管线" class="headerlink" title="渲染管线"></a>渲染管线</h3><p>软光栅化,单线程 CPU 渲染,分两步:</p>
+<ol>
+<li><strong>实体渲染(<code>renderMesh</code>)</strong>:三角形扫描线光栅化 + 深度缓冲 + Phong 着色</li>
+<li><strong>线框叠加(<code>drawWireframe</code>)</strong>:Bresenham 直线算法在已光栅化的帧缓冲上绘制边</li>
+</ol>
+<p>职责划分:</p>
+<ul>
+<li>CPU 侧:变换矩阵(View&#x2F;Projection)、背面剔除、顶点变换</li>
+<li>像素级别:Phong 着色(漫反射 + 镜面反射 + 环境光)</li>
+<li>输出:stb_image_write 写入 PNG</li>
+</ul>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="细分算法核心"><a href="#细分算法核心" class="headerlink" title="细分算法核心"></a>细分算法核心</h3><p><strong>面点计算</strong>(最简单的一步,就是面的重心):</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::vector&lt;Vec3&gt; <span class="title">facePoints</span><span class="params">(F)</span></span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> fi = <span class="number">0</span>; fi &lt; F; fi++) &#123;</span><br><span class="line">    <span class="function">Vec3 <span class="title">sum</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="type">const</span> <span class="keyword">auto</span> &amp;face = m.faces[fi];</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> vi : face) sum += m.verts[vi];</span><br><span class="line">    facePoints[fi] = sum / (<span class="type">float</span>)face.<span class="built_in">size</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>边点计算</strong>(核心公式:端点 + 相邻面点的平均):</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="keyword">auto</span> &amp;[ek, faceList] : edgeFaces) &#123;</span><br><span class="line">    Vec3 sum = m.verts[ek.first] + m.verts[ek.second];  <span class="comment">// 两端点</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> fi : faceList) sum += facePoints[fi];        <span class="comment">// 加相邻面点</span></span><br><span class="line">    <span class="type">float</span> count = <span class="number">2.0f</span> + (<span class="type">float</span>)faceList.<span class="built_in">size</span>();          <span class="comment">// 总项数</span></span><br><span class="line">    newVerts.<span class="built_in">push_back</span>(sum / count);                       <span class="comment">// 取平均</span></span><br><span class="line">    edgePointIdx[ek] = idx++;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意:<code>faceList.size()</code> 对内部边是 2,对边界边是 1。公式自动退化,无需特判。</p>
+<p><strong>顶点更新</strong>(最复杂,需要判断内部&#x2F;边界顶点):</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 判断是否为边界顶点:有邻边只属于1个面</span></span><br><span class="line"><span class="type">bool</span> boundary = <span class="literal">false</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> nb : vertNeighbors[vi]) &#123;</span><br><span class="line">    EdgeKey ek = <span class="built_in">makeEdge</span>(vi, nb);</span><br><span class="line">    <span class="keyword">if</span> (edgeFaces[ek].<span class="built_in">size</span>() == <span class="number">1</span>) &#123; boundary = <span class="literal">true</span>; <span class="keyword">break</span>; &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (!boundary) &#123;</span><br><span class="line">    <span class="comment">// 内部顶点:F + 2R + (n-3)*P 的加权平均</span></span><br><span class="line">    <span class="function">Vec3 <span class="title">F_avg</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> fi : vertFaces[vi]) F_avg += facePoints[fi];</span><br><span class="line">    F_avg = F_avg / (<span class="type">float</span>)n;</span><br><span class="line"></span><br><span class="line">    <span class="function">Vec3 <span class="title">R_avg</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> nb : vertNeighbors[vi]) &#123;</span><br><span class="line">        R_avg += (m.verts[vi] + m.verts[nb]) * <span class="number">0.5f</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    R_avg = R_avg / (<span class="type">float</span>)vertNeighbors[vi].<span class="built_in">size</span>();</span><br><span class="line"></span><br><span class="line">    newVerts[vi] = (F_avg + R_avg * <span class="number">2.0f</span> + m.verts[vi] * (<span class="type">float</span>)(n - <span class="number">3</span>)) / (<span class="type">float</span>)n;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么 <code>R_avg</code> 是边中点的平均而不是相邻顶点的平均?因为公式要求 $\mathbf{R}$ 是”相邻边中点的平均”,而一条边的中点是 $(v + v_{neighbor})&#x2F;2$。若改成”邻顶点平均”会导致曲面偏向不正确位置。</p>
+<p><strong>面的重新连接</strong>(每个 n 边形面 → n 个四边形):</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> fi = <span class="number">0</span>; fi &lt; F; fi++) &#123;</span><br><span class="line">    <span class="type">const</span> <span class="keyword">auto</span> &amp;face = m.faces[fi];</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)face.<span class="built_in">size</span>();</span><br><span class="line">    <span class="type">int</span> fp = facePointStart + fi;  <span class="comment">// 面点索引</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="type">int</span> v0    = face[i];</span><br><span class="line">        <span class="type">int</span> v1    = face[(i<span class="number">+1</span>)%n];</span><br><span class="line">        <span class="type">int</span> v_prev= face[(i<span class="number">-1</span>+n)%n];</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 前一条边的边点</span></span><br><span class="line">        <span class="type">int</span> ep0 = edgePointIdx[<span class="built_in">makeEdge</span>(v_prev, v0)];</span><br><span class="line">        <span class="comment">// 当前边的边点</span></span><br><span class="line">        <span class="type">int</span> ep1 = edgePointIdx[<span class="built_in">makeEdge</span>(v0, v1)];</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 新四边形:面点 → 前边点 → 原顶点 → 后边点</span></span><br><span class="line">        result.faces.<span class="built_in">push_back</span>(&#123;fp, ep0, v0, ep1&#125;);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个四边形的顺序设计有讲究:从面点出发,绕原顶点一圈,确保相邻四边形的边方向一致(法线方向统一)。如果顺序写错(如 <code>{v0, ep0, fp, ep1}</code>),渲染时会出现法线翻转,一半面背面剔除会变成正面,另一半正相反。</p>
+<h3 id="Phong-着色"><a href="#Phong-着色" class="headerlink" title="Phong 着色"></a>Phong 着色</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 插值法线(重心坐标)</span></span><br><span class="line">Vec3 N = (n0 * w0 + n1 * w1 + n2 * w2).<span class="built_in">normalized</span>();</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> ambient = <span class="number">0.15f</span>;</span><br><span class="line"><span class="type">float</span> diff = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, N.<span class="built_in">dot</span>(lightDir));</span><br><span class="line"></span><br><span class="line"><span class="comment">// Blinn-Phong 镜面反射(用半向量 H 代替反射向量 R)</span></span><br><span class="line">Vec3 H = (lightDir + viewDir).<span class="built_in">normalized</span>();</span><br><span class="line"><span class="type">float</span> spec = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.0f</span>, N.<span class="built_in">dot</span>(H)), <span class="number">32.0f</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 颜色合成</span></span><br><span class="line"><span class="type">float</span> lr = std::<span class="built_in">min</span>(<span class="number">1.0f</span>, r * (ambient + diff * <span class="number">0.8f</span>) + spec * <span class="number">0.5f</span>);</span><br></pre></td></tr></table></figure>
+
+<p>用 Blinn-Phong 而不是原始 Phong,原因:Blinn-Phong 的 $N \cdot H$ 在掠射角下不会出现”高光突然消失”的问题,计算也更快(无需算反射向量)。</p>
+<h3 id="背面剔除"><a href="#背面剔除" class="headerlink" title="背面剔除"></a>背面剔除</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在 view space 做背面剔除(更稳定,不受投影变换影响)</span></span><br><span class="line">Vec3 e1 = viewSpacePos[i1] - viewSpacePos[i0];</span><br><span class="line">Vec3 e2 = viewSpacePos[i2] - viewSpacePos[i0];</span><br><span class="line">Vec3 fn = e<span class="number">1.</span><span class="built_in">cross</span>(e2);</span><br><span class="line"><span class="keyword">if</span> (fn.z &gt; <span class="number">0</span>) <span class="keyword">continue</span>;  <span class="comment">// 法线 z &gt; 0 表示朝向摄像机,是背面</span></span><br></pre></td></tr></table></figure>
+
+<p>注意:在右手坐标系、摄像机朝向 -Z 方向时,背面法线的 Z 分量为正(朝向摄像机所在的 +Z 方向)。这里的判断 <code>fn.z &gt; 0</code> 是在 view space 中,view space 的摄像机在原点看向 -Z,背面面向 +Z。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1-细分后网格出现”孔洞”或面朝向错乱"><a href="#Bug-1-细分后网格出现”孔洞”或面朝向错乱" class="headerlink" title="Bug 1:细分后网格出现”孔洞”或面朝向错乱"></a>Bug 1:细分后网格出现”孔洞”或面朝向错乱</h3><p><strong>症状</strong>:细分一次后网格整体正常,但2-3次细分后开始出现随机区域的漏光(背面剔除后的黑洞),线框明显有孔。</p>
+<p><strong>错误假设</strong>:以为是深度缓冲精度问题(z-fighting)。</p>
+<p><strong>真实原因</strong>:重新连接面时,四边形顶点的绕序(winding order)不一致。原始代码用的是 <code>{v0, ep0, fp, ep1}</code> 的顺序,导致从面点到其他点的绕序在某些面上是顺时针、某些是逆时针,取决于原始面的顶点遍历方向。</p>
+<p><strong>修复方式</strong>:固定为 <code>{fp, ep0, v0, ep1}</code>(始终从面点开始),并确保前一条边的边点在原顶点之前,当前边的边点在原顶点之后。这样对每个原始面,所有生成的子四边形都有一致的绕序。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误版本(绕序不稳定)</span></span><br><span class="line">result.faces.<span class="built_in">push_back</span>(&#123;v0, ep0, fp, ep1&#125;);  <span class="comment">// ❌</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 正确版本(始终从面点开始,逆时针)</span></span><br><span class="line">result.faces.<span class="built_in">push_back</span>(&#123;fp, ep0, v0, ep1&#125;);  <span class="comment">// ✅</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-2-顶点更新后曲面向内收缩过多"><a href="#Bug-2-顶点更新后曲面向内收缩过多" class="headerlink" title="Bug 2:顶点更新后曲面向内收缩过多"></a>Bug 2:顶点更新后曲面向内收缩过多</h3><p><strong>症状</strong>:执行 3 次细分后,曲面明显比控制网格小很多,不像光滑的球,更像一个皱缩的橘子。</p>
+<p><strong>错误假设</strong>:以为是 <code>R_avg</code> 的计算使用了邻顶点而不是边中点。</p>
+<p><strong>真实原因</strong>:<code>vertNeighbors[vi]</code> 中存的是邻顶点,但 <code>R_avg</code> 的计算应该是边中点的平均,即:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">R_avg += (m.verts[vi] + m.verts[nb]) * <span class="number">0.5f</span>;</span><br><span class="line"><span class="comment">// 而不是:</span></span><br><span class="line">R_avg += m.verts[nb];  <span class="comment">// ❌ 少加了 v 自身的贡献</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>修复方式</strong>:每个边中点是 $(v + v_{neighbor}) &#x2F; 2$,然后对所有邻顶点求平均,注意是”边中点的平均”:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">R_avg</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> nb : vertNeighbors[vi]) &#123;</span><br><span class="line">    R_avg += (m.verts[vi] + m.verts[nb]) * <span class="number">0.5f</span>;  <span class="comment">// ✅ 边中点</span></span><br><span class="line">&#125;</span><br><span class="line">R_avg = R_avg / (<span class="type">float</span>)vertNeighbors[vi].<span class="built_in">size</span>();</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-3-stb-image-write-h-产生大量-Wmissing-field-initializers-警告"><a href="#Bug-3-stb-image-write-h-产生大量-Wmissing-field-initializers-警告" class="headerlink" title="Bug 3:stb_image_write.h 产生大量 -Wmissing-field-initializers 警告"></a>Bug 3:stb_image_write.h 产生大量 -Wmissing-field-initializers 警告</h3><p><strong>症状</strong>:编译通过,但 g++ -Wall -Wextra 下产生约 20 个警告,全来自 stb_image_write.h 第三方库。</p>
+<p><strong>错误假设</strong>:以为是自己代码的问题。</p>
+<p><strong>真实原因</strong>:stb_image_write.h 内部用 <code>stbi__write_context s = {0}</code> 初始化结构体,GCC 认为这没有显式初始化所有字段。这是 stb 库的已知问题,不影响功能。</p>
+<p><strong>修复方式</strong>:用 <code>#pragma GCC diagnostic push/pop</code> 包裹第三方库的 include,临时禁用该警告:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic push</span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic ignored <span class="string">&quot;-Wmissing-field-initializers&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> STB_IMAGE_WRITE_IMPLEMENTATION</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&quot;../stb_image_write.h&quot;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">pragma</span> GCC diagnostic pop</span></span><br></pre></td></tr></table></figure>
+
+<p>这样只禁用第三方库范围内的警告,自己的代码仍然会报告该类型的警告。</p>
+<h3 id="Bug-4-渲染右图时线框太密看不清细分结构"><a href="#Bug-4-渲染右图时线框太密看不清细分结构" class="headerlink" title="Bug 4:渲染右图时线框太密看不清细分结构"></a>Bug 4:渲染右图时线框太密看不清细分结构</h3><p><strong>症状</strong>:3 次细分后有 384 个面,线框密如蜘蛛网,完全看不出细分的层次感。</p>
+<p><strong>解决方案</strong>:右图实体用 3 次细分结果(看起来光滑),线框用 2 次细分结果(密度适中,能看出网格结构)。这样既展示了最光滑的曲面,也能看出细分层次:</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">renderMesh</span>(fb, mesh3, cam, <span class="number">90</span>, <span class="number">150</span>, <span class="number">220</span>);   <span class="comment">// 3级细分实体</span></span><br><span class="line"><span class="built_in">drawWireframe</span>(fb, mesh2, cam, <span class="number">60</span>, <span class="number">100</span>, <span class="number">160</span>); <span class="comment">// 2级细分线框</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="细分统计数据"><a href="#细分统计数据" class="headerlink" title="细分统计数据"></a>细分统计数据</h3><table>
+<thead>
+<tr>
+<th>细分次数</th>
+<th>顶点数</th>
+<th>面数</th>
+<th>几何增长</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0(原始立方体)</td>
+<td>8</td>
+<td>6</td>
+<td>-</td>
+</tr>
+<tr>
+<td>1</td>
+<td>26</td>
+<td>24</td>
+<td>4×</td>
+</tr>
+<tr>
+<td>2</td>
+<td>98</td>
+<td>96</td>
+<td>4×</td>
+</tr>
+<tr>
+<td>3</td>
+<td>386</td>
+<td>384</td>
+<td>4×</td>
+</tr>
+</tbody></table>
+<p>每次细分,面数恰好变为 4 倍(每个 n 边形面分裂为 n 个四边形,输入全部是四边形时即 4×)。</p>
+<p><strong>顶点数增长公式推导</strong>:<br>给定 $V$ 个顶点、$E$ 条边、$F$ 个四边形面的网格,一次细分后:</p>
+<ul>
+<li>新顶点数 &#x3D; $V + E + F$(原始顶点 + 边点 + 面点)</li>
+<li>新边数 &#x3D; $2E + 4F$(每条边分裂为 2 条,每个面点向外发 4 条)</li>
+<li>新面数 &#x3D; $4F$</li>
+</ul>
+<p>对立方体:$V&#x3D;8, E&#x3D;12, F&#x3D;6$</p>
+<ul>
+<li>第一次细分:$V’&#x3D;26, E’&#x3D;48, F’&#x3D;24$,符合公式 ✔</li>
+<li>第二次细分:$V’’&#x3D;98, E’’&#x3D;192, F’’&#x3D;96$,符合公式 ✔</li>
+<li>第三次细分:$V’’’&#x3D;386, E’’’&#x3D;768, F’’’&#x3D;384$,符合公式 ✔</li>
+</ul>
+<h3 id="像素统计验证"><a href="#像素统计验证" class="headerlink" title="像素统计验证"></a>像素统计验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">图像尺寸: (800, 400)</span><br><span class="line">像素均值: 29.2  标准差: 21.3</span><br><span class="line">左图均值: 27.0  右图均值: 31.4</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>文件大小:30KB(&gt; 10KB ✅)</li>
+<li>像素均值:29.2(在 10~240 范围内 ✅)</li>
+<li>标准差:21.3(&gt; 5,图像有内容变化 ✅)</li>
+<li>左图有内容:均值 27.0(&gt; 5 ✅)</li>
+<li>右图有内容:均值 31.4(&gt; 5 ✅)</li>
+</ul>
+<h3 id="输出图像"><a href="#输出图像" class="headerlink" title="输出图像"></a>输出图像</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" alt="Catmull-Clark 细分对比"></p>
+<p><strong>左侧</strong>:原始粗糙立方体,8个顶点,6个面,带黄色线框清晰显示多边形结构。<br><strong>右侧</strong>:3次 Catmull-Clark 细分后的光滑曲面,386个顶点,384个面,叠加2级细分的线框,可以清晰看到由立方体演化成的”圆角正方体”形状。</p>
+<h3 id="渲染性能"><a href="#渲染性能" class="headerlink" title="渲染性能"></a>渲染性能</h3><p>本次使用 CPU 软光栅化,单线程:</p>
+<ul>
+<li>编译:<code>g++ -O2</code>,约 1.5 秒</li>
+<li>3次细分计算:&lt; 1ms</li>
+<li>渲染(800×400 双图):约 50ms</li>
+<li>总运行时间:&lt; 100ms</li>
+</ul>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>内存与计算量随细分层数指数增长</strong>:每次细分面数 ×4,3 次细分已 384 面,6 次则达 6144 面,实时高层次细分(6+次)需要 GPU 硬件支持(DirectX Hull&#x2F;Domain Shader)</p>
+</li>
+<li><p><strong>非普通顶点(Extraordinary Vertices)的 C1 不连续性</strong>:当顶点 valence ≠ 4 时,极限曲面只有 C1 连续,在极端情况下会有轻微的”褶皱”。Pixar 的 OpenSubdiv 对此有额外的权重修正(Sharp Crease 等特性)</p>
+</li>
+<li><p><strong>边界处理不完美</strong>:简化的边界规则(本实现采用)在边界处的曲率控制有限;完整的边界条件需要区分 Creased Edge(折痕边)等</p>
+</li>
+<li><p><strong>本实现无 GPU 加速</strong>:工业级实现需要在 Tessellation Shader 中执行,本次实现仅展示 CPU 侧算法</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><p><strong>半边数据结构(Half-Edge)</strong>:替换当前的 <code>map&lt;EdgeKey, ...&gt;</code>,将邻接查询从 O(log n) 降到 O(1),对大规模网格有显著加速</p>
+</li>
+<li><p><strong>特征保持细分(Creased Subdivision)</strong>:通过给边设置”折痕权重”,让细分在指定位置保留锐利边缘(如人物的眼皮边缘、衣服褶皱),而不是全部变圆滑</p>
+</li>
+<li><p><strong>Adaptive Subdivision(自适应细分)</strong>:只在曲率大的区域多次细分,平坦区域少细分,节省多边形面数</p>
+</li>
+<li><p><strong>GPU Tessellation</strong>:将 Catmull-Clark 权重转化为 Hull Shader + Domain Shader,实现实时 LOD 细分(根据与摄像机的距离动态调整细分层次)</p>
+</li>
+<li><p><strong>与骨骼动画结合</strong>:控制网格绑定骨骼,骨骼动画驱动控制网格形变,细分曲面自动跟随形变–这就是电影&#x2F;游戏角色动画的完整流程</p>
+</li>
+</ol>
+<h3 id="系列关联"><a href="#系列关联" class="headerlink" title="系列关联"></a>系列关联</h3><ul>
+<li><strong>2026-04-15</strong>(布料模拟):布料网格本身也可以用 Catmull-Clark 细分曲面表示,实现”高分辨率布料模拟”</li>
+<li><strong>2026-05-09</strong>(OBJ 网格渲染):加载外部 OBJ 模型后,可以用 Catmull-Clark 细分来提升模型平滑度</li>
+<li><strong>2026-05-17</strong>(POM 视差贴图):细分曲面 + 位移贴图(Displacement Mapping)是另一种获得高频细节的方案,与 POM 是互补关系</li>
+</ul>
+<h3 id="历史背景补充"><a href="#历史背景补充" class="headerlink" title="历史背景补充"></a>历史背景补充</h3><p>Catmull-Clark 算法发表于 1978 年,与皮克斯建立的公司(当时尚未成为皮克斯)的技术人员密切相关。Edwin Catmull(后来成为皮克斯的总裁)和 Jim Clark(后来创办了 Silicon Graphics 公司)联合提出了这个算法。</p>
+<p>它的发明正吃上了小山的电影CG音颅:1986年皮克斯的”小吕封”短片没有用细分曲面,但到了《玩具总动员》(1995),各个角色的外观就已经是基于细分曲面设计的。自此,Catmull-Clark 成为科幻电影和动画制作不可缺少的基础技术。</p>
+<hr>
+<h2 id="附录-完整代码"><a href="#附录-完整代码" class="headerlink" title="附录:完整代码"></a>附录:完整代码</h2><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 完整源码见:</span></span><br><span class="line"><span class="comment">// https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026-05-26-catmull-clark/</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// 编译运行:</span></span><br><span class="line"><span class="comment">// g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra</span></span><br><span class="line"><span class="comment">// ./output</span></span><br><span class="line"><span class="comment">// 输出:catmull_clark_output.png(800x400)</span></span><br></pre></td></tr></table></figure>
+
+<p>核心细分函数的完整版本已在上方“关键代码解析”中逐段展示，此处不再重复。</p>
+<hr>
+<p><em>每日一练系列持续更新，全部源码开放于 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice">daily-coding-practice</a>。</em></p>
+<p><em>下一个目标：尝试实现 GPU Tessellation 的软件模拟，或者将细分曲面与骨骼动画结合，让控制网格够动起来。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/26/daily-coding-catmull-clark-2026-05-26/">https://chiuhoukazusa.github.io/2026/05/26/daily-coding-catmull-clark-2026-05-26/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%9B%B2%E9%9D%A2%E5%BB%BA%E6%A8%A1/">曲面建模</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%BB%86%E5%88%86%E7%AE%97%E6%B3%95/">细分算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</div></div><div class="info-2"><div class="info-item-1">背景与动机实时渲染的性能困境现代游戏中，全局光照（Global Illumination, GI）始终是最烧 GPU 的特性之一。一个场景里可能有数十盏灯光，每盏灯都需要进行阴影计算、反射计算、间接光传播……如果全部实时计算，帧率会直接崩塌。 早期 Quake（1996）就面临这个问题：如何让室内场景有逼真的光影，又不破坏流畅的游戏体验？id Software 给出的答案是 Lightmap（光照贴图）——把光照信息预先计算好，存成一张贴图，实时渲染时直接采样贴图，代替实时光照计算。 这个技术在后来的 Quake 2、Half-Life、CS:GO，到 Unity Enlighten、虚幻引擎的 Lightmass，都是核心技术之一。游戏里那种”静态环境的柔和阴影”和”角落里的暗部渐变”，大多数时候是 Lightmap 的功劳，而不是实时 GI。 没有 Lightmap 的痛点没有光照贴图时，常见的替代方案是：  纯环境光：全局加一个常数亮度，没有阴影，平坦无立体感 实时阴影：每帧计算 Shadow Map，开销随光源数量线性增长，多光源场景吃不消 Screen Space GI...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/08/daily-coding-cloth-simulation-2026-03-08/" title="每日编程实践: Cloth Simulation 布料模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-08-cloth-simulation/cloth_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-08</div><div class="info-item-2">每日编程实践: Cloth Simulation 布料模拟</div></div><div class="info-2"><div class="info-item-1">Cloth Simulation — 布料模拟一件衬衫被风吹起的样子，一块丝绸落在桌面上的纹理，游戏里的旗帜随风飘动——这些看似简单的视觉效果，背后隐藏着一个有趣的物理问题：如何用计算机模拟柔软的织物？ 今天实现了经典的质点弹簧布料模拟，这是游戏引擎和影视特效中处理布料最常见的基础方案。  最终效果主渲染图（含风力的最终状态） 红色布料从水平展开的初始状态，在重力拉扯下垂落，包裹住下方的球体，随后被侧风吹起一角。Phong 着色区分正面（深红）和背面（暗红），形成明显的布料折叠感。 物理演化序列（0 → 150 → 300 → 600 帧） 从左上到右下：布料从展开状态，逐渐在重力作用下垂落，绕过球体弯曲，最终稳定在平衡态。  第一章：为什么布料模拟难？布料的本质是大量纤维交织的网。真正从纤维层面模拟是不现实的——一件 T 恤大概有几十亿根纤维。 工程上的解法是离散化：把布料简化成有限个质点，再用弹簧连接它们，让弹簧产生的弹力近似真实布料的弹性。这就是 Mass-Spring System（质点弹簧系统）。 直觉模型：想象一个渔网。每个网结是一个质点（有质量，能运动），绳子是弹簧...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/26/daily-coding-Triangle-Rasterization-2026-02-26/" title="每日编程实践: Triangle Rasterization - 三角形光栅化器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-26-Triangle-Rasterization/rasterization_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-26</div><div class="info-item-2">每日编程实践: Triangle Rasterization - 三角形光栅化器</div></div><div class="info-2"><div class="info-item-1">Triangle Rasterization - 三角形光栅化器项目目标今天的目标是从零实现一个三角形光栅化器，这是现代3D图形渲染管线的核心组件之一。 光栅化器的职责是：将三角形（几何）转换为屏幕上的像素（图像）。 我们将实现：  ✅ Barycentric 坐标算法 - 判断点是否在三角形内 ✅ Z-Buffer 深度测试 - 正确处理遮挡关系 ✅ 颜色插值 - 顶点颜色的平滑渐变 ✅ 边界框优化 - 只遍历必要的像素  实现过程迭代历史 05:33 - 初始版本: 编写完整的光栅化器代码  实现 Vec2&#x2F;Vec3&#x2F;Color 基础数据结构 实现 barycentric() 重心坐标计算 实现 rasterizeTriangle() 光栅化函数 初始化帧缓冲和深度缓冲   05:34 - 编译错误: 缺少 &lt;limits&gt; 头文件  错误信息：&#39;numeric_limits&#39; is not a member of &#39;std&#39; 原因：使用了 std::numeric_limits&lt;float&gt;::ma...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/20/daily-coding-texture-mapping-2026-02-20/" title="每日编程实践: 纹理映射光线追踪器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-20-纹理映射光线追踪器/texture_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-20</div><div class="info-item-2">每日编程实践: 纹理映射光线追踪器</div></div><div class="info-2"><div class="info-item-1">纹理映射光线追踪器项目目标实现完整的球面UV映射和纹理采样系统，支持在光线追踪器中渲染带纹理的球体。 关键技术：  球面坐标到UV坐标的转换 程序化纹理生成（棋盘格） 材质系统（纹理&#x2F;纯色混合） 基于UV坐标的纹理采样  实现过程迭代历史 初始版本: 一次性实现完成 球面UV映射公式 (sphereUV) 棋盘格纹理生成 (checkerboardTexture) 材质系统 (hasTexture 标志) 量化验证通过    为什么一次成功？  球面UV映射的数学公式已标准化 使用成熟的反三角函数库 严格的量化验证流程  核心代码球面UV映射123456789101112UV sphereUV(const Vec3&amp; point) &#123;    // point 是单位球面上的点    Vec3 p = point.normalize();        // 经度 → u坐标 (使用 atan2 处理方位角)    double u = 0.5 + atan2(p.z, p.x) / (2 * M_PI);        // 纬度 → v坐标 (使用 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/01/daily-coding-restir-direct-illumination-2026-05-01/" title="每日编程实践: ReSTIR Direct Illumination Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-01-restir-direct-illumination/restir_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-01</div><div class="info-item-2">每日编程实践: ReSTIR Direct Illumination Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 62: ReSTIR Direct Illumination Renderer今天实现了 ReSTIR（Reservoir-based Spatiotemporal Importance Resampling） 直接光照渲染器——这是目前工业界最前沿的实时多光源采样算法之一，已被应用于 NVIDIA Cyberpunk 2077 光线追踪、Unreal Engine 5 Lumen 等旗舰产品中。   一、背景与动机：多光源采样的难题传统方法的瓶颈在实时渲染中，直接光照（Direct Illumination）是场景亮度的主要来源。对于一个着色点 $\mathbf{x}$，直接光照的渲染方程为： $$L_o(\mathbf{x}, \omega_o) &#x3D; \int_{\mathcal{A}} f_r(\mathbf{x}, \omega_i, \omega_o) \cdot L_e(\mathbf{y} \to \mathbf{x}) \cdot G(\mathbf{x}, \mathbf{y}) \cdot V(\mathbf{x}, \math...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/17/daily-coding-pom-2026-05-17/" title="每日编程实践: Parallax Occlusion Mapping Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-17</div><div class="info-item-2">每日编程实践: Parallax Occlusion Mapping Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 80：Parallax Occlusion Mapping Renderer今天实现 Parallax Occlusion Mapping（视差遮挡贴图，POM）——一种用高度图驱动 UV 偏移，在平面上营造真实立体感的经典实时渲染技术。与 Normal Map 只改法线不同，POM 会让 UV 本身”随视角移动”，使砖块、石板、地表看起来真正凸出平面。实现还包含沿光线方向的 自阴影（Self-Shadowing），让高出部分在临近区域投射阴影。   ① 背景与动机为什么不够用 Normal Map？Normal Map 是改变每个像素的法线方向，欺骗光照计算，让光影看起来像有凹凸。但它有一个根本性的局限：UV 不变。当你以掠射角（grazing angle）看砖墙时，一个真正凸出的砖块应该遮挡后面的区域，但 Normal Map 无法做到这一点——在接近 90° 的视角下，砖块与墙面依然是同一平面，轮廓完全平直。 这在游戏场景中看起来非常假，特别是：  近距离观察地板（如 FPS 游戏向下看） 掠射角观察砖墙、石板路 侧视角下的岩石、浮雕  Normal ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-22-ssgi/ssgi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-22</div><div class="info-item-2">每日编程实践: SSGI Screen Space Global Illumination Renderer</div></div><div class="info-2"><div class="info-item-1">SSGI：屏幕空间全局光照渲染器今天实现了 SSGI（Screen Space Global Illumination），一种在屏幕空间内近似计算间接漫射光照的实时 GI 技术。渲染了一个 Cornell Box 场景：白色主球、蓝色小球、橙色球、彩色墙壁、面积光，以及一个点状发光球体。   一、背景与动机：为什么需要 GI，为什么选屏幕空间1.1 没有 GI 的世界长什么样直接光照（Direct Lighting）只处理光源直接打到物体表面的情况。现实世界中，光在空间里反弹——太阳光照进房间后，天花板被地板的反射光打亮；Cornell Box 里红色左墙会把红光”流血”到白色球体上，形成 Color Bleeding（颜色溢出）。 没有 GI 的场景特征：  阴影区域完全是黑色，没有任何细节 相邻表面颜色完全独立，没有颜色互相染色 室内场景视觉上”飘”，与现实差距大 Ambient Term 只能用常数来糊弄  这就是为什么几乎所有 3A 游戏都有某种形式的 GI——UE5 的 Lumen、Unity 的 DDGI、Frostbite 的 Radiance Cache……没有 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">109</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">120</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%8E%B0%E5%AE%9E%E7%97%9B%E7%82%B9"><span class="toc-number">1.1.</span> <span class="toc-text">现实痛点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%BA%94%E7%94%A8"><span class="toc-number">1.2.</span> <span class="toc-text">工业界应用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF-Catmull-Clark-%E7%BB%86%E5%88%86"><span class="toc-number">2.1.</span> <span class="toc-text">什么是 Catmull-Clark 细分?</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E6%AC%A1%E7%BB%86%E5%88%86%E7%9A%84%E4%B8%89%E4%B8%AA%E6%AD%A5%E9%AA%A4"><span class="toc-number">2.2.</span> <span class="toc-text">一次细分的三个步骤</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%94%B6%E6%95%9B%E6%80%A7%E5%88%86%E6%9E%90"><span class="toc-number">2.3.</span> <span class="toc-text">收敛性分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%85%B6%E4%BB%96%E7%BB%86%E5%88%86%E6%96%B9%E6%B3%95%E5%AF%B9%E6%AF%94"><span class="toc-number">2.4.</span> <span class="toc-text">与其他细分方法对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%81%E9%99%90%E4%BD%8D%E7%BD%AE-Limit-Surface-Points"><span class="toc-number">2.5.</span> <span class="toc-text">极限位置(Limit Surface Points)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9E%81%E9%99%90%E6%B3%95%E7%BA%BF%E7%9A%84%E8%AE%A1%E7%AE%97"><span class="toc-number">2.6.</span> <span class="toc-text">极限法线的计算</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF"><span class="toc-number">3.3.</span> <span class="toc-text">渲染管线</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BB%86%E5%88%86%E7%AE%97%E6%B3%95%E6%A0%B8%E5%BF%83"><span class="toc-number">4.1.</span> <span class="toc-text">细分算法核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Phong-%E7%9D%80%E8%89%B2"><span class="toc-number">4.2.</span> <span class="toc-text">Phong 着色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%83%8C%E9%9D%A2%E5%89%94%E9%99%A4"><span class="toc-number">4.3.</span> <span class="toc-text">背面剔除</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1-%E7%BB%86%E5%88%86%E5%90%8E%E7%BD%91%E6%A0%BC%E5%87%BA%E7%8E%B0%E2%80%9D%E5%AD%94%E6%B4%9E%E2%80%9D%E6%88%96%E9%9D%A2%E6%9C%9D%E5%90%91%E9%94%99%E4%B9%B1"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1:细分后网格出现”孔洞”或面朝向错乱</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2-%E9%A1%B6%E7%82%B9%E6%9B%B4%E6%96%B0%E5%90%8E%E6%9B%B2%E9%9D%A2%E5%90%91%E5%86%85%E6%94%B6%E7%BC%A9%E8%BF%87%E5%A4%9A"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2:顶点更新后曲面向内收缩过多</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3-stb-image-write-h-%E4%BA%A7%E7%94%9F%E5%A4%A7%E9%87%8F-Wmissing-field-initializers-%E8%AD%A6%E5%91%8A"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3:stb_image_write.h 产生大量 -Wmissing-field-initializers 警告</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4-%E6%B8%B2%E6%9F%93%E5%8F%B3%E5%9B%BE%E6%97%B6%E7%BA%BF%E6%A1%86%E5%A4%AA%E5%AF%86%E7%9C%8B%E4%B8%8D%E6%B8%85%E7%BB%86%E5%88%86%E7%BB%93%E6%9E%84"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4:渲染右图时线框太密看不清细分结构</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%BB%86%E5%88%86%E7%BB%9F%E8%AE%A1%E6%95%B0%E6%8D%AE"><span class="toc-number">6.1.</span> <span class="toc-text">细分统计数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1%E9%AA%8C%E8%AF%81"><span class="toc-number">6.2.</span> <span class="toc-text">像素统计验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%93%E5%87%BA%E5%9B%BE%E5%83%8F"><span class="toc-number">6.3.</span> <span class="toc-text">输出图像</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E6%80%A7%E8%83%BD"><span class="toc-number">6.4.</span> <span class="toc-text">渲染性能</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B3%BB%E5%88%97%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">系列关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%86%E5%8F%B2%E8%83%8C%E6%99%AF%E8%A1%A5%E5%85%85"><span class="toc-number">7.4.</span> <span class="toc-text">历史背景补充</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%99%84%E5%BD%95-%E5%AE%8C%E6%95%B4%E4%BB%A3%E7%A0%81"><span class="toc-number">8.</span> <span class="toc-text">附录:完整代码</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Catmull-Clark 细分曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器">每日编程实践: Catmull-Clark 细分曲面渲染器</a><time datetime="2026-05-25T21:30:00.000Z" title="发表于 2026-05-26 05:30:00">2026-05-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</a><time datetime="2026-05-24T21:35:00.000Z" title="发表于 2026-05-25 05:35:00">2026-05-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</a><time datetime="2026-05-23T21:30:00.000Z" title="发表于 2026-05-24 05:30:00">2026-05-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-23-sdf-ray-marching/sdf_scene_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SDF Ray Marching Scene Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer">每日编程实践: SDF Ray Marching Scene Renderer</a><time datetime="2026-05-22T21:35:00.000Z" title="发表于 2026-05-23 05:35:00">2026-05-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-22-ssgi/ssgi_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SSGI Screen Space Global Illumination Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/22/daily-coding-ssgi-2026-05-22/" title="每日编程实践: SSGI Screen Space Global Illumination Renderer">每日编程实践: SSGI Screen Space Global Illumination Renderer</a><time datetime="2026-05-21T21:30:00.000Z" title="发表于 2026-05-22 05:30:00">2026-05-22</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
