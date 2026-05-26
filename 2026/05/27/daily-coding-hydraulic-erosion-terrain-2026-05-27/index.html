@@ -1,0 +1,490 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践: 程序化地形生成与水力侵蚀模拟 今天的项目是程序化地形生成 + 水力侵蚀模拟渲染器。使用 Perlin 噪声 fBm 生成基础高度图，然后通过粒子化水力侵蚀算法模拟大自然亿万年的地质过程，最后用软光栅化渲染出有视觉层次感的地形。  ① 背景与动机为什么需要程序化地形？开放世界游戏需要大量地形内容，手工雕刻高度图需要专业美术人员花费大量时间。程序化生成可以在运行时或离线烘焙时快速生成无">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践: 程序化地形生成与水力侵蚀模拟 今天的项目是程序化地形生成 + 水力侵蚀模拟渲染器。使用 Perlin 噪声 fBm 生成基础高度图，然后通过粒子化水力侵蚀算法模拟大自然亿万年的地质过程，最后用软光栅化渲染出有视觉层次感的地形。  ① 背景与动机为什么需要程序化地形？开放世界游戏需要大量地形内容，手工雕刻高度图需要专业美术人员花费大量时间。程序化生成可以在运行时或离线烘焙时快速生成无">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png">
+<meta property="article:published_time" content="2026-05-26T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-26T21:37:42.462Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="地形生成">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="程序化内容">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟",
+  "url": "https://chiuhoukazusa.github.io/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png",
+  "datePublished": "2026-05-26T21:30:00.000Z",
+  "dateModified": "2026-05-26T21:37:42.462Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-26T21:30:00.000Z" title="发表于 2026-05-27 05:30:00">2026-05-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-26T21:37:42.462Z" title="更新于 2026-05-27 05:37:42">2026-05-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践-程序化地形生成与水力侵蚀模拟"><a href="#每日编程实践-程序化地形生成与水力侵蚀模拟" class="headerlink" title="每日编程实践: 程序化地形生成与水力侵蚀模拟"></a>每日编程实践: 程序化地形生成与水力侵蚀模拟</h1><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png" alt="3D等角视角渲染结果"></p>
+<p>今天的项目是<strong>程序化地形生成 + 水力侵蚀模拟渲染器</strong>。使用 Perlin 噪声 fBm 生成基础高度图，然后通过粒子化水力侵蚀算法模拟大自然亿万年的地质过程，最后用软光栅化渲染出有视觉层次感的地形。</p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="为什么需要程序化地形？"><a href="#为什么需要程序化地形？" class="headerlink" title="为什么需要程序化地形？"></a>为什么需要程序化地形？</h3><p>开放世界游戏需要大量地形内容，手工雕刻高度图需要专业美术人员花费大量时间。程序化生成可以在运行时或离线烘焙时快速生成无限不重复的地形。</p>
+<p><strong>没有程序化地形生成会怎样？</strong></p>
+<ul>
+<li>手工雕刻 4096×4096 的地形高度图需要几周时间</li>
+<li>不同区域风格难以保持一致</li>
+<li>玩家在大地图上探索容易发现重复感</li>
+</ul>
+<p><strong>工业界实际应用场景：</strong></p>
+<ul>
+<li><strong>《荒野大镖客2》</strong>：Rockstar 使用多层噪声 + 艺术家雕刻结合的工作流程生成美国西部地形</li>
+<li><strong>《No Man’s Sky》</strong>：纯程序化行星地形，每颗星球高度图都在运行时生成</li>
+<li><strong>Unreal Engine 5 的 Landscape 系统</strong>：提供侵蚀模拟工具作为地形后处理效果</li>
+<li><strong>《我的世界》</strong>：全程序化地形，柏林噪声驱动山脉、平原、洞穴生成</li>
+<li><strong>GIS（地理信息系统）</strong>：水文模拟用于预测真实世界的河流冲刷路径</li>
+</ul>
+<h3 id="水力侵蚀的必要性"><a href="#水力侵蚀的必要性" class="headerlink" title="水力侵蚀的必要性"></a>水力侵蚀的必要性</h3><p>仅靠噪声生成的地形有一个明显问题：<strong>山脊太锋利、坡面太平滑、没有河流侵蚀痕迹</strong>。</p>
+<p>真实山地地形的特征：</p>
+<ul>
+<li>山脊线细而锋利（长期被侵蚀）</li>
+<li>山谷宽而平缓（沉积物积累）</li>
+<li>有明确的水系流向（谷地相互连通）</li>
+<li>坡面有侵蚀沟（小型水流刻出的细线）</li>
+</ul>
+<p>水力侵蚀模拟正是为了弥补纯噪声地形缺乏这些”自然感”的不足。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-Perlin-噪声与-fBm-地形"><a href="#2-1-Perlin-噪声与-fBm-地形" class="headerlink" title="2.1 Perlin 噪声与 fBm 地形"></a>2.1 Perlin 噪声与 fBm 地形</h3><p><strong>Perlin 噪声的基本思路：</strong></p>
+<p>经典 Perlin 噪声将空间划分为单位格，在每个格点上赋予随机梯度向量，然后通过双线性插值（使用平滑步函数）将格点梯度混合。</p>
+<p><strong>平滑步函数（fade function）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">f(t) = 6t⁵ - 15t⁴ + 10t³</span><br></pre></td></tr></table></figure>
+
+<p>这个函数在 t&#x3D;0 和 t&#x3D;1 处导数为零，使得相邻格点之间过渡绝对平滑。直觉理解：如果用线性插值 <code>lerp</code>，格点边缘会有明显棱角（一阶导数不连续）；fade 函数使一阶、二阶导数在边界处都为零。</p>
+<p><strong>梯度函数：</strong></p>
+<p>对于 3D Perlin 噪声，使用 16 个固定梯度向量（指向立方体的12条边方向）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">grad(hash, x, y, z):</span><br><span class="line">    h = hash &amp; 15</span><br><span class="line">    u = (h&lt;8)  ? x : y</span><br><span class="line">    v = (h&lt;4)  ? y : (h==12||h==14 ? x : z)</span><br><span class="line">    return (h&amp;1 ? -u : u) + (h&amp;2 ? -v : v)</span><br></pre></td></tr></table></figure>
+
+<p><strong>分形布朗运动（fBm）：</strong></p>
+<p>单层 Perlin 噪声频率单一，无法模拟自然界的多尺度特征（大山脉 + 中等丘陵 + 小细节）。fBm 通过叠加多个不同频率、振幅的噪声层来解决：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fBm(x, y, octaves) = Σᵢ aᵢ · noise(fᵢ·x, fᵢ·y)</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>aᵢ = gain^i</code>（默认 gain&#x3D;0.5，每层振幅减半）</li>
+<li><code>fᵢ = lacunarity^i</code>（默认 lacunarity&#x3D;2.0，每层频率加倍）</li>
+</ul>
+<p>直觉理解：低频层决定整体山脉走向，高频层添加中等起伏，更高频层添加细小石块感。就像自然界中大地质构造（板块运动）决定大尺度地形，小尺度地形由风化侵蚀决定。</p>
+<p><strong>幂函数山峰增强：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">h = std::<span class="built_in">pow</span>(h, <span class="number">1.5</span>);</span><br></pre></td></tr></table></figure>
+
+<p>将 [0,1] 范围的高度做幂次变换，使得低洼区域更多（河流、平原），高地区域更少但更尖锐（山峰）。这模拟了真实山地地貌的高度分布（大部分是低地，少量是山峰）。</p>
+<h3 id="2-2-粒子化水力侵蚀算法"><a href="#2-2-粒子化水力侵蚀算法" class="headerlink" title="2.2 粒子化水力侵蚀算法"></a>2.2 粒子化水力侵蚀算法</h3><p><strong>算法核心思想（Particle-based Hydraulic Erosion）：</strong></p>
+<p>模拟一滴水从随机位置落下，沿地形梯度向低处流动。水滴携带沉积物：</p>
+<ul>
+<li>在陡坡&#x2F;高速处<strong>侵蚀</strong>地形（挖走土壤，放入水滴的”背包”）</li>
+<li>在平缓&#x2F;低速处<strong>沉积</strong>（将背包里的土壤放下）</li>
+</ul>
+<p>最终效果：经过成千上万个水滴，山脊被侵蚀变锋利，山谷被沉积填平变宽，形成自然河道。</p>
+<p><strong>水滴状态：</strong></p>
+<p>每个水滴携带：</p>
+<ul>
+<li>位置 <code>(x, y)</code></li>
+<li>速度向量 <code>(vx, vy)</code></li>
+<li>水量 <code>water</code>（随蒸发减少）</li>
+<li>携带的沉积物量 <code>sediment</code></li>
+</ul>
+<p><strong>梯度计算（双线性插值）：</strong></p>
+<p>水滴位置在格点之间，需要插值得到平滑高度和梯度：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> h00 = terrain.<span class="built_in">h</span>(cellX,   cellY);</span><br><span class="line"><span class="type">float</span> h10 = terrain.<span class="built_in">h</span>(cellX<span class="number">+1</span>, cellY);</span><br><span class="line"><span class="type">float</span> h01 = terrain.<span class="built_in">h</span>(cellX,   cellY<span class="number">+1</span>);</span><br><span class="line"><span class="type">float</span> h11 = terrain.<span class="built_in">h</span>(cellX<span class="number">+1</span>, cellY<span class="number">+1</span>);</span><br><span class="line"></span><br><span class="line"><span class="type">float</span> gradX = (h10 - h00) * (<span class="number">1</span> - fracY) + (h11 - h01) * fracY;</span><br><span class="line"><span class="type">float</span> gradY = (h01 - h00) * (<span class="number">1</span> - fracX) + (h11 - h10) * fracX;</span><br><span class="line"><span class="type">float</span> curH  = h00*(<span class="number">1</span>-fracX)*(<span class="number">1</span>-fracY) + h10*fracX*(<span class="number">1</span>-fracY)</span><br><span class="line">            + h01*(<span class="number">1</span>-fracX)*fracY      + h11*fracX*fracY;</span><br></pre></td></tr></table></figure>
+
+<p>梯度 <code>(gradX, gradY)</code> 就是高度函数在该点的偏导数，指向最陡上坡方向。水滴向下坡方向流动，即梯度的反方向。</p>
+<p><strong>速度更新（惯性 + 梯度）：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">drop.vx = drop.vx * inertia - gradX * (<span class="number">1</span> - inertia);</span><br><span class="line">drop.vy = drop.vy * inertia - gradY * (<span class="number">1</span> - inertia);</span><br></pre></td></tr></table></figure>
+
+<p><code>inertia</code>（默认0.05）控制水滴”记住”之前方向的程度。纯梯度（inertia&#x3D;0）会使水滴每步都沿最陡坡，但会在平缓区域陷入局部极小值。加入惯性使水滴保持动量，能跨越小凸起继续流动——这更符合真实物理。</p>
+<p>直觉类比：把一块石头扔在斜坡上，它不会每步都严格沿最陡方向，而是保持一定动量向前。</p>
+<p><strong>沉积物容量（Sediment Capacity）：</strong></p>
+<p>水滴能携带多少沉积物？容量由坡度、速度、水量共同决定：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> sedCap = std::<span class="built_in">max</span>(-deltaH * speed * drop.water * capacity, minSlope);</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>deltaH &lt; 0</code>（下坡）时，容量大（水往低处流，动能大，能携带更多泥沙）</li>
+<li>速度越快，容量越大</li>
+<li>水量越多，容量越大</li>
+<li><code>minSlope</code> 防止容量为零（避免数值问题）</li>
+</ul>
+<p><strong>侵蚀 vs 沉积的判断：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (drop.sediment &gt; sedCap || deltaH &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">// 沉积：携带量超过容量，或正在爬坡（动能减少）</span></span><br><span class="line">    <span class="type">float</span> deposit = (deltaH &gt; <span class="number">0</span>)</span><br><span class="line">        ? std::<span class="built_in">min</span>(drop.sediment, deltaH)  <span class="comment">// 爬坡时沉积被坡挡住的量</span></span><br><span class="line">        : (drop.sediment - sedCap) * deposition;</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">// 侵蚀：容量有剩余，继续挖土</span></span><br><span class="line">    <span class="type">float</span> erode = std::<span class="built_in">min</span>((sedCap - drop.sediment) * erosion, -deltaH);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>双线性权重写回地形：</strong></p>
+<p>侵蚀&#x2F;沉积不直接操作格点，而是按双线性权重分配到周围4个格点，这保证地形修改是连续平滑的：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> w00 = (<span class="number">1</span>-fracX)*(<span class="number">1</span>-fracY);</span><br><span class="line"><span class="type">float</span> w10 = fracX*(<span class="number">1</span>-fracY);</span><br><span class="line"><span class="type">float</span> w01 = (<span class="number">1</span>-fracX)*fracY;</span><br><span class="line"><span class="type">float</span> w11 = fracX*fracY;</span><br><span class="line">terrain.<span class="built_in">h</span>(cellX,   cellY)   += deposit * w00;</span><br><span class="line">terrain.<span class="built_in">h</span>(cellX<span class="number">+1</span>, cellY)   += deposit * w10;</span><br><span class="line">terrain.<span class="built_in">h</span>(cellX,   cellY<span class="number">+1</span>) += deposit * w01;</span><br><span class="line">terrain.<span class="built_in">h</span>(cellX<span class="number">+1</span>, cellY<span class="number">+1</span>) += deposit * w11;</span><br></pre></td></tr></table></figure>
+
+<p>如果直接操作最近格点，地形修改会产生离散的”坑”和”峰”，视觉上非常不自然。</p>
+<p><strong>蒸发：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">drop.water *= (<span class="number">1</span> - evaporation);  <span class="comment">// evaporation = 0.01</span></span><br></pre></td></tr></table></figure>
+
+<p>水量随时间蒸发，当水量低于阈值（0.01）时停止模拟。这限制了每个水滴的生命周期，同时使得长流程的水滴（主河道）比短流程（小支流）影响更大。</p>
+<h3 id="2-3-高度分层着色"><a href="#2-3-高度分层着色" class="headerlink" title="2.3 高度分层着色"></a>2.3 高度分层着色</h3><p>真实地形的颜色与高度和坡度高度相关：</p>
+<table>
+<thead>
+<tr>
+<th>高度区间</th>
+<th>对应地物</th>
+<th>颜色特征</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0~0.12</td>
+<td>深水</td>
+<td>深蓝 → 中蓝</td>
+</tr>
+<tr>
+<td>0.12~0.16</td>
+<td>浅水&#x2F;湿地</td>
+<td>橄榄绿</td>
+</tr>
+<tr>
+<td>0.16~0.22</td>
+<td>沙滩</td>
+<td>米黄</td>
+</tr>
+<tr>
+<td>0.22~0.45 (低坡)</td>
+<td>草地</td>
+<td>深绿</td>
+</tr>
+<tr>
+<td>0.45~0.55 (低坡)</td>
+<td>灌木</td>
+<td>深绿偏暗</td>
+</tr>
+<tr>
+<td>任意高度 (高坡)</td>
+<td>裸岩</td>
+<td>灰褐</td>
+</tr>
+<tr>
+<td>0.72~0.82</td>
+<td>高山岩</td>
+<td>浅灰</td>
+</tr>
+<tr>
+<td>0.82~1.0</td>
+<td>积雪</td>
+<td>白</td>
+</tr>
+</tbody></table>
+<p>坡度（<code>slope = 1 - normal.y</code>）决定是否显示裸岩——陡坡无法留住植被和土壤，即使在低高度区域也会露出岩石。</p>
+<h3 id="2-4-法线计算与光照"><a href="#2-4-法线计算与光照" class="headerlink" title="2.4 法线计算与光照"></a>2.4 法线计算与光照</h3><p><strong>中心差分法计算法线：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">terrainNormal</span><span class="params">(<span class="type">const</span> Terrain&amp; t, <span class="type">int</span> x, <span class="type">int</span> y)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> hL = t.<span class="built_in">h</span>(x<span class="number">-1</span>, y);</span><br><span class="line">    <span class="type">float</span> hR = t.<span class="built_in">h</span>(x<span class="number">+1</span>, y);</span><br><span class="line">    <span class="type">float</span> hD = t.<span class="built_in">h</span>(x, y<span class="number">-1</span>);</span><br><span class="line">    <span class="type">float</span> hU = t.<span class="built_in">h</span>(x, y<span class="number">+1</span>);</span><br><span class="line">    <span class="type">float</span> scale = (<span class="type">float</span>)t.size * <span class="number">0.5f</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Vec3</span>(hL - hR, <span class="number">2.0f</span> / scale, hD - hU).<span class="built_in">normalized</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这等价于两个切线向量的叉积：</p>
+<ul>
+<li><code>tangentX = (2/sz, hR-hL, 0)</code> （沿X方向的切线）</li>
+<li><code>tangentY = (0, hU-hD, 2/sz)</code> （沿Y方向的切线）</li>
+<li><code>normal = tangentX × tangentY</code></li>
+</ul>
+<p><code>scale</code> 参数控制高度方向相对于水平方向的比例，避免法线过度倾斜。</p>
+<p><strong>Lambert漫射 + 环境光：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> diffuse = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, normal.<span class="built_in">dot</span>(sunDir));</span><br><span class="line"><span class="type">float</span> ambient = <span class="number">0.35f</span>;</span><br><span class="line"><span class="type">float</span> light = ambient + (<span class="number">1.0f</span> - ambient) * diffuse;</span><br></pre></td></tr></table></figure>
+
+<p>简单但有效：35% 环境光保证背光面不全黑，漫射分量基于兰伯特余弦定律。</p>
+<p><strong>近似AO（环境遮蔽）：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> si = <span class="number">1</span>; si &lt;= <span class="number">3</span>; ++si) &#123;</span><br><span class="line">    <span class="type">int</span> sx = tx + si, sy = ty - si;</span><br><span class="line">    <span class="keyword">if</span> (sx &lt; sz &amp;&amp; sy &gt;= <span class="number">0</span>)</span><br><span class="line">        hMax = std::<span class="built_in">max</span>(hMax, terrain.<span class="built_in">h</span>(sx, sy));</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">float</span> occlusion = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, (hMax - hCenter) * <span class="number">5.0f</span>);</span><br><span class="line"><span class="type">float</span> ao = <span class="number">1.0f</span> / (<span class="number">1.0f</span> + occlusion * <span class="number">0.5f</span>);</span><br></pre></td></tr></table></figure>
+
+<p>沿阳光来向采样3个点，如果周围有更高的地形遮挡，则该点被遮蔽。这是一种极简的光线遮挡近似，不是真正的光线投射AO，但视觉上能产生山谷阴暗、山脊明亮的效果。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="数据流"><a href="#数据流" class="headerlink" title="数据流"></a>数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">随机种子</span><br><span class="line">   ↓</span><br><span class="line">generateBaseTerrain()    — Perlin fBm → height[sz×sz]</span><br><span class="line">   ↓</span><br><span class="line">renderTopView()          — 保存侵蚀前图（用于对比）</span><br><span class="line">   ↓</span><br><span class="line">simulateHydraulicErosion() — 80,000水滴迭代修改 height[]</span><br><span class="line">   ↓</span><br><span class="line">高度归一化 [0,1]</span><br><span class="line">   ↓</span><br><span class="line">renderTopView()          — 侵蚀后俯视图</span><br><span class="line">render3DPerspective()    — 等角3D视角</span><br><span class="line">   ↓</span><br><span class="line">savePNG()                — Python PIL 输出</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><p><strong>Terrain 结构体：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Terrain</span> &#123;</span><br><span class="line">    <span class="type">int</span> size;</span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; height;  <span class="comment">// 主要高度图</span></span><br><span class="line">    std::vector&lt;<span class="type">float</span>&gt; water;   <span class="comment">// 水流沉积记录（未来可用于河流可视化）</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">float</span>&amp; <span class="title">h</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y)</span> </span>&#123; <span class="keyword">return</span> height[y * size + x]; &#125;</span><br><span class="line">    <span class="function"><span class="type">float</span>  <span class="title">h</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (x &lt; <span class="number">0</span> || x &gt;= size || y &lt; <span class="number">0</span> || y &gt;= size) <span class="keyword">return</span> <span class="number">0.0f</span>;</span><br><span class="line">        <span class="keyword">return</span> height[y * size + x];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>const</code> 版本的边界保护（越界返回0）只用于读取，写入版本（引用）要求调用者保证边界安全——这是一个设计上的取舍：写入的性能路径不做额外检查，而是在外层循环保证边界。</p>
+<p><strong>Droplet 结构体（水滴）：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Droplet</span> &#123;</span><br><span class="line">    <span class="type">float</span> x, y;        <span class="comment">// 位置（浮点，在格点之间）</span></span><br><span class="line">    <span class="type">float</span> vx, vy;      <span class="comment">// 速度方向</span></span><br><span class="line">    <span class="type">float</span> water;       <span class="comment">// 水量</span></span><br><span class="line">    <span class="type">float</span> sediment;    <span class="comment">// 携带的沉积物量</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>水滴是栈变量，不动态分配，每次迭代创建新水滴——80,000次迭代但不产生堆分配压力。</p>
+<h3 id="渲染管线（软光栅化）"><a href="#渲染管线（软光栅化）" class="headerlink" title="渲染管线（软光栅化）"></a>渲染管线（软光栅化）</h3><p><strong>俯视图渲染：</strong></p>
+<p>直接将地形坐标映射到屏幕坐标，无需投影矩阵：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">地形(tx, ty) → 高度 h → 法线 n → 着色 c → 像素(px, py)</span><br></pre></td></tr></table></figure>
+
+<p>每个像素独立计算，完全没有光栅化三角形——本质上是高度图的直接可视化。</p>
+<p><strong>3D等角视图渲染（Painter’s算法）：</strong></p>
+<p>等角投影公式（斜45度俯视）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> sx = (wx - wz) * <span class="number">0.866f</span>;           <span class="comment">// cos(30°) ≈ 0.866</span></span><br><span class="line"><span class="type">float</span> sy = (wx + wz) * <span class="number">0.5f</span> - wy * <span class="number">1.2f</span>; <span class="comment">// 高度方向拉伸</span></span><br></pre></td></tr></table></figure>
+
+<p>这是标准等角投影（Isometric Projection），世界坐标 (wx, wy, wz) 中：</p>
+<ul>
+<li>wx&#x2F;wz 是水平面坐标（地形 x&#x2F;y 方向）</li>
+<li>wy 是高度（上方向）</li>
+</ul>
+<p>从后向前绘制（z从大到小），使用深度缓冲避免错误覆盖，用 2×2 像素方块填充每个地形格点。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-完整的-fBm-实现"><a href="#4-1-完整的-fBm-实现" class="headerlink" title="4.1 完整的 fBm 实现"></a>4.1 完整的 fBm 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">fbm</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y, <span class="type">int</span> octaves, <span class="type">double</span> lacunarity = <span class="number">2.0</span>, <span class="type">double</span> gain = <span class="number">0.5</span>)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> val = <span class="number">0</span>, amp = <span class="number">0.5</span>, freq = <span class="number">1.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; octaves; ++i) &#123;</span><br><span class="line">        val += amp * <span class="built_in">noise</span>(x * freq, y * freq);</span><br><span class="line">        freq *= lacunarity;</span><br><span class="line">        amp  *= gain;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> val;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 amp 初始值是 0.5 而不是 1.0？</strong></p>
+<p>当 gain&#x3D;0.5 时，6层 fBm 的振幅总和为：0.5 + 0.25 + 0.125 + … ≈ 1.0（几何级数）。这使得最终值大约在 [-1, 1] 范围内，便于后续归一化。如果初始 amp&#x3D;1.0，则总和约为 2.0，需要额外除以2才能归一化。</p>
+<p><strong>lacunarity&#x3D;2.0 的含义：</strong></p>
+<p>每层频率是前一层的2倍，对应空间尺度减半。这是自然界分形（自相似）的标准选择：大山 → 小山 → 丘陵 → 岩石，每个尺度的特征尺寸是上一级的一半。</p>
+<h3 id="4-2-水力侵蚀核心循环"><a href="#4-2-水力侵蚀核心循环" class="headerlink" title="4.2 水力侵蚀核心循环"></a>4.2 水力侵蚀核心循环</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> d = <span class="number">0</span>; d &lt; numDroplets; ++d) &#123;</span><br><span class="line">    Droplet drop;</span><br><span class="line">    drop.x = <span class="built_in">distPos</span>(rng);</span><br><span class="line">    drop.y = <span class="built_in">distPos</span>(rng);</span><br><span class="line">    drop.vx = <span class="number">0</span>; drop.vy = <span class="number">0</span>;</span><br><span class="line">    drop.water = <span class="number">1.0f</span>;</span><br><span class="line">    drop.sediment = <span class="number">0.0f</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> life = <span class="number">0</span>; life &lt; maxLifetime; ++life) &#123;</span><br><span class="line">        <span class="comment">// 严格边界保护（确保 cellX+1, cellY+1 都在范围内）</span></span><br><span class="line">        <span class="keyword">if</span> (drop.x &lt; <span class="number">1</span> || drop.x &gt;= sz<span class="number">-2</span> || drop.y &lt; <span class="number">1</span> || drop.y &gt;= sz<span class="number">-2</span>) <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="type">int</span> cellX = (<span class="type">int</span>)drop.x;</span><br><span class="line">        <span class="type">int</span> cellY = (<span class="type">int</span>)drop.y;</span><br><span class="line">        <span class="type">float</span> fracX = drop.x - cellX;</span><br><span class="line">        <span class="type">float</span> fracY = drop.y - cellY;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (cellX &lt; <span class="number">1</span> || cellX &gt;= sz<span class="number">-2</span> || cellY &lt; <span class="number">1</span> || cellY &gt;= sz<span class="number">-2</span>) <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// ... 侵蚀/沉积逻辑 ...</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// 速度归一化后移动（单步长保证稳定）</span></span><br><span class="line">        drop.vx /= speed;</span><br><span class="line">        drop.vy /= speed;</span><br><span class="line">        drop.x += drop.vx;</span><br><span class="line">        drop.y += drop.vy;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 蒸发</span></span><br><span class="line">        drop.water *= (<span class="number">1</span> - evaporation);</span><br><span class="line">        <span class="keyword">if</span> (drop.water &lt; <span class="number">0.01f</span>) <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么速度要归一化？</strong></p>
+<p>不归一化的话，当坡度很大时速度会指数增长，水滴可能一步就跳出地形边界。归一化后每步只移动一个单位，算法稳定。但这丢失了速度大小信息——解决方案是用速度大小影响侵蚀量（<code>sedCap</code> 中的 <code>speed</code> 项），而不是影响移动距离。</p>
+<p><strong>为什么 maxLifetime&#x3D;30 而不更大？</strong></p>
+<p>更长的生命周期会使水滴在平坦区域反复游走，产生噪声而非自然侵蚀。30步足以让大多数水滴从出发点流到谷底或边界，同时计算量可控（80,000 × 30 &#x3D; 2,400,000次迭代）。</p>
+<h3 id="4-3-双层边界检查的原因"><a href="#4-3-双层边界检查的原因" class="headerlink" title="4.3 双层边界检查的原因"></a>4.3 双层边界检查的原因</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 检查1：入口检查（位置更宽松）</span></span><br><span class="line"><span class="keyword">if</span> (drop.x &lt; <span class="number">1</span> || drop.x &gt;= sz<span class="number">-2</span> || drop.y &lt; <span class="number">1</span> || drop.y &gt;= sz<span class="number">-2</span>) <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> cellX = (<span class="type">int</span>)drop.x;</span><br><span class="line"><span class="type">int</span> cellY = (<span class="type">int</span>)drop.y;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 检查2：格点索引检查（保证 cellX+1 安全）</span></span><br><span class="line"><span class="keyword">if</span> (cellX &lt; <span class="number">1</span> || cellX &gt;= sz<span class="number">-2</span> || cellY &lt; <span class="number">1</span> || cellY &gt;= sz<span class="number">-2</span>) <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>两层检查原因：</p>
+<ul>
+<li>浮点转整数有截断（<code>(int)0.9999 == 0</code>，而 <code>(int)(-0.01) == 0</code>，但<code>(int)(-0.01)</code> 在 MSVC 上是0，在 GCC 上是0或-1）</li>
+<li>第一层保护浮点比较，第二层保护整数越界</li>
+<li>访问时需要 <code>cellX+1</code> 和 <code>cellY+1</code>，所以上界需要 <code>sz-2</code> 而不是 <code>sz-1</code></li>
+</ul>
+<h3 id="4-4-地形着色的坡度判断"><a href="#4-4-地形着色的坡度判断" class="headerlink" title="4.4 地形着色的坡度判断"></a>4.4 地形着色的坡度判断</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 草地：低坡、中等高度</span></span><br><span class="line"><span class="keyword">if</span> (h &lt; <span class="number">0.45f</span> &amp;&amp; slope &lt; <span class="number">0.7f</span>) &#123;</span><br><span class="line">    <span class="comment">// 草地着色</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 裸岩：高坡或高海拔（注意这里没有高度上界）</span></span><br><span class="line"><span class="keyword">if</span> (h &lt; <span class="number">0.72f</span> || slope &gt;= <span class="number">0.6f</span>) &#123;</span><br><span class="line">    <span class="comment">// 裸岩着色</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>坡度用 <code>slope = 1 - normal.y</code> 计算：</p>
+<ul>
+<li>水平面：normal &#x3D; (0,1,0)，slope &#x3D; 0</li>
+<li>45度坡：normal.y &#x3D; cos(45°) ≈ 0.707，slope ≈ 0.29</li>
+<li>垂直面：normal.y &#x3D; 0，slope &#x3D; 1</li>
+</ul>
+<p><code>slope &lt; 0.7</code> 意味着坡角约 45°，超过这个角度土壤无法稳定附着，只能露出岩石——这与自然界（安息角约30-45°）吻合。</p>
+<h3 id="4-5-近似AO实现"><a href="#4-5-近似AO实现" class="headerlink" title="4.5 近似AO实现"></a>4.5 近似AO实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> hMax = hCenter;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> si = <span class="number">1</span>; si &lt;= <span class="number">3</span>; ++si) &#123;</span><br><span class="line">    <span class="type">int</span> sx = tx + si, sy = ty - si;</span><br><span class="line">    <span class="keyword">if</span> (sx &lt; sz &amp;&amp; sy &gt;= <span class="number">0</span>)</span><br><span class="line">        hMax = std::<span class="built_in">max</span>(hMax, terrain.<span class="built_in">h</span>(sx, sy));</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">float</span> occlusion = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, (hMax - hCenter) * <span class="number">5.0f</span>);</span><br><span class="line"><span class="type">float</span> ao = <span class="number">1.0f</span> / (<span class="number">1.0f</span> + occlusion * <span class="number">0.5f</span>);</span><br></pre></td></tr></table></figure>
+
+<p>采样方向 <code>(+1, -1)</code> 是太阳方向 <code>(1, 3, 1)</code> 在水平面的投影。检查3个步长内是否有更高的地形——如果有，说明该点被遮挡，乘以较暗的 ao 系数。</p>
+<p>这不是真正的射线投射AO，而是一种”水平遮蔽近似”，但在俯视地形渲染中效果出奇地好：山谷和峡谷会呈现为更暗的阴影，山脊保持明亮。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：运行时-SIGSEGV（越界访问）"><a href="#Bug-1：运行时-SIGSEGV（越界访问）" class="headerlink" title="Bug 1：运行时 SIGSEGV（越界访问）"></a>Bug 1：运行时 SIGSEGV（越界访问）</h3><p><strong>症状：</strong> 程序在”模拟水力侵蚀”阶段崩溃，生成了侵蚀前的图片但随后立刻 Segfault：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[3/5] 模拟水力侵蚀 (80000 水滴)...</span><br><span class="line">Segmentation fault (core dumped)</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设：</strong> 以为 <code>cellX &lt; sz-1</code> 就足够，因为只访问 <code>cellX</code> 和 <code>cellX+1</code>。</p>
+<p><strong>真实原因：</strong> 当 <code>cellX == sz-1</code> 时（即 cellX 取到最大索引），<code>cellX+1 == sz</code> 越界。原来的检查条件 <code>cellX &gt;= sz-1</code> 实际上是允许 <code>cellX</code> 取 <code>sz-2</code>，此时 <code>cellX+1 = sz-1</code> 安全，<strong>但 <code>cellX = sz-1</code> 被允许通过了</strong>。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误写法（允许 cellX = sz-1，导致 cellX+1 越界）</span></span><br><span class="line"><span class="keyword">if</span> (cellX &lt; <span class="number">0</span> || cellX &gt;= sz<span class="number">-1</span>) <span class="keyword">break</span>;  <span class="comment">// 这里应该是 &gt;= sz-1 才 break</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 正确写法（确保 cellX+1 &lt; sz）</span></span><br><span class="line"><span class="keyword">if</span> (cellX &lt; <span class="number">1</span> || cellX &gt;= sz<span class="number">-2</span>) <span class="keyword">break</span>;  <span class="comment">// 给边界留一格余量</span></span><br></pre></td></tr></table></figure>
+
+<p>等等——我写的 <code>cellX &gt;= sz-1</code> 实际上是 <code>cellX &gt;= 255</code>（sz&#x3D;256），即 <code>cellX == 255</code> 时 break。这看起来是对的：255+1&#x3D;256&#x3D;sz，应该越界。但实际上还有另一个路径：</p>
+<p>当水滴位于 <code>drop.x = sz-2 = 254.5</code> 时，<code>cellX = 254</code>，通过了检查。但在移动后，<code>drop.x</code> 变为 <code>255.5</code>，新的 <code>nX = 255</code>，然后访问 <code>nX+1 = 256</code> 越界！</p>
+<p><strong>修复方式：</strong> 对移动后的新坐标也做严格检查：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 移动后立即检查</span></span><br><span class="line"><span class="keyword">if</span> (drop.x &lt; <span class="number">1</span> || drop.x &gt;= sz<span class="number">-2</span> || drop.y &lt; <span class="number">1</span> || drop.y &gt;= sz<span class="number">-2</span>) &#123;</span><br><span class="line">    <span class="comment">// 边界处沉积并停止</span></span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> nX = (<span class="type">int</span>)drop.x;</span><br><span class="line"><span class="type">int</span> nY = (<span class="type">int</span>)drop.y;</span><br><span class="line"><span class="comment">// 额外安全检查</span></span><br><span class="line"><span class="keyword">if</span> (nX &lt; <span class="number">0</span> || nX<span class="number">+1</span> &gt;= sz || nY &lt; <span class="number">0</span> || nY<span class="number">+1</span> &gt;= sz) <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训：</strong> 浮点坐标系的边界检查要在<strong>每次移动后</strong>重新验证，不能依赖进入循环时的一次性检查。</p>
+<p><strong>用 AddressSanitizer 快速定位：</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -g -fsanitize=address -o terrain_dbg</span><br><span class="line">./terrain_dbg</span><br></pre></td></tr></table></figure>
+
+<p>ASan 直接给出了文件名和行号，节省了猜测时间。这是调试越界 Bug 的标准做法。</p>
+<h3 id="Bug-2：编译警告（Wunused-variable-和-Wunused-parameter）"><a href="#Bug-2：编译警告（Wunused-variable-和-Wunused-parameter）" class="headerlink" title="Bug 2：编译警告（Wunused-variable 和 Wunused-parameter）"></a>Bug 2：编译警告（Wunused-variable 和 Wunused-parameter）</h3><p><strong>症状：</strong> 编译时有3个 <code>-Wextra</code> 警告：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">warning: unused variable &#x27;oldX&#x27; [-Wunused-variable]</span><br><span class="line">warning: unused variable &#x27;oldY&#x27; [-Wunused-variable]</span><br><span class="line">warning: unused parameter &#x27;hasRiver&#x27; [-Wunused-parameter]</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因：</strong> </p>
+<ul>
+<li><code>oldX/oldY</code> 是在重构代码时留下的遗留变量（原本用于记录上一步位置，后来逻辑改变后不再需要）</li>
+<li><code>hasRiver</code> 是预留给”河流可视化”功能的参数，实现中暂未用到</li>
+</ul>
+<p><strong>修复：</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 删除 oldX/oldY</span></span><br><span class="line">drop.x += drop.vx;  <span class="comment">// 直接移动，不保存旧位置</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 用注释参数名消除警告，保留接口兼容性</span></span><br><span class="line"><span class="function">Color <span class="title">terrainColor</span><span class="params">(<span class="type">float</span> h, <span class="type">float</span> slope, <span class="type">bool</span> <span class="comment">/*hasRiver*/</span>)</span> </span>&#123;</span><br></pre></td></tr></table></figure>
+
+<p><code>/*hasRiver*/</code> 语法是 C++ 中消除”未使用参数”警告的惯用法，保留了参数位置（调用者不需要改变）同时告知编译器”这是故意不用的”。</p>
+<p><strong>教训：</strong> 及时清理不用的变量，<code>-Wall -Wextra</code> 是发现此类问题的有效工具。对于预留接口的参数，用注释参数名是比 <code>(void)hasRiver;</code> 更优雅的做法。</p>
+<h3 id="Bug-3：PNG-转换工具不可用"><a href="#Bug-3：PNG-转换工具不可用" class="headerlink" title="Bug 3：PNG 转换工具不可用"></a>Bug 3：PNG 转换工具不可用</h3><p><strong>症状：</strong> 程序运行成功（0 exit code）但没有生成 <code>.png</code> 文件，只有 <code>.ppm</code> 文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">ls</span></span><br><span class="line">terrain_before_erosion.png.ppm  terrain_erosion  main.cpp</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因：</strong> 代码调用 <code>convert</code>（ImageMagick）转换格式，但该工具不在 PATH 中：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">which: no convert in (...)</span><br></pre></td></tr></table></figure>
+
+<p><strong>修复：</strong> 改用 Python Pillow（已安装）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">savePNG</span><span class="params">(<span class="type">const</span> Image&amp; img, <span class="type">const</span> std::string&amp; filename)</span> </span>&#123;</span><br><span class="line">    std::string ppmFile = filename + <span class="string">&quot;.ppm&quot;</span>;</span><br><span class="line">    img.<span class="built_in">savePPM</span>(ppmFile);</span><br><span class="line">    std::string cmd = <span class="string">&quot;python3 -c \&quot;from PIL import Image; &quot;</span></span><br><span class="line">                      <span class="string">&quot;img=Image.open(&#x27;&quot;</span> + ppmFile + <span class="string">&quot;&#x27;); &quot;</span></span><br><span class="line">                      <span class="string">&quot;img.save(&#x27;&quot;</span> + filename + <span class="string">&quot;&#x27;)\&quot; 2&gt;/dev/null&quot;</span>;</span><br><span class="line">    <span class="type">int</span> ret = std::<span class="built_in">system</span>(cmd.<span class="built_in">c_str</span>());</span><br><span class="line">    <span class="keyword">if</span> (ret == <span class="number">0</span>) &#123;</span><br><span class="line">        std::<span class="built_in">remove</span>(ppmFile.<span class="built_in">c_str</span>());</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> (ret == <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>教训：</strong> 不应假设环境中安装了特定的外部工具。在代码中添加工具存在性检查，或优先使用更通用的备选方案。先用 <code>which convert</code> 验证工具是否存在，不存在则回退到 Python。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="输出图片验证"><a href="#输出图片验证" class="headerlink" title="输出图片验证"></a>输出图片验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">--- terrain_before_erosion.png ---</span><br><span class="line">文件大小: 148.2 KB</span><br><span class="line">像素均值: 56.6  标准差: 28.7  尺寸: (800, 600)</span><br><span class="line">✅ 像素统计正常</span><br><span class="line"></span><br><span class="line">--- terrain_top_view.png ---</span><br><span class="line">文件大小: 192.9 KB</span><br><span class="line">像素均值: 57.9  标准差: 30.6  尺寸: (800, 600)</span><br><span class="line">✅ 像素统计正常</span><br><span class="line"></span><br><span class="line">--- terrain_3d_view.png ---</span><br><span class="line">文件大小: 268.3 KB</span><br><span class="line">像素均值: 126.2  标准差: 54.5  尺寸: (800, 600)</span><br><span class="line">✅ 像素统计正常</span><br></pre></td></tr></table></figure>
+
+<p><strong>指标解读：</strong></p>
+<ul>
+<li>均值 ~57（俯视图）：合理，暗色区域（水面、深谷）较多，与真实地形分布一致</li>
+<li>标准差 ~29（俯视图）：说明图像有丰富的色彩变化，不是单调的纯色</li>
+<li>3D视图均值较高（126）：天空蓝占据一定面积（背景色 RGB(100,150,200)），拉高了均值</li>
+</ul>
+<h3 id="性能数据"><a href="#性能数据" class="headerlink" title="性能数据"></a>性能数据</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">运行时间（O2优化）：</span><br><span class="line">  地形生成（256×256 fBm）：~5ms</span><br><span class="line">  侵蚀模拟（80,000水滴）：~200ms</span><br><span class="line">  俯视渲染（2×800×600）：~50ms</span><br><span class="line">  3D渲染（800×600 + ZBuffer）：~80ms</span><br><span class="line">总计：~0.33 秒</span><br></pre></td></tr></table></figure>
+
+<p><strong>侵蚀前 vs 侵蚀后对比：</strong></p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_before_erosion.png" alt="侵蚀前地形"></p>
+<p><em>侵蚀前：纯 fBm 噪声地形，山脊圆润，没有明确水系痕迹</em></p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_top_view.png" alt="侵蚀后俯视图"></p>
+<p><em>侵蚀后：山谷更明显，谷地有沉积物填平迹象，整体更自然</em></p>
+<h3 id="地形统计"><a href="#地形统计" class="headerlink" title="地形统计"></a>地形统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">最低高度: 0.0（归一化后）</span><br><span class="line">最高高度: 1.0（归一化后）</span><br><span class="line">平均高度: 0.4699（接近0.5，分布较均匀）</span><br></pre></td></tr></table></figure>
+
+<p>平均高度约0.47，说明高地和低地的比例接近1:1，这对于 6层 fBm 是正常的（高度分布接近高斯分布，中值约0.5）。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="本次实现的局限性"><a href="#本次实现的局限性" class="headerlink" title="本次实现的局限性"></a>本次实现的局限性</h3><p><strong>1. 等角视图的深度排序问题：</strong></p>
+<p>当前使用 ZBuffer + Painter’s算法绘制 2×2 像素方块，但在等角投影中，两个不同高度的方块可能在屏幕上重叠，导致后面方块遮挡前面方块（深度关系反转）。解决方案是改用真正的三角形光栅化。</p>
+<p><strong>2. 侵蚀参数固定：</strong></p>
+<p>当前参数（inertia&#x3D;0.05, capacity&#x3D;8, erosion&#x3D;0.3）是经验值，适合这个特定尺度的地形。不同尺度（更大更小的地形）需要调参才能得到理想效果。</p>
+<p><strong>3. 无热流侵蚀（Thermal Erosion）：</strong></p>
+<p>水力侵蚀之外，还有热流侵蚀（Thermal Erosion）：岩石热胀冷缩碎裂后沿坡面堆积。没有热流侵蚀，陡坡会保持不自然的锋利度，而不是形成堆积在坡脚的碎石堆。</p>
+<p><strong>4. 无河流可视化：</strong></p>
+<p>代码中有 <code>water</code> 字段记录水流路径，但尚未用于渲染。未来可以将高水流量区域渲染为蓝色河流。</p>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><p><strong>算法层面：</strong></p>
+<ul>
+<li>加入热流侵蚀（Thermal Erosion）使陡坡自然崩塌</li>
+<li>河流侵蚀（River Erosion）用于大规模河谷生成</li>
+<li>多层岩石材质（不同岩层有不同硬度，影响侵蚀速率）</li>
+</ul>
+<p><strong>性能层面：</strong></p>
+<ul>
+<li>SIMD&#x2F;AVX 并行化 fBm 计算（每个格点独立，完全可并行）</li>
+<li>GPU 水力侵蚀（OpenCL&#x2F;CUDA，80k水滴完全并行）</li>
+<li>层次细节（LOD）：远处地形用低精度，近处用高精度</li>
+</ul>
+<p><strong>渲染层面：</strong></p>
+<ul>
+<li>真正的三角形光栅化（消除等角视图的深度错误）</li>
+<li>大气散射（远处山脉呈蓝色雾气）</li>
+<li>水面反射（低洼区域的湖泊添加菲涅尔反射）</li>
+<li>程序化植被（在草地区域根据坡度&#x2F;高度&#x2F;法线方向添加树木）</li>
+</ul>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>05-15 FFT Ocean Surface</strong>：同样是程序化噪声 + 真实物理模拟的组合，区别是地形是静态烘焙，海洋是实时模拟</li>
+<li><strong>05-23 SDF Ray Marching</strong>：SDF 也可以用于程序化地形（将高度图转为 SDF 做光线步进），能获得更精确的接触阴影</li>
+<li><strong>05-24 Subsurface Scattering</strong>：地形渲染中沙地&#x2F;雪地实际上有次表面散射效果，是未来可以加入的特性</li>
+<li><strong>04-24 Bent Normal AO</strong>：弯曲法线 AO 可以替代当前简陋的近似 AO，给地形渲染更准确的环境遮蔽</li>
+</ul>
+<h3 id="关键收获"><a href="#关键收获" class="headerlink" title="关键收获"></a>关键收获</h3><p>今天最大的收获是<strong>粒子化水力侵蚀算法的边界处理</strong>。表面上看，在一个 256×256 的网格上做边界检查非常简单，但浮点坐标在每步移动后都需要重新验证，不能只在循环入口做一次性检查。这个教训在任何基于粒子&#x2F;代理的模拟中都普遍适用。</p>
+<p>另一个收获是对<strong>fBm 参数意义</strong>的直觉理解：lacunarity、gain、octaves 不是随机调的数字，每个参数都对应自然界的某种物理规律（空间自相似性、能量守恒、尺度分布）。理解了这一点，调参就从”试错”变成了”有依据的选择”。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/">https://chiuhoukazusa.github.io/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9C%B0%E5%BD%A2%E7%94%9F%E6%88%90/">地形生成</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A8%8B%E5%BA%8F%E5%8C%96%E5%86%85%E5%AE%B9/">程序化内容</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Catmull-Clark 细分曲面渲染器</div></div><div class="info-2"><div class="info-item-1">背景与动机在 3D 建模和计算机图形学中,有一个永恒的矛盾:低多边形网格(Low-poly)易于编辑,但看起来粗糙;高多边形网格(High-poly)渲染细腻,但难以手动编辑。 这个问题在上世纪 70-80 年代就困扰着皮克斯的工程师们。艺术家们希望用简单的粗糙网格控制形状,然后让计算机自动生成光滑版本。这就是**细分曲面(Subdivision Surface)**技术诞生的背景。 现实痛点考虑一个实际场景:你要建模一个角色的脸。如果直接用高多边形(数万个面),每移动一个顶点就要同时调整周围的几十个顶点,工作量爆炸;如果用低多边形(几百个面),建模很快,但渲染出来像个塑料玩具–全是硬边和棱角,没有任何生物感。 细分曲面的方案是:让艺术家只操作低多边形的”控制网格”(Control Cage),算法自动生成光滑的高多边形细分结果。控制网格和细分曲面之间有明确的数学关系,因此艺术家的每个操作都能精确地影响最终曲面形状。 工业界应用Catmull-Clark 细分曲面是目前工业界最主流的细分方案:  皮克斯 RenderMan:《玩具总动员》(1995)及后续所有皮克斯电影,角色全部...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/26/daily-coding-Triangle-Rasterization-2026-02-26/" title="每日编程实践: Triangle Rasterization - 三角形光栅化器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-26-Triangle-Rasterization/rasterization_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-26</div><div class="info-item-2">每日编程实践: Triangle Rasterization - 三角形光栅化器</div></div><div class="info-2"><div class="info-item-1">Triangle Rasterization - 三角形光栅化器项目目标今天的目标是从零实现一个三角形光栅化器，这是现代3D图形渲染管线的核心组件之一。 光栅化器的职责是：将三角形（几何）转换为屏幕上的像素（图像）。 我们将实现：  ✅ Barycentric 坐标算法 - 判断点是否在三角形内 ✅ Z-Buffer 深度测试 - 正确处理遮挡关系 ✅ 颜色插值 - 顶点颜色的平滑渐变 ✅ 边界框优化 - 只遍历必要的像素  实现过程迭代历史 05:33 - 初始版本: 编写完整的光栅化器代码  实现 Vec2&#x2F;Vec3&#x2F;Color 基础数据结构 实现 barycentric() 重心坐标计算 实现 rasterizeTriangle() 光栅化函数 初始化帧缓冲和深度缓冲   05:34 - 编译错误: 缺少 &lt;limits&gt; 头文件  错误信息：&#39;numeric_limits&#39; is not a member of &#39;std&#39; 原因：使用了 std::numeric_limits&lt;float&gt;::ma...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/20/daily-coding-spherical-harmonics-2026-03-20/" title="每日编程实践: Spherical Harmonics 球谐环境光照"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-20-spherical-harmonics/sh_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-20</div><div class="info-item-2">每日编程实践: Spherical Harmonics 球谐环境光照</div></div><div class="info-2"><div class="info-item-1">一、背景与动机：为什么需要球谐函数？环境光照的困境实时渲染有一道绕不过去的坎：如何高效地表示整个球面上的环境光照，并在每个着色点快速计算它对漫反射的贡献？ 最直接的办法是蒙特卡洛积分——对每个着色点，在半球上采样数百个方向，取环境光加权平均： $$E(n) &#x3D; \int_{\Omega} L(\omega) \max(0, n \cdot \omega) , d\omega \approx \frac{1}{N} \sum_{i&#x3D;1}^{N} L(\omega_i) \max(0, n \cdot \omega_i)$$ 问题在于：1080P 下有两百万像素，每像素哪怕只采样 64 次，每帧就要做 1.28 亿次环境贴图采样。这在实时场景根本行不通。 工业界的标准答案：球谐函数UE4&#x2F;UE5 的 Indirect Lighting Cache、Sky Light 全都基于 L2 球谐函数（9个系数）。Unity 的 Light Probes 同样如此。寒霜引擎、Frostbite 也把 SH 作为环境漫反射光照的核心表示。 原因很简单：Lambert...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/25/daily-coding-ssao-2026-03-25/" title="每日编程实践: Screen Space Ambient Occlusion (SSAO)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-25-ssao/ssao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-25</div><div class="info-item-2">每日编程实践: Screen Space Ambient Occlusion (SSAO)</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么需要环境光遮蔽？在传统 Phong&#x2F;Blinn-Phong 光照模型中，环境光（Ambient）是一个常量——整个场景里所有点的环境光照贡献完全相同，不管这个点是在空旷的平台中央，还是被夹在两堵墙的角落里。这在物理上显然是错误的：角落里的点被周围几何体遮挡，从半球方向射来的间接光理应更少。 没有环境光遮蔽的场景会显得”扁平”、”塑料感强”——所有表面的暗部都亮得不自然。加上 AO 之后，角落变暗、物体底部变暗、缝隙变暗，整体立体感和质感都会有质的提升。 工业界的实际使用场景Ambient Occlusion 的概念最早由 Zhukov 等人在 1998 年提出，但直到 Crytek 在 2007 年 GDC 上介绍 Screen Space Ambient Occlusion (SSAO) 之后才真正走入实时渲染的主流——当时是为了给《孤岛危机》服务的。 今天，AO 技术在各大引擎里几乎无处不在：  Unity：有 SSAO（URP&#x2F;HDRP 均支持），HDRP 还有基于射线的 RTAO Unreal Engine：内置 SSAO，后来又加了 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/28/daily-coding-cel-shading-outline-renderer-2026-04-28/" title="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-28-Cel-Shading-Outline-Renderer/cel_shading_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-28</div><div class="info-item-2">每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1.1 为什么要做卡通渲染（NPR）？在过去几十天里，我们一路走过了 PBR、BDPT、SPPM、SSAO、TAA、DOF、Bloom……这些技术都指向同一个目标：让渲染更像物理世界。但今天我们要反其道而行之——主动让渲染”不像现实”。 NPR（Non-Photorealistic Rendering，非真实感渲染） 并不是图形学的边缘课题，它在工业界占有相当重要的地位：  游戏领域：《原神》、《崩坏：星穹铁道》、《塞尔达传说》、《潜伏之赤途》……这些年玩家最喜欢的大作，很多都是卡通风格。米哈游曾在 GDC 分享过他们的 NPR 渲染管线，技术深度远超很多 PBR 游戏。 动画与影视：3D 动画电影经常需要”手绘感”——迪士尼在《蜘蛛侠：平行宇宙》里做的描线和色块量化效果，成为了 NPR 领域的经典案例。 VR&#x2F;AR 应用：在低功耗设备上，卡通渲染往往比 PBR 便宜得多，因为它刻意减少了光照计算。  1.2 Cel Shading 的历史“Cel”来源于 “Celluloid”（赛璐珞），就是传统手绘动画用的透明片。Cel Shading 模仿的就是那种...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/12/daily-coding-deferred-shading-2026-05-12/" title="每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-12-deferred-shading/deferred_shading_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-12</div><div class="info-item-2">每日编程实践: Deferred Shading Multi-Light Renderer（延迟渲染多光源实现）</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么需要延迟渲染？在传统前向渲染（Forward Rendering）管线中，每个几何物体在光栅化时就直接计算光照。这在光源较少时运作良好，但随着场景复杂度提升，问题会迅速爆炸式增长： 前向渲染的痛点： 假设场景有 N 个物体、M 个光源，最坏情况下的光照计算复杂度是 O(N × M)。对于一个游戏场景——100 个可见物体、64 个点光源（街灯、粒子效果、爆炸等）——就需要 6400 次光照计算调用，其中绝大多数是浪费的（因为很多光源对某个物体根本没有影响，或者该像素会被后来绘制的物体遮挡）。 更严重的问题是”OverDraw（过度绘制）”：如果场景中的物体从前到后排列，远处的物体会先被绘制，然后被近处的物体覆盖，那些被覆盖的像素的光照计算就完全浪费了。 延迟渲染的思路： 延迟渲染（Deferred Shading）的核心洞见是：把几何信息的收集和光照计算这两件事分开做。 第一遍（Geometry Pass）：只收集每个像素的几何属性——位置、法线、材质颜色——存到一组”中间缓冲区”（G-Buffer，Geometry Buffer）里。这一遍完全不计算光照，只是一...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/09/daily-coding-sph-fluid-simulation-2026-03-09/" title="每日编程实践: SPH Fluid Simulation 流体模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-09-sph-fluid-simulation/sph_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-09</div><div class="info-item-2">每日编程实践: SPH Fluid Simulation 流体模拟</div></div><div class="info-2"><div class="info-item-1">SPH Fluid Simulation — 流体模拟水往低处流——这句话人人都知道，但计算机怎么”理解”水？ 让它记住每个水分子的位置？不现实，一杯水有 $10^{25}$ 个分子。用格子把空间切开记录密度？可以，但不够灵活。今天用的是第三种方法：把水离散成一堆会动的粒子，粒子之间互相感知、互相推挤，集体涌现出流体行为。 这就是 SPH（Smoothed Particle Hydrodynamics，平滑粒子流体动力学），一种用于电影水特效、工程爆炸模拟、宇宙演化计算的经典算法。  最终效果 颜色映射速度：🔵 蓝色 &#x3D; 静止，🟡 黄色 &#x3D; 中速运动，🔴 红色 &#x3D; 高速冲击。 600 个粒子从左下角的方块初始状态，在重力作用下铺展、碰壁、最终沉底——整个过程模拟了约 2 秒的物理时间。 模拟序列——流体如何从方块变成摊开的液体   t&#x3D;0s（初始方块） t&#x3D;0.5s（开始扩散） t&#x3D;1.0s（持续铺展） t&#x3D;1.5s（接近稳定） t&#x3D;2.0s（最终状态）            第一章：为什么是”...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">110</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">121</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5-%E7%A8%8B%E5%BA%8F%E5%8C%96%E5%9C%B0%E5%BD%A2%E7%94%9F%E6%88%90%E4%B8%8E%E6%B0%B4%E5%8A%9B%E4%BE%B5%E8%9A%80%E6%A8%A1%E6%8B%9F"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践: 程序化地形生成与水力侵蚀模拟</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%A8%8B%E5%BA%8F%E5%8C%96%E5%9C%B0%E5%BD%A2%EF%BC%9F"><span class="toc-number">1.1.1.</span> <span class="toc-text">为什么需要程序化地形？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B0%B4%E5%8A%9B%E4%BE%B5%E8%9A%80%E7%9A%84%E5%BF%85%E8%A6%81%E6%80%A7"><span class="toc-number">1.1.2.</span> <span class="toc-text">水力侵蚀的必要性</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Perlin-%E5%99%AA%E5%A3%B0%E4%B8%8E-fBm-%E5%9C%B0%E5%BD%A2"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 Perlin 噪声与 fBm 地形</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%B2%92%E5%AD%90%E5%8C%96%E6%B0%B4%E5%8A%9B%E4%BE%B5%E8%9A%80%E7%AE%97%E6%B3%95"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 粒子化水力侵蚀算法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E9%AB%98%E5%BA%A6%E5%88%86%E5%B1%82%E7%9D%80%E8%89%B2"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 高度分层着色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%B3%95%E7%BA%BF%E8%AE%A1%E7%AE%97%E4%B8%8E%E5%85%89%E7%85%A7"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 法线计算与光照</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF%EF%BC%88%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">渲染管线（软光栅化）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%AE%8C%E6%95%B4%E7%9A%84-fBm-%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 完整的 fBm 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%B0%B4%E5%8A%9B%E4%BE%B5%E8%9A%80%E6%A0%B8%E5%BF%83%E5%BE%AA%E7%8E%AF"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 水力侵蚀核心循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%8F%8C%E5%B1%82%E8%BE%B9%E7%95%8C%E6%A3%80%E6%9F%A5%E7%9A%84%E5%8E%9F%E5%9B%A0"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 双层边界检查的原因</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%9C%B0%E5%BD%A2%E7%9D%80%E8%89%B2%E7%9A%84%E5%9D%A1%E5%BA%A6%E5%88%A4%E6%96%AD"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 地形着色的坡度判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E8%BF%91%E4%BC%BCAO%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 近似AO实现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E8%BF%90%E8%A1%8C%E6%97%B6-SIGSEGV%EF%BC%88%E8%B6%8A%E7%95%8C%E8%AE%BF%E9%97%AE%EF%BC%89"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：运行时 SIGSEGV（越界访问）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A%EF%BC%88Wunused-variable-%E5%92%8C-Wunused-parameter%EF%BC%89"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：编译警告（Wunused-variable 和 Wunused-parameter）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9APNG-%E8%BD%AC%E6%8D%A2%E5%B7%A5%E5%85%B7%E4%B8%8D%E5%8F%AF%E7%94%A8"><span class="toc-number">1.5.3.</span> <span class="toc-text">Bug 3：PNG 转换工具不可用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%93%E5%87%BA%E5%9B%BE%E7%89%87%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.1.</span> <span class="toc-text">输出图片验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.2.</span> <span class="toc-text">性能数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%B0%E5%BD%A2%E7%BB%9F%E8%AE%A1"><span class="toc-number">1.6.3.</span> <span class="toc-text">地形统计</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%AC%A1%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">本次实现的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%94%B6%E8%8E%B7"><span class="toc-number">1.7.4.</span> <span class="toc-text">关键收获</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/" title="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/" title="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟">每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟</a><time datetime="2026-05-26T21:30:00.000Z" title="发表于 2026-05-27 05:30:00">2026-05-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Catmull-Clark 细分曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器">每日编程实践: Catmull-Clark 细分曲面渲染器</a><time datetime="2026-05-25T21:30:00.000Z" title="发表于 2026-05-26 05:30:00">2026-05-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</a><time datetime="2026-05-24T21:35:00.000Z" title="发表于 2026-05-25 05:35:00">2026-05-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</a><time datetime="2026-05-23T21:30:00.000Z" title="发表于 2026-05-24 05:30:00">2026-05-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-23-sdf-ray-marching/sdf_scene_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: SDF Ray Marching Scene Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/23/daily-coding-sdf-ray-marching-2026-05-23/" title="每日编程实践: SDF Ray Marching Scene Renderer">每日编程实践: SDF Ray Marching Scene Renderer</a><time datetime="2026-05-22T21:35:00.000Z" title="发表于 2026-05-23 05:35:00">2026-05-23</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
