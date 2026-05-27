@@ -1,0 +1,396 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器） | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="今天是每日编程实践的第 90 天。这次实现了一个基于锥形追踪（Cone-Traced）的环境光遮蔽（Ambient Occlusion，AO）渲染器，并同时计算了弯曲法线（Bent Normal）——一种由 Landis 在 2002 年 SIGGRAPH 课程中提出、被 The Matrix Reloaded 等影片大规模使用的技术。 渲染器完全运行在 CPU 上，使用 SDF 场景进行快速几何">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="今天是每日编程实践的第 90 天。这次实现了一个基于锥形追踪（Cone-Traced）的环境光遮蔽（Ambient Occlusion，AO）渲染器，并同时计算了弯曲法线（Bent Normal）——一种由 Landis 在 2002 年 SIGGRAPH 课程中提出、被 The Matrix Reloaded 等影片大规模使用的技术。 渲染器完全运行在 CPU 上，使用 SDF 场景进行快速几何">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png">
+<meta property="article:published_time" content="2026-05-27T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-05-27T21:37:12.818Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="AO">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="软光栅化">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）",
+  "url": "https://chiuhoukazusa.github.io/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png",
+  "datePublished": "2026-05-27T21:30:00.000Z",
+  "dateModified": "2026-05-27T21:37:12.818Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-05-27T21:30:00.000Z" title="发表于 2026-05-28 05:30:00">2026-05-28</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-05-27T21:37:12.818Z" title="更新于 2026-05-28 05:37:12">2026-05-28</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>今天是每日编程实践的第 90 天。这次实现了一个基于锥形追踪（Cone-Traced）的<strong>环境光遮蔽（Ambient Occlusion，AO）渲染器</strong>，并同时计算了<strong>弯曲法线（Bent Normal）</strong>——一种由 Landis 在 2002 年 SIGGRAPH 课程中提出、被 The Matrix Reloaded 等影片大规模使用的技术。</p>
+<p>渲染器完全运行在 CPU 上，使用 SDF 场景进行快速几何查询，输出三张图像：原始 AO 遮蔽图、弯曲法线可视化图、以及融合了 AO + 直接光照的完整渲染图。</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png" alt="最终渲染结果"></p>
+<hr>
+<h2 id="①-背景与动机：为什么需要-AO，为什么要用锥形追踪"><a href="#①-背景与动机：为什么需要-AO，为什么要用锥形追踪" class="headerlink" title="① 背景与动机：为什么需要 AO，为什么要用锥形追踪"></a>① 背景与动机：为什么需要 AO，为什么要用锥形追踪</h2><h3 id="没有-AO-时会发生什么"><a href="#没有-AO-时会发生什么" class="headerlink" title="没有 AO 时会发生什么"></a>没有 AO 时会发生什么</h3><p>在实时渲染里，间接光照的计算极其昂贵。最简单的做法是添加一个”环境光”常数项 <code>L_ambient = k_a * I_a</code>，让所有表面都获得一个固定的底色。这个做法有个致命缺陷：<strong>它完全忽视了几何遮挡</strong>。</p>
+<p>现实中，墙角、物体底部、褶皱内侧——这些被其他几何体”围住”的区域会接收到更少的环境光，因为来自四面八方的光有相当大一部分被挡住了。均匀的环境光常数项会让这些区域”像在太空中漂浮”，完全失去接地感。</p>
+<p><strong>AO 的直觉</strong>：对于表面上的一个点 P，朝其法线半球方向投射若干射线。如果很多射线很快打到了附近的几何体，说明这个点被遮蔽得厉害，应该更暗。如果大部分射线都没有遮挡，说明这个点很”开阔”，可以接收到更多环境光。</p>
+<h3 id="工业界的实际应用"><a href="#工业界的实际应用" class="headerlink" title="工业界的实际应用"></a>工业界的实际应用</h3><ul>
+<li><strong>离线渲染</strong>：皮克斯、梦工厂的电影使用烘焙 AO 作为间接光照的快速近似</li>
+<li><strong>游戏引擎</strong>：UE5 的 Lumen 实时 GI 系统中，AO 仍然用于补充近场遮蔽细节</li>
+<li><strong>烘焙工作流</strong>：Substance Painter&#x2F;Marmoset 的 AO 烘焙功能是 PBR 资产制作的标准流程</li>
+<li><strong>SSAO&#x2F;HBAO+</strong>：NVIDIA 的 HBAO+ 是锥形追踪思路在屏幕空间的实时实现</li>
+</ul>
+<h3 id="弯曲法线（Bent-Normal）的意义"><a href="#弯曲法线（Bent-Normal）的意义" class="headerlink" title="弯曲法线（Bent Normal）的意义"></a>弯曲法线（Bent Normal）的意义</h3><p>普通 AO 只回答”这个点被遮蔽了多少”，而 Bent Normal 还额外告诉我们”最不被遮蔽的平均方向是哪个”——即从这个点出发，哪个方向的天空”最开阔”。</p>
+<p>有了 Bent Normal，我们可以：</p>
+<ul>
+<li>用它来采样环境贴图，让间接光更准确地来自”真正开放的方向”</li>
+<li>将它作为 GI 的快速代理，用于 specular 间接反射</li>
+<li>UE5、Destiny 2 等引擎的材质系统都提供了 Bent Normal 输入接口</li>
+</ul>
+<hr>
+<h2 id="②-核心原理：从积分到锥形采样"><a href="#②-核心原理：从积分到锥形采样" class="headerlink" title="② 核心原理：从积分到锥形采样"></a>② 核心原理：从积分到锥形采样</h2><h3 id="AO-的数学定义"><a href="#AO-的数学定义" class="headerlink" title="AO 的数学定义"></a>AO 的数学定义</h3><p>环境光遮蔽是对半球积分的一个近似，其定义为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">AO(p, n) = (1/π) ∫_&#123;Ω&#125; V(p, ω) · (n · ω) dω</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>p</code>：表面上的点</li>
+<li><code>n</code>：表面法线</li>
+<li><code>Ω</code>：法线半球</li>
+<li><code>V(p, ω)</code>：可见性函数，若方向 ω 无遮挡则为 1，否则为 0（或基于距离的衰减值）</li>
+<li><code>(n · ω)</code>：余弦权重项（法线方向的能量贡献更大）</li>
+</ul>
+<p>这个积分的意思是：<strong>从 P 点朝半球内所有方向看，有多少比例没有被遮挡</strong>。</p>
+<p><strong>为什么除以 π？</strong> 对于纯朗伯（Lambertian）半球，带 cosine 权重的积分 <code>∫_{Ω} (n·ω) dω = π</code>。除以 π 使得完全无遮挡时 AO &#x3D; 1，完全遮挡时 AO &#x3D; 0。</p>
+<h3 id="蒙特卡洛估计"><a href="#蒙特卡洛估计" class="headerlink" title="蒙特卡洛估计"></a>蒙特卡洛估计</h3><p>直接计算这个积分需要对半球上无数个方向进行采样。我们用蒙特卡洛方法估计：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">AO ≈ (1/N) Σ_&#123;i=1&#125;^&#123;N&#125; V(p, ωi) · w_i</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>ωi</code> 是第 i 个采样方向，<code>w_i</code> 是对应的权重。</p>
+<p><strong>余弦加权重要性采样（Cosine-Weighted Importance Sampling）</strong>：</p>
+<p>如果按余弦权重分布采样方向（PDF 为 <code>p(ω) = cos(θ)/π</code>），则每个样本的权重 <code>w_i = (n·ωi) / p(ωi) = π</code>，从而抵消掉分母的 π：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">AO ≈ (1/N) Σ_&#123;i=1&#125;^&#123;N&#125; V(p, ωi)</span><br></pre></td></tr></table></figure>
+
+<p>极大简化了计算。余弦加权意味着我们会更多地朝法线方向采样，减少了对贡献小（grazing angle）方向的浪费。</p>
+<h3 id="余弦加权采样公式推导"><a href="#余弦加权采样公式推导" class="headerlink" title="余弦加权采样公式推导"></a>余弦加权采样公式推导</h3><p>给定两个均匀随机数 <code>u1, u2 ∈ [0,1]</code>，余弦加权半球采样的方向为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">θ = arccos(√u1)     （天顶角，从法线方向量起）</span><br><span class="line">φ = 2π · u2          （方位角）</span><br></pre></td></tr></table></figure>
+
+<p>转为笛卡尔坐标（本地空间，Z&#x3D;上方）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">x = √u1 · cos(φ) = √(1-z²) · cos(φ)</span><br><span class="line">y = √u1 · sin(φ) = √(1-z²) · sin(φ)</span><br><span class="line">z = √(1-u1)</span><br></pre></td></tr></table></figure>
+
+<p>验证：当 <code>u1</code> 接近 0 时，<code>z ≈ 1</code>，方向接近法线（正上方）——这正是我们希望重点采样的区域。</p>
+<h3 id="弯曲法线的计算"><a href="#弯曲法线的计算" class="headerlink" title="弯曲法线的计算"></a>弯曲法线的计算</h3><p>弯曲法线是”未被遮蔽射线的加权平均方向”：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">BentNormal = normalize( Σ_&#123;i: V(ωi)&gt;0&#125; ωi · V(p, ωi) )</span><br></pre></td></tr></table></figure>
+
+<p>直觉上：把所有”看得见天空”的采样方向加权平均，就得到了最开阔的平均方向。</p>
+<p>当场景左侧有个大球遮挡时，P 点的 Bent Normal 会偏向右侧；当 P 在一个凹坑中间时，Bent Normal 会比真实法线更竖直（四周遮蔽，只有正上方开放）。</p>
+<h3 id="距离衰减遮蔽模型"><a href="#距离衰减遮蔽模型" class="headerlink" title="距离衰减遮蔽模型"></a>距离衰减遮蔽模型</h3><p>简单的二值 V（命中&#x3D;0，未命中&#x3D;1）会导致远处的微小几何体也产生全遮蔽，不现实。我们采用基于距离的平滑衰减：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">V(t) = min(1, (t / maxDist)²)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>命中距离 <code>t</code> 很近 → V ≈ 0，强遮蔽</li>
+<li>命中距离接近 maxDist → V ≈ 1，几乎不遮蔽</li>
+<li>二次曲线使近场遮蔽更明显，远场影响趋近消失</li>
+</ul>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">摄像机射线生成</span><br><span class="line">     ↓</span><br><span class="line">SDF Ray Marching（主场景求交）</span><br><span class="line">     ↓</span><br><span class="line">  命中？</span><br><span class="line"> /     \</span><br><span class="line">No      Yes</span><br><span class="line">↓         ↓</span><br><span class="line">天空色   AO 计算（N 条 cosine 采样射线）</span><br><span class="line">         ↓</span><br><span class="line">    Bent Normal 提取</span><br><span class="line">         ↓</span><br><span class="line">  直接光照（太阳光 + 阴影检测）</span><br><span class="line">         ↓</span><br><span class="line">  间接光照（Bent Normal 采样天空）</span><br><span class="line">         ↓</span><br><span class="line">  三路输出：AO图/法线图/完整渲染图</span><br></pre></td></tr></table></figure>
+
+<h3 id="场景表示：SDF（有向距离场）"><a href="#场景表示：SDF（有向距离场）" class="headerlink" title="场景表示：SDF（有向距离场）"></a>场景表示：SDF（有向距离场）</h3><p>用 SDF 而不是三角网格的原因：<strong>AO 需要大量射线查询</strong>，每次 AO 查询要向半球射 N 条射线，每条射线要做光线行进（ray marching）。SDF 的好处是：</p>
+<ol>
+<li><strong>快速行进</strong>：SDF 值直接给出到最近几何体的距离，可以用球体步进（sphere stepping），每步尽量迈大步</li>
+<li><strong>平滑法线</strong>：通过有限差分计算梯度，天然得到光滑法线，不需要顶点法线插值</li>
+<li><strong>任意形状</strong>：球、盒子、平面可以简单组合</li>
+</ol>
+<p>场景中的 SDF 定义：</p>
+<ul>
+<li>地面：<code>sdPlane(p, y) = p.y - y</code>（最简单的 SDF，到 y&#x3D;const 平面的距离）</li>
+<li>球体：<code>sdSphere(p, c, r) = |p-c| - r</code></li>
+<li>盒子：<code>sdBox(p, c, half)</code> 使用分量最大值计算（详见代码解析）</li>
+</ul>
+<h3 id="主要数据结构"><a href="#主要数据结构" class="headerlink" title="主要数据结构"></a>主要数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">AOResult</span> &#123;</span><br><span class="line">    <span class="type">float</span> ao;           <span class="comment">// [0,1]，越大越亮（遮蔽越少）</span></span><br><span class="line">    Vec3  bentNormal;   <span class="comment">// 世界空间弯曲法线方向</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">HitInfo</span> &#123;</span><br><span class="line">    <span class="type">float</span> t;       <span class="comment">// 光线参数</span></span><br><span class="line">    Vec3 normal;   <span class="comment">// 世界空间法线</span></span><br><span class="line">    Vec3 color;    <span class="comment">// 表面颜色（albedo）</span></span><br><span class="line">    <span class="type">int</span> matId;     <span class="comment">// 材质类型</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Image</span> &#123;</span><br><span class="line">    <span class="type">int</span> width, height;</span><br><span class="line">    std::vector&lt;Vec3&gt; pixels;  <span class="comment">// 线性 HDR，gamma 在保存时处理</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>三张图像并行计算：每个像素的 AO pass 计算完毕后，直接分发给三个输出 buffer，只做一次 AO 计算。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="SDF-盒子（最常见的错误点）"><a href="#SDF-盒子（最常见的错误点）" class="headerlink" title="SDF 盒子（最常见的错误点）"></a>SDF 盒子（最常见的错误点）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">sdBox</span><span class="params">(<span class="type">const</span> Vec3&amp; p, <span class="type">const</span> Vec3&amp; c, <span class="type">const</span> Vec3&amp; half)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// q = 到中心的距离 - 半尺寸（负值代表在盒子内部）</span></span><br><span class="line">    Vec3 q = <span class="built_in">Vec3</span>(std::<span class="built_in">abs</span>(p.x-c.x), std::<span class="built_in">abs</span>(p.y-c.y), std::<span class="built_in">abs</span>(p.z-c.z)) - half;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 外部距离：取正分量的长度</span></span><br><span class="line">    Vec3 maxQ = <span class="built_in">Vec3</span>(std::<span class="built_in">max</span>(q.x,<span class="number">0.f</span>), std::<span class="built_in">max</span>(q.y,<span class="number">0.f</span>), std::<span class="built_in">max</span>(q.z,<span class="number">0.f</span>));</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 内部距离（盒子内部 SDF 为负）：取所有分量最大值（最小绝对值分量）</span></span><br><span class="line">    <span class="keyword">return</span> maxQ.<span class="built_in">len</span>() + std::<span class="built_in">min</span>(std::<span class="built_in">max</span>(&#123;q.x,q.y,q.z&#125;), <span class="number">0.f</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong></p>
+<p>SDF 需要对内外都正确：外部为正（距离盒子表面的距离），内部为负（到最近表面的负距离）。</p>
+<ul>
+<li><code>q[i] &gt; 0</code>：沿轴方向超出了盒子，这个方向有”外部距离”贡献</li>
+<li><code>q[i] &lt; 0</code>：在盒子内部这一轴，这个方向无外部贡献</li>
+<li><code>maxQ.len()</code>：外部点的距离（角&#x2F;边的情况用 Euclidean 距离，比 Chebyshev 更圆滑）</li>
+<li><code>min(max(q.x,q.y,q.z), 0)</code>：内部点的修正（内部所有 q 均为负，取最大即最小绝对值）</li>
+</ul>
+<h3 id="SDF-法线计算（有限差分梯度）"><a href="#SDF-法线计算（有限差分梯度）" class="headerlink" title="SDF 法线计算（有限差分梯度）"></a>SDF 法线计算（有限差分梯度）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">float</span> eps = <span class="number">1e-4f</span>;</span><br><span class="line"><span class="type">float</span> dx = gScene.<span class="built_in">query</span>(p+<span class="built_in">Vec3</span>(eps,<span class="number">0</span>,<span class="number">0</span>)) - gScene.<span class="built_in">query</span>(p-<span class="built_in">Vec3</span>(eps,<span class="number">0</span>,<span class="number">0</span>));</span><br><span class="line"><span class="type">float</span> dy = gScene.<span class="built_in">query</span>(p+<span class="built_in">Vec3</span>(<span class="number">0</span>,eps,<span class="number">0</span>)) - gScene.<span class="built_in">query</span>(p-<span class="built_in">Vec3</span>(<span class="number">0</span>,eps,<span class="number">0</span>));</span><br><span class="line"><span class="type">float</span> dz = gScene.<span class="built_in">query</span>(p+<span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">0</span>,eps)) - gScene.<span class="built_in">query</span>(p-<span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">0</span>,eps));</span><br><span class="line">hit.normal = <span class="built_in">Vec3</span>(dx,dy,dz).<span class="built_in">norm</span>();</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用中心差分而不是前向差分？</strong></p>
+<p>中心差分的误差是 <code>O(eps²)</code>，前向差分是 <code>O(eps)</code>。在 eps&#x3D;1e-4 的情况下，中心差分误差约为 1e-8，前向差分约为 1e-4——差了四个数量级。SDF 的梯度（&#x3D; 表面法线）需要精确，用中心差分是正确选择。</p>
+<p>每次法线计算需要 6 次 SDF query（中心差分 3 个轴），但只在命中时才计算，不影响整体性能。</p>
+<h3 id="余弦加权半球采样"><a href="#余弦加权半球采样" class="headerlink" title="余弦加权半球采样"></a>余弦加权半球采样</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">cosineSampleHemisphere</span><span class="params">(<span class="type">float</span> u1, <span class="type">float</span> u2)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> r   = std::<span class="built_in">sqrt</span>(u1);         <span class="comment">// 径向距离（盘上的半径）</span></span><br><span class="line">    <span class="type">float</span> phi = <span class="number">2.f</span> * <span class="number">3.14159265f</span> * u2; <span class="comment">// 方位角</span></span><br><span class="line">    <span class="type">float</span> x   = r * std::<span class="built_in">cos</span>(phi);</span><br><span class="line">    <span class="type">float</span> y   = r * std::<span class="built_in">sin</span>(phi);</span><br><span class="line">    <span class="type">float</span> z   = std::<span class="built_in">sqrt</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, <span class="number">1.f</span> - u1));  <span class="comment">// z = cos(θ)</span></span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">Vec3</span>(x, y, z);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>推导验证</strong>：  </p>
+<ul>
+<li>天顶角余弦 <code>cos(θ) = z = √(1-u1)</code>，所以 <code>cos²(θ) = 1-u1</code>，即 <code>u1 = sin²(θ) = 1 - cos²(θ)</code>  </li>
+<li>对应的 PDF <code>p(θ,φ) = cos(θ)/π</code>（余弦分布）  </li>
+<li>验证 <code>∫ p(θ,φ) sin(θ) dθ dφ = 1</code>：<code>∫₀^π ∫₀^{2π} (cos(θ)/π) sin(θ) dφ dθ = 1</code> ✅</li>
+</ul>
+<p><code>std::max(0.f, 1.f - u1)</code> 防止浮点误差导致 <code>1 - u1</code> 变成极小的负数开根出 NaN。</p>
+<h3 id="TBN-矩阵（本地空间到世界空间）"><a href="#TBN-矩阵（本地空间到世界空间）" class="headerlink" title="TBN 矩阵（本地空间到世界空间）"></a>TBN 矩阵（本地空间到世界空间）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">toWorld</span><span class="params">(<span class="type">const</span> Vec3&amp; local, <span class="type">const</span> Vec3&amp; N)</span> </span>&#123;</span><br><span class="line">    Vec3 T, B;</span><br><span class="line">    <span class="comment">// 建立切线，避免与法线平行</span></span><br><span class="line">    <span class="keyword">if</span>(std::<span class="built_in">abs</span>(N.x) &lt; <span class="number">0.9f</span>)</span><br><span class="line">        T = N.<span class="built_in">cross</span>(<span class="built_in">Vec3</span>(<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>)).<span class="built_in">norm</span>();</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        T = N.<span class="built_in">cross</span>(<span class="built_in">Vec3</span>(<span class="number">0</span>,<span class="number">1</span>,<span class="number">0</span>)).<span class="built_in">norm</span>();</span><br><span class="line">    B = N.<span class="built_in">cross</span>(T);</span><br><span class="line">    <span class="keyword">return</span> T*local.x + B*local.y + N*local.z;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要分两种情况？</strong></p>
+<p>如果法线几乎平行于 <code>(1,0,0)</code>，那么 <code>N.cross(Vec3(1,0,0))</code> 会产生一个几乎为零的向量，归一化后方向不确定（数值不稳定）。当 <code>|N.x| &lt; 0.9</code> 时，改用 Y 轴参考，保证叉积的结果有足够的长度。</p>
+<p>这是图形学中的经典做法，被称为”Hughes-Moller 正交化”或”Duff et al. 2017”的改进版。</p>
+<h3 id="AO-主循环"><a href="#AO-主循环" class="headerlink" title="AO 主循环"></a>AO 主循环</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">AOResult <span class="title">computeConeAO</span><span class="params">(<span class="type">const</span> Vec3&amp; pos, <span class="type">const</span> Vec3&amp; N, <span class="type">int</span> numCones,</span></span></span><br><span class="line"><span class="params"><span class="function">                        <span class="type">float</span> maxDist, RNG&amp; rng)</span> </span>&#123;</span><br><span class="line">    <span class="function">Vec3  <span class="title">accDir</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="type">float</span> accAO = <span class="number">0.f</span>;</span><br><span class="line">    Vec3  origin = pos + N * <span class="number">5e-4f</span>;  <span class="comment">// ← 关键：法线方向偏移，避免自交</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span>(<span class="type">int</span> i = <span class="number">0</span>; i &lt; numCones; i++) &#123;</span><br><span class="line">        <span class="type">float</span> u1 = rng.<span class="built_in">next</span>(), u2 = rng.<span class="built_in">next</span>();</span><br><span class="line">        Vec3 dir = <span class="built_in">toWorld</span>(<span class="built_in">cosineSampleHemisphere</span>(u1, u2), N);</span><br><span class="line"></span><br><span class="line">        HitInfo hitInfo;</span><br><span class="line">        <span class="type">bool</span> hit = <span class="built_in">rayMarch</span>(origin, dir, <span class="number">1e-3f</span>, maxDist, hitInfo);</span><br><span class="line"></span><br><span class="line">        <span class="type">float</span> visibility = <span class="number">1.f</span>;</span><br><span class="line">        <span class="keyword">if</span>(hit) &#123;</span><br><span class="line">            <span class="type">float</span> t = hitInfo.t;</span><br><span class="line">            visibility = (t / maxDist);        <span class="comment">// 线性距离衰减</span></span><br><span class="line">            visibility = visibility * visibility; <span class="comment">// 二次衰减（近场更重）</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        accAO  += visibility;</span><br><span class="line">        <span class="keyword">if</span>(visibility &gt; <span class="number">0.1f</span>)</span><br><span class="line">            accDir = accDir + dir * visibility; <span class="comment">// 累积开放方向</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    AOResult result;</span><br><span class="line">    result.ao         = accAO / (<span class="type">float</span>)numCones;</span><br><span class="line">    result.bentNormal = (accDir.<span class="built_in">len</span>() &gt; <span class="number">1e-6f</span>) ? accDir.<span class="built_in">norm</span>() : N;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>pos + N * 5e-4f</code> 为什么必要？</strong></p>
+<p>如果从表面精确的交叉点出发，AO 射线的第一步很可能立刻打回同一个表面（因为 SDF &#x3D; 0），造成自遮蔽（self-shadowing artifact）。沿法线偏移一个小量可以确保起点在表面上方，避免这个问题。</p>
+<p>偏移量的选择：太小（如 1e-6）仍然可能触发自交（受 SDF 求解精度限制），太大（如 0.1）则起点会明显偏离表面，导致 AO 计算不准确。5e-4 是在实践中测试得到的合适值。</p>
+<p><strong>弯曲法线为什么只累积 <code>visibility &gt; 0.1f</code> 的方向？</strong></p>
+<p>完全遮蔽的方向（visibility ≈ 0）对”开放方向”的估计没有贡献，如果累积进去反而会拖拽弯曲法线。设置阈值过滤掉这些方向，使弯曲法线更准确指向真正开放的区域。</p>
+<h3 id="光照模型"><a href="#光照模型" class="headerlink" title="光照模型"></a>光照模型</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 直接光照（太阳）</span></span><br><span class="line"><span class="type">float</span> shadow = <span class="built_in">shadowRay</span>(P, sunDir) ? <span class="number">0.f</span> : <span class="number">1.f</span>;</span><br><span class="line"><span class="type">float</span> NdotL  = std::<span class="built_in">max</span>(<span class="number">0.f</span>, N.<span class="built_in">dot</span>(sunDir));</span><br><span class="line">Vec3  directDiff = albedo * sunColor * NdotL * shadow;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 镜面反射（Blinn-Phong 近似）</span></span><br><span class="line">Vec3  H_vec  = (sunDir - rd).<span class="built_in">norm</span>();   <span class="comment">// Half-vector</span></span><br><span class="line"><span class="type">float</span> spec   = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.f</span>, N.<span class="built_in">dot</span>(H_vec)), <span class="number">32.f</span>) * shadow * <span class="number">0.3f</span>;</span><br><span class="line">Vec3  directSpec = sunColor * spec;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 间接光照（弯曲法线 + AO）</span></span><br><span class="line"><span class="type">float</span> skyT      = aoResult.bentNormal.y * <span class="number">0.5f</span> + <span class="number">0.5f</span>;</span><br><span class="line">Vec3  indirColor = Vec3::<span class="built_in">lerp</span>(skyColorBot, skyColorTop, skyT);</span><br><span class="line">Vec3  indirect   = albedo * indirColor * aoResult.ao * <span class="number">0.6f</span>;</span><br><span class="line"></span><br><span class="line">Vec3 finalColor = directDiff + directSpec + indirect;</span><br></pre></td></tr></table></figure>
+
+<p><strong>间接光照的关键思路</strong>：用弯曲法线的 Y 分量对天空颜色（上蓝下白）插值，得到该方向的”天空颜色”，再乘以 AO 值（遮蔽的区域获得更少间接光）。这是一种廉价但视觉上合理的间接光照近似，等价于”用弯曲法线查询天空函数，再乘以 AO 权重”。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：Vec3-组件乘法缺失（编译错误）"><a href="#Bug-1：Vec3-组件乘法缺失（编译错误）" class="headerlink" title="Bug 1：Vec3 组件乘法缺失（编译错误）"></a>Bug 1：Vec3 组件乘法缺失（编译错误）</h3><p><strong>症状</strong>：编译报错 <code>no match for &#39;operator*&#39; (operand types are &#39;Vec3&#39; and &#39;Vec3&#39;)</code></p>
+<p><strong>出现位置</strong>：<code>albedo * sunColor * NdotL * shadow</code></p>
+<p><strong>错误假设</strong>：以为定义了 <code>Vec3 * float</code> 就够了，颜色混合用 <code>sunColor * NdotL * shadow</code> 可以先算出 <code>Vec3</code>，再和 <code>albedo</code> 相乘。</p>
+<p><strong>真实原因</strong>：<code>albedo</code> 是 <code>Vec3</code>（RGB albedo），<code>sunColor * NdotL * shadow</code> 也是 <code>Vec3</code>（加权后的光颜色）。两者相乘是分量乘法（component-wise multiply），这在物理渲染中表示”材质颜色对光颜色的滤波”，需要显式定义 <code>Vec3 * Vec3</code> 操作符。</p>
+<p><strong>修复</strong>：在 Vec3 类中添加：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Vec3 <span class="keyword">operator</span>*(<span class="type">const</span> Vec3&amp; o) <span class="type">const</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> &#123;x*o.x, y*o.y, z*o.z&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>经验</strong>：在自己写的线性代数库里，向量点乘（dot product）、叉乘（cross product）、分量乘（component-wise）语义不同，应该明确区分——<code>.dot()</code> 返回 float，<code>.cross()</code> 返回 Vec3，<code>operator*</code> 是分量乘。有些库用重载，有些用 <code>cwiseProduct()</code>，没有统一标准，写之前要明确约定。</p>
+<h3 id="Bug-2：stb-image-write-h-警告风暴"><a href="#Bug-2：stb-image-write-h-警告风暴" class="headerlink" title="Bug 2：stb_image_write.h 警告风暴"></a>Bug 2：stb_image_write.h 警告风暴</h3><p><strong>症状</strong>：编译出现大量 <code>warning: missing initializer for member &#39;stbi__write_context::...&#39;</code></p>
+<p><strong>根源</strong>：<code>stb_image_write.h</code> 是第三方头文件，其内部使用了旧式 C 结构体零初始化 <code>= {0}</code>，GCC 的 <code>-Wmissing-field-initializers</code> 会为此产生警告。</p>
+<p><strong>解决方案</strong>：添加 <code>-Wno-missing-field-initializers</code> 编译标志，专门屏蔽这个第三方警告，同时保持我们自己代码的严格警告检查。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra -Wno-missing-field-initializers</span><br></pre></td></tr></table></figure>
+
+<p><strong>经验</strong>：使用第三方头文件时，直接引入到编译单元里会”继承”其警告。更好的做法是用一个单独的 <code>.cpp</code> 文件来 <code>#include</code> 这些头文件，隔离警告范围。但对于只有一个 <code>.cpp</code> 的练习项目，针对性禁用是可以接受的。</p>
+<h3 id="Bug-3：渲染耗时评估失误（体验问题）"><a href="#Bug-3：渲染耗时评估失误（体验问题）" class="headerlink" title="Bug 3：渲染耗时评估失误（体验问题）"></a>Bug 3：渲染耗时评估失误（体验问题）</h3><p><strong>症状</strong>：640x480 + 32 AO samples + 2x AA 总计需要 30 秒</p>
+<p><strong>预期</strong>：以为 10-15 秒就能完成</p>
+<p><strong>根源</strong>：AO 计算量远超预期。每个像素需要：</p>
+<ul>
+<li>主射线：1 次 ray march（最多 200 步 SDF query）</li>
+<li>AA：2x2 &#x3D; 4 个子像素</li>
+<li>AO：每子像素 32 条射线，每条最多 200 步</li>
+<li>阴影：1 条阴影射线</li>
+</ul>
+<p>总 SDF 查询次数估算：<code>480 * 640 * 4 * (200 + 32*200 + 200) ≈ 8.4 亿次</code>。每次 SDF query 需要 5 个 <code>min/abs/sqrt</code> 操作，实际浮点运算约 40 亿次——接近现代 CPU 的单核理论上限（~10 GFLOPS），30 秒是合理的。</p>
+<p><strong>改进方向</strong>：可以用 OpenMP 并行化外层像素循环，利用多核轻松降低至 3-5 秒。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="渲染结果"><a href="#渲染结果" class="headerlink" title="渲染结果"></a>渲染结果</h3><table>
+<thead>
+<tr>
+<th>AO 遮蔽图</th>
+<th>弯曲法线可视化</th>
+<th>完整光照渲染</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_raw_output.png" alt="AO Raw"></td>
+<td><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_bent_output.png" alt="Bent Normal"></td>
+<td><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png" alt="Final"></td>
+</tr>
+</tbody></table>
+<h3 id="像素统计验证"><a href="#像素统计验证" class="headerlink" title="像素统计验证"></a>像素统计验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ao_raw_output.png:   size=253.1KB  mean=237.1  std=25.7   ✅</span><br><span class="line">ao_bent_output.png:  size=803.7KB  mean=197.9  std=34.0   ✅</span><br><span class="line">ao_final_output.png: size=336.4KB  mean=182.1  std=61.1   ✅</span><br></pre></td></tr></table></figure>
+
+<p><strong>AO 图</strong>（均值 237.1）：场景大部分区域较为开阔（接近白色），暗区集中在球体底部与地面接触处、盒子侧面阴影区域，视觉上正确。</p>
+<p><strong>弯曲法线图</strong>（均值 197.9，标准差最低）：RGB 分量编码弯曲法线方向，(0.5, 0.5, 1.0) &#x3D; 正上方（蓝紫色），偏离方向时颜色变化。中间大球顶部法线几乎垂直，颜色偏蓝；底部弯曲法线向上倾斜更多（受地面遮挡），颜色有明显变化。</p>
+<p><strong>完整渲染图</strong>（标准差最高 61.1）：光照变化最丰富，棋盘格地面、彩色球体、接触阴影都清晰可见。</p>
+<h3 id="性能数据"><a href="#性能数据" class="headerlink" title="性能数据"></a>性能数据</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>分辨率</td>
+<td>640 × 480</td>
+</tr>
+<tr>
+<td>AO 采样数</td>
+<td>32 条&#x2F;子像素</td>
+</tr>
+<tr>
+<td>超采样</td>
+<td>2×2</td>
+</tr>
+<tr>
+<td>Ray March 最大步数</td>
+<td>200</td>
+</tr>
+<tr>
+<td>总用时</td>
+<td>29.9 秒</td>
+</tr>
+<tr>
+<td>单核峰值估计</td>
+<td>~14 Mpixel-AO&#x2F;s</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>只做了漫反射 AO</strong>：本实现的 AO 只适用于漫反射间接光，对于 glossy 材质的间接镜面反射，Bent Normal 应该结合 BRDF 的波瓣形状采样，而不是直接对天空颜色插值。</p>
+</li>
+<li><p><strong>低频近似</strong>：32 条射线对高频遮蔽（比如细小的裂缝）会欠采样，产生噪声。实际使用时通常配合时域降噪（TAA）或空间滤波来平滑。</p>
+</li>
+<li><p><strong>无法处理自发光物体间接光</strong>：本实现的间接光仅来自天空。场景中如果有自发光物体，它们的间接贡献无法通过这个方案体现。</p>
+</li>
+<li><p><strong>SDF 场景限制</strong>：SDF 组合复杂场景时（如数万三角形网格）效率极低。实际项目中，AO 查询会针对三角网格使用 BVH 加速，或者在屏幕空间（SSAO）进行。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ul>
+<li><strong>OpenMP 并行化</strong>：外层循环按行并行，可将 30 秒降至 3-5 秒</li>
+<li><strong>低差异序列（Halton&#x2F;Sobol）</strong>：替换 MT 随机数，减少噪声，只需 16 条射线即可达到 32 条随机的质量</li>
+<li><strong>重要性引导</strong>：根据遮蔽历史动态调整采样方向，优先采样遮蔽梯度大的区域</li>
+<li><strong>SSAO&#x2F;GTAO</strong>：将思路迁移到屏幕空间，用深度缓冲做 AO，实时可用</li>
+<li><strong>烘焙模式</strong>：对静态场景预计算 AO 贴图，运行时直接采样，开销趋近于零</li>
+</ul>
+<h3 id="与系列其他文章的关联"><a href="#与系列其他文章的关联" class="headerlink" title="与系列其他文章的关联"></a>与系列其他文章的关联</h3><ul>
+<li><strong>Day 24（Bent Normal AO）</strong>：今天实现了与 Day 24 相同思路的锥形追踪 AO，但使用了 SDF 场景代替三角网格，AO 查询更快速，弯曲法线可视化更完整</li>
+<li><strong>Day 45（SSAO）</strong>：SSAO 是 AO 的屏幕空间近似，用深度缓冲代替 SDF 查询，牺牲精度换取实时性能</li>
+<li><strong>Day 76（SSGI）</strong>：SSGI 在 AO 基础上进一步扩展，加入了间接颜色渗透，今天的弯曲法线间接光照是 SSGI 的一个重要前身</li>
+<li><strong>Day 67（VXGI）</strong>：体素锥追踪（VXGI）是今天锥形 AO 思路在 3D 体素空间的扩展，用于全频段 GI 而不仅是 AO</li>
+</ul>
+<hr>
+<h3 id="本次实现的完整渲染管线总结"><a href="#本次实现的完整渲染管线总结" class="headerlink" title="本次实现的完整渲染管线总结"></a>本次实现的完整渲染管线总结</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">输入：SDF 场景 + 摄像机参数</span><br><span class="line"></span><br><span class="line">阶段 1：光线生成</span><br><span class="line">  - 透视投影，FOV=45°，2x2 超采样</span><br><span class="line">  - 每个子像素独立 RNG（seed = 行*列*AA...），避免时域 pattern</span><br><span class="line"></span><br><span class="line">阶段 2：主场景求交（SDF Ray March）</span><br><span class="line">  - 最大步数 200，收敛阈值 1e-4</span><br><span class="line">  - 命中：提取交点、法线（中心差分）、材质颜色</span><br><span class="line">  - 未命中：采样天空（Rayleigh-like 渐变 + 太阳光晕）</span><br><span class="line"></span><br><span class="line">阶段 3：AO 计算（每命中点）</span><br><span class="line">  - 32 条余弦加权半球射线（2个均匀随机数映射到方向）</span><br><span class="line">  - 每条射线 SDF ray march（maxDist=4 单位）</span><br><span class="line">  - 命中距离 → 二次衰减 visibility</span><br><span class="line">  - 累积：AO = Σvisibility / N，BentNormal = normalize(Σdir·vis)</span><br><span class="line"></span><br><span class="line">阶段 4：光照合成</span><br><span class="line">  - 直接漫反射：albedo × sunColor × NdotL × shadow</span><br><span class="line">  - 直接镜面：Blinn-Phong specular × shadow</span><br><span class="line">  - 间接漫反射：albedo × sky(bentNormal) × AO × 0.6</span><br><span class="line">  - 最终 = 直接漫反射 + 直接镜面 + 间接漫反射</span><br><span class="line"></span><br><span class="line">阶段 5：Gamma 校正 + 输出</span><br><span class="line">  - pow(clamp(v, 0, 1), 1/2.2)，输出 8-bit PNG</span><br><span class="line">  - 三路输出：AO 图 / 弯曲法线图 / 完整渲染图</span><br></pre></td></tr></table></figure>
+
+<p>整个管线在单核 CPU 约 30 秒内完成，输出三张分辨率 640×480 的 PNG 图像，总大小约 1.4MB。</p>
+<hr>
+<p>第 90 天。锥形追踪 AO + 弯曲法线，技术实现扎实，三张图像质量检验通过。</p>
+<p>代码：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/05/05-28-cone-traced-ao">GitHub</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/">https://chiuhoukazusa.github.io/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/AO/">AO</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%BD%AF%E5%85%89%E6%A0%85%E5%8C%96/">软光栅化</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/" title="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟</div></div><div class="info-2"><div class="info-item-1">每日编程实践: 程序化地形生成与水力侵蚀模拟 今天的项目是程序化地形生成 + 水力侵蚀模拟渲染器。使用 Perlin 噪声 fBm 生成基础高度图，然后通过粒子化水力侵蚀算法模拟大自然亿万年的地质过程，最后用软光栅化渲染出有视觉层次感的地形。  ① 背景与动机为什么需要程序化地形？开放世界游戏需要大量地形内容，手工雕刻高度图需要专业美术人员花费大量时间。程序化生成可以在运行时或离线烘焙时快速生成无限不重复的地形。 没有程序化地形生成会怎样？  手工雕刻 4096×4096 的地形高度图需要几周时间 不同区域风格难以保持一致 玩家在大地图上探索容易发现重复感  工业界实际应用场景：  《荒野大镖客2》：Rockstar 使用多层噪声 + 艺术家雕刻结合的工作流程生成美国西部地形 《No Man’s Sky》：纯程序化行星地形，每颗星球高度图都在运行时生成 Unreal Engine 5 的 Landscape 系统：提供侵蚀模拟工具作为地形后处理效果 《我的世界》：全程序化地形，柏林噪声驱动山脉、平原、洞穴生成 GIS（地理信息系统）：水文模拟用于预测真实世界的河流冲刷路径  水力...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/09/daily-coding-obj-pbr-renderer-2026-05-09/" title="每日编程实践: OBJ Mesh PBR Renderer — 从网格文件解析到 Cook-Torrance BRDF"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-09-obj-pbr-renderer/obj_pbr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-09</div><div class="info-item-2">每日编程实践: OBJ Mesh PBR Renderer — 从网格文件解析到 Cook-Torrance BRDF</div></div><div class="info-2"><div class="info-item-1">今天实现一个完整的 OBJ 格式网格渲染器，集成了 MTL 材质解析和完整的 PBR（Physically Based Rendering）管线。这是本系列第一次渲染”来自文件的网格”，而非程序化几何体，所以核心挑战在于如何在软光栅器框架中正确处理格式解析、透视插值和 PBR 着色。    ① 背景与动机为什么要支持 OBJ 格式？在之前二十多篇实践里，所有几何体都是程序化生成的：球体靠参数方程、地形靠 Perlin 噪声、布料靠弹簧网格。这种方式足以验证渲染算法，却无法展示”真实内容”——游戏引擎里 99% 的场景资产都来自 OBJ &#x2F; FBX &#x2F; GLTF 等文件格式，场景设计师在 Blender&#x2F;Maya 里建模，导出给引擎加载。 没有文件加载能力，渲染器就只是个算法演示台，不是真正的渲染器。 从工业界视角：  Unreal Engine：FBX 导入管线，最终解析为 FRawMesh 和 FStaticMeshLODResources Unity：AssetImporter 将 OBJ&#x2F;FBX 转化为内部 Mesh 对象 Blend...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/02/daily-coding-radiance-cascade-gi-2026-05-02/" title="每日编程实践: Radiance Cascade Global Illumination"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-02-radiance-cascade-gi/radiance_cascade_gi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-02</div><div class="info-item-2">每日编程实践: Radiance Cascade Global Illumination</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Radiance Cascade Global Illumination  Cornell Box 场景中的辐射级联全局光照：红墙的色溢打到中心球上，绿墙反光照亮黄盒侧面，间接光照让整个场景更真实可信。   ① 背景与动机为什么需要全局光照？实时渲染长期困扰于一个根本矛盾：现实世界中的光线会在物体之间反复弹跳，但传统的局部光照模型（Blinn-Phong、甚至 PBR）只计算光源到表面的直接照射，完全忽视了光在场景中的多次反弹。 没有全局光照时，你会看到什么问题？  漏光：阴影区域完全漆黑，即便现实中附近墙面的反射光应该能照进去 色溢缺失：红墙旁边的白色物体不会带上红色，场景像纸板模型 接触阴影过硬：物体之间的缝隙没有柔和的 ambient occlusion 感 环境光 hack 代价：为了弥补这些缺陷，引擎往往用一个魔法常量 ambient = 0.1 来糊弄过去，但这是完全假的  这就是为什么游戏从 PS3 时代看起来总像玩具——光照是错的，哪怕模型多精细也难掩这种廉价感。 工业界是怎么做的？全局光照（Global Illumination, GI）在工业界...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/30/daily-coding-shadow-volume-renderer-2026-04-30/" title="每日编程实践: Shadow Volume Renderer（阴影体积渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-30-shadow-volume-renderer/shadow_volume_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-30</div><div class="info-item-2">每日编程实践: Shadow Volume Renderer（阴影体积渲染器）</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Shadow Volume Renderer（阴影体积渲染器） 日期：2026-04-30技术标签：Shadow Volume · Stencil Buffer · Z-Fail (Carmack’s Reverse) · 轮廓边检测 · 软光栅化代码仓库：daily-coding-practice&#x2F;2026&#x2F;04&#x2F;04-30-shadow-volume-renderer   ① 背景与动机：为什么需要 Shadow Volume？阴影是使渲染图像真实可信的最关键因素之一。没有阴影，物体会看起来像是飘浮在空中，场景缺乏空间感和深度感。阴影技术的历史演进也是图形学发展史上最有意思的线索之一。 Shadow Map 的局限最广为人知的阴影技术是 Shadow Map（阴影贴图），其思路是：从光源视角渲染场景的深度图，然后在主渲染时判断每个像素是否比该深度图记录的值更远，如果是则在阴影中。Shadow Map 的优点是实现简单、性能好，是游戏行业20年来的主流方案。 然而，Shadow Map 有一个根本性的精度问题：它将连续的3D空间离散...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/24/daily-coding-bent-normal-ao-2026-04-24/" title="每日编程实践: Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-24-bent-normal-ao/bent_normal_ao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-24</div><div class="info-item-2">每日编程实践: Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽</div></div><div class="info-2"><div class="info-item-1">Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽① 背景与动机：普通 AO 的盲区问题的根源在实时渲染中，Ambient Occlusion（环境遮蔽） 是模拟间接光照最廉价的近似手段——通过计算一个表面点被周围几何体遮挡的程度，得到一个 0~1 的标量，直接乘到环境光上。 但这有一个根本性的缺陷：  普通 AO 只告诉你”这个点被遮蔽了多少”，却不告诉你”哪个方向还有光进来”。  设想一个角落里的点，它的北面和东面都被遮住，但西面和天空方向完全开放。普通 AO 算法会给它分配一个比较低的 AO 值（比如 0.4），然后将整个环境光均匀地乘以 0.4——包括西面那些本应亮起来的光。结果是整个点都偏暗，而且色调偏向错误的方向。 在游戏引擎里，这个问题尤为明显：  角色放在墙角：脸部该被天空光打亮，却被 AO 压暗了 洞穴内壁：内壁朝向洞口方向的部分该有颜色渐变，普通 AO 会让整个内壁均匀变暗 布料折叠处：折叠褶皱内侧和外侧的受光方向完全不同，普通 AO 无法区分  Bent Normal 的解法Bent Normal（弯曲法线） 是解决这个问题的关...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/17/daily-coding-pom-2026-05-17/" title="每日编程实践: Parallax Occlusion Mapping Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-17-pom/pom_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-17</div><div class="info-item-2">每日编程实践: Parallax Occlusion Mapping Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 80：Parallax Occlusion Mapping Renderer今天实现 Parallax Occlusion Mapping（视差遮挡贴图，POM）——一种用高度图驱动 UV 偏移，在平面上营造真实立体感的经典实时渲染技术。与 Normal Map 只改法线不同，POM 会让 UV 本身”随视角移动”，使砖块、石板、地表看起来真正凸出平面。实现还包含沿光线方向的 自阴影（Self-Shadowing），让高出部分在临近区域投射阴影。   ① 背景与动机为什么不够用 Normal Map？Normal Map 是改变每个像素的法线方向，欺骗光照计算，让光影看起来像有凹凸。但它有一个根本性的局限：UV 不变。当你以掠射角（grazing angle）看砖墙时，一个真正凸出的砖块应该遮挡后面的区域，但 Normal Map 无法做到这一点——在接近 90° 的视角下，砖块与墙面依然是同一平面，轮廓完全平直。 这在游戏场景中看起来非常假，特别是：  近距离观察地板（如 FPS 游戏向下看） 掠射角观察砖墙、石板路 侧视角下的岩石、浮雕  Normal ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/18/daily-coding-deferred-shading-2026-03-18/" title="每日编程实践: Deferred Shading Renderer 延迟渲染管线"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-18-Deferred-Shading-Renderer/deferred_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-18</div><div class="info-item-2">每日编程实践: Deferred Shading Renderer 延迟渲染管线</div></div><div class="info-2"><div class="info-item-1">Deferred Shading Renderer 延迟渲染管线背景：前向渲染的瓶颈在图形渲染的发展历史上，前向渲染（Forward Rendering） 是最直观的做法——每个几何体对每个光源分别着色，最终叠加。这在光源数量少的情况下工作得很好，但当你想要一个现代游戏引擎级别的场景——数百个动态点光源、面积光、体积光——前向渲染的复杂度就变成了不可接受的瓶颈。 复杂度分析（前向 vs 延迟）：    方案 每帧着色次数 典型场景 (1000球 × 100光)    前向渲染 O(geometry × lights) 100,000 次着色   延迟渲染 O(pixels × lights) 800×600 × 有效光 ≈ 按覆盖范围   Tiled Deferred O(pixels × 局部光源) 现代 AAA 标准方案   前向渲染还有另一个更隐蔽的问题：Overdraw。当多个物体重叠时，被遮挡的物体也会被着色，然后深度测试丢弃——计算量全部浪费。延迟渲染通过”先确定可见性，再着色”彻底解决了这个问题。 延迟渲染的代价是显存带宽（G-Buffer 需要存储多张全分辨率纹理...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">111</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">121</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-AO%EF%BC%8C%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E7%94%A8%E9%94%A5%E5%BD%A2%E8%BF%BD%E8%B8%AA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机：为什么需要 AO，为什么要用锥形追踪</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B2%A1%E6%9C%89-AO-%E6%97%B6%E4%BC%9A%E5%8F%91%E7%94%9F%E4%BB%80%E4%B9%88"><span class="toc-number">1.1.</span> <span class="toc-text">没有 AO 时会发生什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E7%9A%84%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8"><span class="toc-number">1.2.</span> <span class="toc-text">工业界的实际应用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%AF%E6%9B%B2%E6%B3%95%E7%BA%BF%EF%BC%88Bent-Normal%EF%BC%89%E7%9A%84%E6%84%8F%E4%B9%89"><span class="toc-number">1.3.</span> <span class="toc-text">弯曲法线（Bent Normal）的意义</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86%EF%BC%9A%E4%BB%8E%E7%A7%AF%E5%88%86%E5%88%B0%E9%94%A5%E5%BD%A2%E9%87%87%E6%A0%B7"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理：从积分到锥形采样</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#AO-%E7%9A%84%E6%95%B0%E5%AD%A6%E5%AE%9A%E4%B9%89"><span class="toc-number">2.1.</span> <span class="toc-text">AO 的数学定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%92%99%E7%89%B9%E5%8D%A1%E6%B4%9B%E4%BC%B0%E8%AE%A1"><span class="toc-number">2.2.</span> <span class="toc-text">蒙特卡洛估计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%99%E5%BC%A6%E5%8A%A0%E6%9D%83%E9%87%87%E6%A0%B7%E5%85%AC%E5%BC%8F%E6%8E%A8%E5%AF%BC"><span class="toc-number">2.3.</span> <span class="toc-text">余弦加权采样公式推导</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%AF%E6%9B%B2%E6%B3%95%E7%BA%BF%E7%9A%84%E8%AE%A1%E7%AE%97"><span class="toc-number">2.4.</span> <span class="toc-text">弯曲法线的计算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B7%9D%E7%A6%BB%E8%A1%B0%E5%87%8F%E9%81%AE%E8%94%BD%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.5.</span> <span class="toc-text">距离衰减遮蔽模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%BA%E6%99%AF%E8%A1%A8%E7%A4%BA%EF%BC%9ASDF%EF%BC%88%E6%9C%89%E5%90%91%E8%B7%9D%E7%A6%BB%E5%9C%BA%EF%BC%89"><span class="toc-number">3.2.</span> <span class="toc-text">场景表示：SDF（有向距离场）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BB%E8%A6%81%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.3.</span> <span class="toc-text">主要数据结构</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#SDF-%E7%9B%92%E5%AD%90%EF%BC%88%E6%9C%80%E5%B8%B8%E8%A7%81%E7%9A%84%E9%94%99%E8%AF%AF%E7%82%B9%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">SDF 盒子（最常见的错误点）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#SDF-%E6%B3%95%E7%BA%BF%E8%AE%A1%E7%AE%97%EF%BC%88%E6%9C%89%E9%99%90%E5%B7%AE%E5%88%86%E6%A2%AF%E5%BA%A6%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">SDF 法线计算（有限差分梯度）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%99%E5%BC%A6%E5%8A%A0%E6%9D%83%E5%8D%8A%E7%90%83%E9%87%87%E6%A0%B7"><span class="toc-number">4.3.</span> <span class="toc-text">余弦加权半球采样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#TBN-%E7%9F%A9%E9%98%B5%EF%BC%88%E6%9C%AC%E5%9C%B0%E7%A9%BA%E9%97%B4%E5%88%B0%E4%B8%96%E7%95%8C%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">4.4.</span> <span class="toc-text">TBN 矩阵（本地空间到世界空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#AO-%E4%B8%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">4.5.</span> <span class="toc-text">AO 主循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%89%E7%85%A7%E6%A8%A1%E5%9E%8B"><span class="toc-number">4.6.</span> <span class="toc-text">光照模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9AVec3-%E7%BB%84%E4%BB%B6%E4%B9%98%E6%B3%95%E7%BC%BA%E5%A4%B1%EF%BC%88%E7%BC%96%E8%AF%91%E9%94%99%E8%AF%AF%EF%BC%89"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：Vec3 组件乘法缺失（编译错误）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9Astb-image-write-h-%E8%AD%A6%E5%91%8A%E9%A3%8E%E6%9A%B4"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：stb_image_write.h 警告风暴</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E6%B8%B2%E6%9F%93%E8%80%97%E6%97%B6%E8%AF%84%E4%BC%B0%E5%A4%B1%E8%AF%AF%EF%BC%88%E4%BD%93%E9%AA%8C%E9%97%AE%E9%A2%98%EF%BC%89"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：渲染耗时评估失误（体验问题）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%B2%E6%9F%93%E7%BB%93%E6%9E%9C"><span class="toc-number">6.1.</span> <span class="toc-text">渲染结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1%E9%AA%8C%E8%AF%81"><span class="toc-number">6.2.</span> <span class="toc-text">像素统计验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">6.3.</span> <span class="toc-text">性能数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%AC%A1%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%AE%8C%E6%95%B4%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF%E6%80%BB%E7%BB%93"><span class="toc-number">7.4.</span> <span class="toc-text">本次实现的完整渲染管线总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/" title="每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-28-cone-traced-ao/ao_final_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/28/daily-coding-cone-traced-ao-2026-05-28/" title="每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）">每日编程实践: Cone-Traced Ambient Occlusion Renderer（锥形追踪环境光遮蔽渲染器）</a><time datetime="2026-05-27T21:30:00.000Z" title="发表于 2026-05-28 05:30:00">2026-05-28</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/" title="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-27-hydraulic-erosion-terrain/terrain_3d_view.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/27/daily-coding-hydraulic-erosion-terrain-2026-05-27/" title="每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟">每日编程实践: Procedural Terrain with Hydraulic Erosion — 程序化地形生成与水力侵蚀模拟</a><time datetime="2026-05-26T21:30:00.000Z" title="发表于 2026-05-27 05:30:00">2026-05-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-26-catmull-clark/catmull_clark_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Catmull-Clark 细分曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/26/daily-coding-catmull-clark-2026-05-26/" title="每日编程实践: Catmull-Clark 细分曲面渲染器">每日编程实践: Catmull-Clark 细分曲面渲染器</a><time datetime="2026-05-25T21:30:00.000Z" title="发表于 2026-05-26 05:30:00">2026-05-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05-25-lightmap-baker/lightmap_baker_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/25/daily-coding-lightmap-baker-2026-05-25/" title="每日编程实践: Lightmap Baker — 离线光照贴图烘焙器">每日编程实践: Lightmap Baker — 离线光照贴图烘焙器</a><time datetime="2026-05-24T21:35:00.000Z" title="发表于 2026-05-25 05:35:00">2026-05-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</a><time datetime="2026-05-23T21:30:00.000Z" title="发表于 2026-05-24 05:30:00">2026-05-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
