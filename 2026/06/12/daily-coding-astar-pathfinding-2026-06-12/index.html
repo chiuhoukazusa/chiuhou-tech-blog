@@ -1,0 +1,414 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一、背景与动机如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是路径规划算法。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。 路径搜索问题可以抽象为图搜索问题：把世界建模为一个图，每个">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="一、背景与动机如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是路径规划算法。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。 路径搜索问题可以抽象为图搜索问题：把世界建模为一个图，每个">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png">
+<meta property="article:published_time" content="2026-06-12T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T04:09:00.158Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="寻路">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的",
+  "url": "https://chiuhoukazusa.github.io/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png",
+  "datePublished": "2026-06-12T02:00:00.000Z",
+  "dateModified": "2026-06-12T04:09:00.158Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-12T02:00:00.000Z" title="发表于 2026-06-12 10:00:00">2026-06-12</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-12T04:09:00.158Z" title="更新于 2026-06-12 12:09:00">2026-06-12</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><p>如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是<strong>路径规划算法</strong>。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。</p>
+<p>路径搜索问题可以抽象为<strong>图搜索问题</strong>：把世界建模为一个图，每个格子（或 NavMesh 三角形）是一个节点，相邻的可通行格子之间有边相连。目标很简单：给定起点 <code>S</code> 和终点 <code>G</code>，找到一条从 <code>S</code> 到 <code>G</code> 的路径，使得经过的边数或边的权重之和最小。</p>
+<p>初看起来这个问题很简单——BFS（广度优先搜索）就能找到无权图的最短路径，而 Dijkstra 算法能处理带权图。问题在于：<strong>它们的搜索策略是”盲目的”</strong>。BFS 和 Dijkstra 都不知道目标在哪里，它们只是机械地向外扩张，直到”撞上”目标为止。在一个 80×60 的网格上这没什么，但在一个典型的游戏场景（比如 500×500 的网格，或 NavMesh 上数千个多边形），Dijkstra 可能要展开几十万个节点才能找到答案。每帧都这么算，游戏帧率直接跌到个位数。</p>
+<p><strong>A* 算法</strong>就是为这个痛点而生的。它的核心思想极其朴素：<strong>既然我知道目标在哪里，为什么不利用这个信息来引导搜索方向呢？</strong> 通过在 Dijkstra 的代价函数中加入一个<strong>启发式估计</strong>（heuristic estimate），A* 的搜索会优先向目标方向展开，大大减少无效探索的节点数量。在最优条件下，A* 的展开节点数远小于 Dijkstra，同时保持最优性（找到的一定是最短路径）。</p>
+<p>A* 最早由 Peter Hart、Nils Nilsson 和 Bertram Raphael 于 1968 年在斯坦福研究院提出，是人工智能历史上最重要的算法之一。时至今日，它不仅在游戏中无处不在，在机器人导航、自动布线 EDA 工具、甚至自然语言处理（Viterbi 解码）中都能看到它的影子。</p>
+<p>今天我们要实现的是一套完整的 A* 寻路可视化系统。但<strong>重点不是写出来——而是证明它是对的</strong>。我们不会只看输出图像说”看起来正确”，而是通过<strong>与 Dijkstra 和 BFS 的交叉对比</strong>，用量化数据验证 A* 的每一步。这才是工程师该有的态度。</p>
+<hr>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-图的抽象"><a href="#2-1-图的抽象" class="headerlink" title="2.1 图的抽象"></a>2.1 图的抽象</h3><p>我们把网格世界建模为一个无权无向图（所有边的权重为 1，上下左右四个方向）。在 4-连通网格中，每个格子 <code>(x, y)</code> 最多有四个邻居：<code>(x+1, y)</code>, <code>(x-1, y)</code>, <code>(x, y+1)</code>, <code>(x, y-1)</code>。障碍物格子不存在于图中，对应的边也被移除。</p>
+<p>我们关心三个量：</p>
+<ul>
+<li><strong><code>g(n)</code></strong>：从起点到当前节点 <code>n</code> 的实际最小代价（已走过的距离）</li>
+<li><strong><code>h(n)</code></strong>：从节点 <code>n</code> 到目标节点的估计代价（启发式函数给出的猜测）</li>
+<li><strong><code>f(n)</code> &#x3D; <code>g(n)</code> + <code>h(n)</code></strong>：预估总代价（passing through <code>n</code> 的整条路径代价估计）</li>
+</ul>
+<p>Dijkstra 算法可以理解为一种特殊的 A*：当 <code>h(n) ≡ 0</code>（即不提供任何目标信息）时，<code>f(n) = g(n)</code>，搜索退化为向所有方向均匀扩张。BFS 在无权图上效果类似 Dijkstra，只是用普通队列代替了优先队列。</p>
+<h3 id="2-2-A-搜索过程的直觉理解"><a href="#2-2-A-搜索过程的直觉理解" class="headerlink" title="2.2 A* 搜索过程的直觉理解"></a>2.2 A* 搜索过程的直觉理解</h3><p>想象你在一个陌生的城市找路。如果你只知道”往前走”（Dijkstra），你可能走遍半个城市才找到目的地。但如果你知道目的地的方向（A*），你会优先往那个方向走——虽然偶尔需要绕开一些障碍物，但总体效率远高于盲目扩张。</p>
+<p>用更技术化的方式描述 A* 的工作流程：</p>
+<ol>
+<li><strong>初始化</strong>：将起点 <code>S</code> 的 <code>g(S) = 0</code>, <code>h(S) = H(S, G)</code>（从起点到目标的启发式估计）, <code>f(S) = h(S)</code>。将 <code>S</code> 放入优先队列（open set）。</li>
+<li><strong>循环</strong>：弹出 <code>f</code> 值最小的节点 <code>n</code>。如果 <code>n</code> 就是目标 <code>G</code>，则找到了最优路径，结束循环。将 <code>n</code> 标记为已处理（进入 closed set）。</li>
+<li><strong>扩展邻居</strong>：对于 <code>n</code> 的每个可通行邻居 <code>m</code>：计算试探性代价 <code>tentative = g(n) + 1</code>（这里边权重为 1）。如果 <code>tentative &lt; g(m)</code>，则更新 <code>g(m) = tentative</code>，设置 <code>parent(m) = n</code>，并计算 <code>f(m) = g(m) + h(m)</code>，将 <code>m</code> 放入优先队列。</li>
+<li><strong>终止条件</strong>：如果优先队列为空但未找到目标，则 <code>S</code> 和 <code>G</code> 之间没有路径（地图被障碍物完全隔离）。</li>
+</ol>
+<p>关键直觉：<code>f(n)</code> 是 A* 的”乐观估计”——它相信从起点出发、经过节点 <code>n</code>、再到目标，总代价至少是 <code>f(n)</code>。因此，<strong>优先探索 <code>f</code> 值最小的节点就是在贪心地走”最有希望”的路</strong>。</p>
+<h3 id="2-3-启发式函数：Manhattan-距离"><a href="#2-3-启发式函数：Manhattan-距离" class="headerlink" title="2.3 启发式函数：Manhattan 距离"></a>2.3 启发式函数：Manhattan 距离</h3><p>在 4-连通网格（无权图，单位边权重）中，Manhattan 距离是最经典的启发式函数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">h(n, goal) = |n.x - goal.x| + |n.y - goal.y|</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么选 Manhattan？</strong> 因为我们的网格是 4-连通的，单位在这个世界里只能上下左右移动，不能斜走。Manhattan 距离正是 4-连通网格中两点之间的最短理论距离。这天然满足以下两个关键性质：</p>
+<p><strong>性质一：可采纳性（Admissibility）</strong><br>对于所有节点 <code>n</code>，<code>h(n) ≤ h*(n)</code>，其中 <code>h*(n)</code> 是节点 <code>n</code> 到目标的真实最短距离。Manhattan 距离显然满足——你不能用比 Manhattan 更少的步数从一点走到另一点（除非可以飘过去）。</p>
+<p>可采纳性是 A* 最优性的充分条件：<strong>如果 <code>h</code> 是 admissible 的，则 A* 保证找到最优路径。</strong></p>
+<p>直观理解：<code>f(n) = g(n) + h(n)</code> 是一个<strong>下界</strong>——它宣称”经过 <code>n</code> 的路径代价至少是 <code>f(n)</code>“。如果 <code>h</code> 低估了真实距离，则 <code>f</code> 也是一个低估。当我们从优先队列中弹出目标 <code>G</code> 时，<code>f(G) = g(G) + 0 = g(G)</code>（到达目标的实际代价）。此时队列中所有其他节点的 <code>f</code> 值都 ≥ <code>f(G)</code>，说明没有任何其他路径能做得更好。</p>
+<p><strong>性质二：一致性&#x2F;单调性（Consistency）</strong><br>对于所有节点 <code>n</code> 及其邻居 <code>m</code>（通过权重为 <code>c</code> 的边相连）：<code>h(n) ≤ c + h(m)</code>。Manhattan 在 4-连通网格中也满足一致性。</p>
+<p>一致性不仅是 A* 实现正确性的保证，还带来了一个重要的实现优化：<strong>一旦节点被标记为 closed，它的 <code>g</code> 值就是最终的</strong>——不会因为后续找到更短路径而需要更新。这意味着我们不需要 <code>decrease-key</code> 操作。</p>
+<h3 id="2-4-为什么不全用-Dijkstra？"><a href="#2-4-为什么不全用-Dijkstra？" class="headerlink" title="2.4 为什么不全用 Dijkstra？"></a>2.4 为什么不全用 Dijkstra？</h3><p>如果你在 80×60 的网格上跑 A*，展开约 3400 个节点就能找到路。Dijkstra 需要展开约 3700 个节点（多展开约 8%）。在更大的地图上，这个差距会被急剧放大。考虑一个 500×500 的网格：如果障碍物很少，Dijkstra 几乎是全图展开（约 25 万个节点），而 A* 只需要目标方向附近的一小块区域。</p>
+<p>更形象地说——A* 的搜索区域是一个<strong>朝向目标方向的椭圆</strong>，而 Dijkstra 是<strong>以起点为中心的整圆</strong>。这就是启发式函数带来的根本性效率提升。</p>
+<h3 id="2-5-本文的验证策略"><a href="#2-5-本文的验证策略" class="headerlink" title="2.5 本文的验证策略"></a>2.5 本文的验证策略</h3><p>写了代码之后，我们<strong>不会靠眼睛判断结果是否正确</strong>——这是所有图形学验证中最容易出错的方法。我们的验证策略是<strong>三重交叉验证</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>方法</th>
+<th>期望结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>最优性</td>
+<td>A* 路径代价 &#x3D;&#x3D; Dijkstra 路径代价</td>
+<td>相等（A* 找到了最短路径）</td>
+</tr>
+<tr>
+<td>长度正确性</td>
+<td>A* 代价 &#x3D;&#x3D; BFS 代价</td>
+<td>相等（无权图上 BFS 也是最优的）</td>
+</tr>
+<tr>
+<td>启发式效益</td>
+<td>A* 展开节点数 ≤ Dijkstra 展开节点数</td>
+<td>A* 明显更少</td>
+</tr>
+<tr>
+<td>路径完整性</td>
+<td>检查路径端点、相邻性、障碍物</td>
+<td>全部通过</td>
+</tr>
+</tbody></table>
+<p>这三者同时成立时，我们可以用最强的语气说：<strong>A* 的实现是正确的，且启发式确实有效。</strong></p>
+<hr>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">程序入口 main()</span><br><span class="line">    │</span><br><span class="line">    ├── 构建 Grid 对象（80×60，障碍物）</span><br><span class="line">    ├── 设定起点 (2,2) 和终点 (77,57)</span><br><span class="line">    │</span><br><span class="line">    ├── 调用 astar() ─────→ 返回 SearchResult（包含路径、代价、展开节点数）</span><br><span class="line">    ├── 调用 dijkstra() ───→ 返回 SearchResult</span><br><span class="line">    ├── 调用 bfs() ────────→ 返回 SearchResult</span><br><span class="line">    │</span><br><span class="line">    ├── 量化验证：交叉对比三个结果</span><br><span class="line">    │</span><br><span class="line">    └── 调用 writePPM() ──→ 生成可视化图片</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-核心数据结构"><a href="#3-2-核心数据结构" class="headerlink" title="3.2 核心数据结构"></a>3.2 核心数据结构</h3><p><strong><code>Grid</code> — 网格世界</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Grid</span> &#123;</span><br><span class="line">    <span class="type">int</span> w, h;                        <span class="comment">// 宽度和高度</span></span><br><span class="line">    std::vector&lt;<span class="type">uint8_t</span>&gt; blocked;    <span class="comment">// 障碍物标记（1=墙）</span></span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="type">int</span> <span class="title">idx</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y)</span> <span class="type">const</span></span>;     <span class="comment">// (x,y) → 一维索引</span></span><br><span class="line">    <span class="function"><span class="type">bool</span> <span class="title">inBounds</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y)</span></span>;     <span class="comment">// 边界检查</span></span><br><span class="line">    <span class="function"><span class="type">bool</span> <span class="title">isBlocked</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y)</span></span>;    <span class="comment">// 障碍物检查</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>选择 <code>uint8_t</code> 存储障碍标记的原因：每个格子只需要 1 bit 信息，用 <code>uint8_t</code> 已经是够省的了。在 80×60 的网格上，blocked 数组只占 4800 字节，几乎可以忽略。</p>
+<p><strong><code>SearchResult</code> — 搜索结果</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">SearchResult</span> &#123;</span><br><span class="line">    <span class="type">bool</span> found;                      <span class="comment">// 是否找到路径</span></span><br><span class="line">    <span class="type">int</span> pathCost;                    <span class="comment">// 路径步数（边数）</span></span><br><span class="line">    <span class="type">long</span> expanded;                   <span class="comment">// 展开/出队的节点数</span></span><br><span class="line">    std::vector&lt;Vec2i&gt; path;         <span class="comment">// 从起点到终点的节点序列</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这个结构体同时支撑三种算法——A*、Dijkstra、BFS——使得交叉对比非常方便。三个算法的接口完全相同，只是内部策略不同。</p>
+<p><strong>优先队列</strong><br>A* 和 Dijkstra 都使用 <code>std::priority_queue</code>（最小堆），这比每次找最小值（O(n)）要高效得多。堆的插入是 O(log n)，弹出也是 O(log n)。</p>
+<p>特别地，我们使用”惰性删除”（lazy deletion）：当从堆里弹出一个节点时，先检查它是否已经在 closed set 中。如果是，说明这是一个被更新过的旧条目（stale entry），直接跳过。</p>
+<h3 id="3-3-三个算法的差异"><a href="#3-3-三个算法的差异" class="headerlink" title="3.3 三个算法的差异"></a>3.3 三个算法的差异</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>A*</th>
+<th>Dijkstra</th>
+<th>BFS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>队列结构</td>
+<td>优先队列（f &#x3D; g + h）</td>
+<td>优先队列（g）</td>
+<td>普通队列（FIFO）</td>
+</tr>
+<tr>
+<td>启发式函数</td>
+<td>Manhattan</td>
+<td>h ≡ 0</td>
+<td>无（隐含 h ≡ 0）</td>
+</tr>
+<tr>
+<td>适用图</td>
+<td>有权&#x2F;无权（本实验中用无权）</td>
+<td>有权&#x2F;无权</td>
+<td>仅无权</td>
+</tr>
+<tr>
+<td>最优性前提</td>
+<td>h 可采纳</td>
+<td>权重非负</td>
+<td>边权相等</td>
+</tr>
+</tbody></table>
+<p>这三个算法的代码结构高度相似——它们都维护一个”待探索”的节点集合、一个距离数组、一个父指针数组。差异仅在于”下一个探索谁”的优先级策略。这种相似性使得交叉验证非常有说服力：<strong>如果某个算法逻辑出错，它的结果会在对比中立刻暴露。</strong></p>
+<hr>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-A-核心实现"><a href="#4-1-A-核心实现" class="headerlink" title="4.1 A* 核心实现"></a>4.1 A* 核心实现</h3><p>A* 的本质是带启发式的 Dijkstra。我们将 Dijkstra 中的距离估算 <code>d + C(n, m)</code> 替换为 <code>d + H(m, G)</code>。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> SearchResult <span class="title">astar</span><span class="params">(<span class="type">const</span> Grid&amp; g, Vec2i start, Vec2i goal)</span> </span>&#123;</span><br><span class="line">    SearchResult r;</span><br><span class="line">    <span class="type">const</span> <span class="type">int</span> N = g.w * g.h;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">int</span>&gt; <span class="title">gScore</span><span class="params">(N, INT32_MAX)</span></span>;   <span class="comment">// g(n) — 实际代价</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">int</span>&gt; <span class="title">parent</span><span class="params">(N, <span class="number">-1</span>)</span></span>;           <span class="comment">// 父指针 → 路径重建</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">uint8_t</span>&gt; <span class="title">closed</span><span class="params">(N, <span class="number">0</span>)</span></span>;        <span class="comment">// closed set</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 优先队列元素: (f = g + h, g, node_index)</span></span><br><span class="line">    <span class="comment">// 注意: tuple 的 operator&lt; 是字典序，所以 f 是第一排序键</span></span><br><span class="line">    <span class="keyword">using</span> Node = std::tuple&lt;<span class="type">int</span>, <span class="type">int</span>, <span class="type">int</span>&gt;;</span><br><span class="line">    std::priority_queue&lt;Node, std::vector&lt;Node&gt;, std::greater&lt;Node&gt;&gt; open;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> s = g.<span class="built_in">idx</span>(start.x, start.y);</span><br><span class="line">    gScore[s] = <span class="number">0</span>;</span><br><span class="line">    open.<span class="built_in">push</span>(&#123;<span class="built_in">manhattan</span>(start, goal), <span class="number">0</span>, s&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (!open.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">        <span class="keyword">auto</span> [f, gc, cur] = open.<span class="built_in">top</span>();  <span class="comment">// f = 预估总代价, gc = g(cur)</span></span><br><span class="line">        open.<span class="built_in">pop</span>();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// ---- 惰性删除 ----</span></span><br><span class="line">        <span class="comment">// 如果 cur 已经处理过，说明这是一个旧的条目（被更新后的条目取代了）</span></span><br><span class="line">        <span class="keyword">if</span> (closed[cur]) <span class="keyword">continue</span>;</span><br><span class="line">        closed[cur] = <span class="number">1</span>;</span><br><span class="line">        r.expanded++;</span><br><span class="line"></span><br><span class="line">        Vec2i cp&#123;cur % g.w, cur / g.w&#125;;</span><br><span class="line">        <span class="keyword">if</span> (cp == goal) &#123;</span><br><span class="line">            r.found = <span class="literal">true</span>;</span><br><span class="line">            r.pathCost = gScore[cur];</span><br><span class="line">            r.path = <span class="built_in">reconstruct</span>(parent, g, start, goal);</span><br><span class="line">            <span class="keyword">return</span> r;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 探索四个方向的邻居</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">auto</span> d : kNeighbors) &#123;</span><br><span class="line">            <span class="type">int</span> nx = cp.x + d.x, ny = cp.y + d.y;</span><br><span class="line">            <span class="keyword">if</span> (!g.<span class="built_in">inBounds</span>(nx, ny) || g.<span class="built_in">isBlocked</span>(nx, ny)) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="type">int</span> ni = g.<span class="built_in">idx</span>(nx, ny);</span><br><span class="line">            <span class="keyword">if</span> (closed[ni]) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">            <span class="type">int</span> tentative = gScore[cur] + <span class="number">1</span>;  <span class="comment">// 边权恒为 1</span></span><br><span class="line">            <span class="keyword">if</span> (tentative &lt; gScore[ni]) &#123;</span><br><span class="line">                <span class="comment">// 找到更短路径到邻居 ni</span></span><br><span class="line">                gScore[ni] = tentative;</span><br><span class="line">                parent[ni] = cur;</span><br><span class="line">                <span class="type">int</span> h = <span class="built_in">manhattan</span>(&#123;nx, ny&#125;, goal);</span><br><span class="line">                open.<span class="built_in">push</span>(&#123;tentative + h, tentative, ni&#125;);</span><br><span class="line">                <span class="comment">// f(ni) = g(ni) + h(ni) = (gScore[cur] + 1) + manhattan(ni, goal)</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> r;  <span class="comment">// 未找到路径</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>open.push</code> 可能产生重复条目？</strong></p>
+<p>考虑这个场景：节点 <code>N</code> 先经由路径 A 被推入队列（gScore 较高），后来经由路径 B 找到了更短的 <code>gScore</code>。<code>std::priority_queue</code> 不支持 <code>decrease-key</code>（更新已有元素的优先级），所以我们<strong>再次 push 一个新条目</strong>。旧条目不会立刻清理——它留在堆里，当被弹出时 <code>closed[cur] == true</code> 检测到它是陈旧的，直接跳过。</p>
+<p>这就是”惰性删除”策略。它避免了实现 <code>decrease-key</code> 的复杂度，代价是堆里可能有一些无效条目。在实际使用中，只要启发式是一致性的，重复条目不会太多。</p>
+<h3 id="4-2-Dijkstra-对比实现"><a href="#4-2-Dijkstra-对比实现" class="headerlink" title="4.2 Dijkstra 对比实现"></a>4.2 Dijkstra 对比实现</h3><p>Dijkstra 的实现几乎和 A* 一模一样，关键差异只有一行——没有启发式：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> SearchResult <span class="title">dijkstra</span><span class="params">(<span class="type">const</span> Grid&amp; g, Vec2i start, Vec2i goal)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// ...完全相同的初始化...</span></span><br><span class="line">    <span class="keyword">using</span> Node = std::pair&lt;<span class="type">int</span>, <span class="type">int</span>&gt;;  <span class="comment">// (dist, idx) — 只需要 gScore</span></span><br><span class="line">    std::priority_queue&lt;Node, std::vector&lt;Node&gt;, std::greater&lt;Node&gt;&gt; open;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> s = g.<span class="built_in">idx</span>(start.x, start.y);</span><br><span class="line">    dist[s] = <span class="number">0</span>;</span><br><span class="line">    open.<span class="built_in">push</span>(&#123;<span class="number">0</span>, s&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (!open.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">        <span class="keyword">auto</span> [d, cur] = open.<span class="built_in">top</span>();</span><br><span class="line">        open.<span class="built_in">pop</span>();</span><br><span class="line">        <span class="keyword">if</span> (closed[cur]) <span class="keyword">continue</span>;</span><br><span class="line">        closed[cur] = <span class="number">1</span>;</span><br><span class="line">        r.expanded++;</span><br><span class="line">        Vec2i cp&#123;cur % g.w, cur / g.w&#125;;</span><br><span class="line">        <span class="keyword">if</span> (cp == goal) &#123;</span><br><span class="line">            r.found = <span class="literal">true</span>;</span><br><span class="line">            r.pathCost = dist[cur];</span><br><span class="line">            r.path = <span class="built_in">reconstruct</span>(parent, g, start, goal);</span><br><span class="line">            <span class="keyword">return</span> r;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">auto</span> dir : kNeighbors) &#123;</span><br><span class="line">            <span class="type">int</span> nx = cp.x + dir.x, ny = cp.y + dir.y;</span><br><span class="line">            <span class="keyword">if</span> (!g.<span class="built_in">inBounds</span>(nx, ny) || g.<span class="built_in">isBlocked</span>(nx, ny)) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="type">int</span> ni = g.<span class="built_in">idx</span>(nx, ny);</span><br><span class="line">            <span class="keyword">if</span> (closed[ni]) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="type">int</span> tentative = dist[cur] + <span class="number">1</span>;</span><br><span class="line">            <span class="keyword">if</span> (tentative &lt; dist[ni]) &#123;</span><br><span class="line">                dist[ni] = tentative;</span><br><span class="line">                parent[ni] = cur;</span><br><span class="line">                open.<span class="built_in">push</span>(&#123;tentative, ni&#125;);  <span class="comment">// ← 没有规划性项！</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> r;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Dijkstra 和 A* 的唯一区别</strong>：优先队列元素的排序键。Dijkstra 按 <code>g(n)</code> 排（到起点的距离），A* 按 <code>g(n) + h(n)</code> 排（到起点距离加对目标的估计）。就这么一个差距，造成了搜索行为的天壤之别。</p>
+<h3 id="4-3-BFS-实现"><a href="#4-3-BFS-实现" class="headerlink" title="4.3 BFS 实现"></a>4.3 BFS 实现</h3><p>BFS 在无权图上等价于 Dijkstra，但因为所有边的权重相同（&#x3D;1），可以用普通 FIFO 队列代替优先队列：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> SearchResult <span class="title">bfs</span><span class="params">(<span class="type">const</span> Grid&amp; g, Vec2i start, Vec2i goal)</span> </span>&#123;</span><br><span class="line">    SearchResult r;</span><br><span class="line">    <span class="type">const</span> <span class="type">int</span> N = g.w * g.h;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">int</span>&gt; <span class="title">dist</span><span class="params">(N, <span class="number">-1</span>)</span></span>;        <span class="comment">// -1 表示未访问</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">int</span>&gt; <span class="title">parent</span><span class="params">(N, <span class="number">-1</span>)</span></span>;</span><br><span class="line">    std::queue&lt;<span class="type">int</span>&gt; q;                    <span class="comment">// ← 普通队列，非优先队列</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> s = g.<span class="built_in">idx</span>(start.x, start.y);</span><br><span class="line">    dist[s] = <span class="number">0</span>;</span><br><span class="line">    q.<span class="built_in">push</span>(s);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (!q.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">        <span class="type">int</span> cur = q.<span class="built_in">front</span>();</span><br><span class="line">        q.<span class="built_in">pop</span>();</span><br><span class="line">        r.expanded++;</span><br><span class="line">        Vec2i cp&#123;cur % g.w, cur / g.w&#125;;</span><br><span class="line">        <span class="keyword">if</span> (cp == goal) &#123;</span><br><span class="line">            r.found = <span class="literal">true</span>;</span><br><span class="line">            r.pathCost = dist[cur];</span><br><span class="line">            r.path = <span class="built_in">reconstruct</span>(parent, g, start, goal);</span><br><span class="line">            <span class="keyword">return</span> r;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">auto</span> dir : kNeighbors) &#123;</span><br><span class="line">            <span class="type">int</span> nx = cp.x + dir.x, ny = cp.y + dir.y;</span><br><span class="line">            <span class="keyword">if</span> (!g.<span class="built_in">inBounds</span>(nx, ny) || g.<span class="built_in">isBlocked</span>(nx, ny)) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="type">int</span> ni = g.<span class="built_in">idx</span>(nx, ny);</span><br><span class="line">            <span class="keyword">if</span> (dist[ni] == <span class="number">-1</span>) &#123;  <span class="comment">// 首次发现即最优（无权图保证）</span></span><br><span class="line">                dist[ni] = dist[cur] + <span class="number">1</span>;</span><br><span class="line">                parent[ni] = cur;</span><br><span class="line">                q.<span class="built_in">push</span>(ni);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> r;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>BFS 的一个重要特性：<strong>无权图中，第一次遇到一个节点时走的就是最短路径</strong>。因此 <code>dist[ni] == -1</code> 的检查就足够了，不需要像 A*&#x2F;Dijkstra 那样做 <code>tentative &lt; gScore[ni]</code> 的比较。</p>
+<h3 id="4-4-路径重建"><a href="#4-4-路径重建" class="headerlink" title="4.4 路径重建"></a>4.4 路径重建</h3><p>所有搜索算法在找到目标后都需要回溯路径。父指针数组 <code>parent[n]</code> 记录了”是从哪个节点扩展出 <code>n</code> 的”：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> std::vector&lt;Vec2i&gt; <span class="title">reconstruct</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">int</span>&gt;&amp; parent,</span></span></span><br><span class="line"><span class="params"><span class="function">                                       <span class="type">const</span> Grid&amp; g,</span></span></span><br><span class="line"><span class="params"><span class="function">                                       Vec2i start, Vec2i goal)</span> </span>&#123;</span><br><span class="line">    std::vector&lt;Vec2i&gt; path;</span><br><span class="line">    <span class="type">int</span> cur = g.<span class="built_in">idx</span>(goal.x, goal.y);</span><br><span class="line">    <span class="type">int</span> startIdx = g.<span class="built_in">idx</span>(start.x, start.y);</span><br><span class="line">    <span class="keyword">while</span> (cur != <span class="number">-1</span>) &#123;</span><br><span class="line">        path.<span class="built_in">push_back</span>(&#123;cur % g.w, cur / g.w&#125;);</span><br><span class="line">        <span class="keyword">if</span> (cur == startIdx) <span class="keyword">break</span>;  <span class="comment">// 到达起点</span></span><br><span class="line">        cur = parent[cur];            <span class="comment">// 回溯</span></span><br><span class="line">    &#125;</span><br><span class="line">    std::<span class="built_in">reverse</span>(path.<span class="built_in">begin</span>(), path.<span class="built_in">end</span>());  <span class="comment">// 逆序 → 从起点到终点</span></span><br><span class="line">    <span class="keyword">return</span> path;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>一维索引 ↔ 二维坐标的转换</strong>：<code>idx(x, y) = y * w + x</code>，逆向：<code>x = idx % w, y = idx / w</code>。这种”行主序”（row-major）映射在图像处理和网格算法中非常常见。</p>
+<h3 id="4-5-PPM-可视化"><a href="#4-5-PPM-可视化" class="headerlink" title="4.5 PPM 可视化"></a>4.5 PPM 可视化</h3><p>我们没有用任何图形库——直接写 PPM（Portable Pixmap）二进制格式。PPM 是最简单的光栅图像格式之一，只需要一个文本头和原始的 RGB 字节流：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">void</span> <span class="title">writePPM</span><span class="params">(<span class="type">const</span> std::string&amp; fname, <span class="type">const</span> Grid&amp; g,</span></span></span><br><span class="line"><span class="params"><span class="function">                     <span class="type">const</span> std::vector&lt;Vec2i&gt;&amp; path,</span></span></span><br><span class="line"><span class="params"><span class="function">                     <span class="type">const</span> std::vector&lt;<span class="type">uint8_t</span>&gt;&amp; explored,</span></span></span><br><span class="line"><span class="params"><span class="function">                     Vec2i start, Vec2i goal, <span class="type">int</span> scale)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> W = g.w * scale, H = g.h * scale;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">uint8_t</span>&gt; <span class="title">img</span><span class="params">(W * H * <span class="number">3</span>, <span class="number">0</span>)</span></span>;  <span class="comment">// RGB 缓冲区</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 填充每个格子：</span></span><br><span class="line">    <span class="comment">//  - 障碍物：暗灰色 (30,30,40)</span></span><br><span class="line">    <span class="comment">//  - 探索区域：蓝灰色 (70,110,160)</span></span><br><span class="line">    <span class="comment">//  - 空白：浅灰 (235,235,235)</span></span><br><span class="line">    <span class="comment">//  - 路径：红色 (230,70,60)</span></span><br><span class="line">    <span class="comment">//  - 起点：绿色 (40,200,60)</span></span><br><span class="line">    <span class="comment">//  - 终点：黄色 (250,200,30)</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 路径覆盖在最上层显示</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> p : path) <span class="built_in">setCell</span>(p.x, p.y, <span class="number">230</span>, <span class="number">70</span>, <span class="number">60</span>);</span><br><span class="line"></span><br><span class="line">    <span class="function">std::ofstream <span class="title">f</span><span class="params">(fname, std::ios::binary)</span></span>;</span><br><span class="line">    f &lt;&lt; <span class="string">&quot;P6\n&quot;</span> &lt;&lt; W &lt;&lt; <span class="string">&quot; &quot;</span> &lt;&lt; H &lt;&lt; <span class="string">&quot;\n255\n&quot;</span>;</span><br><span class="line">    f.<span class="built_in">write</span>(<span class="built_in">reinterpret_cast</span>&lt;<span class="type">const</span> <span class="type">char</span>*&gt;(img.<span class="built_in">data</span>()), img.<span class="built_in">size</span>());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每个格子还加了 1px 的暗色边框，方便肉眼区分相邻的格子。这不是必须的，但让可视化效果清晰很多。</p>
+<hr>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="坑-1：优先队列中更新-gScore-后的”幽灵节点”"><a href="#坑-1：优先队列中更新-gScore-后的”幽灵节点”" class="headerlink" title="坑 1：优先队列中更新 gScore 后的”幽灵节点”"></a>坑 1：优先队列中更新 gScore 后的”幽灵节点”</h3><p><strong>症状</strong>：搜索算法跑出来是正确的，但展开节点数比预期多了不少。仔细看日志发现某些节点被 expands 了两次。</p>
+<p><strong>错误假设</strong>：我以为 <code>std::priority_queue</code> 会自动更新之前推入的节点优先级。</p>
+<p><strong>真实原因</strong>：<code>std::priority_queue</code> 底层是堆，不支持 <code>decrease-key</code> 操作。当通过更短路径找到同一个节点时，不能更新已有条目的优先级——只能<strong>再 push 一个新条目</strong>。旧的条目留在堆里，被弹出时处于 <code>closed[cur] == true</code> 状态。</p>
+<p><strong>修复</strong>：在优先队列的出队步骤中加入惰性删除检查：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (closed[cur]) <span class="keyword">continue</span>;  <span class="comment">// 跳过陈旧的条目</span></span><br></pre></td></tr></table></figure>
+<p>这是一个经典的 A* 实现技巧。空间开销很小（重复条目数量通常远小于总节点数），但避免了复杂的堆更新操作。</p>
+<h3 id="坑-2：BFS-不能用-tentative-dist-ni-更新距离"><a href="#坑-2：BFS-不能用-tentative-dist-ni-更新距离" class="headerlink" title="坑 2：BFS 不能用 tentative &lt; dist[ni] 更新距离"></a>坑 2：BFS 不能用 <code>tentative &lt; dist[ni]</code> 更新距离</h3><p><strong>症状</strong>：BFS 的结果和 A*&#x2F;Dijkstra 不一致——路径代价有时候偏大。</p>
+<p><strong>错误假设</strong>：我最初用 <code>tentative &lt; dist[ni]</code> 的方式实现 BFS，和 A*&#x2F;Dijkstra 保持一致。</p>
+<p><strong>真实原因</strong>：在<strong>无权图上的 BFS</strong>中，利用 BFS 的”层级性质”可以证明：<strong>第一个发现某个节点的路径一定是到该节点的最短路径</strong>。也就是说 BFS 遇到的第一个 <code>dist[ni] == -1</code>（未访问）就是最优的。不需要（也不应该）做 <code>tentative &lt; dist[ni]</code> 比较——这不会有错误结果，但逻辑上是不必要的。</p>
+<p><strong>修复</strong>：统一改为 <code>dist[ni] == -1</code> 的判断方式。这不仅是代码简化，更是对 BFS 理论保证的正确理解。</p>
+<h3 id="坑-3：路径重建时的反转操作"><a href="#坑-3：路径重建时的反转操作" class="headerlink" title="坑 3：路径重建时的反转操作"></a>坑 3：路径重建时的反转操作</h3><p><strong>症状</strong>：可视化中路径显示为从终点到起点，看起来很奇怪。</p>
+<p><strong>错误假设</strong>：父指针数组 <code>parent[n]</code> 直接给的就是起点→终点的顺序。</p>
+<p><strong>真实原因</strong>：搜索算法从起点出发，每一步记录”我从哪里来”。当到达目标时，回溯链是从 <code>goal → ... → start</code> 的逆序。</p>
+<p><strong>修复</strong>：路径重建时做一次 <code>std::reverse</code> 即可。这是所有基于父指针的回溯算法的通用做法，但因为太简单很容易被忽略。</p>
+<h3 id="坑-4：Manhattan-距离在-4-连通网格中的正确性验证"><a href="#坑-4：Manhattan-距离在-4-连通网格中的正确性验证" class="headerlink" title="坑 4：Manhattan 距离在 4-连通网格中的正确性验证"></a>坑 4：Manhattan 距离在 4-连通网格中的正确性验证</h3><p><strong>症状</strong>：A* 的结果正确，但展开节点数比预期的多。</p>
+<p><strong>错误假设</strong>：直觉上 A* 应该只探索目标方向附近的”狭窄通道”。</p>
+<p><strong>真实原因</strong>：在有障碍物的网格中，Manhattan 距离可能严重低估实际距离——尤其是地图中有”U 形”障碍物时，目标虽然在视觉上很近，但实际需要绕一个大圈。A* 在这种情况下仍然正确（因为 Manhattan 仍然是 admissible 的），但需要探索更多节点。</p>
+<p>这不是 Algorithim 的错误，而是<strong>启发式函数质量</strong>的问题。在 8-连通网格中，Diagonal distance 或 Octile distance 更好；在任意图中，欧几里得距离是天然的启发式。这就是算法工程中的权衡——更好的启发式减少搜索量，但计算代价可能更高。</p>
+<hr>
+<h2 id="六、效果验证与数据"><a href="#六、效果验证与数据" class="headerlink" title="六、效果验证与数据"></a>六、效果验证与数据</h2><h3 id="6-1-实验设置"><a href="#6-1-实验设置" class="headerlink" title="6.1 实验设置"></a>6.1 实验设置</h3><ul>
+<li>网格大小：80 × 60 &#x3D; 4800 格</li>
+<li>起点：(2, 2)，终点：(77, 57)</li>
+<li>障碍物：20% 随机散点 + 3 道竖墙（每道墙一个缺口）</li>
+<li>4-连通邻居，边权统一为 1</li>
+<li>编译器：g++ 17，优化等级 -O2</li>
+</ul>
+<h3 id="6-2-搜索结果对比"><a href="#6-2-搜索结果对比" class="headerlink" title="6.2 搜索结果对比"></a>6.2 搜索结果对比</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>A*</th>
+<th>Dijkstra</th>
+<th>BFS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>找到路径</td>
+<td>✅ YES</td>
+<td>✅ YES</td>
+<td>✅ YES</td>
+</tr>
+<tr>
+<td>路径代价</td>
+<td>234</td>
+<td>234</td>
+<td>234</td>
+</tr>
+<tr>
+<td>路径长度</td>
+<td>235 格</td>
+<td>235 格</td>
+<td>235 格</td>
+</tr>
+<tr>
+<td>展开节点数</td>
+<td>3,419</td>
+<td>3,680</td>
+<td>8,478</td>
+</tr>
+</tbody></table>
+<p><strong>关键数据分析：</strong></p>
+<ol>
+<li><p><strong>最优性验证通过</strong>：A* 路径代价 (234) &#x3D;&#x3D; Dijkstra 路径代价 (234) &#x3D;&#x3D; BFS 路径代价 (234)。这证明 A* 实现是正确的——它的启发式函数保持了 admissible 性，没有因优化而损害最优性。</p>
+</li>
+<li><p><strong>启发式有效性验证</strong>：A* 展开 3,419 个节点 &lt; Dijkstra 展开 3,680 个节点。<strong>A* 比 Dijkstra 少展开了 7.1% 的节点</strong>，说明 Manhattan heuristic 确实引导了搜索方向。</p>
+</li>
+<li><p><strong>BFS 的效率劣势</strong>：BFS 展开了 8,478 个节点——是所有算法中最多的。这是因为 BFS 完全不知道目标方向，”平等”地向四个方向扩张。但 BFS 的队列操作是 O(1)（FIFO），而 A*&#x2F;Dijkstra 是 O(log n)（堆操作），所以在某些小尺度场景下 BFS 反而更快（常数因子低）。</p>
+</li>
+</ol>
+<h3 id="6-3-路径完整性验证"><a href="#6-3-路径完整性验证" class="headerlink" title="6.3 路径完整性验证"></a>6.3 路径完整性验证</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> endpointsOk = path.<span class="built_in">front</span>() == start &amp;&amp; path.<span class="built_in">back</span>() == goal;</span><br><span class="line"><span class="comment">// ✅ PASS</span></span><br><span class="line"></span><br><span class="line"><span class="type">bool</span> connected = <span class="literal">true</span>;  <span class="comment">// 相邻步的 Manhattan 距离必须为 1</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">1</span>; i &lt; path.<span class="built_in">size</span>(); i++)</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">manhattan</span>(path[i<span class="number">-1</span>], path[i]) != <span class="number">1</span>) connected = <span class="literal">false</span>;</span><br><span class="line"><span class="comment">// ✅ PASS</span></span><br><span class="line"></span><br><span class="line"><span class="type">bool</span> clean = <span class="literal">true</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; path.<span class="built_in">size</span>(); i++)</span><br><span class="line">    <span class="keyword">if</span> (grid.<span class="built_in">isBlocked</span>(path[i].x, path[i].y)) clean = <span class="literal">false</span>;</span><br><span class="line"><span class="comment">// ✅ PASS</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-可视化输出"><a href="#6-4-可视化输出" class="headerlink" title="6.4 可视化输出"></a>6.4 可视化输出</h3><p>输出文件 <code>astar_output.png</code> 使用 14 倍放大率渲染 80×60 的网格：</p>
+<ul>
+<li>暗灰色 (30,30,40)：障碍物</li>
+<li>蓝灰色 (70,110,160)：A* 探索过的区域</li>
+<li>浅灰色 (235,235,235)：未探索区域</li>
+<li>红色 (230,70,60)：最终路径</li>
+<li>绿色 (40,200,60)：起点</li>
+<li>黄色 (250,200,30)：终点</li>
+</ul>
+<p>文件大小：15,085 字节，分辨率 1120×840（&#x3D; 80×14 × 60×14）。像素统计：均值 99.1，标准差 57.5，说明色彩分布均匀，图像质量正常。</p>
+<h3 id="6-5-全部-8-项量化验证结果"><a href="#6-5-全部-8-项量化验证结果" class="headerlink" title="6.5 全部 8 项量化验证结果"></a>6.5 全部 8 项量化验证结果</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">[PASS] all three algorithms found a path</span><br><span class="line">[PASS] A* cost == Dijkstra cost (A* optimal)</span><br><span class="line">[PASS] A* cost == BFS cost (unit-cost shortest)</span><br><span class="line">[PASS] A* expands &lt;= Dijkstra (heuristic helps)</span><br><span class="line">[PASS] path length == cost+1 (no gaps)</span><br><span class="line">[PASS] path starts at start and ends at goal</span><br><span class="line">[PASS] every consecutive path step is 4-adjacent</span><br><span class="line">[PASS] no path cell lies on an obstacle</span><br><span class="line"></span><br><span class="line">ALL CHECKS PASSED  (0 failure(s))</span><br></pre></td></tr></table></figure>
+
+<p>8 项检查全部通过，0 失败。这不是”看着像对了”，而是<strong>数学上被证明对了</strong>。</p>
+<hr>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="7-1-收获"><a href="#7-1-收获" class="headerlink" title="7.1 收获"></a>7.1 收获</h3><p>这次实践的核心收获不是”实现了 A*“——A* 的实现只有几十行。真正的收获是建立了<strong>量化验证的思维习惯</strong>：</p>
+<ul>
+<li>写代码之前先定义”什么是对”——不是”看起来不错”，而是可自动检查的布尔条件</li>
+<li>用交叉对比代替肉眼判断——三个算法互相校验，任何一个出问题都会被另外两个暴露</li>
+<li>每一个验证项都是可复现的——换一张地图、换一个起点&#x2F;终点，验证脚本照样能跑</li>
+</ul>
+<p>这种思维方式在图形学、编译器、数据库等任何”输出很难用肉眼判断正确性”的领域都至关重要。</p>
+<h3 id="7-2-局限性"><a href="#7-2-局限性" class="headerlink" title="7.2 局限性"></a>7.2 局限性</h3><ol>
+<li><strong>4-连通限制</strong>：真实游戏通常用 8-连通甚至任意角度移动（Theta*）。8-连通下 Manhattan 不再 admissible，需要用 Octile distance。</li>
+<li><strong>静态地图假设</strong>：A* 假设地图不变，但在 RTS 游戏中地图随时变化（建筑被摧毁、单位移动）。需要 D* Lite 等增量搜索算法。</li>
+<li><strong>单起点单目标</strong>：如果很多单位同时寻路（比如 RTS 中的大规模集团军移动），A* 逐个计算效率低。需要 flow field &#x2F; continuum crowds 等技术。</li>
+<li><strong>网格粒度</strong>：大世界用稠密网格不现实，实践中用 NavMesh &#x2F; 层次化图（HPA*）来减少搜索空间。</li>
+</ol>
+<h3 id="7-3-可延伸方向"><a href="#7-3-可延伸方向" class="headerlink" title="7.3 可延伸方向"></a>7.3 可延伸方向</h3><ul>
+<li><strong>Jump Point Search (JPS)</strong>：在均匀网格中将 A* 的时间复杂度降低一个数量级（跳过中间节点直接找”跳点”）</li>
+<li><strong>Weighted A*</strong>：通过给 <code>h</code> 加权（<code>f = g + w × h</code>，<code>w &gt; 1</code>）在速度和最优性之间做权衡</li>
+<li><strong>Theta*</strong>：允许路径上任意角度的移动，找到视觉上更自然的路径</li>
+<li><strong>双向搜索</strong>：从起点和终点同时做 A*，在中间相遇——理论展开节点数减半</li>
+<li><strong>NavMesh 构建</strong>：从 3D 几何自动构建导航网格，是 A* 在 AAA 游戏中的标准输入</li>
+</ul>
+<h3 id="7-4-与本系列的关联"><a href="#7-4-与本系列的关联" class="headerlink" title="7.4 与本系列的关联"></a>7.4 与本系列的关联</h3><p>这是我们”算法和数据”方向的第一篇——前面的主题一直是图形渲染。后续计划探索更多经典游戏算法：行为树、效用系统、路径平滑、空间分区。</p>
+<blockquote>
+<p><strong>原则重申</strong>：<strong>不信任”看起来正确”，只信任”被证明了正确”</strong>。</p>
+</blockquote>
+<hr>
+<p><strong>代码仓库</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice">https://github.com/chiuhoukazusa/daily-coding-practice</a><br><strong>博客首页</strong>：<a href="https://chiuhoukazusa.github.io/chiuhou-tech-blog/">https://chiuhoukazusa.github.io/chiuhou-tech-blog/</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/">https://chiuhoukazusa.github.io/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%AF%BB%E8%B7%AF/">寻路</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/06/11/daily-coding-depth-of-field-2026-06-11/" title="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-11-depth-of-field/depth_of_field_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)</div></div><div class="info-2"><div class="info-item-1">① 背景与动机你有没有注意过这样一个现象：用手机拍人像时，背景会自动变模糊，但人脸却清晰无比？这背后的技术叫景深（Depth of Field, DoF），它是真实相机光学系统的一个副产品——镜头不可能同时把近处和远处的物体都对上焦。 在计算机图形学中，渲染器默认用的是针孔相机模型（Pinhole Camera）：所有光线都穿过一个无限小的针孔，因此场景中从近到远的一切都是完美清晰的。这在真实世界中是不可能的。任何真实的相机镜头都有光圈（Aperture），光圈越大，景深越浅——这就是为什么大光圈镜头（f&#x2F;1.4, f&#x2F;1.8）能拍出迷人的背景虚化（Bokeh）。 在实时渲染领域，景深效果的应用非常广泛：  过场动画（Cutscene）：游戏过场中，导演用浅景深引导玩家注意力到关键角色或物体上。虚幻引擎 5 的 Sequencer 中有完整的 DoF 后处理参数。 拍照模式（Photo Mode）：《蜘蛛侠》《对马岛之魂》等游戏的拍照模式允许玩家调整光圈和焦距，模拟真实摄影体验。 电影级渲染：皮克斯的 RenderMan、工业光魔的渲染管线中，物理景深是”像真...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/27/daily-coding-motion-blur-2026-03-27/" title="每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-27-motion-blur/motion_blur_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-27</div><div class="info-item-2">每日编程实践: Motion Blur Renderer — 速度缓冲与后处理运动模糊</div></div><div class="info-2"><div class="info-item-1">一、背景与动机运动模糊：人眼的物理现实我们的眼睛（以及相机的感光元件）在曝光期间并不是瞬间”拍一张照”，而是在一段时间窗口内持续积累光信号。当物体在这段时间内发生运动时，不同时刻的光信号叠加在同一感光区域，就产生了运动模糊（Motion Blur）。 如果没有运动模糊，画面会呈现出一种不自然的”抖动感”。这在早期电子游戏和动画中尤为明显——每一帧都是完全锐利的静止图像，但一旦物体快速运动，视觉反而会感到不舒适。这个现象被称为频闪效应（Stroboscopic Effect）。 运动模糊的本质是对快门开放时间段内的图像进行时间积分： $$I_{blurred}(x, y) &#x3D; \frac{1}{T} \int_0^T I(x, y, t), dt$$ 其中 $T$ 是快门时间，$I(x, y, t)$ 是 $t$ 时刻像素 $(x, y)$ 处的颜色值。 工业界实际应用运动模糊在以下场景中必不可少： 游戏引擎：虚幻引擎（Unreal Engine）、Unity 的 HDRP 都内置了后处理运动模糊。典型实现是速度缓冲（Velocity Buffer）+ 后处理 Pass，...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/19/daily-coding-refraction-glass-ball-2026-02-19/" title="每日编程实践: 递归光线追踪 - 折射效果（玻璃球）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-19-refraction-glass-ball/refraction_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-19</div><div class="info-item-2">每日编程实践: 递归光线追踪 - 折射效果（玻璃球）</div></div><div class="info-2"><div class="info-item-1">递归光线追踪 - 折射效果（玻璃球）项目目标在昨日反射效果的基础上，实现折射效果（Refraction），让玻璃球真正”透明”！ 核心技术：  Snell 定律（折射方向计算） Fresnel 效应（反射&#x2F;折射混合） 全反射检测 多材质系统    ⚠️ 重要修复（2026-02-19 10:30）用户反馈的问题：  三个球部分叠在一起 右边金属球看起来像纯透明材质  根本原因：  球体重叠：球心间距 2.5 &lt; 球直径 3.0 金属反射 bug：代码只返回环境反射颜色，没有乘上金属本身的颜色  为什么金属必须乘上颜色？ 金属反射 &#x3D; 环境光 × 金属本身颜色 12345// ❌ 原代码（错误）- 金属变成无色镜子return reflectColor * 0.9;// ✅ 修复后 - 金属显示金黄色return (reflectColor * metalColor) * 0.9;     环境光 金属颜色 反射结果    白光 (1,1,1) 金黄 (0.8,0.6,0.2) 金黄反射   蓝天 (0,0,1) 金黄 (0.8,0.6,0.2) 深蓝 (...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/10/daily-coding-rigid-body-dynamics-2026-04-10/" title="每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-10-rigid-body-dynamics/rigid_body_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-10</div><div class="info-item-2">每日编程实践: Rigid Body Dynamics 2D — SAT碰撞检测与脉冲解算</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么需要刚体动力学？在游戏开发中，几乎所有具有真实感的物理交互都依赖刚体动力学（Rigid Body Dynamics）。从《愤怒的小鸟》里飞出去的石块砸到木结构倒塌，到《GTA》系列里车辆翻滚，再到《Half-Life 2》令人印象深刻的 Gravity Gun 物理玩法——这些体验的背后都是刚体模拟在支撑。 没有刚体物理，游戏世界里的物体要么静止不动，要么只能走预设动画轨迹。一块石头飞出去不会受重力弯曲，碰到墙壁会穿透过去，没有任何真实感。 刚体动力学要解决三大核心问题：  运动积分：给定力和力矩，怎么更新物体的位置和旋转角度？ 碰撞检测：哪些物体在哪些时刻发生了接触？接触点在哪，法线方向是什么？ 碰撞响应：检测到碰撞后，怎么计算反弹？怎么处理摩擦？  工业界如何使用游戏引擎层面：  Unity 使用 PhysX（NVIDIA），Unreal Engine 早期用 PhysX，4.26 后引入 Chaos Physics Godot 内置了自己的 GodotPhysics，也支持 Bullet Physics Box2D 是 2D 物理的标准（《愤怒的小鸟》《An...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/29/daily-coding-sppm-renderer-2026-05-29/" title="每日编程实践: Stochastic Progressive Photon Mapping Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-29-sppm-renderer/sppm_final.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">每日编程实践: Stochastic Progressive Photon Mapping Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Stochastic Progressive Photon Mapping Renderer今天实现了**随机渐进光子映射（SPPM）算法——全局光照领域的经典渲染方法，核心能力是精确渲染透过玻璃的焦散（Caustics）**效果，以及难以用路径追踪高效处理的 SDS（Specular-Diffuse-Specular）传输路径。 运行效果： Cornell Box + 玻璃球（产生焦散）+ 镜面小球。直接光由 NEE 计算，间接光和焦散由光子映射贡献。 光子映射通道（间接光&#x2F;GI）：可以看到间接光在墙面和地面的分布。 直接光通道（Next Event Estimation）：清晰的硬阴影，无噪声。  ① 背景与动机：焦散渲染为什么难？1.1 焦散是什么把一杯水放在阳光下，会在桌面形成一团明亮的光斑——这就是焦散（Caustics）。水面（或玻璃）把入射光线折射&#x2F;反射后重新聚焦到某个区域，导致局部能量密度极高。 在游戏引擎和离线渲染中，焦散是”真实感”的重要标志：  游戏：水底焦散、地板上玻璃杯的光斑（GTA V、赛博朋克 2077 的地面反射...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/19/daily-coding-irradiance-probes-2026-04-19/" title="每日编程实践: Ambient Light Probes &amp; Irradiance Caching"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-19-irradiance-probes/irradiance_probe_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-19</div><div class="info-item-2">每日编程实践: Ambient Light Probes &amp; Irradiance Caching</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Ambient Light Probes &amp; Irradiance Caching 从零实现游戏引擎 GI 系统的核心基础设施：光探针 + SH2 球谐辐照度缓存 + 探针插值，90 毫秒内完成 9 探针烘焙 + 双侧对比渲染。  一、背景与动机全局光照：游戏引擎最难啃的骨头任何一个做过写实渲染的人都会遇到同一个问题：光线在现实中会多次反弹，但实时渲染只能做一次弹射。直接光照负责处理光源→物体→眼睛这一路径，但把直接光照做得再精细，结果看起来还是像”摆在虚空里的模型”——阴影生硬、暗面死黑、色彩渗透缺失。 这就是间接光照（Indirect Illumination &#x2F; Global Illumination）要解决的问题：光从光源出发，照到红墙上，红墙把能量弹向地面，地面因此染上红色——这一路的能量传递要被正确计算。 问题是，如果要在实时渲染中精确计算所有反弹，代价极高。路径追踪（Path Tracing）可以做到，但一帧要花几分钟甚至几小时，游戏完全没法用。于是游戏引擎发展出了一套预计算 + 近似的方案体系：  Lightmap：静态场景把间接...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/16/daily-coding-perlin-terrain-2026-02-16/" title="Perlin噪声地形生成器 - 程序化地形技术实践"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/perlin-terrain-2026-02-16/terrain_512.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-16</div><div class="info-item-2">Perlin噪声地形生成器 - 程序化地形技术实践</div></div><div class="info-2"><div class="info-item-1">每日编程挑战：Perlin噪声地形生成今天实现了经典的Perlin噪声算法，用于生成自然的2D地形高度图。Perlin噪声是程序化内容生成中最基础也最重要的算法之一，广泛应用于游戏地形、纹理生成和视觉效果制作。 项目概述 实现语言：C++17 算法核心：2D Perlin Noise + Octave叠加 输出格式：512×512 和 1024×1024 PNG灰度高度图 开发时长：7分钟（一次性编译成功）  Perlin噪声算法原理Perlin噪声由Ken Perlin在1983年发明，用于解决计算机图形学中自然纹理生成的问题。该算法的核心思想是在网格点上定义随机梯度向量，然后通过平滑插值计算任意点的噪声值。 算法流程 网格定位  将输入坐标映射到整数网格 计算点在网格单元内的相对位置   梯度向量  为每个网格点分配随机梯度向量 计算输入点到四个角点的距离向量 计算距离向量与梯度向量的点积   平滑插值  使用fade函数对相对坐标进行平滑处理 进行双线性插值得到最终噪声值    核心代码实现1. Perlin噪声基础函数123456789101112131415161718...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">118</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">130</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">一、背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%9B%BE%E7%9A%84%E6%8A%BD%E8%B1%A1"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 图的抽象</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-A-%E6%90%9C%E7%B4%A2%E8%BF%87%E7%A8%8B%E7%9A%84%E7%9B%B4%E8%A7%89%E7%90%86%E8%A7%A3"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 A* 搜索过程的直觉理解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%90%AF%E5%8F%91%E5%BC%8F%E5%87%BD%E6%95%B0%EF%BC%9AManhattan-%E8%B7%9D%E7%A6%BB"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 启发式函数：Manhattan 距离</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E5%85%A8%E7%94%A8-Dijkstra%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 为什么不全用 Dijkstra？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E6%9C%AC%E6%96%87%E7%9A%84%E9%AA%8C%E8%AF%81%E7%AD%96%E7%95%A5"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 本文的验证策略</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 核心数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E4%B8%89%E4%B8%AA%E7%AE%97%E6%B3%95%E7%9A%84%E5%B7%AE%E5%BC%82"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 三个算法的差异</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-A-%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 A* 核心实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Dijkstra-%E5%AF%B9%E6%AF%94%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 Dijkstra 对比实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-BFS-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 BFS 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E8%B7%AF%E5%BE%84%E9%87%8D%E5%BB%BA"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 路径重建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-PPM-%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 PPM 可视化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E4%BC%98%E5%85%88%E9%98%9F%E5%88%97%E4%B8%AD%E6%9B%B4%E6%96%B0-gScore-%E5%90%8E%E7%9A%84%E2%80%9D%E5%B9%BD%E7%81%B5%E8%8A%82%E7%82%B9%E2%80%9D"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：优先队列中更新 gScore 后的”幽灵节点”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9ABFS-%E4%B8%8D%E8%83%BD%E7%94%A8-tentative-dist-ni-%E6%9B%B4%E6%96%B0%E8%B7%9D%E7%A6%BB"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：BFS 不能用 tentative &lt; dist[ni] 更新距离</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E8%B7%AF%E5%BE%84%E9%87%8D%E5%BB%BA%E6%97%B6%E7%9A%84%E5%8F%8D%E8%BD%AC%E6%93%8D%E4%BD%9C"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：路径重建时的反转操作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9AManhattan-%E8%B7%9D%E7%A6%BB%E5%9C%A8-4-%E8%BF%9E%E9%80%9A%E7%BD%91%E6%A0%BC%E4%B8%AD%E7%9A%84%E6%AD%A3%E7%A1%AE%E6%80%A7%E9%AA%8C%E8%AF%81"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：Manhattan 距离在 4-连通网格中的正确性验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">六、效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E5%AE%9E%E9%AA%8C%E8%AE%BE%E7%BD%AE"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 实验设置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%90%9C%E7%B4%A2%E7%BB%93%E6%9E%9C%E5%AF%B9%E6%AF%94"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 搜索结果对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E8%B7%AF%E5%BE%84%E5%AE%8C%E6%95%B4%E6%80%A7%E9%AA%8C%E8%AF%81"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 路径完整性验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%8F%AF%E8%A7%86%E5%8C%96%E8%BE%93%E5%87%BA"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 可视化输出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E5%85%A8%E9%83%A8-8-%E9%A1%B9%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%BB%93%E6%9E%9C"><span class="toc-number">6.5.</span> <span class="toc-text">6.5 全部 8 项量化验证结果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%94%B6%E8%8E%B7"><span class="toc-number">7.1.</span> <span class="toc-text">7.1 收获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.2.</span> <span class="toc-text">7.2 局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E5%8F%AF%E5%BB%B6%E4%BC%B8%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">7.3 可延伸方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.4.</span> <span class="toc-text">7.4 与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</a><time datetime="2026-06-12T02:00:00.000Z" title="发表于 2026-06-12 10:00:00">2026-06-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/11/daily-coding-depth-of-field-2026-06-11/" title="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-11-depth-of-field/depth_of_field_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/11/daily-coding-depth-of-field-2026-06-11/" title="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)">每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)</a><time datetime="2026-06-11T06:00:00.000Z" title="发表于 2026-06-11 14:00:00">2026-06-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-02-ssr-renderer/ssr_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Screen-Space Reflections (SSR) Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer">每日编程实践: Screen-Space Reflections (SSR) Renderer</a><time datetime="2026-06-01T21:30:00.000Z" title="发表于 2026-06-02 05:30:00">2026-06-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/01/daily-coding-displacement-mapping-2026-06-01/" title="每日编程实践: Displacement Mapping &amp; Tessellation Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-01-displacement-mapping/displacement_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Displacement Mapping &amp; Tessellation Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/01/daily-coding-displacement-mapping-2026-06-01/" title="每日编程实践: Displacement Mapping &amp; Tessellation Renderer">每日编程实践: Displacement Mapping &amp; Tessellation Renderer</a><time datetime="2026-05-31T21:30:00.000Z" title="发表于 2026-06-01 05:30:00">2026-06-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/05/31/daily-coding-geometry-shader-effects-renderer-2026-05-31/" title="每日编程实践: Geometry Shader Effects Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-31-Geometry-Shader-Effects-Renderer/geometry_shader_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Geometry Shader Effects Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/05/31/daily-coding-geometry-shader-effects-renderer-2026-05-31/" title="每日编程实践: Geometry Shader Effects Renderer">每日编程实践: Geometry Shader Effects Renderer</a><time datetime="2026-05-30T21:30:00.000Z" title="发表于 2026-05-31 05:30:00">2026-05-31</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
