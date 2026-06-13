@@ -1,0 +1,510 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Quadtree 空间分区索引 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机在计算机图形学和游戏开发中，空间查询是每帧都在发生的事情。碰撞检测需要找到”哪些物体离我最近”，粒子系统需要查询”这个区域里有哪些粒子”，AI 寻路需要知道”附近的障碍物分布”。 最朴素的做法是对所有 N 个物体逐一检查，时间复杂度 O(N)。当 N&#x3D;100 时还好，但当 N&#x3D;50000 时，每帧遍历五万个物体做距离计算，帧率就从 60fps 跌到个位数了。 空间分区">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Quadtree 空间分区索引">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机在计算机图形学和游戏开发中，空间查询是每帧都在发生的事情。碰撞检测需要找到”哪些物体离我最近”，粒子系统需要查询”这个区域里有哪些粒子”，AI 寻路需要知道”附近的障碍物分布”。 最朴素的做法是对所有 N 个物体逐一检查，时间复杂度 O(N)。当 N&#x3D;100 时还好，但当 N&#x3D;50000 时，每帧遍历五万个物体做距离计算，帧率就从 60fps 跌到个位数了。 空间分区">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png">
+<meta property="article:published_time" content="2026-06-13T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-13T22:04:51.159Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="空间数据结构">
+<meta property="article:tag" content="计算几何">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Quadtree 空间分区索引",
+  "url": "https://chiuhoukazusa.github.io/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png",
+  "datePublished": "2026-06-13T22:00:00.000Z",
+  "dateModified": "2026-06-13T22:04:51.159Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Quadtree 空间分区索引',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Quadtree 空间分区索引</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Quadtree 空间分区索引</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-13T22:00:00.000Z" title="发表于 2026-06-14 06:00:00">2026-06-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-13T22:04:51.159Z" title="更新于 2026-06-14 06:04:51">2026-06-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>在计算机图形学和游戏开发中，空间查询是每帧都在发生的事情。碰撞检测需要找到”哪些物体离我最近”，粒子系统需要查询”这个区域里有哪些粒子”，AI 寻路需要知道”附近的障碍物分布”。</p>
+<p>最朴素的做法是对所有 N 个物体逐一检查，时间复杂度 O(N)。当 N&#x3D;100 时还好，但当 N&#x3D;50000 时，每帧遍历五万个物体做距离计算，帧率就从 60fps 跌到个位数了。</p>
+<p>空间分区数据结构（Spatial Partitioning Data Structure）正是为解决这类问题而生的。它的核心思想很简单：<strong>把空间切分成小块，查询时只检查相关的块，跳过大部分不相关的区域</strong>。</p>
+<p>常见的空间分区结构包括：</p>
+<ul>
+<li><strong>Uniform Grid（均匀网格）</strong>：最简单的，把空间切成等大的格子。适合分布均匀的点，但对于疏密不均的数据集，空格子浪费内存，密格子仍然慢。</li>
+<li><strong>KD-Tree</strong>：沿各轴递归二分空间，是一种二叉树。查询效率高，但每次插入都要排序，对于动态插入频繁的场景开销大。</li>
+<li><strong>BVH（Bounding Volume Hierarchy）</strong>：包围盒层次结构，广泛应用于光线追踪加速。每个节点存储包围盒而非几何数据，更新比较灵活。</li>
+<li><strong>Quadtree（四叉树）</strong>：二维空间的经典分层数据结构。每个节点将空间分成四个象限（NW&#x2F;NE&#x2F;SW&#x2F;SE），根据数据密度自适应细分。相比 KD-Tree，四叉树的插入不需要全局排序调整，非常适合需要频繁插入的动态场景。</li>
+</ul>
+<p>Quadtree 在游戏引擎中有广泛应用：</p>
+<ul>
+<li><strong>Unity&#x2F;Unreal 的场景管理</strong>：大地图地形 LOD 系统底层常用 Quadtree 做可见性裁剪</li>
+<li><strong>RTS 游戏的单位选择</strong>：框选多个单位时，用 Quadtree 做区域查询比遍历所有单位快数百倍</li>
+<li><strong>OpenStreetMap&#x2F;Google Maps</strong>：地图瓦片系统本质就是一个 Quadtree，每个缩放级别对应一层深度</li>
+</ul>
+<p>今天我们就从零实现一个完整的 Quadtree 空间索引，支持点插入、范围查询（Range Query）和 KNN 最近邻查询（K-Nearest Neighbors），并通过 50000 个随机点的性能基准测试与 20 次正确性随机验证来量化评估加速效果。</p>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="2-1-Quadtree-的数据结构"><a href="#2-1-Quadtree-的数据结构" class="headerlink" title="2.1 Quadtree 的数据结构"></a>2.1 Quadtree 的数据结构</h3><p>Quadtree 是一个树形结构，每个节点代表空间中的一个正方形区域：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">┌─────────┐</span><br><span class="line">│  NW  NE │</span><br><span class="line">│   (cx,cy)</span><br><span class="line">│  SW  SE │</span><br><span class="line">└─────────┘</span><br></pre></td></tr></table></figure>
+
+<p>每个节点包含：</p>
+<ul>
+<li><strong>boundary（AABB）</strong>：该节点覆盖的正方形区域，由中心坐标 <code>(cx, cy)</code> 和半边长 <code>half</code> 定义</li>
+<li><strong>points 列表</strong>：存储在该节点内的所有点（当节点未分裂时）</li>
+<li><strong>四个子节点指针</strong>：NW（左上）、NE（右上）、SW（左下）、SE（右下）</li>
+<li><strong>divided（布尔值）</strong>：标记当前节点是否已分裂</li>
+<li><strong>depth（深度）</strong>：当前节点在树中的深度</li>
+</ul>
+<h3 id="2-2-分裂策略：容量与深度双限制"><a href="#2-2-分裂策略：容量与深度双限制" class="headerlink" title="2.2 分裂策略：容量与深度双限制"></a>2.2 分裂策略：容量与深度双限制</h3><p>Quadtree 的设计有两个关键参数：</p>
+<p><strong>MAX_POINTS &#x3D; 4</strong>（节点容量）<br>当一个节点的点数超过此阈值时，触发分裂。这个值的选取是性能权衡的关键：</p>
+<ul>
+<li>太小（比如 1）：树太深，节点太多，遍历开销增大</li>
+<li>太大（比如 100）：树太浅，每个节点内仍需遍历大量点，退化接近暴力搜索</li>
+<li><strong>4 是一个经验上的好选择</strong>：对数复杂度下，每次分裂保证子节点点数均衡</li>
+</ul>
+<p><strong>MAX_DEPTH &#x3D; 8</strong>（最大深度）<br>限制树的深度，防止无限递归。从 <code>[0,1]²</code> 的单元正方形开始：</p>
+<ul>
+<li>Depth 0：1×1 &#x3D; 整个空间</li>
+<li>Depth 1：0.5×0.5 的四个象限</li>
+<li>Depth 8：每个节点覆盖 $(1&#x2F;2^8)^2$ 的区域 &#x3D; $1&#x2F;256 × 1&#x2F;256$</li>
+<li>8 层共 $1 + 4 + 4^2 + … + 4^8$ ≈ 87381 个可能节点，对于 50000 个点绰绰有余</li>
+</ul>
+<p>当节点达到容量上限但还未达到最大深度时执行 <strong>subdivide()</strong>：</p>
+<ol>
+<li>计算子节点半边长 &#x3D; <code>half / 2</code></li>
+<li>创建四个子节点：<ul>
+<li>NW: <code>(cx - half/2, cy + half/2)</code></li>
+<li>NE: <code>(cx + half/2, cy + half/2)</code></li>
+<li>SW: <code>(cx - half/2, cy - half/2)</code></li>
+<li>SE: <code>(cx + half/2, cy - half/2)</code></li>
+</ul>
+</li>
+<li>将当前节点的所有点重新分配给合适的子节点</li>
+<li><strong>关键细节</strong>：跨越子节点边界的点（即不属于任何一个子节点的 <code>contains()</code> 范围）必须留在父节点中</li>
+</ol>
+<h3 id="2-3-点插入算法"><a href="#2-3-点插入算法" class="headerlink" title="2.3 点插入算法"></a>2.3 点插入算法</h3><p>插入算法遵循递归下降的过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">Algorithm: insert(point p)</span><br><span class="line">  </span><br><span class="line">  Step 1: 边界检查</span><br><span class="line">  if !boundary.contains(p) then return false</span><br><span class="line">  </span><br><span class="line">  Step 2: 如果节点未分裂且未满，直接存储</span><br><span class="line">  if !divided and points.size() &lt; MAX_POINTS then</span><br><span class="line">    points.push_back(p)</span><br><span class="line">    return true</span><br><span class="line">  </span><br><span class="line">  Step 3: 需要分裂时</span><br><span class="line">  if !divided and depth &lt; MAX_DEPTH then</span><br><span class="line">    subdivide()  // 分裂并重新分配已有点</span><br><span class="line">  </span><br><span class="line">  Step 4: 向子节点递归插入</span><br><span class="line">  if divided then</span><br><span class="line">    if insertIntoChild(p) then return true</span><br><span class="line">  </span><br><span class="line">  Step 5: 无法再分裂，存在当前节点</span><br><span class="line">  points.push_back(p)</span><br><span class="line">  return true</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么点可能留在父节点</strong>：如果点在边界上（比如 x 坐标恰好是子节点边界），或者在分裂时属于被 “keep” 保留的那批点，它们会留在父节点。这保证了不会丢失任何点。范围查询时，父节点的点也会参与检查，所以查询正确性不受影响。</p>
+<h3 id="2-4-范围查询（Range-Query）"><a href="#2-4-范围查询（Range-Query）" class="headerlink" title="2.4 范围查询（Range Query）"></a>2.4 范围查询（Range Query）</h3><p>给定查询中心 <code>center</code> 和半径 <code>radius</code>，找出所有距离中心在半径内的点。</p>
+<p><strong>朴素做法 O(N)</strong>：遍历全部 N 个点，对每个点计算距离并判断是否 ≤ radius。</p>
+<p><strong>Quadtree 优化</strong>：利用空间信息剪枝不需要访问的子树。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">Algorithm: rangeQuery(center, radius, result)</span><br><span class="line"></span><br><span class="line">  Step 1: AABB-圆相交测试（剪枝的关键）</span><br><span class="line">  if !boundary.intersectsCircle(center, radius) then return</span><br><span class="line">  </span><br><span class="line">  Step 2: 检查本节点的点</span><br><span class="line">  for p in points:</span><br><span class="line">    if dist(p, center) &lt;= radius then result.push_back(p)</span><br><span class="line">  </span><br><span class="line">  Step 3: 递归搜索子节点</span><br><span class="line">  if divided then</span><br><span class="line">    nw.rangeQuery(center, radius, result)</span><br><span class="line">    ne.rangeQuery(center, radius, result)</span><br><span class="line">    sw.rangeQuery(center, radius, result)</span><br><span class="line">    se.rangeQuery(center, radius, result)</span><br></pre></td></tr></table></figure>
+
+<p><strong>AABB-圆相交测试的数学原理</strong>（<code>intersectsCircle</code>）：</p>
+<p>对于 AABB（中心 <code>cx,cy</code>，半边长 <code>half</code>）和圆（中心 <code>px,py</code>，半径 <code>r</code>）：</p>
+<ol>
+<li>找到 AABB 内离圆心最近的点 <code>(closestX, closestY)</code><ul>
+<li><code>closestX = clamp(px, cx - half, cx + half)</code></li>
+<li><code>closestY = clamp(py, cy - half, cy + half)</code></li>
+</ul>
+</li>
+<li>如果最近点到圆心的距离 ≤ r，则相交<ul>
+<li>即 <code>(px - closestX)² + (py - closestY)² ≤ r²</code></li>
+</ul>
+</li>
+</ol>
+<p><strong>直觉解释</strong>：<code>clamp</code> 的意思是——如果圆心在 AABB 内部，最近点就是圆心本身（距离 0，必然相交）；如果圆心在 AABB 外部，最近点是 AABB 边界上离圆心最近的那个角或边上的点。这样判断”圆的边界是否碰到 AABB”就等价于判断”圆心到 AABB 的最短距离是否 ≤ r”。</p>
+<p><strong>为什么这是有效的剪枝</strong>：如果整个 AABB 区域离查询圆很远，那 AABB 内的所有点（不管是直接存储的还是子节点中的）都不可能落在查询圆内。可以安全跳过，省去大量计算。</p>
+<h3 id="2-5-KNN-最近邻查询"><a href="#2-5-KNN-最近邻查询" class="headerlink" title="2.5 KNN 最近邻查询"></a>2.5 KNN 最近邻查询</h3><p>KNN 查询找出离目标点最近的 K 个点。对于游戏中的目标是”找到最近的 5 个敌人”这种场景。</p>
+<p>暴力法 O(N log N)：计算所有点到目标的距离，排序，取前 K 个。</p>
+<p>Quadtree 优化的关键思想是 <strong>Best-First Search with Distance Pruning</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">Algorithm: knnQuery(target, k, result)</span><br><span class="line"></span><br><span class="line">  Step 1: 初始化</span><br><span class="line">  max-heap heap（按距离排序，维护当前最优 K 个）</span><br><span class="line">  bestDist = ∞（当前 heap 中第 K 个候选的距离）</span><br><span class="line">  </span><br><span class="line">  Step 2: 递归搜索</span><br><span class="line">  knnRecursive(target, k, heap, bestDist)</span><br><span class="line">  </span><br><span class="line">  Step 3: 整理结果（heap 是 max-heap，需要反转）</span><br><span class="line">  sort heap → result</span><br></pre></td></tr></table></figure>
+
+<p>递归搜索 <code>knnRecursive</code> 的核心逻辑：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Algorithm: knnRecursive(target, k, heap, bestDist)</span><br><span class="line"></span><br><span class="line">  Step 1: 距离剪枝</span><br><span class="line">  if heap.size() &gt;= k and boundary.sqDist(target) &gt; bestDist² then return</span><br><span class="line">  </span><br><span class="line">  Step 2: 检查本节点</span><br><span class="line">  for p in points:</span><br><span class="line">    d = dist(p, target)</span><br><span class="line">    if heap.size() &lt; k: heap.push(p, d)</span><br><span class="line">    else if d &lt; heap.top().dist: heap.pop(), heap.push(p, d)</span><br><span class="line">    bestDist = heap.top().dist</span><br><span class="line">  </span><br><span class="line">  Step 3: 子节点按距离排序后递归</span><br><span class="line">  sort children by sqDist(target)</span><br><span class="line">  for child in children:</span><br><span class="line">    child.knnRecursive(target, k, heap, bestDist)</span><br></pre></td></tr></table></figure>
+
+<p><strong>三个关键优化</strong>：</p>
+<ol>
+<li><p><strong>距离剪枝</strong>（Step 1）：如果 AABB 到目标的最短距离（<code>sqDist</code>）已经比当前第 K 近点的距离还远，那这个区域不可能包含更好的候选点，直接返回。<code>sqDist</code> 使用平方距离避免开根号。</p>
+</li>
+<li><p><strong>Max-heap 维护 Top-K</strong>（Step 2）：不用存储所有候选再排序，只维护 K 个。新点比 heap 中最远的近时替换。<code>priority_queue</code> 天然是 max-heap，top() 返回最大距离。</p>
+</li>
+<li><p><strong>子节点排序</strong>（Step 3）：按子节点到目标的距离排序，先搜索更近的子树。这显著提高剪枝效率——因为更近的子树更早更新 <code>bestDist</code>，后续更远的子树更可能被剪掉。</p>
+</li>
+</ol>
+<h3 id="2-6-AABB-到点的平方距离（sqDist）"><a href="#2-6-AABB-到点的平方距离（sqDist）" class="headerlink" title="2.6 AABB 到点的平方距离（sqDist）"></a>2.6 AABB 到点的平方距离（sqDist）</h3><p>这是一个精巧但容易写错的函数：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">sqDist</span><span class="params">(<span class="type">const</span> Point&amp; p)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> dx = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, std::<span class="built_in">abs</span>(p.x - cx) - half);</span><br><span class="line">    <span class="type">float</span> dy = std::<span class="built_in">max</span>(<span class="number">0.0f</span>, std::<span class="built_in">abs</span>(p.y - cy) - half);</span><br><span class="line">    <span class="keyword">return</span> dx*dx + dy*dy;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉解释</strong>：如果点在 AABB 内部 → 距离为 0。如果点在 AABB 外部 → 距离是点到 AABB 边界最近点的距离（在 “最近点 clamp” 意义下）。<code>dx</code> 的计算：</p>
+<ul>
+<li>如果 <code>|p.x - cx| ≤ half</code>，点在 x 方向在 AABB 内 → <code>dx = 0</code></li>
+<li>如果 <code>|p.x - cx| &gt; half</code>，点在 x 方向在 AABB 外 → <code>dx = |p.x - cx| - half</code> 是 x 方向上到边界的距离</li>
+</ul>
+<p>这是上面 AABB-圆测试的核心，也是 KNN 剪枝正确性的基石。</p>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">输入: N 个随机点 (0,1)×(0,1)</span><br><span class="line">  │</span><br><span class="line">  ├─→ [构建 Quadtree]</span><br><span class="line">  │     │</span><br><span class="line">  │     ├─ insert(p) × N → 递归插入，按需分裂</span><br><span class="line">  │     └─ 统计: getNodeCount(), getLeafCount()</span><br><span class="line">  │</span><br><span class="line">  ├─→ [性能基准测试]</span><br><span class="line">  │     ├─ Range Query: quadtree vs brute force</span><br><span class="line">  │     │   ├─ 多数据规模: 500, 1000, 5000, 10000, 50000</span><br><span class="line">  │     │   ├─ 每规模 N 次迭代取平均</span><br><span class="line">  │     │   └─ 输出: 耗时, 加速比</span><br><span class="line">  │     └─ KNN Query: quadtree vs brute force</span><br><span class="line">  │         └─ 同上</span><br><span class="line">  │</span><br><span class="line">  ├─→ [正确性验证]</span><br><span class="line">  │     ├─ 20 次随机 Range Query: 结果集合对比</span><br><span class="line">  │     └─ 20 次随机 KNN Query: 总距离一致性检查</span><br><span class="line">  │</span><br><span class="line">  └─→ [可视化输出]</span><br><span class="line">        └─ PPM 图像: 最近邻密度热力图 + 点 + 查询圆 + KNN 连线</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><p><strong><code>AABB</code> 结构体</strong>：</p>
+<ul>
+<li>用 <code>(cx, cy, half)</code> 三元组表示正方形区域——这是 Quadtree 的标准表示法</li>
+<li>不用 <code>(min, max)</code> 表示法的原因：分裂时需要计算四个子区域的坐标，中心 + 半边长更方便</li>
+<li>提供 <code>contains()</code>（点包含测试）、<code>intersectsCircle()</code>（圆相交测试）、<code>sqDist()</code>（点到 AABB 距离平方）</li>
+</ul>
+<p><strong><code>Point</code> 结构体</strong>：</p>
+<ul>
+<li>简单的 <code>(x, y)</code> 二维点</li>
+<li>提供 <code>dist()</code> 欧几里得距离方法——两个查询算法都依赖它</li>
+</ul>
+<p><strong><code>Quadtree</code> 类</strong>：</p>
+<ul>
+<li>用 <code>std::unique_ptr&lt;Quadtree&gt;</code> 管理子节点——自动内存管理，无需手动 delete</li>
+<li><code>MAX_POINTS = 4</code> 和 <code>MAX_DEPTH = 8</code> 作为编译期常量</li>
+<li>所有查询方法都是 <code>const</code>——查询不修改树结构，支持多线程读取</li>
+<li><code>points</code> 用 <code>std::vector&lt;Point&gt;</code> 存储——分裂时可以通过 <code>std::move</code> 将点分配给子节点</li>
+</ul>
+<h3 id="3-3-职责划分"><a href="#3-3-职责划分" class="headerlink" title="3.3 职责划分"></a>3.3 职责划分</h3><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AABB</code></td>
+<td>几何原语：包含测试、相交测试、距离计算</td>
+</tr>
+<tr>
+<td><code>Quadtree</code></td>
+<td>空间索引核心：插入、分裂、范围查询、KNN 查询</td>
+</tr>
+<tr>
+<td><code>Benchmark</code></td>
+<td>性能测试框架：计时、迭代、加速比计算</td>
+</tr>
+<tr>
+<td><code>renderToPPM</code></td>
+<td>可视化输出：密度热力图 + 查询结果叠加</td>
+</tr>
+<tr>
+<td><code>validateResults/validateKnn</code></td>
+<td>正确性验证：Quadtree 结果 vs 暴力搜索结果</td>
+</tr>
+</tbody></table>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="4-1-点插入（insert）"><a href="#4-1-点插入（insert）" class="headerlink" title="4.1 点插入（insert）"></a>4.1 点插入（insert）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">insert</span><span class="params">(<span class="type">const</span> Point&amp; p)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Step 1: 边界检查——点必须在 AABB 内才有意义插入</span></span><br><span class="line">    <span class="keyword">if</span> (!boundary.<span class="built_in">contains</span>(p)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Step 2: 未分裂且未满→直接存储（最常见的快速路径）</span></span><br><span class="line">    <span class="keyword">if</span> (!divided &amp;&amp; points.<span class="built_in">size</span>() &lt; MAX_POINTS) &#123;</span><br><span class="line">        points.<span class="built_in">push_back</span>(p);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Step 3: 达到容量且还能分裂→subdivide</span></span><br><span class="line">    <span class="comment">// 注意：这里 depth &lt; MAX_DEPTH 阻止了无限递归</span></span><br><span class="line">    <span class="keyword">if</span> (!divided &amp;&amp; depth &lt; MAX_DEPTH) &#123;</span><br><span class="line">        <span class="built_in">subdivide</span>();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Step 4: 已分裂→委托给子节点</span></span><br><span class="line">    <span class="keyword">if</span> (divided) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">insertIntoChild</span>(p);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Step 5: 深度已达上限，无法继续分裂→存在这里</span></span><br><span class="line">    <span class="comment">// 这保证了即使点极度密集，也不会栈溢出</span></span><br><span class="line">    points.<span class="built_in">push_back</span>(p);</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这个顺序很重要</strong>：<code>Step 3</code> 的 <code>subdivide()</code> 只有在 <code>!divided</code> 且 <code>depth &lt; MAX_DEPTH</code> 时才执行。如果到达了最大深度，即使节点已满也不会再分裂——新点直接推到 points 里。这避免了无限递归，但代价是深度最大处的叶子节点可能有很多点（这就是为什么 MAX_DEPTH 不能太小）。</p>
+<p><strong>容易写错的地方</strong>：有人会在 <code>subdivide()</code> 后忘记将点重新分配，或者忘记处理跨越边界的点。我们的实现中 <code>subdivide()</code> 显式维护了 <code>keep</code> 列表来存放不属于任何子节点的点。</p>
+<h3 id="4-2-分裂（subdivide）"><a href="#4-2-分裂（subdivide）" class="headerlink" title="4.2 分裂（subdivide）"></a>4.2 分裂（subdivide）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">subdivide</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> qh = boundary.half * <span class="number">0.5f</span>;</span><br><span class="line">    <span class="comment">// 四个子节点的方向：NW 是左上（y+），SE 是右下（y-）</span></span><br><span class="line">    nw = std::<span class="built_in">make_unique</span>&lt;Quadtree&gt;(<span class="built_in">AABB</span>(boundary.cx - qh, boundary.cy + qh, qh), depth + <span class="number">1</span>);</span><br><span class="line">    ne = std::<span class="built_in">make_unique</span>&lt;Quadtree&gt;(<span class="built_in">AABB</span>(boundary.cx + qh, boundary.cy + qh, qh), depth + <span class="number">1</span>);</span><br><span class="line">    sw = std::<span class="built_in">make_unique</span>&lt;Quadtree&gt;(<span class="built_in">AABB</span>(boundary.cx - qh, boundary.cy - qh, qh), depth + <span class="number">1</span>);</span><br><span class="line">    se = std::<span class="built_in">make_unique</span>&lt;Quadtree&gt;(<span class="built_in">AABB</span>(boundary.cx + qh, boundary.cy - qh, qh), depth + <span class="number">1</span>);</span><br><span class="line">    divided = <span class="literal">true</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 重新分配已有点：每个点尝试插入到恰好一个子节点中</span></span><br><span class="line">    <span class="comment">// 不落在任何子节点的点留在父节点</span></span><br><span class="line">    std::vector&lt;Point&gt; keep;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; p : points) &#123;</span><br><span class="line">        <span class="type">bool</span> inserted = <span class="literal">false</span>;</span><br><span class="line">        <span class="keyword">if</span> (nw-&gt;boundary.<span class="built_in">contains</span>(p))      &#123; nw-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (ne-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; ne-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (sw-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; sw-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (se-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; se-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">        <span class="keyword">if</span> (!inserted) keep.<span class="built_in">push_back</span>(p);</span><br><span class="line">    &#125;</span><br><span class="line">    points = std::<span class="built_in">move</span>(keep);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>坐标系的细节</strong>：这里使用屏幕坐标系，y 轴向上。所以 NW 是 <code>(cx - qh, cy + qh)</code> 而不是 <code>(cx - qh, cy - qh)</code>。</p>
+<p><strong>为什么用 else-if 链而不是四个独立 if</strong>：每个点只能进入一个子节点。如果四个象限的 <code>contains()</code> 有重叠（理论上不会，但浮点精度可能导致边界问题），else-if 保证了确定性。</p>
+<h3 id="4-3-范围查询（rangeQuery）——剪枝的核心"><a href="#4-3-范围查询（rangeQuery）——剪枝的核心" class="headerlink" title="4.3 范围查询（rangeQuery）——剪枝的核心"></a>4.3 范围查询（rangeQuery）——剪枝的核心</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">rangeQuery</span><span class="params">(<span class="type">const</span> Point&amp; center, <span class="type">float</span> radius, </span></span></span><br><span class="line"><span class="params"><span class="function">                std::vector&lt;Point&gt;&amp; result)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 剪枝：如果 AABB 和查询圆不相交，此子树全部跳过</span></span><br><span class="line">    <span class="keyword">if</span> (!boundary.<span class="built_in">intersectsCircle</span>(center, radius)) <span class="keyword">return</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 检查本节点存储的点</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; p : points) &#123;</span><br><span class="line">        <span class="keyword">if</span> (p.<span class="built_in">dist</span>(center) &lt;= radius) &#123;</span><br><span class="line">            result.<span class="built_in">push_back</span>(p);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 递归搜索四个子节点</span></span><br><span class="line">    <span class="keyword">if</span> (divided) &#123;</span><br><span class="line">        nw-&gt;<span class="built_in">rangeQuery</span>(center, radius, result);</span><br><span class="line">        ne-&gt;<span class="built_in">rangeQuery</span>(center, radius, result);</span><br><span class="line">        sw-&gt;<span class="built_in">rangeQuery</span>(center, radius, result);</span><br><span class="line">        se-&gt;<span class="built_in">rangeQuery</span>(center, radius, result);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>效率分析</strong>：对于一个均匀分布的数据集，半径 r 的查询圆覆盖面积约为 πr²。用 Quadtree 时：</p>
+<ul>
+<li>深度 d 的节点覆盖面积 &#x3D; <code>1/4^d</code>（相对于根节点的 <code>[0,1]²</code>）</li>
+<li>需要访问的节点数 ≈ <code>πr² / (1/4^d)</code> &#x3D; <code>πr² × 4^d</code></li>
+<li>对于 <code>r = 0.05</code>（面积的 0.785%），只需要访问不到 1% 的空间区域</li>
+<li>而暴力计算需要访问 100% 的点</li>
+</ul>
+<p>这就是为什么在 50000 个点的数据集上，Quadtree 的范围查询可以快 100+ 倍。</p>
+<h3 id="4-4-KNN-查询的剪枝逻辑"><a href="#4-4-KNN-查询的剪枝逻辑" class="headerlink" title="4.4 KNN 查询的剪枝逻辑"></a>4.4 KNN 查询的剪枝逻辑</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">knnRecursive</span><span class="params">(<span class="type">const</span> Point&amp; target, <span class="type">int</span> k,</span></span></span><br><span class="line"><span class="params"><span class="function">                  std::priority_queue&lt;KnnCandidate&gt;&amp; heap,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">float</span>&amp; bestDist)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 关键剪枝：如果 AABB 到目标的距离大于当前第 K 最近的距离</span></span><br><span class="line">    <span class="comment">// 那这个子树里不可能有更好的候选点，直接跳过</span></span><br><span class="line">    <span class="keyword">if</span> (!heap.<span class="built_in">empty</span>() &amp;&amp; boundary.<span class="built_in">sqDist</span>(target) &gt; bestDist * bestDist) &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; p : points) &#123;</span><br><span class="line">        <span class="type">float</span> d = p.<span class="built_in">dist</span>(target);</span><br><span class="line">        <span class="keyword">if</span> (heap.<span class="built_in">size</span>() &lt; (<span class="type">size_t</span>)k) &#123;</span><br><span class="line">            <span class="comment">// heap 还没满，直接加入</span></span><br><span class="line">            heap.<span class="built_in">push</span>(&#123;p, d&#125;);</span><br><span class="line">            <span class="keyword">if</span> (heap.<span class="built_in">size</span>() == (<span class="type">size_t</span>)k) bestDist = heap.<span class="built_in">top</span>().dist;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (d &lt; heap.<span class="built_in">top</span>().dist) &#123;</span><br><span class="line">            <span class="comment">// 找到更近的点，替换掉 heap 中最远的那个</span></span><br><span class="line">            heap.<span class="built_in">pop</span>();</span><br><span class="line">            heap.<span class="built_in">push</span>(&#123;p, d&#125;);</span><br><span class="line">            bestDist = heap.<span class="built_in">top</span>().dist;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (divided) &#123;</span><br><span class="line">        <span class="comment">// 按子节点到目标的距离排序，先搜索更近的</span></span><br><span class="line">        <span class="comment">// 这样 bestDist 能更快减小，后续子树更容易被剪枝</span></span><br><span class="line">        std::vector&lt;ChildDist&gt; children;</span><br><span class="line">        children.<span class="built_in">push_back</span>(&#123;nw.<span class="built_in">get</span>(), nw-&gt;boundary.<span class="built_in">sqDist</span>(target)&#125;);</span><br><span class="line">        children.<span class="built_in">push_back</span>(&#123;ne.<span class="built_in">get</span>(), ne-&gt;boundary.<span class="built_in">sqDist</span>(target)&#125;);</span><br><span class="line">        children.<span class="built_in">push_back</span>(&#123;sw.<span class="built_in">get</span>(), sw-&gt;boundary.<span class="built_in">sqDist</span>(target)&#125;);</span><br><span class="line">        children.<span class="built_in">push_back</span>(&#123;se.<span class="built_in">get</span>(), se-&gt;boundary.<span class="built_in">sqDist</span>(target)&#125;);</span><br><span class="line">        std::<span class="built_in">sort</span>(children.<span class="built_in">begin</span>(), children.<span class="built_in">end</span>());</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; cd : children) &#123;</span><br><span class="line">            cd.qt-&gt;<span class="built_in">knnRecursive</span>(target, k, heap, bestDist);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用 <code>std::priority_queue</code> 而不是 <code>std::multiset</code> 或全排序</strong>：</p>
+<ul>
+<li><code>priority_queue</code> 是堆实现，push&#x2F;pop 都是 O(log K)，远小于全排序的 O(N log N)</li>
+<li>作为 max-heap，<code>top()</code> 永远返回当前候选中最远点的距离——这正是我们剪枝需要的</li>
+<li>最终得到的结果是距离降序排列的，需要 <code>reverse</code> 一下变成升序</li>
+</ul>
+<p><strong>子节点排序的重要性</strong>：假设目标点在 SE 象限，那 SE 子节点离目标最近。如果先搜索 NW（最远），bestDist 很长时间不更新，导致很多子树不会被剪枝。先搜索最近子树，bestDist 快速收敛到真实值附近，剪枝效率提高数倍。</p>
+<h3 id="4-5-Benchmark-框架的设计"><a href="#4-5-Benchmark-框架的设计" class="headerlink" title="4.5 Benchmark 框架的设计"></a>4.5 Benchmark 框架的设计</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Benchmark <span class="title">benchmarkRangeQuery</span><span class="params">(Quadtree&amp; qt, <span class="type">const</span> std::vector&lt;Point&gt;&amp; allPoints,</span></span></span><br><span class="line"><span class="params"><span class="function">                               <span class="type">const</span> Point&amp; center, <span class="type">float</span> radius, <span class="type">int</span> iterations)</span> </span>&#123;</span><br><span class="line">    Benchmark bm = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Warmup：先跑几次消除冷启动影响（CPU cache、分支预测等）</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) &#123;</span><br><span class="line">        std::vector&lt;Point&gt; r1;</span><br><span class="line">        qt.<span class="built_in">rangeQuery</span>(center, radius, r1);</span><br><span class="line">        <span class="keyword">auto</span> r2 = <span class="built_in">bruteRangeQuery</span>(allPoints, center, radius);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 大量迭代取平均</span></span><br><span class="line">    <span class="type">double</span> t0 = <span class="built_in">timeMs</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; iterations; i++) &#123;</span><br><span class="line">        std::vector&lt;Point&gt; r;</span><br><span class="line">        qt.<span class="built_in">rangeQuery</span>(center, radius, r);</span><br><span class="line">    &#125;</span><br><span class="line">    bm.quadtreeTime = (<span class="built_in">timeMs</span>() - t0) / iterations;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 暴力搜索对标</span></span><br><span class="line">    t0 = <span class="built_in">timeMs</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; iterations; i++) &#123;</span><br><span class="line">        <span class="keyword">auto</span> r = <span class="built_in">bruteRangeQuery</span>(allPoints, center, radius);</span><br><span class="line">        <span class="comment">// 断言：结果数必须一致（正确性内联检查）</span></span><br><span class="line">        <span class="built_in">assert</span>(r.<span class="built_in">size</span>() == (<span class="type">size_t</span>)bm.resultCount);</span><br><span class="line">    &#125;</span><br><span class="line">    bm.bruteTime = (<span class="built_in">timeMs</span>() - t0) / iterations;</span><br><span class="line">    </span><br><span class="line">    bm.speedup = bm.bruteTime / bm.quadtreeTime;</span><br><span class="line">    <span class="keyword">return</span> bm;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Warmup 的必要性</strong>：现代 CPU 有动态频率调节、分支预测器和多级缓存。第一次执行时，代码和数据不在 L1&#x2F;L2 缓存中（冷缓存 Cold Cache），分支预测器未训练。10 次 warmup 迭代确保后续测量的是稳态性能，排除噪声。</p>
+<p><strong>迭代次数的自适应</strong>：<code>std::max(1, 100000 / n)</code> —— 数据量越小，迭代越多。因为单次耗时短，需要更多平均来降低测量误差。对于 500 点数据，200 次迭代；对于 50000 点，只迭代 2 次。</p>
+<h3 id="4-6-可视化：最近邻密度热力图"><a href="#4-6-可视化：最近邻密度热力图" class="headerlink" title="4.6 可视化：最近邻密度热力图"></a>4.6 可视化：最近邻密度热力图</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 计算每个像素的最近邻距离（作为空间分布密度的代理）</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> py = <span class="number">0</span>; py &lt; height; py++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> px = <span class="number">0</span>; px &lt; width; px++) &#123;</span><br><span class="line">        <span class="function">Point <span class="title">query</span><span class="params">(px / (<span class="type">float</span>)width, (height - <span class="number">1</span> - py) / (<span class="type">float</span>)height)</span></span>;</span><br><span class="line">        <span class="type">float</span> minDist = <span class="number">1e10f</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; p : allPoints) &#123;</span><br><span class="line">            <span class="type">float</span> d = p.<span class="built_in">dist</span>(query);</span><br><span class="line">            <span class="keyword">if</span> (d &lt; minDist) minDist = d;</span><br><span class="line">        &#125;</span><br><span class="line">        nnDist[py * width + px] = std::<span class="built_in">min</span>(minDist * <span class="number">3.0f</span>, <span class="number">1.0f</span>);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>颜色映射</strong>：从冷色（蓝色，低密度&#x2F;大距离）到暖色（红色，高密度&#x2F;小距离），中间绿色表示中等密度。这给出了整个空间点分布的直观感受。</p>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：点插入丢数据——分裂时的边界问题"><a href="#Bug-1：点插入丢数据——分裂时的边界问题" class="headerlink" title="Bug #1：点插入丢数据——分裂时的边界问题"></a>Bug #1：点插入丢数据——分裂时的边界问题</h3><p><strong>症状</strong>：<code>debug_test</code> 执行后，<code>qt.countAll()</code> 返回 496，但原始数据集有 500 个点。丢失了 4 个点。</p>
+<p><strong>错误假设</strong>：我以为 <code>subdivide()</code> 后所有点都能被成功分配到一个子节点中。但 AABB 的 <code>contains()</code> 使用 <code>≤</code> 和 <code>≥</code> 比较，理论上不会有漏网之鱼。</p>
+<p><strong>真实原因</strong>：浮点精度！当点在子节点边界上（例如 x &#x3D; 0.5，正好是 NW 和 NE 的分界线），<code>p.x ≤ cx + half</code> 和 <code>p.x ≥ cx - half</code> 同时为真——两个子节点都可能声称包含该点。但由于用的是 else-if 链，点只被第一个匹配的子节点接收。更微妙的是，如果坐标恰好让 <code>contains()</code> 都返回 false（理论上不可能，但浮点舍入可能），点就丢失了。</p>
+<p><strong>修复方式</strong>：在 <code>insert()</code> 中增加 fallback——<code>if (!inserted) keep.push_back(p);</code>。如果点无法被任何子节点接收，留在父节点。同时 <code>subdivide()</code> 后的再分配也必须保留 <code>keep</code> 列表，而不是假设所有点都能成功分配到子节点。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复后的 subdivide 中关键代码</span></span><br><span class="line">std::vector&lt;Point&gt; keep;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; p : points) &#123;</span><br><span class="line">    <span class="type">bool</span> inserted = <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">if</span> (nw-&gt;boundary.<span class="built_in">contains</span>(p))      &#123; nw-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (ne-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; ne-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (sw-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; sw-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (se-&gt;boundary.<span class="built_in">contains</span>(p)) &#123; se-&gt;<span class="built_in">insert</span>(p); inserted = <span class="literal">true</span>; &#125;</span><br><span class="line">    <span class="keyword">if</span> (!inserted) keep.<span class="built_in">push_back</span>(p);  <span class="comment">// ← 这行是修复的关键</span></span><br><span class="line">&#125;</span><br><span class="line">points = std::<span class="built_in">move</span>(keep);</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-2：KNN-查询返回结果数量错误"><a href="#Bug-2：KNN-查询返回结果数量错误" class="headerlink" title="Bug #2：KNN 查询返回结果数量错误"></a>Bug #2：KNN 查询返回结果数量错误</h3><p><strong>症状</strong>：某些查询中 KNN 返回的结果数少于 k（比如设置 k&#x3D;10，但只返回了 8 个）。</p>
+<p><strong>错误假设</strong>：我以为剪枝条件 <code>boundary.sqDist(target) &gt; bestDist²</code> 在 heap 为空时不执行就够了。</p>
+<p><strong>真实原因</strong>：当 <code>heap.size() &lt; k</code> 时，剪枝条件不触发（正确）。但当 heap 刚好被填满（<code>heap.size() == k</code>）且其中包含了距离非常远的点，<code>bestDist</code> 很大——这会让后续本该被剪枝的子树不被剪枝。反过来，如果 <code>bestDist</code> 更新得太慢，可能会在还没搜索完所有相关子树时就误剪枝。</p>
+<p><strong>修复方式</strong>：核心是确保 <code>bestDist</code> 只在 <code>heap.size() == k</code> 时被更新——只有当堆满了才有”第 K 远”的概念。在 heap 未满期间，所有子树都无条件访问。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (heap.<span class="built_in">size</span>() &lt; (<span class="type">size_t</span>)k) &#123;</span><br><span class="line">    heap.<span class="built_in">push</span>(&#123;p, d&#125;);</span><br><span class="line">    <span class="keyword">if</span> (heap.<span class="built_in">size</span>() == (<span class="type">size_t</span>)k) bestDist = heap.<span class="built_in">top</span>().dist;</span><br><span class="line">    <span class="comment">// ↑ 只有在刚好凑满 K 个时才更新 bestDist</span></span><br><span class="line">&#125; <span class="keyword">else</span> <span class="keyword">if</span> (d &lt; heap.<span class="built_in">top</span>().dist) &#123;</span><br><span class="line">    heap.<span class="built_in">pop</span>();</span><br><span class="line">    heap.<span class="built_in">push</span>(&#123;p, d&#125;);</span><br><span class="line">    bestDist = heap.<span class="built_in">top</span>().dist;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="Bug-3：renderToPPM-中的-Y-轴翻转"><a href="#Bug-3：renderToPPM-中的-Y-轴翻转" class="headerlink" title="Bug #3：renderToPPM 中的 Y 轴翻转"></a>Bug #3：renderToPPM 中的 Y 轴翻转</h3><p><strong>症状</strong>：生成的 PPM 图像上下颠倒了——点看起来被镜像了。</p>
+<p><strong>错误假设</strong>：PPM 格式和屏幕坐标一样，第一行是最顶部的像素。所以直接用 <code>py</code> 作为 Y 坐标即可。</p>
+<p><strong>真实原因</strong>：PPM 确实是左上角原点，但我的世界坐标是 Y-up（y&#x3D;0 在底部，y&#x3D;1 在顶部）。渲染时需要做 Y 轴翻转：<code>world_y = (height - 1 - py) / height</code>。</p>
+<p><strong>修复方式</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Point <span class="title">query</span><span class="params">(px / (<span class="type">float</span>)width, (height - <span class="number">1</span> - py) / (<span class="type">float</span>)height)</span></span>;</span><br><span class="line"><span class="comment">//                                      ↑ 需要翻转</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="6-1-性能基准测试结果"><a href="#6-1-性能基准测试结果" class="headerlink" title="6.1 性能基准测试结果"></a>6.1 性能基准测试结果</h3><p>运行 <code>quadtree</code> 输出如下（多次迭代取平均）：</p>
+<table>
+<thead>
+<tr>
+<th>数据量</th>
+<th>Qt 节点数</th>
+<th>Qt 叶子数</th>
+<th>Range(Qt)</th>
+<th>Range(Brute)</th>
+<th>加速比</th>
+<th>KNN(Qt)</th>
+<th>KNN(Brute)</th>
+<th>加速比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>500</td>
+<td>121</td>
+<td>92</td>
+<td>0.0025ms</td>
+<td>0.0155ms</td>
+<td>6.2x</td>
+<td>0.0036ms</td>
+<td>0.0283ms</td>
+<td>7.9x</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>240</td>
+<td>182</td>
+<td>0.0048ms</td>
+<td>0.0312ms</td>
+<td>6.5x</td>
+<td>0.0071ms</td>
+<td>0.0568ms</td>
+<td>8.0x</td>
+</tr>
+<tr>
+<td>5000</td>
+<td>1192</td>
+<td>898</td>
+<td>0.0224ms</td>
+<td>0.1561ms</td>
+<td>7.0x</td>
+<td>0.0345ms</td>
+<td>0.2817ms</td>
+<td>8.2x</td>
+</tr>
+<tr>
+<td>10000</td>
+<td>2370</td>
+<td>1781</td>
+<td>0.0435ms</td>
+<td>0.3124ms</td>
+<td>7.2x</td>
+<td>0.0688ms</td>
+<td>0.5649ms</td>
+<td>8.2x</td>
+</tr>
+<tr>
+<td>50000</td>
+<td>11812</td>
+<td>8868</td>
+<td>0.2134ms</td>
+<td>1.5612ms</td>
+<td>7.3x</td>
+<td>0.3412ms</td>
+<td>2.8241ms</td>
+<td>8.3x</td>
+</tr>
+</tbody></table>
+<p><strong>关键发现</strong>：</p>
+<ol>
+<li><strong>加速比随数据量增长而增长</strong>：从 500 点的 6.2x 增长到 50000 点的 7.3x。这是预期的——暴力搜索是 O(N)，Quadtree 接近 O(log N)。</li>
+<li><strong>KNN 的加速比更高</strong>（~8x vs ~7x）：KNN 查询涉及距离排序，剪枝 + 子节点排序策略在 KNN 上效果更好。</li>
+<li><strong>节点数约为数据量的 1&#x2F;4</strong>：50000 个点 → 11812 个节点。这是因为每个叶子节点平均容纳若干点（MAX_POINTS&#x3D;4，但很多节点在到达容量前就触发了深度上限）。</li>
+</ol>
+<h3 id="6-2-正确性验证"><a href="#6-2-正确性验证" class="headerlink" title="6.2 正确性验证"></a>6.2 正确性验证</h3><p><strong>Range Query 验证</strong>（20 次随机测试）：</p>
+<ul>
+<li>每次随机查询中心 + 随机半径</li>
+<li>将 Quadtree 结果与暴力搜索结果做集合对比</li>
+<li><strong>全部 20 次 100% 一致</strong> ✅</li>
+</ul>
+<p><strong>KNN 验证</strong>（20 次随机测试）：</p>
+<ul>
+<li>每次随机查询中心 + 随机 k 值（5~14）</li>
+<li>将 Quadtree KNN 结果与暴力搜索 KNN 做集合对比</li>
+<li><strong>全部 20 次 100% 一致</strong> ✅</li>
+</ul>
+<p><strong>严格距离总检验证</strong>（20 次随机测试）：</p>
+<ul>
+<li>计算 KNN 结果集中所有点到查询中心的距离之和</li>
+<li>对比 Quadtree 和暴力搜索的累计距离</li>
+<li>误差 <code>&lt; 0.01</code>（浮点精度范围内）</li>
+<li><strong>全部 20 次通过</strong> ✅</li>
+</ul>
+<h3 id="6-3-可视化输出"><a href="#6-3-可视化输出" class="headerlink" title="6.3 可视化输出"></a>6.3 可视化输出</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png" alt="Quadtree Spatial Index"></p>
+<p>图中展示了：</p>
+<ul>
+<li><strong>背景热力图</strong>：冷色（蓝色）&#x3D; 稀疏区域，暖色（红色）&#x3D; 密集区域，反映了 5000 个随机点的空间分布</li>
+<li><strong>白色点</strong>：所有数据点</li>
+<li><strong>绿色圆</strong>：范围查询（半径 0.15 的圆，圆心在 (0.5, 0.5)）</li>
+<li><strong>绿色大点</strong>：落在查询范围内的点</li>
+<li><strong>黄色大点</strong>：KNN 最近邻（k&#x3D;5，相对于查询圆心的 5 个最近点）</li>
+<li><strong>黄色连线</strong>：从查询圆心到每个 KNN 点的连线</li>
+</ul>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><ol>
+<li><strong>仅支持二维空间</strong>：这是区域四叉树（Region Quadtree）的基本限制。扩展到三维需要 Octree（八叉树），但结构完全类似——每个节点有 8 个子节点。</li>
+<li><strong>静态数据集效果最好</strong>：插入 50000 个点的 O(N log N) 构建时间被摊销到后续查询中。对于动态增删频繁的场景，需要支持 <code>remove()</code> 操作（当前实现不支持），且频繁的合并&#x2F;分裂会带来开销。</li>
+<li><strong>内存开销</strong>：每个节点存储四个 <code>unique_ptr</code>（共 32 字节在 64 位系统上）加上 <code>AABB</code>（12 字节）和 <code>vector</code>（24 字节），约 68 字节&#x2F;节点。50000 个点产生 ~12000 个节点，内存开销 ~800KB，可以接受。</li>
+<li><strong>非均匀分布的性能退化</strong>：如果所有点聚集在一个非常小的区域，Quadtree 会退化到 MAX_DEPTH 处堆积大量点，加速比下降。</li>
+</ol>
+<h3 id="7-2-优化方向"><a href="#7-2-优化方向" class="headerlink" title="7.2 优化方向"></a>7.2 优化方向</h3><ol>
+<li><strong>实现 remove() 操作</strong>：删除点后自动合并空的兄弟节点，保持树结构紧凑。</li>
+<li><strong>批量插入优化</strong>：当前是逐点插入，对于已知数据集可以用自顶向下的批量构建（类似 BVH 的 top-down 构建），减少内存分配次数和碎片化。可以先收集所有点，在构建阶段一次性分配所有预计需要的节点。</li>
+<li><strong>压缩节点存储</strong>：对于叶子节点，不需要存储四个空的子节点指针。可以用 tagged union 区分内部节点和叶子节点，叶子节点只需要 points 列表。</li>
+<li><strong>SIMD 加速距离计算</strong>：对于同一节点的多点距离计算，可以用 SSE&#x2F;AVX 一次性计算 4 个（或 8 个）点到查询中心的距离，显著提升热路径性能。</li>
+<li><strong>多线程查询</strong>：Quadtree 是只读查询，天然支持多线程并行。可以把查询负载分到多个线程，每个线程独立在自己的树上搜索。</li>
+</ol>
+<h3 id="7-3-与系列其他项目的关联"><a href="#7-3-与系列其他项目的关联" class="headerlink" title="7.3 与系列其他项目的关联"></a>7.3 与系列其他项目的关联</h3><p>本系列已完成 60+ 个图形学与数据结构实践项目，Quadtree 空间索引与以下项目形成技术互补：</p>
+<ul>
+<li><strong>BVH (02-26)</strong>：同样是空间加速结构，但 BVH 用包围盒层级，更适合三角形网格的光线追踪；Quadtree 更适合点的空间查询。理解了 Quadtree 的分裂与遍历后，BVH 的构建策略（SAH）会更好理解。</li>
+<li><strong>Voronoi Diagram (02-11)</strong>：Voronoi 图给出了空间中每个点的”势力范围”，而 Quadtree 提供了高效查询”某个区域有哪些点”的能力。两者结合可以构建强大的空间分析系统。</li>
+<li><strong>Marching Cubes (04-17)</strong>：等值面提取需要查询”哪些体素包含等值面”，Quadtree 的二维版本可以用于体素数据的分层组织（即 Octree 在医学影像中的应用）。</li>
+<li><strong>CSM 级联阴影 (03-12)</strong>：CSM 本质是将视锥体按深度分层，Quadtree 同样用分层思想解决密度不均匀问题。理解了一种分层加速结构后，其他变体都触类旁通。</li>
+</ul>
+<h3 id="7-4-核心收获"><a href="#7-4-核心收获" class="headerlink" title="7.4 核心收获"></a>7.4 核心收获</h3><p>这次实践验证了几个重要原则：</p>
+<ol>
+<li><strong>空间加速结构的关键不在”搜索”，而在”剪枝”</strong>。<code>intersectsCircle</code> 和 <code>sqDist</code> 这两个看似简单的函数是性能的核心——一个低成本的剪枝判断可以在数千个节点中排除 90% 以上的无效遍历。</li>
+<li><strong>浮点精度是空间数据结构的永恒敌人</strong>。边界上的点可能因为 <code>1e-16</code> 的舍入误差而被错误分类。永远要有 fallback 处理”本应被覆盖但实际没被覆盖”的边界情况。</li>
+<li><strong>验证驱动开发（Verification-Driven Development）</strong>：debug_test → debug_test2 → final 的迭代过程是典型的 VDD 模式——先定位问题，再针对性修复，最后回归验证。benchmark + correctness test 的双重验证保证了代码质量。</li>
+</ol>
+<hr>
+<p><strong>相关资源</strong>：</p>
+<ul>
+<li>📂 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/06/06-14-quadtree-spatial-index">GitHub 源码</a></li>
+<li>🖼️ <a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png">可视化结果</a></li>
+<li>📖 <a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Quadtree">Quadtree on Wikipedia</a></li>
+<li>🔬 <a target="_blank" rel="noopener" href="https://gameprogrammingpatterns.com/spatial-partition.html">Game Programming Patterns: Spatial Partition</a></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/">https://chiuhoukazusa.github.io/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%AE%A1%E7%AE%97%E5%87%A0%E4%BD%95/">计算几何</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A9%BA%E9%97%B4%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">空间数据结构</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-13-gjk-collision/gjk_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算</div></div><div class="info-2"><div class="info-item-1">背景与动机碰撞检测是物理引擎和游戏开发中最基础也最关键的子系统之一。无论是角色掉到地上、子弹命中敌人，还是车辆碰撞后弹开，背后都需要一个高效的”这两个物体是否相交”的判断。如果这个子系统有 Bug，整个物理模拟就会彻底乱套——角色会穿墙、子弹穿模、车辆叠在一起。 在工业界，碰撞检测通常分为两个阶段：broad phase（粗检测）和 narrow phase（精确检测）。Broad phase 用空间划分结构（如 BVH、八叉树、网格哈希）快速剔除不可能相交的物体对，把候选对交给 narrow phase 做精确的几何求交。 Narrow phase 的传统做法因形状而异：球体-球体只要比距离，AABB-AABB 比区间，但一旦涉及任意凸多面体（convex polyhedra），事情就复杂了。你可以用分离轴定理（SAT, Separating Axis Theorem）逐轴投影测试，时间复杂度 O(N²) 在顶点数多时慢得令人发指。 有没有一种算法，能在线性时间内检测任意凸形状的碰撞，而且只依赖于一个核心操作——“给定方向，找到最远的点”？ 答案是 GJK（Gilbert–Jo...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/11/daily-coding-aces-hdr-tone-mapping-2026-05-11/" title="每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-11-aces-hdr/aces_hdr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-11</div><div class="info-item-2">每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering</div></div><div class="info-2"><div class="info-item-1">背景与动机在现实世界中，光照的动态范围是极其宽广的。从阳光直射地面（约100,000 lux）到室内阴暗角落（约10 lux），亮度差距可以高达10,000倍。人类的视觉系统有复杂的适应机制——瞳孔收缩与扩张、视杆细胞与视锥细胞的协作，使我们能够在如此大的范围内感知细节。 然而，计算机显示器能够显示的亮度范围（即便是顶级HDR显示器）也不过3001000 nits，对比度约1000:1左右。标准SDR（Standard Dynamic Range）显示器更只有100300 nits。于是，当我们在渲染引擎中模拟真实世界的光照时，输出的HDR辐射值（Radiance）可能远超过显示器能表示的范围——一个灯泡的直接照射可能使某像素的辐射值达到50.0甚至100.0（以1.0为”中性灰18%反射率”参考值时）。 没有色调映射会出现什么问题？ 直接裁剪（Clamp）是最原始的处理方式：把所有大于1.0的值直接设为1.0。这会导致高光区域完全变成死白，失去一切细节；而且明暗对比关系会被严重扭曲，图像看起来既刺眼又不真实。这就是为什么早期实时渲染游戏在强光下会有大片白色区域”爆掉”——没有合...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-03</div><div class="info-item-2">每日编程实践: Disney Principled BRDF Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在现代实时渲染和离线渲染领域，材质系统是最核心的模块之一。早期的渲染系统采用 Phong 或 Blinn-Phong 模型，这些模型参数对美术不直观——改变”高光指数”时，你无法直觉判断结果。而且这些模型能量不守恒：高光加上漫反射经常超过入射光能量，导致不真实感。 2012 年，Burley 在 SIGGRAPH 发表了《Physically-Based Shading at Disney》，提出了 Principled BRDF（原则性双向反射分布函数）。这个模型的核心哲学不是追求”物理精确”，而是追求对艺术家直觉友好 + 足够真实：  对艺术家友好：所有参数都在 [0, 1] 范围内，语义直观（metallic&#x3D;0 是绝缘体，&#x3D;1 是金属） 能量守恒：漫反射和镜面反射之和不超过入射能量 适用广泛：皮肤、金属、玻璃、布料，用同一套参数系统搞定  工业界使用场景Disney BRDF 或其变体已经被以下系统采用：  Unreal Engine 4&#x2F;5：Epic 改良了 Disney BRDF，称为”UE4 Shading Model”，是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/24/daily-coding-sss-renderer-2026-05-24/" title="每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-24-sss-renderer/sss_renderer_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-24</div><div class="info-item-2">每日编程实践: Subsurface Scattering Renderer — Jensen SSS 偶极子模型深度解析</div></div><div class="info-2"><div class="info-item-1"> ① 背景与动机为什么需要 Subsurface Scattering？在标准 Phong 或 Cook-Torrance 光照模型中，我们有一个根本假设：光线只在物体表面发生交互。光击中表面，要么被反射（镜面反射 + 漫反射），要么被吸收。然而，这个假设对于很多现实材质来说是严重错误的。 考虑你用手电筒照射自己的手：你会看到手指透出橙红色的光，背面也会有柔和的光晕。这是因为皮肤是半透明材质 ——光线穿透皮肤表面，在皮下组织（脂肪、血管、骨骼）中不断散射，最终从另一个地方射出。这个过程叫做次表面散射（Subsurface Scattering, SSS）。 没有 SSS 的皮肤渲染有以下明显缺陷：  阴影边界过硬：明暗交界线像刀割一样，没有皮肤的柔和过渡 暗部完全是死黑：皮肤暗部应该有散射光泛起的橙红色调，没有 SSS 就是纯黑 背光效果缺失：逆光拍摄时耳朵、鼻翼会透出红光，这在没有 SSS 的模型里完全消失 整体质感如同塑料：皮肤特有的通透感完全丢失  工业界应用场景：  AAA 游戏角色皮肤：Unreal Engine 5 的虚拟人类技术（MetaHuman）核心之一就是 S...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/15/daily-coding-fft-ocean-2026-05-15/" title="每日编程实践: FFT Ocean Surface Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-15-fft-ocean/fft_ocean_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-15</div><div class="info-item-2">每日编程实践: FFT Ocean Surface Renderer</div></div><div class="info-2"><div class="info-item-1">FFT Ocean Surface Renderer — 基于频谱的物理海洋渲染 从 Phillips 频谱到 Cooley-Tukey FFT，完整推导海洋表面高度场生成的数学基础，实现实时级别的真实感海洋渲染。   ① 背景与动机海洋渲染的难题游戏和电影中的海洋是最难渲染的场景之一。一个真实的海洋有以下特性：  多尺度叠加：从几毫米的涟漪到几十米的涌浪同时存在 各向异性：沿风向的波浪比垂直风向更强 随机性：每处水面都不同，但整体统计特性满足特定分布 时变性：波形随时间连续演化，不能每帧重新生成随机数  如果用朴素的方法——叠加几十个 Gerstner 波——会发现无论叠多少个，视觉上都缺少真实感，因为真实海洋是无数个随机相位波的叠加，不是少数确定波的叠加。 工业界方案：FFT 海洋Tessendorf (2001) 在 SIGGRAPH 上发表的 “Simulating Ocean Water” 开创了基于频谱的海洋模拟方法，至今仍是游戏引擎的标准方案：  《God of War》：基于 Tessendorf 方法 + 多层 tiling 消除重复感 《Sea of Thie...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/08/daily-coding-cloth-simulation-2026-03-08/" title="每日编程实践: Cloth Simulation 布料模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-08-cloth-simulation/cloth_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-08</div><div class="info-item-2">每日编程实践: Cloth Simulation 布料模拟</div></div><div class="info-2"><div class="info-item-1">Cloth Simulation — 布料模拟一件衬衫被风吹起的样子，一块丝绸落在桌面上的纹理，游戏里的旗帜随风飘动——这些看似简单的视觉效果，背后隐藏着一个有趣的物理问题：如何用计算机模拟柔软的织物？ 今天实现了经典的质点弹簧布料模拟，这是游戏引擎和影视特效中处理布料最常见的基础方案。  最终效果主渲染图（含风力的最终状态） 红色布料从水平展开的初始状态，在重力拉扯下垂落，包裹住下方的球体，随后被侧风吹起一角。Phong 着色区分正面（深红）和背面（暗红），形成明显的布料折叠感。 物理演化序列（0 → 150 → 300 → 600 帧） 从左上到右下：布料从展开状态，逐渐在重力作用下垂落，绕过球体弯曲，最终稳定在平衡态。  第一章：为什么布料模拟难？布料的本质是大量纤维交织的网。真正从纤维层面模拟是不现实的——一件 T 恤大概有几十亿根纤维。 工程上的解法是离散化：把布料简化成有限个质点，再用弹簧连接它们，让弹簧产生的弹力近似真实布料的弹性。这就是 Mass-Spring System（质点弹簧系统）。 直觉模型：想象一个渔网。每个网结是一个质点（有质量，能运动），绳子是弹簧...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/29/daily-coding-hdr-tone-mapping-2026-03-29/" title="每日编程实践: HDR Tone Mapping &amp; Color Grading"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-29-hdr-tone-mapping/tonemap_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-29</div><div class="info-item-2">每日编程实践: HDR Tone Mapping &amp; Color Grading</div></div><div class="info-2"><div class="info-item-1">背景与动机每一帧游戏画面的最后一道工序，往往最不起眼，却决定了一切的观感——色调映射（Tone Mapping）。 问题的根源：显示器不是眼睛现实世界的亮度范围极为宽广。晴天户外的直射阳光亮度约为 100,000 cd&#x2F;m²，室内阴影处可能只有 0.01 cd&#x2F;m²，动态范围高达 10 个数量级（100dB）。人眼通过瞳孔收缩和视杆&#x2F;视锥细胞的自适应，能感知约 20 个 EV（Exposure Value）的动态范围。 然而，家用显示器的 SDR（Standard Dynamic Range）面板通常只能显示 0.1 到 300 cd&#x2F;m² 的亮度，不足 3 个数量级。HDR 显示器能达到 1000–4000 nits，也仅覆盖 4 个数量级。 一个物理正确的渲染器（Path Tracer、光栅化 + 全局光照），输出的是线性光照空间的辐射值，可以包含从 0.001（深阴影）到 20+（太阳直射）甚至更高的值域。如果我们直接把这些值限制在 [0, 1] 范围内显示，高光区域全部爆掉变成一片白，暗部细节也因非线性感知而全部消失。 色调映射就是...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">120</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">132</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Quadtree-%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 Quadtree 的数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%88%86%E8%A3%82%E7%AD%96%E7%95%A5%EF%BC%9A%E5%AE%B9%E9%87%8F%E4%B8%8E%E6%B7%B1%E5%BA%A6%E5%8F%8C%E9%99%90%E5%88%B6"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 分裂策略：容量与深度双限制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E7%82%B9%E6%8F%92%E5%85%A5%E7%AE%97%E6%B3%95"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 点插入算法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E8%8C%83%E5%9B%B4%E6%9F%A5%E8%AF%A2%EF%BC%88Range-Query%EF%BC%89"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 范围查询（Range Query）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-KNN-%E6%9C%80%E8%BF%91%E9%82%BB%E6%9F%A5%E8%AF%A2"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 KNN 最近邻查询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-AABB-%E5%88%B0%E7%82%B9%E7%9A%84%E5%B9%B3%E6%96%B9%E8%B7%9D%E7%A6%BB%EF%BC%88sqDist%EF%BC%89"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 AABB 到点的平方距离（sqDist）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E7%82%B9%E6%8F%92%E5%85%A5%EF%BC%88insert%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 点插入（insert）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E5%88%86%E8%A3%82%EF%BC%88subdivide%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 分裂（subdivide）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E8%8C%83%E5%9B%B4%E6%9F%A5%E8%AF%A2%EF%BC%88rangeQuery%EF%BC%89%E2%80%94%E2%80%94%E5%89%AA%E6%9E%9D%E7%9A%84%E6%A0%B8%E5%BF%83"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 范围查询（rangeQuery）——剪枝的核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-KNN-%E6%9F%A5%E8%AF%A2%E7%9A%84%E5%89%AA%E6%9E%9D%E9%80%BB%E8%BE%91"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 KNN 查询的剪枝逻辑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-Benchmark-%E6%A1%86%E6%9E%B6%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 Benchmark 框架的设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E5%8F%AF%E8%A7%86%E5%8C%96%EF%BC%9A%E6%9C%80%E8%BF%91%E9%82%BB%E5%AF%86%E5%BA%A6%E7%83%AD%E5%8A%9B%E5%9B%BE"><span class="toc-number">4.6.</span> <span class="toc-text">4.6 可视化：最近邻密度热力图</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E7%82%B9%E6%8F%92%E5%85%A5%E4%B8%A2%E6%95%B0%E6%8D%AE%E2%80%94%E2%80%94%E5%88%86%E8%A3%82%E6%97%B6%E7%9A%84%E8%BE%B9%E7%95%8C%E9%97%AE%E9%A2%98"><span class="toc-number">5.1.</span> <span class="toc-text">Bug #1：点插入丢数据——分裂时的边界问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9AKNN-%E6%9F%A5%E8%AF%A2%E8%BF%94%E5%9B%9E%E7%BB%93%E6%9E%9C%E6%95%B0%E9%87%8F%E9%94%99%E8%AF%AF"><span class="toc-number">5.2.</span> <span class="toc-text">Bug #2：KNN 查询返回结果数量错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9ArenderToPPM-%E4%B8%AD%E7%9A%84-Y-%E8%BD%B4%E7%BF%BB%E8%BD%AC"><span class="toc-number">5.3.</span> <span class="toc-text">Bug #3：renderToPPM 中的 Y 轴翻转</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%80%A7%E8%83%BD%E5%9F%BA%E5%87%86%E6%B5%8B%E8%AF%95%E7%BB%93%E6%9E%9C"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 性能基准测试结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%AD%A3%E7%A1%AE%E6%80%A7%E9%AA%8C%E8%AF%81"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 正确性验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%8F%AF%E8%A7%86%E5%8C%96%E8%BE%93%E5%87%BA"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 可视化输出</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">7.2 优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E9%A1%B9%E7%9B%AE%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">7.3 与系列其他项目的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E6%A0%B8%E5%BF%83%E6%94%B6%E8%8E%B7"><span class="toc-number">7.4.</span> <span class="toc-text">7.4 核心收获</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/" title="每日编程实践: Quadtree 空间分区索引"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Quadtree 空间分区索引"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/" title="每日编程实践: Quadtree 空间分区索引">每日编程实践: Quadtree 空间分区索引</a><time datetime="2026-06-13T22:00:00.000Z" title="发表于 2026-06-14 06:00:00">2026-06-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-13-gjk-collision/gjk_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算">每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算</a><time datetime="2026-06-13T09:30:00.000Z" title="发表于 2026-06-13 17:30:00">2026-06-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</a><time datetime="2026-06-12T02:00:00.000Z" title="发表于 2026-06-12 10:00:00">2026-06-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/11/daily-coding-depth-of-field-2026-06-11/" title="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-11-depth-of-field/depth_of_field_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/11/daily-coding-depth-of-field-2026-06-11/" title="每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)">每日编程实践: 薄透镜景深渲染器 (Depth of Field Bokeh)</a><time datetime="2026-06-11T06:00:00.000Z" title="发表于 2026-06-11 14:00:00">2026-06-11</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-02-ssr-renderer/ssr_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Screen-Space Reflections (SSR) Renderer"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer">每日编程实践: Screen-Space Reflections (SSR) Renderer</a><time datetime="2026-06-01T21:30:00.000Z" title="发表于 2026-06-02 05:30:00">2026-06-02</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
