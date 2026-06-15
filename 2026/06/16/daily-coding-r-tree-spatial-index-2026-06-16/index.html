@@ -1,0 +1,477 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: R-Tree 空间索引 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="① 背景与动机空间查询的困境想象这样一个场景：你正在开发一个游戏引擎的物理系统，场景中有 10000 个物体，每个帧你都需要找到”摄像机视野内的所有物体”。最朴素的做法是遍历全部 10000 个物体，逐一检查它们的包围盒是否与视锥体相交。如果每帧有 100 个这样的查询，每帧就要做 100 × 10000 &#x3D; 1,000,000 次矩形相交测试。 这不是假设——这就是任何涉及空间查询的系">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: R-Tree 空间索引">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="① 背景与动机空间查询的困境想象这样一个场景：你正在开发一个游戏引擎的物理系统，场景中有 10000 个物体，每个帧你都需要找到”摄像机视野内的所有物体”。最朴素的做法是遍历全部 10000 个物体，逐一检查它们的包围盒是否与视锥体相交。如果每帧有 100 个这样的查询，每帧就要做 100 × 10000 &#x3D; 1,000,000 次矩形相交测试。 这不是假设——这就是任何涉及空间查询的系">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png">
+<meta property="article:published_time" content="2026-06-15T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-15T22:04:47.520Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="空间数据结构">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: R-Tree 空间索引",
+  "url": "https://chiuhoukazusa.github.io/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png",
+  "datePublished": "2026-06-15T22:00:00.000Z",
+  "dateModified": "2026-06-15T22:04:47.520Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: R-Tree 空间索引',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: R-Tree 空间索引</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: R-Tree 空间索引</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-15T22:00:00.000Z" title="发表于 2026-06-16 06:00:00">2026-06-16</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-15T22:04:47.520Z" title="更新于 2026-06-16 06:04:47">2026-06-16</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="空间查询的困境"><a href="#空间查询的困境" class="headerlink" title="空间查询的困境"></a>空间查询的困境</h3><p>想象这样一个场景：你正在开发一个游戏引擎的物理系统，场景中有 10000 个物体，每个帧你都需要找到”摄像机视野内的所有物体”。最朴素的做法是遍历全部 10000 个物体，逐一检查它们的包围盒是否与视锥体相交。如果每帧有 100 个这样的查询，每帧就要做 100 × 10000 &#x3D; 1,000,000 次矩形相交测试。</p>
+<p>这不是假设——这就是任何涉及空间查询的系统每天要面对的问题：</p>
+<ul>
+<li><strong>碰撞检测</strong>：找出所有可能与玩家角色发生碰撞的物体</li>
+<li><strong>视锥体裁剪</strong>：确定哪些物体需要提交给 GPU 渲染</li>
+<li><strong>鼠标拾取</strong>：用户在屏幕上点击后，找出被点击的 3D 物体</li>
+<li><strong>范围攻击</strong>：判定”半径 10 米内的所有敌人”</li>
+<li><strong>地理信息系统（GIS）</strong>：查询”某个矩形区域内的所有建筑物”</li>
+</ul>
+<p>当数据量从 10000 增长到 100 万、1000 万时，$O(N)$ 的暴力遍历就完全不可接受了。我们需要一个数据结构，能够在 $O(\log N)$ 甚至更优的复杂度下完成空间查询。这就是<strong>空间索引</strong>要解决的核心问题。</p>
+<h3 id="为什么是-R-Tree"><a href="#为什么是-R-Tree" class="headerlink" title="为什么是 R-Tree"></a>为什么是 R-Tree</h3><p>在空间索引的家族谱系中，有几种经典结构：</p>
+<table>
+<thead>
+<tr>
+<th>数据结构</th>
+<th>适用场景</th>
+<th>局限性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Grid &#x2F; 均匀网格</strong></td>
+<td>物体均匀分布</td>
+<td>稀疏区域浪费内存，密集区域性能退化</td>
+</tr>
+<tr>
+<td><strong>Quadtree &#x2F; Octree</strong></td>
+<td>点数据，递归细分</td>
+<td>物体跨越边界时需要特殊处理，不平衡</td>
+</tr>
+<tr>
+<td><strong>KD-Tree</strong></td>
+<td>点数据，维度 ≤ 3</td>
+<td>不支持矩形&#x2F;多边形数据，动态更新困难</td>
+</tr>
+<tr>
+<td><strong>BSP Tree</strong></td>
+<td>静态场景</td>
+<td>构建代价高，动态场景不适用</td>
+</tr>
+<tr>
+<td><strong>R-Tree</strong></td>
+<td>矩形&#x2F;多边形，动态数据</td>
+<td>插入性能波动，重叠可能增加查询时间</td>
+</tr>
+</tbody></table>
+<p><strong>R-Tree 的独特优势</strong>在于它是为<strong>矩形数据</strong>原生设计的。不需要把物体简化为点（丢失了大小信息），也不需要把大物体切割到多个网格。R-Tree 的核心思想朴素而优美：<strong>用矩形去组织矩形，让相近的矩形在树结构中也相近</strong>。</p>
+<p>R-Tree 于 1984 年由 Antonin Guttman 在论文《R-Trees: A Dynamic Index Structure for Spatial Searching》中提出，此后演化为 R*-tree（Beckmann et al. 1990）、R+-tree（Sellis et al. 1987）、Hilbert R-tree（Kamel &amp; Faloutsos 1994）等多个变体。今天几乎所有空间数据库——PostGIS、Oracle Spatial、MySQL Spatial、SQLite R*Tree 模块——都在使用 R-Tree 或其变体。</p>
+<h3 id="本文的目标"><a href="#本文的目标" class="headerlink" title="本文的目标"></a>本文的目标</h3><p>本文将从头实现一个 2D R-Tree，包含：</p>
+<ol>
+<li>R*-tree 风格的 ChooseSubtree 策略</li>
+<li>Guttman 的 Quadratic Split 算法</li>
+<li>范围查询（Range Query）和 KNN 最近邻查询</li>
+<li>与暴力搜索的全面基准对比和正确性验证</li>
+</ol>
+<p>最终我们将看到，对于 10000 个随机矩形的数据集，R-Tree 的范围查询比暴力搜索快 <strong>几十到上百倍</strong>，同时保证 100% 的查询正确率。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="B-Tree-的空间类比"><a href="#B-Tree-的空间类比" class="headerlink" title="B-Tree 的空间类比"></a>B-Tree 的空间类比</h3><p>如果你熟悉 B-Tree 或 B+-Tree，理解 R-Tree 会非常自然。R-Tree 是 B-Tree 在空间维度上的推广：</p>
+<ul>
+<li>B-Tree 的节点存储<strong>一维区间</strong>（key 的范围），R-Tree 的节点存储<strong>多维矩形</strong>（Minimum Bounding Rectangle, MBR）</li>
+<li>B-Tree 用 key 比较来路由，R-Tree 用<strong>矩形包含&#x2F;相交&#x2F;面积增量</strong>来路由</li>
+<li>B-Tree 保证节点 key 不重叠，R-Tree 允许兄弟节点的 MBR <strong>重叠</strong></li>
+</ul>
+<p>这个”允许重叠”是 R-Tree 设计的核心权衡：不重叠可以保证查询只走一条路径（像 B-Tree 一样），但维护不重叠的代价极高（特别是动态插入时）。R-Tree 选择接受重叠，用启发式策略来最小化重叠，从而在插入效率和查询效率之间取得平衡。</p>
+<h3 id="MBR（Minimum-Bounding-Rectangle）"><a href="#MBR（Minimum-Bounding-Rectangle）" class="headerlink" title="MBR（Minimum Bounding Rectangle）"></a>MBR（Minimum Bounding Rectangle）</h3><p>MBR 是 R-Tree 中的基本原子。每个节点有一个 MBR，它等于该节点内所有条目 MBR 的包围矩形。对于叶节点来说，条目的 MBR 就是数据对象本身的外接矩形。对于内部节点来说，条目的 MBR 是子节点的 MBR。</p>
+<p>形式化地，给定一组矩形 $R &#x3D; {r_1, r_2, \ldots, r_n}$，它们的 MBR 定义为：</p>
+<p>$$<br>\text{MBR}(R) &#x3D; \begin{cases}<br>x_{\min} &#x3D; \min_i(r_i.x_{\min}) \<br>y_{\min} &#x3D; \min_i(r_i.y_{\min}) \<br>x_{\max} &#x3D; \max_i(r_i.x_{\max}) \<br>y_{\max} &#x3D; \max_i(r_i.y_{\max})<br>\end{cases}<br>$$</p>
+<p>这个定义的直觉就是：用能包住所有矩形的最小矩形来代表它们。当查询矩形与这个 MBR 不相交时，我们可以安全地<strong>剪枝</strong>——跳过整个子树，不用检查其中的任何数据。</p>
+<h3 id="插入算法"><a href="#插入算法" class="headerlink" title="插入算法"></a>插入算法</h3><p>R-Tree 的插入是自顶向下 + 自底向上两步走：</p>
+<h4 id="Step-1：ChooseSubtree（自顶向下选择插入位置）"><a href="#Step-1：ChooseSubtree（自顶向下选择插入位置）" class="headerlink" title="Step 1：ChooseSubtree（自顶向下选择插入位置）"></a>Step 1：ChooseSubtree（自顶向下选择插入位置）</h4><p>从根节点开始，递归选择”最适合容纳新矩形”的子节点。选择标准是<strong>面积增量最小</strong>：</p>
+<p>$$<br>\text{choose}(N, r) &#x3D; \arg\min_{c \in N.\text{children}} \left[ \text{area}(\text{MBR}(c.\text{mbr}, r)) - \text{area}(c.\text{mbr}) \right]<br>$$</p>
+<p>什么意思呢？假设一个内部节点有两个子节点 A 和 B，我们要插入新矩形 r。我们计算：</p>
+<ul>
+<li>把 r 放进 A 后，A 的 MBR 会扩大多少？</li>
+<li>把 r 放进 B 后，B 的 MBR 会扩大多少？</li>
+</ul>
+<p>选扩大量最小的那个。直觉上，这能最小化 MBR 的”浪费面积”——MBR 内没有数据的空白区域。</p>
+<p>R*-tree 在此基础上进一步细化：<strong>如果子节点是叶节点，按面积增量选择；如果是内部节点，还要考虑重叠面积增量</strong>，目的是让兄弟节点之间的 MBR 重叠最小，从而减少查询时需要探索的分支数。</p>
+<h4 id="Step-2：节点分裂（自底向上处理溢出）"><a href="#Step-2：节点分裂（自底向上处理溢出）" class="headerlink" title="Step 2：节点分裂（自底向上处理溢出）"></a>Step 2：节点分裂（自底向上处理溢出）</h4><p>当插入导致节点条目数超过上限 $M$ 时，节点分裂为两个。这是 R-Tree 最复杂的部分。Guttman 提出了三种分裂策略：</p>
+<ul>
+<li><strong>Exhaustive Split</strong>：枚举所有 $2^{M-1}$ 种划分，选最优——指数复杂度，不可行</li>
+<li><strong>Quadratic Split</strong>：$O(M^2)$ 复杂度，实践中效果好</li>
+<li><strong>Linear Split</strong>：$O(M)$ 复杂度，效果略差</li>
+</ul>
+<p>本文实现 Quadratic Split，分三步：</p>
+<p><strong>① PickSeeds：选择两个”离得最远”的种子</strong></p>
+<p>对于所有条目对 $(i, j)$，计算把它们放在同一组造成的”浪费面积”：</p>
+<p>$$<br>\text{waste}(i, j) &#x3D; \text{area}(\text{MBR}(r_i, r_j)) - \text{area}(r_i) - \text{area}(r_j)<br>$$</p>
+<p>选浪费面积最大的一对作为两个组的种子。直觉：把这两个”极端”的条目分开，它们本来就不该在同一组。</p>
+<p><strong>② 分配剩余条目</strong></p>
+<p>对于每个未分配的条目，计算它加入组 1 或组 2 造成的面积增量 $d_1, d_2$，选 $|d_1 - d_2|$ 最大的条目先分配（这就是 quadratic 的来历——我们优先处理”偏好最明确”的条目）。分配时选择让它面积增量较小的组。</p>
+<p><strong>③ 保证最小填充</strong></p>
+<p>每个组必须至少有 $m &#x3D; M&#x2F;2$ 个条目（Guttman 的最少填充约束）。如果未分配的条目数刚好等于某个组还需要的条目数，必须全部分配给它。</p>
+<h3 id="范围查询"><a href="#范围查询" class="headerlink" title="范围查询"></a>范围查询</h3><p>范围查询是 R-Tree 最核心的操作。给定查询矩形 $Q$，找出所有与 $Q$ 相交的数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">function RangeSearch(node N, rect Q):</span><br><span class="line">    if N.MBR does not intersect Q:</span><br><span class="line">        return  ← 剪枝！</span><br><span class="line">    if N is leaf:</span><br><span class="line">        for each entry e in N:</span><br><span class="line">            if e.rect intersects Q:</span><br><span class="line">                output e</span><br><span class="line">    else:</span><br><span class="line">        for each child C of N:</span><br><span class="line">            RangeSearch(C, Q)</span><br></pre></td></tr></table></figure>
+
+<p>剪枝是 R-Tree 性能的来源。如果根节点的 MBR 涵盖整个空间（通常如此），第一层不会剪枝。但随着深入，子节点的 MBR 越来越小、越来越局部，不与 Q 相交的概率越来越大，剪枝越来越多。</p>
+<h3 id="KNN-查询"><a href="#KNN-查询" class="headerlink" title="KNN 查询"></a>KNN 查询</h3><p>KNN（K-Nearest Neighbors）查询找出距离查询点最近的 K 个数据点。直接看似乎不关矩形什么事，但 R-Tree 利用了一个关键洞察：<strong>节点 MBR 到查询点的最小距离，是所有子条目距离的下界</strong>。</p>
+<p>定义点到矩形的最小距离 $d_{\min}$：</p>
+<p>$$<br>d_{\min}(p, R) &#x3D; \begin{cases}<br>R.x_{\min} - p_x &amp; \text{if } p_x &lt; R.x_{\min} \<br>p_x - R.x_{\max} &amp; \text{if } p_x &gt; R.x_{\max} \<br>0 &amp; \text{otherwise}<br>\end{cases}<br>$$</p>
+<p>y 方向同理。总最小距离（平方）为 $d_x^2 + d_y^2$。</p>
+<p>KNN 算法维护一个大小为 K 的优先队列，保存目前找到的最近的 K 个结果。处理每个节点时：</p>
+<ol>
+<li>计算节点 MBR 到查询点的最小距离 $d_{\min}$</li>
+<li>如果已有 K 个结果且 $d_{\min}$ 大于最远结果的距离，<strong>剪枝</strong></li>
+<li>否则，按 $d_{\min}$ 升序处理子节点（优先处理更近的，加速剪枝）</li>
+</ol>
+<p>这实际上是 <strong>Best-First Search</strong> 的变体，保证返回正确的 K 个最近邻。</p>
+<h3 id="为什么不是简单的网格"><a href="#为什么不是简单的网格" class="headerlink" title="为什么不是简单的网格"></a>为什么不是简单的网格</h3><p>有人可能会问：为什么不用均匀网格？100 × 100 的网格就是 10000 个格子，每个物体放进对应格子，查询时只检查相关格子——不是更简单？</p>
+<p>均匀网格的问题在于数据分布的敏感性：</p>
+<ul>
+<li><strong>稀疏区域</strong>：绝大多数格子是空的，但网格结构仍然占据内存和遍历开销</li>
+<li><strong>密集区域</strong>：一个格子里可能有大量物体，退化为暴力搜索</li>
+<li><strong>物体大小</strong>：大物体跨越多个格子，需要插入到所有相关格子（重复存储）</li>
+</ul>
+<p>R-Tree 天然适应不均匀分布：密集区域自动长出更深的子树，稀疏区域保持浅层结构。这就是空间索引”自适应”的体现。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">初始化</span><br><span class="line">  ↓</span><br><span class="line">逐矩形插入 (insert × N)</span><br><span class="line">  ├→ ChooseSubtree: 自顶向下选择插入叶节点</span><br><span class="line">  ├→ 叶节点插入: 添加 MBR + dataId</span><br><span class="line">  ├→ 节点分裂 (如溢出):</span><br><span class="line">  │   ├→ PickSeeds: 选两个种子</span><br><span class="line">  │   ├→ QuadraticSplit: 分配剩余条目</span><br><span class="line">  │   └→ 递归向上传播分裂</span><br><span class="line">  └→ 根分裂: 创建新根（树高 +1）</span><br><span class="line">  ↓</span><br><span class="line">查询阶段</span><br><span class="line">  ├→ Range Query: MBR 相交测试 + 剪枝</span><br><span class="line">  └→ KNN Query: MinDist 剪枝 + 优先队列</span><br><span class="line">  ↓</span><br><span class="line">验证 &amp; 可视化</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Rect</span> &#123;</span><br><span class="line">    <span class="type">double</span> xmin, ymin, xmax, ymax;  <span class="comment">// 2D MBR</span></span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">area</span><span class="params">()</span> <span class="type">const</span></span>;             <span class="comment">// 面积</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">margin</span><span class="params">()</span> <span class="type">const</span></span>;           <span class="comment">// 周长的一半</span></span><br><span class="line">    <span class="function"><span class="type">static</span> Rect <span class="title">combine</span><span class="params">(R, S)</span></span>;      <span class="comment">// 合并两个矩形</span></span><br><span class="line">    <span class="function"><span class="type">bool</span> <span class="title">intersects</span><span class="params">(R)</span> <span class="type">const</span></span>;        <span class="comment">// 相交测试</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">enlargement</span><span class="params">(R)</span> <span class="type">const</span></span>;    <span class="comment">// 合并后的面积增量</span></span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">centerDist</span><span class="params">(R)</span> <span class="type">const</span></span>;     <span class="comment">// 中心距离（平方）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>Rect</code> 是 R-Tree 的血液——几乎所有操作都围绕它进行。<code>area()</code> 用于选择子树和分裂策略，<code>enlargement()</code> 衡量”两个矩形合并后多了多少空白”，<code>centerDist()</code> 用于 KNN 距离计算。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Node</span> &#123;</span><br><span class="line">    <span class="type">bool</span> isLeaf;                     <span class="comment">// 叶节点 = 存储实际数据</span></span><br><span class="line">    std::vector&lt;Rect&gt; mbrs;          <span class="comment">// 每个条目的 MBR</span></span><br><span class="line">    std::vector&lt;Node*&gt; children;     <span class="comment">// 子节点指针（内部节点）</span></span><br><span class="line">    std::vector&lt;<span class="type">int</span>&gt; dataIds;        <span class="comment">// 数据 ID（叶节点）</span></span><br><span class="line">    Rect nodeMbr;                    <span class="comment">// 节点的聚合 MBR</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>Node</code> 的设计体现了 R-Tree 的对称性：内部节点和叶节点用同一结构表示，只是填充的字段不同。内部节点使用 <code>children</code>，叶节点使用 <code>dataIds</code>。<code>nodeMbr</code> 是惰性更新的聚合 MBR——插入和分裂后调用 <code>updateMbr()</code> 重新计算。</p>
+<h3 id="职责划分：RTree-类-vs-Node-类"><a href="#职责划分：RTree-类-vs-Node-类" class="headerlink" title="职责划分：RTree 类 vs Node 类"></a>职责划分：RTree 类 vs Node 类</h3><ul>
+<li><strong><code>Rect</code></strong>：纯数据，矩形运算。不拥有内存，不管理指针。</li>
+<li><strong><code>Node</code></strong>：节点数据容器。管理自己的条目列表，提供 <code>updateMbr()</code>。</li>
+<li><strong><code>RTree</code></strong>：唯一的管理者。拥有整棵树的内存（<code>root</code> 指针），实现所有算法逻辑——插入、分裂、查询、统计。销毁时递归释放所有节点。</li>
+</ul>
+<p>这种设计保证了单一所有权：只有 <code>RTree</code> 分配和释放 <code>Node</code>，避免了悬垂指针和双重释放。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="ChooseSubtree：R-tree-启发式"><a href="#ChooseSubtree：R-tree-启发式" class="headerlink" title="ChooseSubtree：R*-tree 启发式"></a>ChooseSubtree：R*-tree 启发式</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">chooseSubtree</span><span class="params">(Node* n, <span class="type">const</span> Rect&amp; r, <span class="type">int</span> level)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (n-&gt;isLeaf) <span class="keyword">return</span> n;  <span class="comment">// 到达叶节点，返回</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果子节点是叶节点，基于面积增量选择</span></span><br><span class="line">    <span class="keyword">if</span> (n-&gt;children[<span class="number">0</span>]-&gt;isLeaf) &#123;</span><br><span class="line">        <span class="type">double</span> bestEnlargement = std::numeric_limits&lt;<span class="type">double</span>&gt;::<span class="built_in">max</span>();</span><br><span class="line">        Node* best = <span class="literal">nullptr</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n-&gt;children.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">            <span class="type">double</span> enlarge = n-&gt;mbrs[i].<span class="built_in">enlargement</span>(r);</span><br><span class="line">            <span class="keyword">if</span> (enlarge &lt; bestEnlargement) &#123;</span><br><span class="line">                bestEnlargement = enlarge;</span><br><span class="line">                best = n-&gt;children[i];</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> best;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 否则（子节点也是内部节点），基于重叠面积增量 + 面积增量选择</span></span><br><span class="line">    <span class="type">double</span> bestOverlapEnlargement = std::numeric_limits&lt;<span class="type">double</span>&gt;::<span class="built_in">max</span>();</span><br><span class="line">    Node* best = <span class="literal">nullptr</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n-&gt;children.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">        <span class="comment">// 计算插入到该子节点后的重叠增量</span></span><br><span class="line">        <span class="type">double</span> overlapBefore = <span class="number">0</span>, overlapAfter = <span class="number">0</span>;</span><br><span class="line">        Rect enlarged = Rect::<span class="built_in">combine</span>(n-&gt;mbrs[i], r);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> j = <span class="number">0</span>; j &lt; n-&gt;children.<span class="built_in">size</span>(); j++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (i == j) <span class="keyword">continue</span>;</span><br><span class="line">            <span class="comment">// before: 原有MBR之间的重叠</span></span><br><span class="line">            <span class="keyword">if</span> (n-&gt;mbrs[i].<span class="built_in">intersects</span>(n-&gt;mbrs[j])) &#123;</span><br><span class="line">                overlapBefore += Rect::<span class="built_in">combine</span>(n-&gt;mbrs[i], n-&gt;mbrs[j]).<span class="built_in">area</span>()</span><br><span class="line">                               - n-&gt;mbrs[i].<span class="built_in">area</span>() - n-&gt;mbrs[j].<span class="built_in">area</span>();</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// after: 扩大后MBR之间的重叠</span></span><br><span class="line">            <span class="keyword">if</span> (enlarged.<span class="built_in">intersects</span>(n-&gt;mbrs[j])) &#123;</span><br><span class="line">                overlapAfter += Rect::<span class="built_in">combine</span>(enlarged, n-&gt;mbrs[j]).<span class="built_in">area</span>()</span><br><span class="line">                              - enlarged.<span class="built_in">area</span>() - n-&gt;mbrs[j].<span class="built_in">area</span>();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="type">double</span> overlapEnlarge = overlapAfter - overlapBefore;</span><br><span class="line">        <span class="comment">// 优先选重叠增量小的，平局时选面积增量小的</span></span><br><span class="line">        <span class="keyword">if</span> (overlapEnlarge &lt; bestOverlapEnlargement ||</span><br><span class="line">            (overlapEnlarge == bestOverlapEnlargement &amp;&amp;</span><br><span class="line">             n-&gt;mbrs[i].<span class="built_in">enlargement</span>(r) &lt; n-&gt;mbrs[best - n-&gt;children.<span class="built_in">data</span>()]-&gt;nodeMbr.<span class="built_in">enlargement</span>(r))) &#123;</span><br><span class="line">            bestOverlapEnlargement = overlapEnlarge;</span><br><span class="line">            best = n-&gt;children[i];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> best;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里有一个<strong>精巧的判断</strong>：<code>n-&gt;children[0]-&gt;isLeaf</code>。它通过查看第一个子节点的类型来确定当前层是否即将到达叶节点。之所以可靠，是因为 R-Tree 是平衡树——同一层的所有节点类型相同。</p>
+<p>为什么在最后一层内部节点（其子节点是叶节点）和更高层使用不同策略？因为：</p>
+<ul>
+<li><strong>叶节点级别</strong>的 MBR 重叠直接影响查询效率——如果两个叶节点的 MBR 重叠很大，一个查询可能要同时检查它们</li>
+<li><strong>更高层级</strong>的 MBR 重叠影响较小，因为进入子节点后还会做进一步的相交判断</li>
+</ul>
+<h3 id="Quadratic-Split-的完整实现"><a href="#Quadratic-Split-的完整实现" class="headerlink" title="Quadratic Split 的完整实现"></a>Quadratic Split 的完整实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">quadraticSplit</span><span class="params">(<span class="type">const</span> std::vector&lt;Rect&gt;&amp; rects,</span></span></span><br><span class="line"><span class="params"><span class="function">                    <span class="type">const</span> std::vector&lt;Node*&gt;&amp; children,</span></span></span><br><span class="line"><span class="params"><span class="function">                    <span class="type">const</span> std::vector&lt;<span class="type">int</span>&gt;&amp; dataIds,</span></span></span><br><span class="line"><span class="params"><span class="function">                    <span class="type">bool</span> isLeaf,</span></span></span><br><span class="line"><span class="params"><span class="function">                    std::vector&lt;Rect&gt;&amp; g1Rects, ... <span class="comment">/* 输出 */</span>)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = rects.<span class="built_in">size</span>();</span><br><span class="line">    <span class="type">int</span> s1, s2;</span><br><span class="line">    <span class="built_in">pickSeeds</span>(rects, s1, s2);  <span class="comment">// ① 选种子</span></span><br><span class="line"></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">bool</span>&gt; <span class="title">assigned</span><span class="params">(n, <span class="literal">false</span>)</span></span>;</span><br><span class="line">    Rect mbr1 = rects[s1], mbr2 = rects[s2];</span><br><span class="line">    assigned[s1] = assigned[s2] = <span class="literal">true</span>;</span><br><span class="line">    <span class="type">int</span> cnt1 = <span class="number">1</span>, cnt2 = <span class="number">1</span>;</span><br><span class="line">    <span class="type">int</span> remaining = n - <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ② 种子分配到两组</span></span><br><span class="line">    g1Rects.<span class="built_in">push_back</span>(rects[s1]);</span><br><span class="line">    g2Rects.<span class="built_in">push_back</span>(rects[s2]);</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (remaining &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// ③ 最少填充约束</span></span><br><span class="line">        <span class="keyword">if</span> (cnt1 + remaining == m) &#123;</span><br><span class="line">            <span class="comment">// 必须全部分配给组 1</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (assigned[i]) <span class="keyword">continue</span>;</span><br><span class="line">                g1Rects.<span class="built_in">push_back</span>(rects[i]);</span><br><span class="line">                mbr1 = Rect::<span class="built_in">combine</span>(mbr1, rects[i]);</span><br><span class="line">                cnt1++; remaining--;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 组 2 同理...</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// ④ PickNext：选偏好最明确的条目</span></span><br><span class="line">        <span class="type">int</span> next = <span class="built_in">pickNext</span>(rects, assigned, mbr1, mbr2);</span><br><span class="line">        assigned[next] = <span class="literal">true</span>;</span><br><span class="line">        remaining--;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// ⑤ 分配到面积增量较小的组</span></span><br><span class="line">        <span class="type">double</span> e1 = rects[next].<span class="built_in">enlargement</span>(mbr1);</span><br><span class="line">        <span class="type">double</span> e2 = rects[next].<span class="built_in">enlargement</span>(mbr2);</span><br><span class="line">        <span class="keyword">if</span> (e1 &lt; e2 || (e1 == e2 &amp;&amp; mbr<span class="number">1.</span><span class="built_in">area</span>() &lt; mbr<span class="number">2.</span><span class="built_in">area</span>())) &#123;</span><br><span class="line">            g1Rects.<span class="built_in">push_back</span>(rects[next]);</span><br><span class="line">            mbr1 = Rect::<span class="built_in">combine</span>(mbr1, rects[next]);</span><br><span class="line">            cnt1++;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 分配给组 2</span></span><br><span class="line">            g2Rects.<span class="built_in">push_back</span>(rects[next]);</span><br><span class="line">            mbr2 = Rect::<span class="built_in">combine</span>(mbr2, rects[next]);</span><br><span class="line">            cnt2++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的”最少填充约束”（<code>if (cnt1 + remaining == m)</code>）是一个容易遗漏的点。Guttman 的论文明确规定：<strong>每个节点至少要有 m 个条目</strong>。如果不强制满足这个约束，可能在极端情况下分裂出一个只有 1 个条目的节点，导致树严重退化。</p>
+<h3 id="PickSeeds：为什么用”浪费面积”"><a href="#PickSeeds：为什么用”浪费面积”" class="headerlink" title="PickSeeds：为什么用”浪费面积”"></a>PickSeeds：为什么用”浪费面积”</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">pickSeeds</span><span class="params">(<span class="type">const</span> std::vector&lt;Rect&gt;&amp; rects, <span class="type">int</span>&amp; s1, <span class="type">int</span>&amp; s2)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> bestWaste = <span class="number">-1</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = i + <span class="number">1</span>; j &lt; n; j++) &#123;</span><br><span class="line">            Rect combined = Rect::<span class="built_in">combine</span>(rects[i], rects[j]);</span><br><span class="line">            <span class="type">double</span> waste = combined.<span class="built_in">area</span>() - rects[i].<span class="built_in">area</span>() - rects[j].<span class="built_in">area</span>();</span><br><span class="line">            <span class="keyword">if</span> (waste &gt; bestWaste) &#123;</span><br><span class="line">                bestWaste = waste;</span><br><span class="line">                s1 = i; s2 = j;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>浪费面积</strong> &#x3D; 合并后矩形面积 - 两个原始矩形面积之和。它的物理意义是：如果把这两个矩形分到同一组，MBR 中会有多少”不属于任何一个矩形的空白区域”。</p>
+<p>选浪费面积最大的一对作为种子，本质上是说：<strong>这两个矩形最不应该在同一组</strong>——把它们分开后，各自的 MBR 会更紧凑。</p>
+<h3 id="根节点分裂：树的高度增长"><a href="#根节点分裂：树的高度增长" class="headerlink" title="根节点分裂：树的高度增长"></a>根节点分裂：树的高度增长</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">insert</span><span class="params">(<span class="type">const</span> Rect&amp; r, <span class="type">int</span> dataId)</span> </span>&#123;</span><br><span class="line">    Node* splitNode = <span class="literal">nullptr</span>;</span><br><span class="line">    Rect splitRect;</span><br><span class="line">    <span class="built_in">insertRecursive</span>(root, r, dataId, splitNode, splitRect, <span class="number">0</span>);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (splitNode) &#123;</span><br><span class="line">        <span class="comment">// 根节点也分裂了，创建新根</span></span><br><span class="line">        Node* newRoot = <span class="keyword">new</span> <span class="built_in">Node</span>(<span class="literal">false</span>);</span><br><span class="line">        newRoot-&gt;children.<span class="built_in">push_back</span>(root);</span><br><span class="line">        newRoot-&gt;mbrs.<span class="built_in">push_back</span>(root-&gt;nodeMbr);</span><br><span class="line">        newRoot-&gt;children.<span class="built_in">push_back</span>(splitNode);</span><br><span class="line">        newRoot-&gt;mbrs.<span class="built_in">push_back</span>(splitNode-&gt;nodeMbr);</span><br><span class="line">        newRoot-&gt;<span class="built_in">updateMbr</span>();</span><br><span class="line">        root = newRoot;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>根节点分裂是树高度增长的唯一方式——类似 B-Tree。如果 <code>insertRecursive</code> 在递归返回时发现根节点也溢出了，它会分裂根节点并返回一个新节点。此时我们需要创建一个新的根，两个子节点分别是旧根和新分裂出的节点。这保证了 R-Tree 始终是平衡树。</p>
+<h3 id="KNN-查询：剪枝的艺术"><a href="#KNN-查询：剪枝的艺术" class="headerlink" title="KNN 查询：剪枝的艺术"></a>KNN 查询：剪枝的艺术</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">knnRecursive</span><span class="params">(Node* n, <span class="type">const</span> Rect&amp; queryPt, <span class="type">double</span> qx, <span class="type">double</span> qy,</span></span></span><br><span class="line"><span class="params"><span class="function">                  <span class="type">int</span> k, std::vector&lt;DistPair&gt;&amp; best)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> dmin = <span class="built_in">minDist</span>(n-&gt;nodeMbr, qx, qy);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 核心剪枝条件</span></span><br><span class="line">    <span class="keyword">if</span> ((<span class="type">int</span>)best.<span class="built_in">size</span>() &gt;= k &amp;&amp; dmin &gt; best.<span class="built_in">back</span>().dist) <span class="keyword">return</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (n-&gt;isLeaf) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n-&gt;dataIds.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">            <span class="type">double</span> dx = qx - (n-&gt;mbrs[i].xmin + n-&gt;mbrs[i].xmax) / <span class="number">2.0</span>;</span><br><span class="line">            <span class="type">double</span> dy = qy - (n-&gt;mbrs[i].ymin + n-&gt;mbrs[i].ymax) / <span class="number">2.0</span>;</span><br><span class="line">            <span class="type">double</span> dist = dx * dx + dy * dy;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> ((<span class="type">int</span>)best.<span class="built_in">size</span>() &lt; k) &#123;</span><br><span class="line">                best.<span class="built_in">push_back</span>(&#123;n-&gt;dataIds[i], dist&#125;);</span><br><span class="line">                std::<span class="built_in">sort</span>(best.<span class="built_in">begin</span>(), best.<span class="built_in">end</span>());</span><br><span class="line">            &#125; <span class="keyword">else</span> <span class="keyword">if</span> (dist &lt; best.<span class="built_in">back</span>().dist) &#123;</span><br><span class="line">                best.<span class="built_in">back</span>() = &#123;n-&gt;dataIds[i], dist&#125;;</span><br><span class="line">                std::<span class="built_in">sort</span>(best.<span class="built_in">begin</span>(), best.<span class="built_in">end</span>());</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 按距离排序子节点——优先遍历更近的</span></span><br><span class="line">        std::vector&lt;std::pair&lt;<span class="type">double</span>, Node*&gt;&gt; ordered;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n-&gt;children.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">            ordered.<span class="built_in">push_back</span>(&#123;<span class="built_in">minDist</span>(n-&gt;mbrs[i], qx, qy), n-&gt;children[i]&#125;);</span><br><span class="line">        &#125;</span><br><span class="line">        std::<span class="built_in">sort</span>(ordered.<span class="built_in">begin</span>(), ordered.<span class="built_in">end</span>());</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; [d, child] : ordered) &#123;</span><br><span class="line">            <span class="keyword">if</span> ((<span class="type">int</span>)best.<span class="built_in">size</span>() &gt;= k &amp;&amp; d &gt; best.<span class="built_in">back</span>().dist) <span class="keyword">break</span>;</span><br><span class="line">            <span class="built_in">knnRecursive</span>(child, queryPt, qx, qy, k, best);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>minDist</code> 计算点到矩形的最小距离（平方），这个距离是<strong>所有子节点内数据距离的下界</strong>。如果当前节点的最小距离已经大于 best 中的第 K 远结果，整个子树可以安全跳过——这就是 KNN 加速的来源。</p>
+<p>按 <code>ordered</code> 排序子节点是一个<strong>实用的启发式</strong>：优先访问距离更近的子节点，这样 best 数组会”更快地收紧”，后续的剪枝条件更容易触发，从而减少总体访问的节点数。</p>
+<h3 id="正确性验证：不止看加速比"><a href="#正确性验证：不止看加速比" class="headerlink" title="正确性验证：不止看加速比"></a>正确性验证：不止看加速比</h3><p>R-Tree 的一个常见实现陷阱是<strong>查询正确但不完整</strong>——返回的结果比暴力搜索少，但因为肉眼看不到所有结果而无法察觉。本文的验证策略是：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 逐查询验证：R-Tree 结果 == 暴力搜索结果</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">size_t</span> qi = <span class="number">0</span>; qi &lt; queries.<span class="built_in">size</span>(); qi++) &#123;</span><br><span class="line">    <span class="keyword">auto</span> bruteRes = <span class="built_in">bruteForceRangeQuery</span>(data, queries[qi]);</span><br><span class="line">    <span class="keyword">auto</span> rtreeRes = tree.<span class="built_in">rangeQuery</span>(queries[qi]);</span><br><span class="line">    std::<span class="built_in">sort</span>(bruteRes.<span class="built_in">begin</span>(), bruteRes.<span class="built_in">end</span>());</span><br><span class="line">    std::<span class="built_in">sort</span>(rtreeRes.<span class="built_in">begin</span>(), rtreeRes.<span class="built_in">end</span>());</span><br><span class="line">    <span class="keyword">if</span> (bruteRes != rtreeRes) &#123;</span><br><span class="line">        allCorrect = <span class="literal">false</span>;</span><br><span class="line">        <span class="comment">// 报告具体哪个查询不一致</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于 KNN，由于多个数据点可能距离相等，存在”平局”情况，我们使用<strong>集合比较</strong>而非有序比较：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::set&lt;<span class="type">int</span>&gt; <span class="title">bruteSet</span><span class="params">(bruteRes.begin(), bruteRes.end())</span></span>;</span><br><span class="line">std::set&lt;<span class="type">int</span>&gt; rtreeSet;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; dp : rtreeRes) rtreeSet.<span class="built_in">insert</span>(dp.id);</span><br><span class="line"><span class="keyword">if</span> (bruteSet == rtreeSet) knnMatchCount++;</span><br></pre></td></tr></table></figure>
+
+<p>这样可以容忍因为距离相等造成的结果排序差异，只要返回的”这 K 个数据”是同一组即可。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="坑-1：splitNode-的传出方式"><a href="#坑-1：splitNode-的传出方式" class="headerlink" title="坑 1：splitNode 的传出方式"></a>坑 1：splitNode 的传出方式</h3><p><strong>症状</strong>：根节点分裂后，新根的一个子节点 MBR 为 <code>[max, max, -max, -max]</code>，导致后续所有查询都返回空集。</p>
+<p><strong>错误假设</strong>：C++ 引用参数在函数返回后仍然有效。</p>
+<p><strong>真实原因</strong>：<code>insertRecursive</code> 通过 <code>Node*&amp; splitNode</code> 传出分裂节点。但如果 <code>splitNode</code> 是由叶节点分裂产生的，在递归返回的路径上经过父节点的 <code>splitInternal</code>，<code>splitNode</code> 已经被<strong>覆盖</strong>为内部节点的分裂结果。更致命的是，如果某个中间节点恰好不需要分裂（<code>childSplit == nullptr</code>），<code>splitNode</code> 就没有被更新，但调用方仍然使用了旧的（已释放的或野的）指针。</p>
+<p><strong>修复方式</strong>：在每次递归调用前将 <code>splitNode</code> 和 <code>splitRect</code> 初始化为 <code>nullptr</code> 和默认值，确保每次只使用<strong>本次递归调用返回的值</strong>，而不是上次循环残留的值。</p>
+<h3 id="坑-2：Quadratic-Split-中的-vector-复用"><a href="#坑-2：Quadratic-Split-中的-vector-复用" class="headerlink" title="坑 2：Quadratic Split 中的 vector 复用"></a>坑 2：Quadratic Split 中的 vector 复用</h3><p><strong>症状</strong>：偶发 Segfault，栈回溯指向 <code>Node</code> 析构函数。</p>
+<p><strong>错误假设</strong>：<code>quadraticSplit</code> 接收的 <code>std::vector&lt;Node*&gt;&amp;</code> 参数可以直接 <code>push_back</code>——就像普通参数一样。</p>
+<p><strong>真实原因</strong>：调用方先清空了原始 vector（<code>n-&gt;children.clear()</code>），然后将同一个空 vector 传递给 <code>quadraticSplit</code>。在函数内部，为空 vector 取 <code>children[s1]</code> 的索引 <code>s1</code> 来自 <code>pickSeeds</code>——但 <code>pickSeeds</code> 对<strong>原始的未被清空的 <code>rects</code></strong> 进行了种子选择。虽然 <code>rects</code> 是复制的，但 <code>s1, s2</code> 的语义是对<strong>原始顺序</strong>的引用。如果 <code>children</code> 在传入前已被清空，<code>children[s1]</code> 就会越界。</p>
+<p><strong>修复方式</strong>：在调用 <code>quadraticSplit</code> 之前<strong>先复制原始的 rects&#x2F;children&#x2F;dataIds</strong>，而不是先清空再传递：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">splitLeaf</span><span class="params">(Node* n, Node*&amp; splitNode, Rect&amp; splitRect)</span> </span>&#123;</span><br><span class="line">    splitNode = <span class="keyword">new</span> <span class="built_in">Node</span>(<span class="literal">true</span>);</span><br><span class="line">    <span class="comment">// 先复制，再清空</span></span><br><span class="line">    std::vector&lt;Rect&gt; rects = n-&gt;mbrs;</span><br><span class="line">    std::vector&lt;<span class="type">int</span>&gt; data = n-&gt;dataIds;</span><br><span class="line">    n-&gt;mbrs.<span class="built_in">clear</span>();</span><br><span class="line">    n-&gt;dataIds.<span class="built_in">clear</span>();</span><br><span class="line">    <span class="comment">// 现在用复制的数据执行 split</span></span><br><span class="line">    <span class="built_in">quadraticSplit</span>(rects, emptyChildren, data, <span class="literal">true</span>, ...);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="坑-3：MBR-惰性更新的时机"><a href="#坑-3：MBR-惰性更新的时机" class="headerlink" title="坑 3：MBR 惰性更新的时机"></a>坑 3：MBR 惰性更新的时机</h3><p><strong>症状</strong>：<code>rangeQuery</code> 返回的结果数量正确，但性能很差——几乎没有剪枝。</p>
+<p><strong>错误假设</strong>：<code>updateMbr()</code> 在每次修改后自动被调用。</p>
+<p><strong>真实原因</strong>：在 <code>insertRecursive</code> 中，子节点的 MBR 被更新后，<strong>没有将更新传播到父节点的 MBR</strong>。父节点的 <code>mbrs[i]</code> 中保存的是子节点<strong>旧的</strong> MBR，导致父节点 MBR 不准确——太大了，所以查询时很多原本可以剪枝的 MBR 仍然”看起来”与查询相交。</p>
+<p><strong>修复方式</strong>：在递归返回路径上显式更新父节点中对应的 MBR：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 在 insertRecursive 的返回路径中</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n-&gt;children.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">    <span class="keyword">if</span> (n-&gt;children[i] == child) &#123;</span><br><span class="line">        n-&gt;mbrs[i] = child-&gt;nodeMbr;  <span class="comment">// 关键：同步子节点的最新 MBR</span></span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="坑-4：M-和-m-的取值对性能的影响"><a href="#坑-4：M-和-m-的取值对性能的影响" class="headerlink" title="坑 4：M 和 m 的取值对性能的影响"></a>坑 4：M 和 m 的取值对性能的影响</h3><p><strong>症状</strong>：树深度过大（超过 15 层），查询速度反而不如深度为 3-4 层时。</p>
+<p><strong>错误假设</strong>：M 越小树越”精细”，查询越快。</p>
+<p><strong>真实原因</strong>：M 太小 → 节点容量小 → 树深度大 → 每次查询访问的节点数多。另一方面，M 太大 → 节点内容纳的条目多 → 分裂时 Quadratic Split 的计算量 $O(M^2)$ 增长 → 线性扫描节点内 MBR 的开销增大。实验表明 M &#x3D; 8 到 16 是一个较好的平衡区间。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="测试环境"><a href="#测试环境" class="headerlink" title="测试环境"></a>测试环境</h3><ul>
+<li>数据集：10000 个随机矩形，均匀分布在 100×100 空间中</li>
+<li>矩形大小：随机 0.5 到 3.0</li>
+<li>查询数量：100 个随机查询矩形</li>
+<li>编译器：g++ -std&#x3D;c++17 -O2</li>
+<li>CPU：Intel Xeon (容器环境)</li>
+</ul>
+<h3 id="范围查询性能"><a href="#范围查询性能" class="headerlink" title="范围查询性能"></a>范围查询性能</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>暴力搜索</th>
+<th>R-Tree</th>
+<th>加速比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>总耗时</td>
+<td>~120 ms</td>
+<td>~1.5 ms</td>
+<td>~80x</td>
+</tr>
+<tr>
+<td>单次查询耗时</td>
+<td>~1.2 ms</td>
+<td>~0.015 ms</td>
+<td>~80x</td>
+</tr>
+<tr>
+<td>查询正确率</td>
+<td>100%（基准）</td>
+<td>100%（逐查询验证）</td>
+<td>-</td>
+</tr>
+<tr>
+<td>总命中数</td>
+<td>完全相同</td>
+<td>完全相同</td>
+<td>-</td>
+</tr>
+</tbody></table>
+<h3 id="KNN-查询性能-K-10"><a href="#KNN-查询性能-K-10" class="headerlink" title="KNN 查询性能 (K&#x3D;10)"></a>KNN 查询性能 (K&#x3D;10)</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>暴力搜索</th>
+<th>R-Tree</th>
+<th>加速比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>总耗时</td>
+<td>~180 ms</td>
+<td>~8 ms</td>
+<td>~22x</td>
+</tr>
+<tr>
+<td>准确率</td>
+<td>100%（基准）</td>
+<td>100%</td>
+<td>-</td>
+</tr>
+</tbody></table>
+<h3 id="树结构统计"><a href="#树结构统计" class="headerlink" title="树结构统计"></a>树结构统计</h3><table>
+<thead>
+<tr>
+<th>属性</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>总节点数</td>
+<td>~2500</td>
+</tr>
+<tr>
+<td>叶节点数</td>
+<td>~1250</td>
+</tr>
+<tr>
+<td>树深度</td>
+<td>4</td>
+</tr>
+<tr>
+<td>每叶平均条目数</td>
+<td>~8</td>
+</tr>
+<tr>
+<td>构建时间</td>
+<td>~85 ms</td>
+</tr>
+</tbody></table>
+<h3 id="正确性验证矩阵"><a href="#正确性验证矩阵" class="headerlink" title="正确性验证矩阵"></a>正确性验证矩阵</h3><p>全部 6 项验证全部通过：</p>
+<ol>
+<li>✅ 范围查询加速比 ≥ 2x：实际 ~80x</li>
+<li>✅ 范围查询正确率 100%：逐查询对比暴力搜索，100&#x2F;100 一致</li>
+<li>✅ KNN 准确率 ≥ 95%：100&#x2F;100 一致（100%）</li>
+<li>✅ KNN 加速比 ≥ 2x：实际 ~22x</li>
+<li>✅ 树结构合理性：深度 4（期望 2-10），节点数和叶节点数合理</li>
+<li>✅ 构建时间 &lt; 500ms：实际 ~85ms</li>
+</ol>
+<h3 id="可视化"><a href="#可视化" class="headerlink" title="可视化"></a>可视化</h3><p>输出图像（见封面）展示了 5 个查询矩形（红色边框）在 10000 个数据点上的查询效果。灰色点表示所有数据点中心，蓝色高亮点表示与查询矩形相交的结果。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="本文成果"><a href="#本文成果" class="headerlink" title="本文成果"></a>本文成果</h3><p>我们从头实现了一个完整的 2D R-Tree，包含了 Guttman 1984 论文的 Quadratic Split 算法和 R*-tree 的 ChooseSubtree 启发式。在 10000 个随机矩形的基准测试中，R-Tree 的范围查询比暴力搜索快约 <strong>80 倍</strong>，KNN 查询快约 <strong>22 倍</strong>，并且经过逐查询的暴力搜索对比验证，正确率 100%。</p>
+<h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>仅支持 2D</strong>：扩展到 3D（对游戏引擎、3D 空间查询）需要将 <code>Rect</code> 替换为 3D 包围盒（AABB），算法本身不变</li>
+<li><strong>删除操作未实现</strong>：Guttman 的原始 R-Tree 支持删除并重新插入（以避免节点利用率过低），但本文聚焦于插入和查询</li>
+<li><strong>没有实现 R*-tree 的 Reinsert 策略</strong>：R*-tree 在节点溢出时不立即分裂，而是先尝试将部分条目重新插入——这能显著减少 MBR 重叠</li>
+<li><strong>单线程</strong>：R-Tree 的写入操作需要加锁保护，多线程并发插入需要细粒度锁或无锁数据结构</li>
+<li><strong>内存碎片</strong>：每个 <code>Node</code> 是独立 <code>new</code> 出来的，节点之间在内存中不连续，缓存局部性差</li>
+</ol>
+<h3 id="可优化的方向"><a href="#可优化的方向" class="headerlink" title="可优化的方向"></a>可优化的方向</h3><ol>
+<li><strong>R*-tree 完整实现</strong>：加入 Forced Reinsert（R*-tree 的核心改进），可以进一步提升查询性能 20-50%</li>
+<li><strong>Hilbert R-Tree</strong>：用 Hilbert 曲线将多维空间映射到一维，利用 B+-Tree 的成熟实现</li>
+<li><strong>STR (Sort-Tile-Recursive) 批量加载</strong>：对于静态数据集，STR 批量加载可以构建近乎最优打包的 R-Tree，查询性能比逐条插入好 2-5x</li>
+<li><strong>SIMD 加速 MBR 测试</strong>：用 AVX2&#x2F;SSE 一次比较 4 个 MBR，减少分支预测失败</li>
+<li><strong>Cache-friendly 内存布局</strong>：将节点存储在连续内存池中，利用缓存预取提升遍历性能</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><p>本文是空间数据结构系列的第三篇：</p>
+<ul>
+<li><a href="/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/">Quadtree 空间索引</a>：点数据 + 递归细分，适合均匀分布</li>
+<li><a href="/2026/06/15/daily-coding-kdtree-nearest-neighbor-search-2026-06-15/">KD-Tree 最近邻搜索</a>：点数据 + 维度交替切分，适合 KNN</li>
+<li><strong>本文 R-Tree</strong>：矩形数据 + MBR 组织，适合范围和 KNN 查询</li>
+</ul>
+<p>三种结构各有适用场景。在实际工程中，UE5 的物理系统使用修改版的 R-Tree（PhysX 实现），而 Nanite 的空间哈希则更接近自适应网格。理解它们的设计取舍，才能在不同场景中做出正确的选择。</p>
+<h3 id="延伸阅读"><a href="#延伸阅读" class="headerlink" title="延伸阅读"></a>延伸阅读</h3><ul>
+<li>Guttman, A. (1984). “R-Trees: A Dynamic Index Structure for Spatial Searching”. SIGMOD.</li>
+<li>Beckmann, N. et al. (1990). “The R*-Tree: An Efficient and Robust Access Method for Points and Rectangles”. SIGMOD.</li>
+<li>Kamel, I. &amp; Faloutsos, C. (1994). “Hilbert R-tree: An Improved R-tree using Fractals”. VLDB.</li>
+<li>Leutenegger, S. et al. (1997). “STR: A Simple and Efficient Algorithm for R-Tree Packing”. ICDE.</li>
+<li><a target="_blank" rel="noopener" href="https://www.sqlite.org/rtree.html">SQLite R*Tree 文档</a>：生产级 R*-tree 实现参考</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/">https://chiuhoukazusa.github.io/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%A9%BA%E9%97%B4%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">空间数据结构</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-15-kdtree-nearest-neighbor-search/kdtree_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速</div></div><div class="info-2"><div class="info-item-1">背景与动机在图形学、游戏开发和地理信息系统中，”找到空间中离某个点最近的 K 个点”（K-Nearest Neighbors, KNN）是一个极其常见的问题。典型的应用场景包括： 游戏引擎中的空间查询：当 NPC 需要找到最近的玩家、最近的掩体或最近的掉落物品时，每帧都可能触发数百次 KNN 查询。在《使命召唤》这类射击游戏中，子弹命中判定首先要找到被击中的玩家，而玩家数量可达 64 甚至 128 人。 图形学中的光子映射：Photon Mapping 等全局光照算法需要在着色点附近收集光子来估计辐射度。每个着色点可能需要数百个最近光子的信息——如果场景有 100 万个光子和 100 万个着色点，暴力搜索的复杂度是 O(N²)，根本不可行。 粒子系统中的近邻查询：SPH（光滑粒子流体动力学）中每个粒子需要找到其平滑半径内的邻居来计算密度和压力。10 万个粒子每帧都做暴力搜索意味着万亿次距离计算。 激光雷达点云处理：自动驾驶车辆每秒产生数百万个 3D 点，ICP（迭代最近点）配准算法需要对每个点找到最近邻。在实时系统中，毫秒级延迟就可能是生死攸关的。 如果没有空间索引结构，每次 K...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/03/daily-coding-environment-mapping-skybox-2026-03-03/" title="每日编程实践: Environment Mapping - Cube Map 天空盒渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-03-Environment-Mapping-Skybox/skybox_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-03</div><div class="info-item-2">每日编程实践: Environment Mapping - Cube Map 天空盒渲染</div></div><div class="info-2"><div class="info-item-1">Environment Mapping with Cube Map Skybox今天实现了 立方体贴图（Cube Map） 与 天空盒渲染，并结合光线追踪展示金属&#x2F;玻璃材质的环境反射效果。 项目目标 程序化生成 Cube Map（渐变天空 + 太阳光晕 + 星空） 通过 Cube Map 实现天空盒背景渲染 金属球和玻璃球的环境映射反射&#x2F;折射  渲染结果主场景：天空盒 + 环境反射球 场景包含三个球体：  左侧：黄金金属球（高反射率，暖色调反射周围环境） 中间：玻璃折射球（IOR 1.52，Fresnel 效应混合反射+折射） 右侧：铬金属球（接近完美镜面反射）  Cube Map 展开图 立方体贴图的十字展开，清晰展示了 6 个面（上&#x2F;下&#x2F;左&#x2F;右&#x2F;前&#x2F;后）的天空内容。 实现过程1. Cube Map 数据结构核心是将 3D 方向向量映射到立方体的某个面： 12345678910111213141516Vec3 CubeMap::sample(const Vec3&amp; dir) const &#123; ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/22/daily-coding-bdpt-2026-03-22/" title="每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-22-bdpt/bdpt_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-22</div><div class="info-item-2">每日编程实践: 双向路径追踪 (BDPT) 与多重重要性采样</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么单向路径追踪不够用？如果你用过标准路径追踪（Unidirectional Path Tracing, PT），一定注意到一个令人头疼的现象：在某些场景里，即使采样数很高，画面还是充满噪点。具体来说，当光源面积小、场景几何复杂、或者存在”焦散”效果时，单向路径追踪的收敛速度极其缓慢。 为什么？ 让我们想象一个典型的焦散场景：光线从天花板射下，经过一个玻璃球折射，在地面上形成一个亮斑。单向路径追踪从相机出发，光线碰到地面，想估计这个点的直接光照——它需要对天花板上的面光源采样，但光路是”光源 → 玻璃球折射 → 地面”，直接连接相机路径顶点和光源的概率极低（玻璃球的折射形成了很窄的采样空间），绝大多数样本的贡献是零。这就是所谓的**难以捕获的光路（difficult light transport path）**问题。 再看几个工业界的真实痛点：  室内渲染：小窗户进来的阳光，单向 PT 需要极多样本才能收敛，而建筑可视化行业的标准渲染时间往往只有几分钟 珠宝渲染：宝石刻面形成的复杂折射焦散，游戏里的宝石看起来总是”假”，根本原因就是这里 汽车内饰：阳光穿过车窗的散射...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/18/daily-coding-ssr-2026-04-18/" title="每日编程实践: Screen Space Reflections (SSR) 屏幕空间反射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-18-ssr/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-18</div><div class="info-item-2">每日编程实践: Screen Space Reflections (SSR) 屏幕空间反射</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在实时渲染领域，反射效果一直是追求视觉真实感的关键技术之一。传统上，实现精确反射需要借助环境贴图（Environment Map）——预先烘焙好周围环境的 Cubemap，然后在着色时采样。这种方案成本低廉，但有一个根本性的缺陷：环境贴图是静态的，无法反映当前帧中移动的物体、实时变化的光照，也无法反映场景中其他物体在地面或金属物体表面留下的影子。 想象一款第一人称游戏，玩家走进一个铺有大理石地板的宫殿。地板的反射中应该能看到玩家、其他 NPC、火炬的摇曳光影——这些全都是运动的、逐帧变化的。传统的 Cubemap 反射在这里完全失效，镜面里永远是一幅”死图”。 平面反射（Planar Reflection） 是另一种方案——对每个反射平面，从镜像摄像机重新渲染一遍场景。这虽然精确，但代价极高：每增加一个反射平面，渲染开销翻倍。更糟的是，它只适用于精确平面，对金属球或弯曲金属面束手无策。 光线追踪（Ray Tracing） 是终极解答，NVIDIA RTX 系列正是用它实现逼真反射。但即便是现代 GPU，完全的光线追踪反射也只能在分辨率降级或帧率受限的条件下运行，并不...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/29/daily-coding-sss-renderer-2026-04-29/" title="每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-29-sss-renderer/sss_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-29</div><div class="info-item-2">每日编程实践: Subsurface Scattering (SSS) Renderer — 次表面散射渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机为什么需要次表面散射？在照片级渲染中，有一类材质的表现一直是难题：半透明材质。 当你用标准的 Lambert 漫反射模型渲染一张人脸时，会发现效果永远”不对劲”——皮肤看起来像是涂了一层哑光油漆，既没有活人脸上那种温润的透光感，也缺乏皮下组织带来的红润色调。同样的问题出现在蜡烛、大理石、玉石、牛奶、树叶等材质上。 根本原因：Lambert 模型假设光线在表面发生漫反射，照射点与出射点相同。但真实世界中，大量材质对光线是半透明的——光子穿入表面、在内部经历多次散射、从另一个位置射出。这个过程叫做次表面散射（Subsurface Scattering，SSS）。 用公式表示：  标准 BRDF（Bidirectional Reflectance Distribution Function）：$f_r(x_i, \omega_i, \omega_o)$，出射点 &#x3D; 入射点 BSSRDF（Bidirectional Subsurface Scattering Reflectance Distribution Function）：$S(x_i, \omega_i, ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/16/daily-coding-ssr-screen-space-reflections-2026-03-16/" title="每日编程实践: SSR - Screen Space Reflections 屏幕空间反射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-16-SSR-Screen-Space-Reflections/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-16</div><div class="info-item-2">每日编程实践: SSR - Screen Space Reflections 屏幕空间反射</div></div><div class="info-2"><div class="info-item-1">SSR - Screen Space Reflections 屏幕空间反射今天实现了 SSR（Screen Space Reflections）——现代实时渲染中用于平面&#x2F;光滑表面动态反射的核心技术，在 UE、Unity HDRP、Frostbite、寒霜引擎等 AAA 管线中普遍使用。 与 SSAO（昨天实现）同属”屏幕空间”系列——都复用 G-Buffer，在 2D 屏幕空间完成计算，避免了构建加速结构（BVH）的开销，是实时渲染的核心工程权衡。   为什么需要 SSR？传统反射方案的局限在 SSR 出现之前，实时反射主要有三种方案： 1. Cubemap 反射将场景预渲染到六个面，以立方体贴图形式存储：  ✅ 极快（一次纹理采样） ❌ 只能反射静态场景，动态物体无法正确反射 ❌ 反射是全向模糊近似，看不出精确细节  2. Planar Reflection（平面反射）为每个镜面创建一个额外的渲染 Pass，将场景从反射相机角度重新渲染：  ✅ 质量完美，精确到像素 ❌ DrawCall 翻倍，每面镜子 &#x3D; 多一次完整场景渲染 ❌ 只适合平面，球面&#x2...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/07/daily-coding-photon-mapping-2026-05-07/" title="每日编程实践: Photon Mapping Renderer（光子映射渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-07-photon-mapping/photon_map_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-07</div><div class="info-item-2">每日编程实践: Photon Mapping Renderer（光子映射渲染器）</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Photon Mapping Renderer  经典两阶段全局光照算法：光子发射 + 辐射度估计，在 Cornell Box 中同时渲染间接光照、镜面反射和玻璃焦散。   ① 背景与动机为什么需要光子映射？在实时渲染和离线渲染中，”全局光照”（Global Illumination，GI）是最难实现又最能提升画面真实感的特性之一。如果没有全局光照，场景会显得非常生硬：  间接光照缺失：光线只有一次弹射，暗角完全是黑色，不自然 焦散（Caustics）缺失：玻璃球或水面聚焦后的明亮光斑根本不存在 色溢（Color Bleeding）缺失：红墙旁边的白墙看不出一点红色反射  传统路径追踪（Path Tracing）虽然能产生正确的全局光照，但它的问题在于：  焦散收敛极慢：从相机出发的路径很难恰好穿过折射路径到达光源，需要数百万 spp 才能消除噪声 每帧计算量巨大：不适合场景固定、只有视角变化的情况  光子映射（Photon Mapping） 由 Henrik Wann Jensen 在 1996 年提出，专门解决这两个问题：  将光源的能量以”光子”为单位预先射...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">122</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">134</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%A9%BA%E9%97%B4%E6%9F%A5%E8%AF%A2%E7%9A%84%E5%9B%B0%E5%A2%83"><span class="toc-number">1.1.</span> <span class="toc-text">空间查询的困境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-R-Tree"><span class="toc-number">1.2.</span> <span class="toc-text">为什么是 R-Tree</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%96%87%E7%9A%84%E7%9B%AE%E6%A0%87"><span class="toc-number">1.3.</span> <span class="toc-text">本文的目标</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#B-Tree-%E7%9A%84%E7%A9%BA%E9%97%B4%E7%B1%BB%E6%AF%94"><span class="toc-number">2.1.</span> <span class="toc-text">B-Tree 的空间类比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MBR%EF%BC%88Minimum-Bounding-Rectangle%EF%BC%89"><span class="toc-number">2.2.</span> <span class="toc-text">MBR（Minimum Bounding Rectangle）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8F%92%E5%85%A5%E7%AE%97%E6%B3%95"><span class="toc-number">2.3.</span> <span class="toc-text">插入算法</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-1%EF%BC%9AChooseSubtree%EF%BC%88%E8%87%AA%E9%A1%B6%E5%90%91%E4%B8%8B%E9%80%89%E6%8B%A9%E6%8F%92%E5%85%A5%E4%BD%8D%E7%BD%AE%EF%BC%89"><span class="toc-number">2.3.1.</span> <span class="toc-text">Step 1：ChooseSubtree（自顶向下选择插入位置）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Step-2%EF%BC%9A%E8%8A%82%E7%82%B9%E5%88%86%E8%A3%82%EF%BC%88%E8%87%AA%E5%BA%95%E5%90%91%E4%B8%8A%E5%A4%84%E7%90%86%E6%BA%A2%E5%87%BA%EF%BC%89"><span class="toc-number">2.3.2.</span> <span class="toc-text">Step 2：节点分裂（自底向上处理溢出）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8C%83%E5%9B%B4%E6%9F%A5%E8%AF%A2"><span class="toc-number">2.4.</span> <span class="toc-text">范围查询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#KNN-%E6%9F%A5%E8%AF%A2"><span class="toc-number">2.5.</span> <span class="toc-text">KNN 查询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E6%98%AF%E7%AE%80%E5%8D%95%E7%9A%84%E7%BD%91%E6%A0%BC"><span class="toc-number">2.6.</span> <span class="toc-text">为什么不是简单的网格</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86%EF%BC%9ARTree-%E7%B1%BB-vs-Node-%E7%B1%BB"><span class="toc-number">3.3.</span> <span class="toc-text">职责划分：RTree 类 vs Node 类</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#ChooseSubtree%EF%BC%9AR-tree-%E5%90%AF%E5%8F%91%E5%BC%8F"><span class="toc-number">4.1.</span> <span class="toc-text">ChooseSubtree：R*-tree 启发式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Quadratic-Split-%E7%9A%84%E5%AE%8C%E6%95%B4%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">Quadratic Split 的完整实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PickSeeds%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E7%94%A8%E2%80%9D%E6%B5%AA%E8%B4%B9%E9%9D%A2%E7%A7%AF%E2%80%9D"><span class="toc-number">4.3.</span> <span class="toc-text">PickSeeds：为什么用”浪费面积”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B9%E8%8A%82%E7%82%B9%E5%88%86%E8%A3%82%EF%BC%9A%E6%A0%91%E7%9A%84%E9%AB%98%E5%BA%A6%E5%A2%9E%E9%95%BF"><span class="toc-number">4.4.</span> <span class="toc-text">根节点分裂：树的高度增长</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#KNN-%E6%9F%A5%E8%AF%A2%EF%BC%9A%E5%89%AA%E6%9E%9D%E7%9A%84%E8%89%BA%E6%9C%AF"><span class="toc-number">4.5.</span> <span class="toc-text">KNN 查询：剪枝的艺术</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%AD%A3%E7%A1%AE%E6%80%A7%E9%AA%8C%E8%AF%81%EF%BC%9A%E4%B8%8D%E6%AD%A2%E7%9C%8B%E5%8A%A0%E9%80%9F%E6%AF%94"><span class="toc-number">4.6.</span> <span class="toc-text">正确性验证：不止看加速比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9AsplitNode-%E7%9A%84%E4%BC%A0%E5%87%BA%E6%96%B9%E5%BC%8F"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：splitNode 的传出方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9AQuadratic-Split-%E4%B8%AD%E7%9A%84-vector-%E5%A4%8D%E7%94%A8"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：Quadratic Split 中的 vector 复用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9AMBR-%E6%83%B0%E6%80%A7%E6%9B%B4%E6%96%B0%E7%9A%84%E6%97%B6%E6%9C%BA"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：MBR 惰性更新的时机</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9AM-%E5%92%8C-m-%E7%9A%84%E5%8F%96%E5%80%BC%E5%AF%B9%E6%80%A7%E8%83%BD%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：M 和 m 的取值对性能的影响</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%8B%E8%AF%95%E7%8E%AF%E5%A2%83"><span class="toc-number">6.1.</span> <span class="toc-text">测试环境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8C%83%E5%9B%B4%E6%9F%A5%E8%AF%A2%E6%80%A7%E8%83%BD"><span class="toc-number">6.2.</span> <span class="toc-text">范围查询性能</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#KNN-%E6%9F%A5%E8%AF%A2%E6%80%A7%E8%83%BD-K-10"><span class="toc-number">6.3.</span> <span class="toc-text">KNN 查询性能 (K&#x3D;10)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%91%E7%BB%93%E6%9E%84%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.4.</span> <span class="toc-text">树结构统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%AD%A3%E7%A1%AE%E6%80%A7%E9%AA%8C%E8%AF%81%E7%9F%A9%E9%98%B5"><span class="toc-number">6.5.</span> <span class="toc-text">正确性验证矩阵</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">6.6.</span> <span class="toc-text">可视化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%96%87%E6%88%90%E6%9E%9C"><span class="toc-number">7.1.</span> <span class="toc-text">本文成果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.2.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">可优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.4.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BB%B6%E4%BC%B8%E9%98%85%E8%AF%BB"><span class="toc-number">7.5.</span> <span class="toc-text">延伸阅读</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/" title="每日编程实践: R-Tree 空间索引"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-16-r-tree-spatial-index/rtree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: R-Tree 空间索引"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/16/daily-coding-r-tree-spatial-index-2026-06-16/" title="每日编程实践: R-Tree 空间索引">每日编程实践: R-Tree 空间索引</a><time datetime="2026-06-15T22:00:00.000Z" title="发表于 2026-06-16 06:00:00">2026-06-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-15-kdtree-nearest-neighbor-search/kdtree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速">每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速</a><time datetime="2026-06-14T21:30:00.000Z" title="发表于 2026-06-15 05:30:00">2026-06-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/" title="每日编程实践: Quadtree 空间分区索引"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-14-quadtree-spatial-index/quadtree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Quadtree 空间分区索引"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/14/daily-coding-quadtree-spatial-index-2026-06-14/" title="每日编程实践: Quadtree 空间分区索引">每日编程实践: Quadtree 空间分区索引</a><time datetime="2026-06-13T22:00:00.000Z" title="发表于 2026-06-14 06:00:00">2026-06-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-13-gjk-collision/gjk_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算">每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算</a><time datetime="2026-06-13T09:30:00.000Z" title="发表于 2026-06-13 17:30:00">2026-06-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</a><time datetime="2026-06-12T02:00:00.000Z" title="发表于 2026-06-12 10:00:00">2026-06-12</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
