@@ -1,0 +1,471 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: God Rays 体积光渲染 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一、背景与动机在 3D 渲染中，我们通常假设光线在真空中直线传播——从光源到物体表面，再从表面到摄像机，中间没有任何参与介质。现实世界的光线传播远没有这么”干净”。大气中悬浮的水汽、尘埃、烟雾颗粒会散射光线，当一束强光（比如太阳）穿过云层缝隙或树叶间隙射入阴影区域时，我们能看到肉眼可见的光柱——这就是「体积光」，俗称 God Rays（上帝之光）或 Crepuscular Rays（曙暮光条）。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: God Rays 体积光渲染">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/06/23/daily-coding-god-rays-2026-06-23/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="一、背景与动机在 3D 渲染中，我们通常假设光线在真空中直线传播——从光源到物体表面，再从表面到摄像机，中间没有任何参与介质。现实世界的光线传播远没有这么”干净”。大气中悬浮的水汽、尘埃、烟雾颗粒会散射光线，当一束强光（比如太阳）穿过云层缝隙或树叶间隙射入阴影区域时，我们能看到肉眼可见的光柱——这就是「体积光」，俗称 God Rays（上帝之光）或 Crepuscular Rays（曙暮光条）。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png">
+<meta property="article:published_time" content="2026-06-23T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-23T03:06:45.665Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="体积渲染">
+<meta property="article:tag" content="后处理">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: God Rays 体积光渲染",
+  "url": "https://chiuhoukazusa.github.io/2026/06/23/daily-coding-god-rays-2026-06-23/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png",
+  "datePublished": "2026-06-23T15:00:00.000Z",
+  "dateModified": "2026-06-23T03:06:45.665Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/06/23/daily-coding-god-rays-2026-06-23/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: God Rays 体积光渲染',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: God Rays 体积光渲染</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: God Rays 体积光渲染</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-23T15:00:00.000Z" title="发表于 2026-06-23 23:00:00">2026-06-23</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-23T03:06:45.665Z" title="更新于 2026-06-23 11:06:45">2026-06-23</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、背景与动机"><a href="#一、背景与动机" class="headerlink" title="一、背景与动机"></a>一、背景与动机</h2><p>在 3D 渲染中，我们通常假设光线在真空中直线传播——从光源到物体表面，再从表面到摄像机，中间没有任何参与介质。现实世界的光线传播远没有这么”干净”。大气中悬浮的水汽、尘埃、烟雾颗粒会散射光线，当一束强光（比如太阳）穿过云层缝隙或树叶间隙射入阴影区域时，我们能看到肉眼可见的光柱——这就是「体积光」，俗称 God Rays（上帝之光）或 Crepuscular Rays（曙暮光条）。</p>
+<p>体积光在游戏和影视渲染中的作用远不止”好看”而已：</p>
+<ul>
+<li><strong>增强空间感与深度暗示</strong>：光柱在 3D 空间中划出方向感，让观众在大脑里自动补全光线的传播路径；没有体积光的场景，观众只能通过物体明暗和阴影推测光源方向，缺乏直观的”光线在空间中穿行”的感受。人类视觉系统对空间中可见的光线路径有本能的敏感——这是亿万年进化中观察阳光透过云层、森林间隙形成的本能。利用这一本能，体积光让 2D 屏幕产生强烈的 3D 深度感。</li>
+<li><strong>引导视觉焦点</strong>：光柱天然地指向光源，设计师可以利用这一点将玩家注意力引导到关键区域；从 UX 角度看，God Rays 是一种”软性的视觉引导线”，比 UI 箭头或高亮更自然、更不打断沉浸感。在《Portal 2》中，测试室出口的 God Rays 巧妙地暗示了”这里是正确的方向”而不依赖任何 HUD 元素。</li>
+<li><strong>情绪渲染</strong>：透过窗户射入的灰尘光柱、森林里的清晨光束——这些都是经典的情绪传达手段；《The Last of Us》大量使用体积光来营造末日氛围，《荒野大镖客2》用清晨森林中的 God Rays 渲染生命力和希望，《Elden Ring》中黄金树的体积光几乎是其视觉标志的核心。</li>
+</ul>
+<p>在实时渲染领域，体积光经历了从”后处理小把戏”到”准物理方案”的演变：</p>
+<ul>
+<li><strong>早期的径向模糊+叠加</strong>（Crysis, 2007）：只是对场景做方向性模糊再叠加，完全基于 2D 图像处理，没有任何 3D 信息参与。效果虽然讨喜但不物理。</li>
+<li><strong>屏幕空间 Ray Marching</strong>（Battlefield 3, 2011）：在深度缓冲的基础上做屏幕空间射线步进，能处理基本的遮挡关系。本文实现的正是这一类方案的精简版。</li>
+<li><strong>基于体素&#x2F;3D 纹理的体积渲染</strong>（UE4 Volumetric Fog, 2014-）：使用 3D 纹理和 Shadow Map 做真正的体积光线步进，完全物理正确但开销巨大。</li>
+<li><strong>时间重投影优化</strong>（UE5, 2021-）：利用上一帧的散射积分结果，减少当前帧的采样数，同时做 Temporal Upsampling——将体积光的性能开销降低到可接受的范围。</li>
+</ul>
+<h2 id="二、核心原理"><a href="#二、核心原理" class="headerlink" title="二、核心原理"></a>二、核心原理</h2><h3 id="2-1-物理基础：单次散射近似"><a href="#2-1-物理基础：单次散射近似" class="headerlink" title="2.1 物理基础：单次散射近似"></a>2.1 物理基础：单次散射近似</h3><p>体积光的物理本质是光线在参与介质（participating medium）中的散射。完整的辐射传输方程（Radiative Transfer Equation, RTE）描述了辐亮度沿光线路径的变化：</p>
+<p>$$L(x + \Delta x, \omega) &#x3D; e^{-\sigma_t \Delta x} L(x, \omega) + \int_0^{\Delta x} e^{-\sigma_t s} \sigma_s J(x + s\omega, \omega) , ds$$</p>
+<p>这个式子看起来很复杂，但直觉上拆解开来只有两项：</p>
+<ul>
+<li><strong>第一项</strong> $e^{-\sigma_t \Delta x} L(x, \omega)$：光线传播过程中因为散射和吸收而衰减后的剩余辐亮度。衰减系数 $\sigma_t &#x3D; \sigma_a + \sigma_s$（吸收系数 + 散射系数），指数衰减意味着每走一单位距离，光线就按比例减弱。</li>
+<li><strong>第二项</strong> $\int_0^{\Delta x} e^{-\sigma_t s} \sigma_s J(…) ds$：沿路径各点的散射光线（来自光源或其他表面）经过衰减后到达当前点的贡献。$J$ 是内散射源项，包含了来自所有方向散射贡献的和。</li>
+</ul>
+<p>完整求解 RTE 需要沿视线方向做数值积分，每一步还要对球面做方向采样——这在实时渲染中完全不可行。我们使用<strong>单次散射近似</strong>（Single Scattering Approximation）：只考虑从光源出发、经过一次散射后进入摄像机的路径，忽略多次散射。这是一个合理的近似，因为：</p>
+<ol>
+<li>在大多数户外场景中，散射介质浓度较低（晴天的空气），多次散射贡献远小于单次散射</li>
+<li>对视觉效果而言，单次散射已经能产生足够的体积感</li>
+<li>多次散射倾向于将光均匀扩散，削弱光柱的对比度——而我们恰恰需要光柱的对比度来产生视觉效果</li>
+</ol>
+<p>单次散射近似下，摄像机接收到的辐射亮度可以简化为：</p>
+<p>$$L_{ss}(x, \omega) &#x3D; \int_0^{D} e^{-\sigma_t \cdot s} \cdot \sigma_s \cdot p(\omega_{light} \to \omega_{cam}) \cdot L_{in}(x_s) , ds$$</p>
+<p>其中 $D$ 是视线穿出介质边界的距离，$p(\omega_{light} \to \omega_{cam})$ 是相函数（描述了光从光源方向散射到摄像机方向的概率分布），$L_{in}(x_s)$ 是到达散射点 $x_s$ 的光源辐射度。</p>
+<h3 id="2-2-相函数的选择"><a href="#2-2-相函数的选择" class="headerlink" title="2.2 相函数的选择"></a>2.2 相函数的选择</h3><p>相函数（Phase Function）描述了光在参与介质中散射的角度分布。不同介质有不同的散射特性：</p>
+<ul>
+<li><strong>Rayleigh 散射</strong>：适用于比波长小的粒子（如大气中的气体分子）。散射强度与波长的四次方成反比（$\propto 1&#x2F;\lambda^4$），所以蓝光散射比红光强约 5 倍——这就是天空是蓝色、日出日落是红色的原因。相函数为 $p(\theta) &#x3D; \frac{3}{4}(1 + \cos^2\theta)$，轻微的前向-后向对称偏好。</li>
+<li><strong>Mie 散射</strong>：适用于与波长相当或更大的粒子（如雾滴、灰尘）。散射与波长几乎无关（白色），且强前向散射偏好。常用 Henyey-Greenstein 相函数：$p(\theta) &#x3D; \frac{1}{4\pi}\frac{1-g^2}{(1+g^2-2g\cos\theta)^{3&#x2F;2}}$，其中 $g \in [-1, 1]$ 控制各向异性程度。$g &gt; 0$ 表示前向散射（Mie 散射），$g&#x3D;0$ 表示各向同性，$g &lt; 0$ 表示后向散射。</li>
+<li><strong>各向同性散射</strong>：$p(\theta) &#x3D; \frac{1}{4\pi}$，均匀分布。计算最简单，但效果缺乏方向感。</li>
+</ul>
+<p>在我们的屏幕空间实现中，由于不追踪真实 3D 散射方向，相函数的影响通过<strong>径向模糊采样权重</strong>来近拟模拟。距离光源越近的像素，散射贡献越强——这近似了 Mie 散射的前向偏好。</p>
+<h3 id="2-3-从物理模型到屏幕空间近似"><a href="#2-3-从物理模型到屏幕空间近似" class="headerlink" title="2.3 从物理模型到屏幕空间近似"></a>2.3 从物理模型到屏幕空间近似</h3><p>完整的 Ray Marching 需要重建每个像素的世界坐标，沿视线步进，每一步查询 3D 纹理&#x2F;阴影贴图——这是体积渲染的标准做法，但计算量巨大。屏幕空间方案走了捷径：</p>
+<p><strong>核心观察</strong>：如果我们已经渲染好了场景颜色和深度缓冲，那么沿着从屏幕像素到光源屏幕位置的直线采样场景颜色，并对这些采样做加权累积，就能近似模拟光线在空气中散射的效果。</p>
+<p>这个近似成立的原因在于：场景颜色已经编码了光照信息（包括阴影和遮挡），沿光方向采样场景颜色等价于查询”这条光路上哪些区域是亮的”——亮的区域意味着有光源直接照射，散射光线应该从这些区域来。</p>
+<p>具体地，屏幕空间 God Rays 算法将单次散射积分离散化为：</p>
+<p>$$C_{rays}(x, y) &#x3D; \frac{1}{N} \sum_{i&#x3D;1}^{N} \exp(-k \cdot \frac{i}{N}) \cdot \text{Brightness}(s_i) \cdot C_{light}$$</p>
+<p>其中：</p>
+<ul>
+<li>$N$ 是沿射线的采样步数</li>
+<li>$\exp(-k \cdot i&#x2F;N)$ 是指数衰减项——距离光源越远的采样点贡献越小，模拟了 $e^{-\sigma_t s}$ 的衰减</li>
+<li>$\text{Brightness}(s_i)$ 是采样点 $s_i$ 处的亮度——只有亮的地方才散射光</li>
+<li>$C_{light}$ 是光源颜色——我们想要光柱是暖黄色（太阳光），而不是场景颜色</li>
+</ul>
+<h3 id="2-4-亮度阈值预过滤"><a href="#2-4-亮度阈值预过滤" class="headerlink" title="2.4 亮度阈值预过滤"></a>2.4 亮度阈值预过滤</h3><p>直接把整个场景做径向模糊会导致一个问题：暗部区域（比如建筑物的阴影面）也会贡献颜色到累积中，使光柱变得浑浊、失去对比度。正确的做法是：</p>
+<p><strong>只对亮度高于阈值的像素做径向模糊</strong>。这模拟了”散射介质只在被光照亮的区域才产生显著的散射光”的物理事实——一个处于阴影中的空气微团不会散射出可见的光柱。</p>
+<p>我们使用平滑的亮度映射而非硬阈值：</p>
+<p>$$\text{Weight}(p) &#x3D; \max\left(0, \frac{\text{Luminance}(p) - T}{1 - T}\right)$$</p>
+<p>其中 $T &#x3D; 0.3$ 是亮度阈值。这个映射在亮度 $T$ 以下输出 0（完全不贡献散射），在 $T$ 以上平滑过渡到 1。平滑过渡避免了硬阈值产生的锯齿状光柱边缘。</p>
+<h3 id="2-5-径向模糊与传统的区别"><a href="#2-5-径向模糊与传统的区别" class="headerlink" title="2.5 径向模糊与传统的区别"></a>2.5 径向模糊与传统的区别</h3><p>径向模糊（Radial Blur）与我们熟悉的高斯模糊有根本的不同——它模糊的方向是发散的而非均匀的：</p>
+<ul>
+<li><strong>高斯模糊</strong>：对每个像素，在其周围圆形区域内均匀采样，权重仅取决于到中心像素的距离（二维高斯核 $G(x,y) &#x3D; \frac{1}{2\pi\sigma^2}e^{-(x^2+y^2)&#x2F;(2\sigma^2)}$）。模糊方向是各向同性的——上、下、左、右同等对待。这适合降噪、柔化等通用场景。</li>
+<li><strong>径向模糊</strong>：采样方向被约束为”从像素指向光源”的方向。具体来说，对于像素 $(x,y)$ 和光源 $(lx, ly)$，采样位置是 $(x + t \cdot d_x, y + t \cdot d_y)$，其中 $d_x, d_y$ 是指向光源的单位方向。这意味着模糊核是各向异性的——只在沿着光方向的一维线上采样。</li>
+</ul>
+<p>径向模糊产生光柱效果的原理可以这样理解：</p>
+<ol>
+<li>在亮度预过滤图像中，天空亮部在光源周围形成高亮度区域</li>
+<li>径向模糊将这些亮区沿着光源方向”拖拽”——每个亮像素的贡献沿着射线方向向前扩散</li>
+<li>当这些拖拽的亮区与建筑暗部区域重叠时，产生了明暗交替的光柱</li>
+<li>指数衰减确保了靠近光源的像素贡献大（光柱根部亮），远离光源的像素贡献小（光柱末端暗）</li>
+</ol>
+<p>这个”拖拽”效果在数学上等价于对亮度图做方向性卷积：</p>
+<p>$$R(x, y) &#x3D; \int_0^1 e^{-kt} \cdot B(x + t \cdot d_x \cdot N, ; y + t \cdot d_y \cdot N) , dt$$</p>
+<p>其中 $B$ 是亮度图，$N$ 是采样步数对应的总步长，$k$ 是衰减系数。这是一个一维积分，大大简化了原始 RTE 的 3D 线积分，同时保留了产生光柱视觉效果的核心要素。</p>
+<h3 id="2-6-为什么不用深度缓冲做遮挡检测"><a href="#2-6-为什么不用深度缓冲做遮挡检测" class="headerlink" title="2.6 为什么不用深度缓冲做遮挡检测"></a>2.6 为什么不用深度缓冲做遮挡检测</h3><p>读者可能会问：既然已经有了深度缓冲，为什么不利用它做更精确的遮挡检测？标准做法应该是：在射线步进时，将采样点的投影深度与深度缓冲值比较——如果采样点被前景物体遮挡，就跳过该采样。</p>
+<p>本文选择不用深度缓冲做遮挡，有三个原因：</p>
+<ol>
+<li><strong>亮度阈值已经隐含了遮挡信息</strong>：在亮度预过滤中，被遮挡的暗部区域亮度低于阈值 0.3，权重为 0——这已经隐式地实现了”遮挡物不散射光”的效果。显式的深度检测会略微改善边缘精度，但增加了实现复杂度。</li>
+<li><strong>避免深度不连续处的伪影</strong>：在物体边缘（深度突变），基于深度的遮挡检测容易产生硬边伪影——因为相邻两个像素的深度差异巨大，导致突然从”有散射”切换到”无散射”。亮度阈值的软过渡更平顺。</li>
+<li><strong>保持方案简洁</strong>：本文的目标是演示屏幕空间 God Rays 的核心概念——径向模糊 + 亮度加权 + 光源颜色。加入深度检测会使代码膨胀 30%+，而视觉改善有限。</li>
+</ol>
+<p>当然，对于追求最高质量的体积光实现（如影视级），深度遮挡检测是必需的——但这属于进阶改进，不在本文范围内。</p>
+<h2 id="三、实现架构"><a href="#三、实现架构" class="headerlink" title="三、实现架构"></a>三、实现架构</h2><h3 id="3-1-整体管线"><a href="#3-1-整体管线" class="headerlink" title="3.1 整体管线"></a>3.1 整体管线</h3><p>整个 God Rays 效果作为后处理 Pass，在场景渲染完成后执行。管线分为四个阶段，每个阶段的输入输出严格定义：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">阶段1：场景渲染（标准光栅化）</span><br><span class="line">  输入: 场景描述（相机、物体列表、光源参数）</span><br><span class="line">  输出: Color Buffer (800×600×RGB) + Depth Buffer (800×600×float)</span><br><span class="line">  职责: 生成无体积光的标准场景图像</span><br><span class="line"></span><br><span class="line">阶段2：亮度阈值预过滤（Bright Pass）</span><br><span class="line">  输入: Color Buffer</span><br><span class="line">  输出: 亮度权重图 (800×600×单通道灰度)</span><br><span class="line">  职责: 提取场景中亮度高于阈值的像素，转为散射权重</span><br><span class="line"></span><br><span class="line">阶段3：径向模糊 + 射线步进（Radial Marching）</span><br><span class="line">  输入: 亮度权重图 + 光源屏幕坐标</span><br><span class="line">  输出: 原始光柱图 (800×600×RGB)</span><br><span class="line">  职责: 对每个像素沿光源方向采样 120 步，累积散射贡献</span><br><span class="line"></span><br><span class="line">阶段4：叠加合成（Composite）</span><br><span class="line">  输入: Color Buffer + 光柱图</span><br><span class="line">  输出: 最终图像 (800×600×RGB)</span><br><span class="line">  职责: 将光柱以加法混合叠加到原始场景上</span><br></pre></td></tr></table></figure>
+
+<p>这个管线设计中有一个关键约束：<strong>阶段 3 完全不使用场景的颜色</strong>，只使用亮度权重和光源颜色。这确保了光柱的颜色完全由光源颜色控制——无论场景中天空是蓝色还是橙色，光柱始终是温暖的阳光色。这是本文反复迭代后发现的正确设计，它解决了”光柱颜色与天空雷同导致看不见”的核心问题。</p>
+<h3 id="3-2-数据结构设计"><a href="#3-2-数据结构设计" class="headerlink" title="3.2 数据结构设计"></a>3.2 数据结构设计</h3><p><strong>Image 类</strong>：像素缓冲区，支持 RGB 颜色读写，PPM 格式输出。使用 <code>std::vector&lt;unsigned char&gt;</code> 按 RGB 交错存储，w × h × 3 字节。<code>get(x, y)</code> 和 <code>set(x, y, color)</code> 提供边界检查的像素访问。</p>
+<p><strong>DepthBuf 类</strong>：浮点深度缓冲，存储 NDC z 值（范围 [-1, 1]，远处为 1）。未写入的像素保持初始值 <code>INF</code>（$10^{30}$），在 God Rays 计算中用于判断像素是否属于天空（无几何体）。</p>
+<p><strong>GodRaysParams 结构</strong>：封装所有可调参数——</p>
+<ul>
+<li><code>numSamples</code>：射线步进采样数（120），控制光柱的平滑度</li>
+<li><code>density</code>：散射密度（0.7），控制散射介质的”浓度”</li>
+<li><code>decay</code>：指数衰减系数（1.2），控制光柱在远离光源时的减弱速度</li>
+<li><code>weight</code>：合成权重（0.8），控制光柱在最终图像中的强度</li>
+<li><code>exposure</code>：曝光倍率（2.2），进一步放大光柱亮度</li>
+<li><code>blurRadius</code>：二次径向模糊半径（16），平滑光柱消除步进伪影</li>
+</ul>
+<h3 id="3-3-场景设计"><a href="#3-3-场景设计" class="headerlink" title="3.3 场景设计"></a>3.3 场景设计</h3><p>为了展示 God Rays 的遮挡效果，场景需要：</p>
+<ul>
+<li><strong>一个可见的光源位置</strong>：太阳在天穹中，屏幕坐标 ≈ (445, 61)，左上区域</li>
+<li><strong>多个遮挡物</strong>：10 个大小各异的建筑物方盒，在光源和地面之间形成遮挡关系</li>
+<li><strong>地面平面</strong>：提供水平参考线，使观众感知空间方向</li>
+<li><strong>渐变天空</strong>：从底部暖橙色过渡到顶部蓝色，模拟黄昏氛围，提供丰富的亮度变化</li>
+</ul>
+<p>相机位于 (6, 4, 12)，俯视原点 (0, 3, 0)，FOV &#x3D; 60°，垂直方向覆盖了从地面到天空上部的范围。</p>
+<h2 id="四、关键代码解析"><a href="#四、关键代码解析" class="headerlink" title="四、关键代码解析"></a>四、关键代码解析</h2><h3 id="4-1-透视矩阵的-Bug-修复"><a href="#4-1-透视矩阵的-Bug-修复" class="headerlink" title="4.1 透视矩阵的 Bug 修复"></a>4.1 透视矩阵的 Bug 修复</h3><p>这是一个在整个软光栅系列中潜藏已久的问题：透视投影矩阵的 <code>m[2][3]</code> 和 <code>m[3][2]</code> 元素写反了。</p>
+<p>标准 OpenGL 风格（行主序）的对称透视矩阵应该是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[ 1/(aspect·tan(fov/2))    0                 0                 0              ]</span><br><span class="line">[ 0                        1/tan(fov/2)      0                 0              ]</span><br><span class="line">[ 0                        0            -(f+n)/(f-n)    -2fn/(f-n)           ]</span><br><span class="line">[ 0                        0                -1                 0              ]</span><br></pre></td></tr></table></figure>
+
+<p><code>m[3][2] = -1</code> 是关键——它将 NDC z 映射中的齐次除法系数设为 -1，使 <code>gl_Position.w = -z_view</code>。而 <code>m[2][3] = -2fn/(f-n)</code> 是深度映射中的偏移项。</p>
+<p>错误的代码把 <code>m[2][3] = -1</code> 和 <code>m[3][2] = -2fn/(f-n)</code> 互换了。这导致：</p>
+<ul>
+<li><strong>clip.w 不再等于 -z_view</strong>，而是等于 $-2fn&#x2F;(f-n) \cdot z_{view}$</li>
+<li>使用 $n&#x3D;0.1, f&#x3D;100$ 时，$-2fn&#x2F;(f-n) ≈ -0.2$，所以 clip.w &#x3D; 0.2 × (-z_view)，小了约 5 倍</li>
+<li>透视除法 <code>x = clip.x / clip.w</code> 的结果被放大了约 5 倍——意味着物体在屏幕上看起来比预期更大，且 FOV 的有效值比设定值小得多</li>
+</ul>
+<p>这个 Bug 之所以在之前 40+ 个项目中没被发现，是因为<strong>场景渲染和坐标计算使用了同一个错误的矩阵</strong>——自洽的错误。场景渲染看起来”正常”（只是 FOV 不同），深度遮挡关系也自洽。但当我们开始计算屏幕空间光源位置时，错误就暴露了：预期的光源出现在屏幕上方可见区域，实际却跑到了画布上方几百像素之外。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复后的透视矩阵（正确版本）</span></span><br><span class="line">r.m[<span class="number">0</span>][<span class="number">0</span>] = <span class="number">1.0f</span> / (aspect * t);</span><br><span class="line">r.m[<span class="number">1</span>][<span class="number">1</span>] = <span class="number">1.0f</span> / t;</span><br><span class="line">r.m[<span class="number">2</span>][<span class="number">2</span>] = -(f + n) / (f - n);</span><br><span class="line">r.m[<span class="number">2</span>][<span class="number">3</span>] = -(<span class="number">2.0f</span> * f * n) / (f - n);  <span class="comment">// ← 这里是深度偏移</span></span><br><span class="line">r.m[<span class="number">3</span>][<span class="number">2</span>] = <span class="number">-1.0f</span>;                        <span class="comment">// ← 这里是透视除法系数</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-亮度预过滤（Bright-Pass）"><a href="#4-2-亮度预过滤（Bright-Pass）" class="headerlink" title="4.2 亮度预过滤（Bright Pass）"></a>4.2 亮度预过滤（Bright Pass）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">brightPass</span><span class="params">(w, h)</span></span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">        Vec3 c = scene.<span class="built_in">get</span>(x, y);</span><br><span class="line">        <span class="type">float</span> lum = (c.x + c.y + c.z) / <span class="number">3.0f</span>;</span><br><span class="line">        <span class="type">float</span> thresh = <span class="number">0.3f</span>;</span><br><span class="line">        <span class="keyword">if</span> (lum &gt; thresh) &#123;</span><br><span class="line">            <span class="type">float</span> a = (lum - thresh) / (<span class="number">1.0f</span> - thresh);</span><br><span class="line">            brightPass.<span class="built_in">set</span>(x, y, &#123;a, a, a&#125;); <span class="comment">// 存储为灰度权重</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码有三个设计要点：</p>
+<ol>
+<li><strong>亮度计算使用等权重 RGB 平均</strong>。$(R+G+B)&#x2F;3$ 虽然不如感知亮度（$0.2126R + 0.7152G + 0.0722B$）精确，但对于色域有限的实时渲染场景已经足够。</li>
+<li><strong>阈值 0.3 的选择</strong>：太低会导致暗部噪点也被模糊（光柱浑浊）；太高会导致只有太阳周围的像素参与散射（光柱太窄）。0.3 是一个经验值，在黄昏渐变天空中能区分出天空亮部和建筑暗部。</li>
+<li><strong>输出灰度权重而非彩色图像</strong>：<code>{a, a, a}</code> 存储为灰度值。这意味着后续径向模糊只累积亮度权重，不累积颜色。颜色由光源颜色统一提供——这保证了光柱颜色的一致性和可控性。</li>
+</ol>
+<h3 id="4-3-核心射线步进循环"><a href="#4-3-核心射线步进循环" class="headerlink" title="4.3 核心射线步进循环"></a>4.3 核心射线步进循环</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">        <span class="type">float</span> dx = (<span class="type">float</span>)(lx - x);   <span class="comment">// 水平方向：屏幕像素 → 光源</span></span><br><span class="line">        <span class="type">float</span> dy = (<span class="type">float</span>)(ly - y);   <span class="comment">// 垂直方向：屏幕像素 → 光源</span></span><br><span class="line">        <span class="type">float</span> dist = <span class="built_in">sqrtf</span>(dx*dx + dy*dy);</span><br><span class="line">        <span class="keyword">if</span> (dist &lt; <span class="number">0.5f</span>) &#123;</span><br><span class="line">            rays.<span class="built_in">set</span>(x, y, lightColor * <span class="number">3.0f</span>);</span><br><span class="line">            <span class="keyword">continue</span>;  <span class="comment">// 光源中心点直接设为最亮</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="type">float</span> stepX = dx / (<span class="type">float</span>)p.numSamples;</span><br><span class="line">        <span class="type">float</span> stepY = dy / (<span class="type">float</span>)p.numSamples;</span><br><span class="line"></span><br><span class="line">        <span class="type">float</span> curX = x + <span class="number">0.5f</span>, curY = y + <span class="number">0.5f</span>;</span><br><span class="line">        <span class="type">float</span> accum = <span class="number">0.0f</span>, totalWeight = <span class="number">0.0f</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; p.numSamples; s++) &#123;</span><br><span class="line">            curX += stepX; curY += stepY;</span><br><span class="line"></span><br><span class="line">            <span class="type">int</span> sx = (<span class="type">int</span>)curX, sy = (<span class="type">int</span>)curY;</span><br><span class="line">            <span class="keyword">if</span> (sx &lt; <span class="number">0</span> || sx &gt;= w || sy &lt; <span class="number">0</span> || sy &gt;= h) <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">            <span class="type">float</span> weight = brightPass.<span class="built_in">get</span>(sx, sy).x;</span><br><span class="line">            <span class="keyword">if</span> (weight &lt;= <span class="number">0</span>) <span class="keyword">continue</span>;  <span class="comment">// 跳过暗部像素（低于阈值）</span></span><br><span class="line"></span><br><span class="line">            <span class="type">float</span> t = (<span class="type">float</span>)(s + <span class="number">1</span>) / (<span class="type">float</span>)p.numSamples;</span><br><span class="line">            <span class="type">float</span> decay = <span class="built_in">expf</span>(-p.decay * t);  <span class="comment">// 指数衰减</span></span><br><span class="line">            <span class="type">float</span> w = decay * weight * p.density;</span><br><span class="line">            accum += w;</span><br><span class="line">            totalWeight += <span class="number">1.0f</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (totalWeight &gt; <span class="number">0</span>) accum = accum / totalWeight;</span><br><span class="line">        accum *= p.exposure;</span><br><span class="line">        <span class="type">float</span> distFade = <span class="built_in">expf</span>(-dist / (<span class="type">float</span>)std::<span class="built_in">max</span>(w, h) * <span class="number">2.0f</span>);</span><br><span class="line">        accum *= distFade;</span><br><span class="line"></span><br><span class="line">        rays.<span class="built_in">set</span>(x, y, lightColor * accum);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逐段解析：</p>
+<p><strong>射线方向</strong>：<code>dx = lx - x</code> 和 <code>dy = ly - y</code> 定义了从当前像素 $(x,y)$ 指向光源屏幕位置 $(lx, ly)$ 的向量。所有像素的射线都汇聚到光源点——这就是径向模糊的”径向”来源。</p>
+<p><strong>步长</strong>：<code>stepX = dx / numSamples</code> 将整个射线分成 <code>numSamples=120</code> 步。步数越多光柱越平滑，但也越昂贵。120 步在 800×600 分辨率下是合理的折中——每个像素 120 次纹理采样，总计 800×600×120 ≈ 57M 次采样，在纯 CPU 上需要几十秒。</p>
+<p><strong>指数衰减</strong>：<code>expf(-p.decay * t)</code> 中的 <code>t</code> 从 $1&#x2F;120$ 单调增加到 $1$。离当前像素越远（越靠近光源）的采样点权重越小——这在物理上对应了”散射光在传播过程中被介质进一步衰减”。<code>decay=1.2</code> 意味着在射线的末端，衰减因子约为 $e^{-1.2} ≈ 0.3$。</p>
+<p><strong>亮度权重跳过早停</strong>：<code>if (weight &lt;= 0) continue</code> 跳过了暗部像素的累积。这是性能优化的关键——大部分射线会穿过天空暗部和建筑物背面，跳过这些采样显著减少了累积运算。</p>
+<p><strong>距离衰减</strong>：<code>distFade = exp(-dist/max(w,h)*2.0)</code> 在光源很远时减弱光柱强度。因为屏幕空间中距离光源很远的像素，其射线在 3D 空间中对应的实际距离也很大——散射贡献自然也小。指数衰减比线性衰减更物理合理。</p>
+<p><strong>颜色应用</strong>：<code>rays.set(x, y, lightColor * accum)</code> 将累积的亮度权重乘以光源颜色——保证了光柱统一呈现暖黄色（$R&#x3D;1.0, G&#x3D;0.95, B&#x3D;0.7$），不受场景颜色干扰。</p>
+<h3 id="4-4-二次径向模糊"><a href="#4-4-二次径向模糊" class="headerlink" title="4.4 二次径向模糊"></a>4.4 二次径向模糊</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">radialBlur</span><span class="params">(<span class="type">const</span> Image&amp; rays, <span class="type">int</span> lx, <span class="type">int</span> ly, <span class="type">int</span> radius)</span> </span>&#123;</span><br><span class="line">    <span class="function">Image <span class="title">result</span><span class="params">(rays.w, rays.h)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">            <span class="type">float</span> dx = x - lx, dy = y - ly;</span><br><span class="line">            <span class="type">float</span> dist = <span class="built_in">sqrtf</span>(dx*dx + dy*dy);</span><br><span class="line">            <span class="type">float</span> dirX = dist &gt; <span class="number">0.01f</span> ? dx / dist : <span class="number">0</span>;</span><br><span class="line">            <span class="type">float</span> dirY = dist &gt; <span class="number">0.01f</span> ? dy / dist : <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">            <span class="function">Vec3 <span class="title">accum</span><span class="params">(<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>)</span></span>;</span><br><span class="line">            <span class="type">float</span> totalWeight = <span class="number">0.0f</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> r = -radius; r &lt;= radius; r++) &#123;</span><br><span class="line">                <span class="type">float</span> t = (<span class="type">float</span>)r * <span class="number">0.7f</span>;</span><br><span class="line">                <span class="type">int</span> sx = x + dirX * t, sy = y + dirY * t;</span><br><span class="line">                <span class="comment">// ... 边界检查 ...</span></span><br><span class="line">                <span class="type">float</span> weight = <span class="built_in">expf</span>(-<span class="built_in">fabsf</span>(t) / (radius * <span class="number">0.4f</span>));</span><br><span class="line">                accum = accum + rays.<span class="built_in">get</span>(sx, sy) * weight;</span><br><span class="line">                totalWeight += weight;</span><br><span class="line">            &#125;</span><br><span class="line">            result.<span class="built_in">set</span>(x, y, accum / totalWeight);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>二次径向模糊的目的是<strong>平滑射线步进产生的采样伪影</strong>。120 步的离散采样会在光柱边缘产生可见的阶梯状伪影——特别是在天空和建筑物交界处，亮度变化剧烈的区域。</p>
+<p>设计要点：</p>
+<ul>
+<li><strong>模糊方向也是径向的</strong>：<code>dirX = dx/dist, dirY = dy/dist</code> 是像素指向光源的方向。与第一次射线步进的方向一致，保证了平滑是在”沿着光柱的方向”进行的——这保留了光柱的方向性特征。</li>
+<li><strong>指数加权</strong>：<code>expf(-|t| / (radius*0.4))</code> 给离中心像素近的采样更高的权重。$t$ 的范围是 $[-16<em>0.7, 16</em>0.7] ≈ [-11.2, 11.2]$ 像素。当 $|t| &#x3D; 11.2$ 时权重为 $e^{-11.2&#x2F;6.4} ≈ e^{-1.75} ≈ 0.17$，有效模糊半径约 6-7 像素（权重衰减到中心的一半处）。</li>
+<li><strong><code>t = r * 0.7f</code></strong>：0.7 的步长因子避免了采样重叠，同时保持足够的采样密度。</li>
+</ul>
+<h3 id="4-5-合成"><a href="#4-5-合成" class="headerlink" title="4.5 合成"></a>4.5 合成</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; H; y++)</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; W; x++) &#123;</span><br><span class="line">        Vec3 sc = sceneImg.<span class="built_in">get</span>(x, y);</span><br><span class="line">        Vec3 gr = blurred.<span class="built_in">get</span>(x, y);</span><br><span class="line">        finalImg.<span class="built_in">set</span>(x, y, sc + gr * params.weight);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>使用<strong>加法合成（additive blending）</strong>，<code>weight=0.8</code> 控制光柱强度。加法合成模拟了散射光叠加到场景光上的物理过程——散射光只是”额外”的光，不是替代原有的场景光。权重 0.8 意味着光柱的最大亮度增量约为光源颜色 × 0.8 ≈ (0.8, 0.76, 0.56)。</p>
+<h3 id="4-6-世界坐标到屏幕坐标的投影"><a href="#4-6-世界坐标到屏幕坐标的投影" class="headerlink" title="4.6 世界坐标到屏幕坐标的投影"></a>4.6 世界坐标到屏幕坐标的投影</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec2 <span class="title">worldToScreen</span><span class="params">(<span class="type">const</span> Vec3&amp; worldPos, <span class="type">const</span> Mat4&amp; VP, <span class="type">int</span> w, <span class="type">int</span> h)</span> </span>&#123;</span><br><span class="line">    Vec4 clip = <span class="built_in">transform</span>(VP, worldPos);</span><br><span class="line">    <span class="keyword">if</span> (clip.w &lt;= <span class="number">0</span>) <span class="keyword">return</span> &#123;<span class="number">-100</span>, <span class="number">-100</span>&#125;;  <span class="comment">// 在摄像机后方</span></span><br><span class="line">    <span class="type">float</span> sx = (clip.x / clip.w + <span class="number">1.0f</span>) * <span class="number">0.5f</span> * w;</span><br><span class="line">    <span class="type">float</span> sy = (<span class="number">1.0f</span> - clip.y / clip.w) * <span class="number">0.5f</span> * h;</span><br><span class="line">    <span class="keyword">return</span> &#123;sx, sy&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个函数将世界空间的光源位置投影到屏幕空间。<code>clip.w &lt;= 0</code> 的检查确保光源在摄像机前方（因为投影矩阵将视空间 z &lt; 0 的点映射为 clip.w &lt; 0，表示在摄像机后方）。</p>
+<p>坐标映射公式：</p>
+<ul>
+<li><code>sx = (ndc_x + 1) × 0.5 × w</code>：NDC x 范围 [-1, 1] 映射到 [0, w]</li>
+<li><code>sy = (1 - ndc_y) × 0.5 × h</code>：NDC y 范围 [-1, 1] 映射到 [h, 0]（因为屏幕 y 向下增长）</li>
+</ul>
+<h2 id="五、踩坑实录"><a href="#五、踩坑实录" class="headerlink" title="五、踩坑实录"></a>五、踩坑实录</h2><h3 id="坑-1：God-Rays-全都是黑色——光源在屏幕外"><a href="#坑-1：God-Rays-全都是黑色——光源在屏幕外" class="headerlink" title="坑 1：God Rays 全都是黑色——光源在屏幕外"></a>坑 1：God Rays 全都是黑色——光源在屏幕外</h3><p><strong>症状</strong>：代码编译运行成功，但 <code>god_rays_raw.ppm</code> 和 <code>god_rays_output.ppm</code> 中完全看不到任何光柱。像素均值 122 完全等于场景均值，意味着光柱层全是 (0,0,0)。</p>
+<p><strong>错误假设</strong>：光源世界坐标随意放置（<code>{4, 11, -8}</code>），认为只要在 3D 空间中高一些就自然在屏幕上。</p>
+<p><strong>真实原因</strong>：两次独立的问题叠加：</p>
+<ol>
+<li><strong>透视矩阵 Bug</strong>（<code>m[2][3]</code> 和 <code>m[3][2]</code> 互换）：导致 clip.w 缩放错误，光源的 NDC y 被放大到 ~4.0（远超屏幕范围 [-1, 1]），对应屏幕 y ≈ -893 像素（远在画布之上）。代码中 <code>if(lx &lt; -w || lx &gt; 2*w || ly &lt; -h*2 || ly &gt; h+h/2)</code> 检查命中后直接 <code>return rays</code>（全黑图像）。</li>
+<li><strong>光源确实在摄像机视锥之外</strong>：修正透视矩阵后，光源在 (4, 11, -8) 仍远在摄像机前方和上方——摄像机在 (8,6,15) 看向 (0,2,0)，而光源的 y&#x3D;11 远高于视锥上缘 ~9.85。</li>
+</ol>
+<p><strong>修复方式</strong>：</p>
+<ul>
+<li>修正透视矩阵：将 <code>m[2][3]</code> 和 <code>m[3][2]</code> 的值互换</li>
+<li>重新放置光源到 (2, 8, 2)：在摄像机视锥内，屏幕位置 (445, 61)，左上区域可见</li>
+<li>调整摄像机位置和视角：从 (8,6,15)→(6,4,12)，FOV 从 55°→60°，使天空区域更大</li>
+</ul>
+<h3 id="坑-2：光柱太微弱，合成后完全看不出来"><a href="#坑-2：光柱太微弱，合成后完全看不出来" class="headerlink" title="坑 2：光柱太微弱，合成后完全看不出来"></a>坑 2：光柱太微弱，合成后完全看不出来</h3><p><strong>症状</strong>：修正光源位置后，<code>rays_raw</code> 图像中确实有径向模糊的痕迹（像素均值 ~19，标准差 ~16），但 <code>output</code> 图像（scene + rays×0.55）中看不到任何区别。图像分析模型确认：”没有可见的 God Rays”。</p>
+<p><strong>错误假设</strong>：认为把整个场景做径向模糊，然后加回去就能产生光柱。这是受到”径向模糊 &#x3D; God Rays”的表面理解的影响。</p>
+<p><strong>真实原因</strong>：两个设计缺陷叠加：</p>
+<ol>
+<li><strong>场景颜色直接做径向模糊</strong>：天空的蓝色被模糊成蓝色的光柱，叠加在同样是蓝色的天空上——完全不可见。光柱需要暖黄色（阳光色）才能与冷色天空形成对比。</li>
+<li><strong>暗部区域也贡献散射</strong>：建筑物的暗面也在径向模糊中被采样，使光柱浑浊、对比度低。</li>
+</ol>
+<p><strong>修复方式</strong>：完全重写 <code>computeGodRays</code> 函数：</p>
+<ul>
+<li><strong>亮度阈值预过滤</strong>：只保留亮度 &gt; 0.3 的像素，暗部权重清零</li>
+<li><strong>使用光源颜色而非场景颜色</strong>：<code>rays.set(x, y, lightColor * accum)</code>，光柱统一为暖黄色</li>
+<li><strong>强化衰减和参数</strong>：density 从 0.65→0.7，exposure 从 1.6→2.2，weight 从 0.55→0.8</li>
+</ul>
+<h3 id="坑-3：径向模糊方向问题——光源在屏幕外时射线太短"><a href="#坑-3：径向模糊方向问题——光源在屏幕外时射线太短" class="headerlink" title="坑 3：径向模糊方向问题——光源在屏幕外时射线太短"></a>坑 3：径向模糊方向问题——光源在屏幕外时射线太短</h3><p><strong>症状</strong>：在修复透视矩阵 Bug 之前，尝试过让光源在屏幕外但放宽边界检测——结果大部分像素的射线在屏幕内只能走几步，累积的散射几乎为零。</p>
+<p><strong>错误假设</strong>：以为放宽边界检测就能让屏幕外的光源产生 God Rays。</p>
+<p><strong>真实原因</strong>：当光源在屏幕上方 800+ 像素处时，从屏幕内任意像素出发指向光源的射线几乎垂直向上——大部分射线在屏幕内的长度只有几十像素，120 个采样步中有 100+ 步都落在屏幕外（被 <code>break</code> 跳过）。累积的散射几乎为零。</p>
+<p><strong>修复方式</strong>：确保光源在屏幕内——这也是物理上合理的：能产生可见 God Rays 的光源通常在视锥内或非常接近视锥边缘。此外，将边界检测改为宽松模式：不再 <code>return rays</code>（全黑），而是允许部分采样落在屏幕外，累积屏幕内的部分。但真正解决这个问题的关键是确保光源可见。</p>
+<h3 id="坑-4：步进采样过于均匀导致”阶梯状”光柱"><a href="#坑-4：步进采样过于均匀导致”阶梯状”光柱" class="headerlink" title="坑 4：步进采样过于均匀导致”阶梯状”光柱"></a>坑 4：步进采样过于均匀导致”阶梯状”光柱</h3><p><strong>症状</strong>：最初 80 步的射线步进产生明显可见的阶梯状光柱边缘——尤其是在天空和建筑的交界处，光柱不是平滑的渐变而是一段段的离散”台阶”。增大步数到 120 后有所改善但仍可见锯齿。</p>
+<p><strong>错误假设</strong>：以为增加步数就能解决所有平滑性问题。但提升步数的边际收益递减——80 步到 120 步只增加了 50% 的采样，120 步到 200 步才能大致消除可见阶梯，但计算量增加了 67%。</p>
+<p><strong>真实原因</strong>：阶梯状伪影的根源是<strong>采样步长 &gt; 亮度变化的空间频率</strong>。在天空和建筑边缘，亮度从 ~0.7（天空）突变到 ~0.15（建筑暗面），这个突变发生在一个像素的宽度内。如果射线步长是 2-3 像素（120 步，平均射线长度 ~300 像素），那么亮度突变会在 1-2 个采样步内发生——离散采样的 Nyquist 极限被突破，产生 aliasing（混叠伪影）。</p>
+<p><strong>修复方式</strong>：引入<strong>二次径向模糊</strong>（Secondary Radial Blur）作为后处理。这不增加射线步进的采样数，而是在光柱图像生成后，沿着相同的径向方向再做一次平滑——等效于一个各向异性的一维高斯模糊。半径 16 像素的径向模糊可以平滑掉步长 2-3 像素产生的阶梯，而不会模糊掉光柱本身的宏观结构（因为光柱在径向方向上的变化频率远低于阶梯的锯齿频率）。</p>
+<p>这个修复体现了图形学中的通用原则：<strong>先采样、后滤波</strong>——在可能的情况下，用后处理滤波来弥补采样不足，比提高采样密度更经济。</p>
+<h2 id="六、效果验证"><a href="#六、效果验证" class="headerlink" title="六、效果验证"></a>六、效果验证</h2><h3 id="6-1-视觉对比"><a href="#6-1-视觉对比" class="headerlink" title="6.1 视觉对比"></a>6.1 视觉对比</h3><p>三组不同光源位置的渲染结果展示了 God Rays 的方向感变化：</p>
+<p><strong>光源偏左 (sun_left)</strong>：光源屏幕位置 (445, 61)，光柱从左上方向右下辐射，穿过建筑物间隙时产生明显的明暗交替。左上天空区域光柱最密集，因为亮度预过滤在天空区域保留了大量高权重采样。</p>
+<p><strong>光源偏右 (sun_right)</strong>：光源屏幕位置 (304, 153)，光柱方向改变但保持了相似的衰减特性。建筑物在光源前方形成有效的遮挡，光柱在建筑后方（屏幕右侧）减弱明显。</p>
+<p><strong>光源居中 (sun_center)</strong>：光源（417, 93），光柱分布均匀但缺少不对称的戏剧性——但验证了算法对不同光源位置的一致性。</p>
+<h3 id="6-2-量化数据"><a href="#6-2-量化数据" class="headerlink" title="6.2 量化数据"></a>6.2 量化数据</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>渲染分辨率</td>
+<td>800×600</td>
+</tr>
+<tr>
+<td>射线步进采样数</td>
+<td>120</td>
+</tr>
+<tr>
+<td>场景物体数</td>
+<td>10 个方盒</td>
+</tr>
+<tr>
+<td>原始场景平均亮度</td>
+<td>122.1（std&#x3D;72.3）</td>
+</tr>
+<tr>
+<td>光柱层平均亮度</td>
+<td>44.2（std&#x3D;22.2）</td>
+</tr>
+<tr>
+<td>合成后平均亮度</td>
+<td>154.9（std&#x3D;73.8）</td>
+</tr>
+<tr>
+<td>亮度增量</td>
+<td>+32.8（+27%）</td>
+</tr>
+<tr>
+<td>场景文件大小</td>
+<td>1440 KB（PPM）</td>
+</tr>
+<tr>
+<td>输出文件大小</td>
+<td>1440 KB（PPM）</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-像素采样验证"><a href="#6-3-像素采样验证" class="headerlink" title="6.3 像素采样验证"></a>6.3 像素采样验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">最终输出: mean=155  std=74  top=224  bot=166  ✅</span><br><span class="line">原始光柱: mean=44   std=22  top=71   bot=22   ✅</span><br><span class="line">场景图像: mean=122  std=72  top=182  bot=149  ✅</span><br></pre></td></tr></table></figure>
+
+<p>所有输出图像通过了标准验证：均值在 10-240 范围内（非全黑&#x2F;全白），标准差 &gt; 5（有内容变化），天空在上、地面在下（top 亮度 &gt; bot 亮度，符合夕阳&#x2F;黄昏场景的预期）。</p>
+<h3 id="6-4-运行性能"><a href="#6-4-运行性能" class="headerlink" title="6.4 运行性能"></a>6.4 运行性能</h3><table>
+<thead>
+<tr>
+<th>Pass</th>
+<th>描述</th>
+<th>估算耗时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>场景光栅化</td>
+<td>10 个方盒，6 面&#x2F;盒，2 三角形&#x2F;面</td>
+<td>&lt; 1 秒</td>
+</tr>
+<tr>
+<td>亮度预过滤</td>
+<td>800×600，简单阈值</td>
+<td>&lt; 0.1 秒</td>
+</tr>
+<tr>
+<td>射线步进</td>
+<td>800×600×120 次采样，含亮度查询和衰减计算</td>
+<td>~10 秒</td>
+</tr>
+<tr>
+<td>二次径向模糊</td>
+<td>800×600×33 次采样（半径 16）</td>
+<td>~3 秒</td>
+</tr>
+<tr>
+<td>合成</td>
+<td>800×600，简单加法</td>
+<td>&lt; 0.1 秒</td>
+</tr>
+</tbody></table>
+<p>总计约 13-15 秒，全部在 CPU 上计算。这部分可优化的空间很大——射线步进是典型的并行负载，GPU 可以轻松处理。</p>
+<h3 id="6-5-参数敏感性分析"><a href="#6-5-参数敏感性分析" class="headerlink" title="6.5 参数敏感性分析"></a>6.5 参数敏感性分析</h3><p>God Rays 的视觉效果对参数选择相当敏感，以下是几个关键参数的调优经验和作用边界：</p>
+<ul>
+<li><strong>亮度阈值（threshold&#x3D;0.3）</strong>：降低到 0.15 会让暗部建筑物也参与散射，光柱变得浑浊、充满噪点；提升到 0.5 则只有太阳周围的极亮区域参与散射，光柱太窄、缺乏”穿透建筑间隙”的戏剧感。0.3 在黄昏渐变天空中恰好区分了天空亮部和建筑暗部。</li>
+<li><strong>衰减系数（decay&#x3D;1.2）</strong>：决定了光柱从光源向外衰减的速度。1.2 意味着在射线的末端（距光源最远），衰减因子约 $e^{-1.2} \approx 0.3$——光柱长度约 300 像素，末端仍有 30% 强度。如果降到 0.5，光柱会延伸过长贯穿整个画面（不自然）；升到 3.0 则光柱只有 50 像素长（看不到”体积”感）。</li>
+<li><strong>采样数（numSamples&#x3D;120）</strong>：低于 60 时阶梯状伪影非常明显，即使有二次径向模糊也无法完全消除；高于 200 时视觉质量几乎不提升（边际收益递减），但计算量线性增长。120 是 800×600 分辨率下的推荐值。</li>
+</ul>
+<h2 id="七、总结与延伸"><a href="#七、总结与延伸" class="headerlink" title="七、总结与延伸"></a>七、总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><ol>
+<li><strong>纯屏幕空间方案无法处理屏幕外光源</strong>：如果光源在视锥之外但仍在场景中（常见于 FPS 游戏的窗口光源），完全不可见——因为屏幕空间射线无从出发。这是所有屏幕空间技术的共同局限（SSAO、SSR 同理）。</li>
+<li><strong>缺少真正的深度遮挡</strong>：当前实现只用了亮度阈值，没有利用深度缓冲做遮挡检测。如果有两个物体前后排列，深度的变化不会影响光柱——实际上前方物体应该遮挡后方物体的散射贡献。</li>
+<li><strong>缺少时间稳定性</strong>：光源快速移动时，光柱可能抖动。TAA（时域抗锯齿）可以缓解。</li>
+<li><strong>CPU 性能瓶颈</strong>：800×600×120 采样 ≈ 57M 次纹理查找，虽然缓存友好但纯 CPU 实现的延迟不适合实时应用。</li>
+</ol>
+<h3 id="7-2-改进方向"><a href="#7-2-改进方向" class="headerlink" title="7.2 改进方向"></a>7.2 改进方向</h3><ul>
+<li><strong>深度感知 God Rays</strong>：利用深度缓冲在射线步进时做遮挡检测——如果采样点的投影深度大于深度缓冲值，说明该点被遮挡，跳过累积。这能产生更真实的”建筑投射光柱阴影”效果。</li>
+<li><strong>多级降采样</strong>：在 1&#x2F;4 分辨率上做射线步进，然后上采样+联合双边滤波——可以将计算量降低 16 倍，视觉质量几乎无损。</li>
+<li><strong>GPU Compute Shader 实现</strong>：将射线步进映射为 Compute Shader 的线程组，每个线程处理一个像素——800×600 像素可以完美并行。</li>
+<li><strong>结合 Shadow Map</strong>：从光源视角渲染阴影贴图，在射线步进时查询——这能产生真正的体积阴影，而不仅是亮度阈值近似。</li>
+<li><strong>体积纹理方案</strong>：对于真正高质量的体积光（如 UE5 的 Volumetric Cloud 和 Volumetric Fog），使用 3D 纹理 + 多次 Ray Marching——虽然开销大，但可以处理任意视角的光源，且物理正确。</li>
+</ul>
+<h3 id="7-3-相关知识链接"><a href="#7-3-相关知识链接" class="headerlink" title="7.3 相关知识链接"></a>7.3 相关知识链接</h3><p>体积光与以下本系列文章技术相关：</p>
+<ul>
+<li><strong>Atmospheric Scattering（05-19）</strong>：大气散射的物理基础，Rayleigh&#x2F;Mie 散射模型的完整推导——本文的单次散射近似和相函数选择都可以在那里找到更深入的物理背景</li>
+<li><strong>Volumetric Cloud（05-16）</strong>：3D 体积渲染的完整 Ray Marching 实现，可结合本文实现穿云的 God Rays——将体积云的深度信息作为遮挡源替代本文的亮度阈值</li>
+<li><strong>TAA 时域抗锯齿（05-20）</strong>：可用于稳定光柱的时间抖动——如果光源缓慢移动，TAA 的时域重投影可以复用上一帧的散射积分，减少 50% 以上的采样负荷</li>
+<li><strong>Shadow Volume（04-30）</strong>：Shadow Map 的另一种体积方案，可与本文的屏幕空间方法形成互补——Shadow Volume 提供精确的遮挡信息（作为亮度阈值的替代），而径向模糊提供散射扩散</li>
+</ul>
+<hr>
+<blockquote>
+<p>本文是「每日编程实践」系列的第 50 篇图形学文章。从 02-18 软光栅起步，到 06-23 的屏幕空间体积光，累计覆盖了抗锯齿、阴影、全局光照、后处理、粒子系统、体积渲染等几乎所有主流实时渲染技术领域。每一篇都是单文件 C++ 实现，编译即跑，无第三方依赖——这种”最小实现”的方法论让我们能专注于理解每个技术的核心算法，而不是陷入框架和引擎的细节中。</p>
+<p>屏幕空间 God Rays 是一个”用最简单方法实现最大视觉效果”的经典案例：几行径向模糊、一个亮度阈值、加法合成——组合起来就能模拟大气散射的光柱效果。它提醒我们，图形学不总是需要复杂的数学和物理模拟；理解问题的本质、找到正确的近似，往往比追求”完全物理正确”更实际、更有价值。</p>
+<p>下一篇将继续探索图形学的新领域，从后处理到光照模型，从计算几何到着色语言——总有新技术值得学习，也总有更好的实现方式等待发现。</p>
+</blockquote>
+<p><strong>完整代码</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/06/06-23-god-rays">GitHub - daily-coding-practice&#x2F;2026&#x2F;06&#x2F;06-23-god-rays</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/06/23/daily-coding-god-rays-2026-06-23/">https://chiuhoukazusa.github.io/2026/06/23/daily-coding-god-rays-2026-06-23/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%90%8E%E5%A4%84%E7%90%86/">后处理</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E4%BD%93%E7%A7%AF%E6%B8%B2%E6%9F%93/">体积渲染</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/06/23/daily-coding-gmm-clustering-2026-06-23/" title="每日编程实践: 高斯混合模型与EM算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06-23-gmm-clustering/gmm_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 高斯混合模型与EM算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机聚类(Clustering)是无监督学习中最基础也最广泛使用的技术之一。给定一堆没有标签的数据点，我们希望自动发现其中的”自然分组”——把相似的点归到一起，把不同的点分开。 最简单的聚类算法是 K-Means，它的核心思想是：每个点只属于距离最近的聚类中心。这个”硬指派”(hard assignment)虽然简单高效，但有三个致命缺陷： 缺陷一：不能表达不确定性。 K-Means 说”这个点100%属于类别A”，但现实中的数据和人的认知往往是模棱两可的。比如一个位于两个聚类边界上的点，它可能30%属于A、70%属于B——这才是更合理的描述。 缺陷二：假设所有聚类都是球形。 K-Means 用欧氏距离来判断归属，隐含的假设是每个聚类在各方向上的”散度”是一样的（各向同性）。现实中的聚类可能是长条形的、倾斜的、不同大小的——K-Means 对此无能为力。 缺陷三：没有概率解释。 K-Means 不告诉你”这个聚类有多大可能性出现”——它只告诉你每个点属于哪个聚类，但没有告诉你整个模型的”不确定性”或”置信度”。 高斯混合模型(Gaussian Mixture Model...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/14/daily-coding-volumetric-cloud-renderer-2026-04-14/" title="每日编程实践: Volumetric Cloud Renderer — 基于FBM与光线步进的程序化体积云渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-14-Volumetric-Cloud-Renderer/volumetric_cloud_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-14</div><div class="info-item-2">每日编程实践: Volumetric Cloud Renderer — 基于FBM与光线步进的程序化体积云渲染</div></div><div class="info-2"><div class="info-item-1">背景与动机云渲染为什么难？在实时渲染领域，天空系统是沉浸感最重要的视觉元素之一，而云则是其中最难处理的部分。传统解决方案中有两个极端： 极端一：Billboard 贴图云使用预渲染的二维贴图，对着相机永远朝向（billboard），像《早期 Minecraft》或很多移动端游戏。优点是极度廉价，缺点是穿帮明显——从侧面看是一片纸，相机穿入时立刻露馅。 极端二：离线体积渲染Disney、Pixar 的电影级云用蒙特卡洛体积路径追踪，每帧渲染几小时。这当然是最物理正确的，但对实时渲染毫无参考价值。 实时体积云的工业实践：2015年，Guerrilla Games 在《地平线：零之曙光》中引入了基于 Worley 噪声和 FBM 的体积云系统，开创了现代 AAA 游戏云渲染的范式。随后 SIGGRAPH 2017 上 Sebastian Hillaire 发表的《Real-time Rendering of Volumetric Clouds》进一步完善了这套思路。Unreal Engine 5 的”Volumetric Clouds”功能就是这套方法的具体实现。 今天要做的事：从零实...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/13/daily-coding-fxaa-antialiasing-2026-05-13/" title="每日编程实践: FXAA Anti-Aliasing Post-Process Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-13-fxaa-antialiasing/fxaa_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-13</div><div class="info-item-2">每日编程实践: FXAA Anti-Aliasing Post-Process Renderer</div></div><div class="info-2"><div class="info-item-1">FXAA Anti-Aliasing Post-Process Renderer今天实现了 FXAA（Fast Approximate Anti-Aliasing）——一种在后处理阶段消除锯齿的高效算法。输出图左半为原始锯齿画面，右半为 FXAA 处理后的平滑结果。   ① 背景与动机锯齿的根本来源实时渲染中，几何体的边缘是连续的曲线或直线，但最终输出的帧缓冲是离散的像素网格。当一条斜线穿过像素网格时，像素只能表达”完全覆盖”或”完全不覆盖”，没有中间状态——这就产生了阶梯状的锯齿（Aliasing）。 数学上，这是采样定理的问题：我们用有限频率的像素网格来”采样”一个高频信号（几何边缘），必然产生走样。对于一条 45° 斜线，相邻两行的像素偏移 1px，视觉上就形成明显的阶梯。 传统抗锯齿的代价传统抗锯齿方案 MSAA（Multi-Sample Anti-Aliasing）从根本上解决问题：每个像素内部采样多次（4x &#x2F; 8x），取均值。这能精确处理几何边缘，但代价是：  带宽增加 4~8 倍：G-Buffer 和深度缓冲都要多倍尺寸 渲染管线重构：延迟渲染（Defe...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/21/daily-coding-bloom-lens-flare-2026-04-21/" title="每日编程实践: Physically Based Bloom &amp; Lens Flare"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-21-bloom-lens-flare/bloom_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-21</div><div class="info-item-2">每日编程实践: Physically Based Bloom &amp; Lens Flare</div></div><div class="info-2"><div class="info-item-1">背景与动机打开任何一款现代 3A 游戏或商业级渲染器，你都会看到两种无处不在的视觉效果：泛光（Bloom）和镜头光晕（Lens Flare）。它们乍看像是”装饰”，但实际上背后有严肃的物理基础——前者模拟相机传感器在曝光高亮区域时的光散射，后者模拟真实镜头组内部的多次反射与衍射。 没有 Bloom 的画面往往让人感觉”假”或”干燥”。原因在于：人眼对高亮度区域存在生理散射（视网膜光晕），相机胶片&#x2F;传感器在高曝光下也会发生光渗（halation &#x2F; blooming）。当我们渲染的场景里存在远比周围亮 10 倍乃至 100 倍的光源时，如果没有 Bloom，光源只是一个亮像素，缺乏”炽热感”。 Lens Flare 的动机同样来自物理。任何由多片透镜组成的光学系统（相机、望远镜、人眼）在面对强光源时都会产生：  鬼影（Ghosts）：光在镜片间的内部反射，沿光轴对称出现 光晕（Halo）：大气&#x2F;镜片微粒散射形成的圆环 星芒（Starburst）：光圈叶片边缘的衍射，产生辐射状光刺  这些效果在电影摄影中是刻意保留甚至增强的，因为它们传达了”通过相机&#...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/16/daily-coding-volumetric-cloud-2026-05-16/" title="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-16-volumetric-cloud/volumetric_cloud_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-16</div><div class="info-item-2">每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践：体积云光线步进渲染 ① 背景与动机为什么云很难渲染？云是大气中最常见的视觉现象之一，但它偏偏是渲染领域最棘手的挑战之一。传统的多边形渲染流水线非常擅长处理”有固定表面”的物体——一张桌子、一颗球、一栋建筑，都可以用三角形网格精确描述。但云没有确定的边界，它是一团半透明的气态介质，光子在其中反复散射、吸收、穿透。 如果强行用传统方法来做：  Billboard 贴图（早期游戏常用）：远看还行，靠近立刻穿帮，旋转时会露馅，无法与场景光照联动 粒子系统：大量烟雾粒子叠加，性能消耗爆炸，还是无法模拟内部光散射 Mesh 近似：哪个美术愿意手刻一朵积雨云的三角面？而且形状固定、无法动态变化  Ray Marching（光线步进） 解决了这个问题的根本——它不要求物体有一个明确的数学表面，只需要你能在任意三维坐标处回答一个问题：”这个点的云密度是多少？” 工业界怎么用？几乎所有现代 AAA 游戏和电影的天空系统都基于这一思路：  Horizon Zero Dawn &#x2F; Forbidden West：Guerrilla Games 的 “Nubis” 云系统，以 4D ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-02-ssr-renderer/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">每日编程实践: Screen-Space Reflections (SSR) Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Screen-Space Reflections (SSR) Renderer今天实现了一个完整的**屏幕空间反射（Screen-Space Reflections, SSR）**渲染器，采用纯 CPU 软光栅化，无需 OpenGL。核心技术包括：G-Buffer 构建、视空间光线步进、菲涅尔混合、边缘淡出衰减。   ① 背景与动机为什么需要反射？反射效果在视觉上极大提升真实感——水面、金属、瓷砖地板都会反射周围环境。没有反射时，这些表面看起来像哑光塑料；有了反射，场景立刻”活”了。 传统反射方案的痛点   方案 优点 痛点    平面反射（Planar Reflection） 精确，仅限水平面 只对平面有效，无法处理弯曲表面   环境贴图（Cube Map） 快，适合动态光源 静态，无法反映动态场景变化   光线追踪（Ray Tracing） 完美精确 GPU 负担极重，需要 DXR&#x2F;VKR 支持   SSR（屏幕空间反射） 完全动态，不需额外几何数据 只能反射屏幕内的内容   SSR 的思路：我们已经有了一张渲染好的帧（颜色、深度、法线），可以在这张 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/26/daily-coding-screen-space-refraction-2026-04-26/" title="每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-26-screen-space-refraction/ssr_refraction_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-26</div><div class="info-item-2">每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Screen Space Refraction — 实时屏幕空间折射渲染 本文实现了一套基于 G-Buffer 的屏幕空间折射（Screen Space Refraction，SSR）渲染器，结合 Schlick Fresnel 混合、Snell’s Law 折射偏移、以及色散（Chromatic Aberration），完整模拟实时渲染管线中玻璃&#x2F;水面材质的折射效果。   ① 背景与动机折射的视觉重要性在游戏与实时渲染场景中，玻璃、水面、宝石、冰块等材质无处不在。这些材质有一个共同特点：光线穿过它们时会发生弯曲，即折射（Refraction）。 没有折射的玻璃球看起来像一个半透明的薄膜，毫无立体感；加上折射后，透过玻璃球看到的背景会发生形变，形成典型的”鱼眼”放大&#x2F;缩小效果，这才是玻璃的本质视觉特征。 现实中的折射失真：当你隔着一杯水看对面的物体，会发现物体位置发生了偏移，这就是折射在现实中的直观体现。水的折射率约 1.33，玻璃约 1.5，钻石高达 2.42——折射率越高，光线弯曲越剧烈，视觉形变越夸张。 工业界使用场景   引擎&#x2F...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">130</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">141</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">一、背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E7%89%A9%E7%90%86%E5%9F%BA%E7%A1%80%EF%BC%9A%E5%8D%95%E6%AC%A1%E6%95%A3%E5%B0%84%E8%BF%91%E4%BC%BC"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 物理基础：单次散射近似</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%9B%B8%E5%87%BD%E6%95%B0%E7%9A%84%E9%80%89%E6%8B%A9"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 相函数的选择</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E4%BB%8E%E7%89%A9%E7%90%86%E6%A8%A1%E5%9E%8B%E5%88%B0%E5%B1%8F%E5%B9%95%E7%A9%BA%E9%97%B4%E8%BF%91%E4%BC%BC"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 从物理模型到屏幕空间近似</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%BA%AE%E5%BA%A6%E9%98%88%E5%80%BC%E9%A2%84%E8%BF%87%E6%BB%A4"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 亮度阈值预过滤</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%BE%84%E5%90%91%E6%A8%A1%E7%B3%8A%E4%B8%8E%E4%BC%A0%E7%BB%9F%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 径向模糊与传统的区别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8%E6%B7%B1%E5%BA%A6%E7%BC%93%E5%86%B2%E5%81%9A%E9%81%AE%E6%8C%A1%E6%A3%80%E6%B5%8B"><span class="toc-number">2.6.</span> <span class="toc-text">2.6 为什么不用深度缓冲做遮挡检测</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">三、实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E7%AE%A1%E7%BA%BF"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体管线</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 场景设计</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">四、关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E9%80%8F%E8%A7%86%E7%9F%A9%E9%98%B5%E7%9A%84-Bug-%E4%BF%AE%E5%A4%8D"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 透视矩阵的 Bug 修复</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E4%BA%AE%E5%BA%A6%E9%A2%84%E8%BF%87%E6%BB%A4%EF%BC%88Bright-Pass%EF%BC%89"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 亮度预过滤（Bright Pass）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%A0%B8%E5%BF%83%E5%B0%84%E7%BA%BF%E6%AD%A5%E8%BF%9B%E5%BE%AA%E7%8E%AF"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 核心射线步进循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E4%BA%8C%E6%AC%A1%E5%BE%84%E5%90%91%E6%A8%A1%E7%B3%8A"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 二次径向模糊</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%90%88%E6%88%90"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 合成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E4%B8%96%E7%95%8C%E5%9D%90%E6%A0%87%E5%88%B0%E5%B1%8F%E5%B9%95%E5%9D%90%E6%A0%87%E7%9A%84%E6%8A%95%E5%BD%B1"><span class="toc-number">4.6.</span> <span class="toc-text">4.6 世界坐标到屏幕坐标的投影</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">五、踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9AGod-Rays-%E5%85%A8%E9%83%BD%E6%98%AF%E9%BB%91%E8%89%B2%E2%80%94%E2%80%94%E5%85%89%E6%BA%90%E5%9C%A8%E5%B1%8F%E5%B9%95%E5%A4%96"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：God Rays 全都是黑色——光源在屏幕外</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E5%85%89%E6%9F%B1%E5%A4%AA%E5%BE%AE%E5%BC%B1%EF%BC%8C%E5%90%88%E6%88%90%E5%90%8E%E5%AE%8C%E5%85%A8%E7%9C%8B%E4%B8%8D%E5%87%BA%E6%9D%A5"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：光柱太微弱，合成后完全看不出来</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E5%BE%84%E5%90%91%E6%A8%A1%E7%B3%8A%E6%96%B9%E5%90%91%E9%97%AE%E9%A2%98%E2%80%94%E2%80%94%E5%85%89%E6%BA%90%E5%9C%A8%E5%B1%8F%E5%B9%95%E5%A4%96%E6%97%B6%E5%B0%84%E7%BA%BF%E5%A4%AA%E7%9F%AD"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：径向模糊方向问题——光源在屏幕外时射线太短</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E6%AD%A5%E8%BF%9B%E9%87%87%E6%A0%B7%E8%BF%87%E4%BA%8E%E5%9D%87%E5%8C%80%E5%AF%BC%E8%87%B4%E2%80%9D%E9%98%B6%E6%A2%AF%E7%8A%B6%E2%80%9D%E5%85%89%E6%9F%B1"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：步进采样过于均匀导致”阶梯状”光柱</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81"><span class="toc-number">6.</span> <span class="toc-text">六、效果验证</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E8%A7%86%E8%A7%89%E5%AF%B9%E6%AF%94"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 视觉对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E9%87%8F%E5%8C%96%E6%95%B0%E6%8D%AE"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 量化数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%83%8F%E7%B4%A0%E9%87%87%E6%A0%B7%E9%AA%8C%E8%AF%81"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 像素采样验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E8%BF%90%E8%A1%8C%E6%80%A7%E8%83%BD"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 运行性能</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E5%8F%82%E6%95%B0%E6%95%8F%E6%84%9F%E6%80%A7%E5%88%86%E6%9E%90"><span class="toc-number">6.5.</span> <span class="toc-text">6.5 参数敏感性分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">七、总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E6%94%B9%E8%BF%9B%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">7.2 改进方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E7%9B%B8%E5%85%B3%E7%9F%A5%E8%AF%86%E9%93%BE%E6%8E%A5"><span class="toc-number">7.3.</span> <span class="toc-text">7.3 相关知识链接</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/23/daily-coding-god-rays-2026-06-23/" title="每日编程实践: God Rays 体积光渲染"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-23-god-rays/god_rays_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: God Rays 体积光渲染"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/23/daily-coding-god-rays-2026-06-23/" title="每日编程实践: God Rays 体积光渲染">每日编程实践: God Rays 体积光渲染</a><time datetime="2026-06-23T15:00:00.000Z" title="发表于 2026-06-23 23:00:00">2026-06-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/23/daily-coding-gmm-clustering-2026-06-23/" title="每日编程实践: 高斯混合模型与EM算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06-23-gmm-clustering/gmm_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 高斯混合模型与EM算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/23/daily-coding-gmm-clustering-2026-06-23/" title="每日编程实践: 高斯混合模型与EM算法">每日编程实践: 高斯混合模型与EM算法</a><time datetime="2026-06-22T21:30:00.000Z" title="发表于 2026-06-23 05:30:00">2026-06-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/22/daily-coding-dbscan-clustering-2026-06-22/" title="每日编程实践: DBSCAN 密度聚类 — 发现任意形状的聚类"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-22-dbscan-density-clustering/dbscan_blobs.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: DBSCAN 密度聚类 — 发现任意形状的聚类"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/22/daily-coding-dbscan-clustering-2026-06-22/" title="每日编程实践: DBSCAN 密度聚类 — 发现任意形状的聚类">每日编程实践: DBSCAN 密度聚类 — 发现任意形状的聚类</a><time datetime="2026-06-21T21:30:00.000Z" title="发表于 2026-06-22 05:30:00">2026-06-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/21/daily-coding-kmeans-clustering-2026-06-21/" title="每日编程实践: 从零实现 K-Means 聚类——数学直觉、工程细节与量化验证"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-21-K-Means-Clustering/kmeans_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 从零实现 K-Means 聚类——数学直觉、工程细节与量化验证"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/21/daily-coding-kmeans-clustering-2026-06-21/" title="每日编程实践: 从零实现 K-Means 聚类——数学直觉、工程细节与量化验证">每日编程实践: 从零实现 K-Means 聚类——数学直觉、工程细节与量化验证</a><time datetime="2026-06-20T21:30:00.000Z" title="发表于 2026-06-21 05:30:00">2026-06-21</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/20/daily-coding-poisson-disk-sampling-2026-06-20/" title="每日编程实践: Poisson Disk Sampling — Blue Noise 采样的数学之美与工程实践"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-20-poisson-disk/poisson_disk_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Poisson Disk Sampling — Blue Noise 采样的数学之美与工程实践"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/20/daily-coding-poisson-disk-sampling-2026-06-20/" title="每日编程实践: Poisson Disk Sampling — Blue Noise 采样的数学之美与工程实践">每日编程实践: Poisson Disk Sampling — Blue Noise 采样的数学之美与工程实践</a><time datetime="2026-06-19T21:00:00.000Z" title="发表于 2026-06-20 05:00:00">2026-06-20</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
