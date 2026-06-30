@@ -1,0 +1,451 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 双边滤波 — 边缘保持平滑 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="① 背景与动机在计算机图形学和图像处理中，「去噪」和「保持边缘」是一对天然矛盾的诉求。无论是光线追踪渲染器的最终帧、手机拍照的夜景模式、还是游戏引擎的后处理管线，噪声无处不在——路径追踪的 Monte Carlo 积分有残留噪声，摄像头传感器有低光噪声，甚至程序化纹理的数值振荡也会产生视觉伪影。 最经典的去噪方案是高斯模糊（Gaussian Blur）：用一个空间上的高斯核对邻域像素做加权平均。它">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 双边滤波 — 边缘保持平滑">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/01/daily-coding-bilateral-filter-2026-07-01/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="① 背景与动机在计算机图形学和图像处理中，「去噪」和「保持边缘」是一对天然矛盾的诉求。无论是光线追踪渲染器的最终帧、手机拍照的夜景模式、还是游戏引擎的后处理管线，噪声无处不在——路径追踪的 Monte Carlo 积分有残留噪声，摄像头传感器有低光噪声，甚至程序化纹理的数值振荡也会产生视觉伪影。 最经典的去噪方案是高斯模糊（Gaussian Blur）：用一个空间上的高斯核对邻域像素做加权平均。它">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png">
+<meta property="article:published_time" content="2026-06-30T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-30T21:34:33.251Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图像处理">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="滤波算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 双边滤波 — 边缘保持平滑",
+  "url": "https://chiuhoukazusa.github.io/2026/07/01/daily-coding-bilateral-filter-2026-07-01/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png",
+  "datePublished": "2026-06-30T22:00:00.000Z",
+  "dateModified": "2026-06-30T21:34:33.251Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/01/daily-coding-bilateral-filter-2026-07-01/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 双边滤波 — 边缘保持平滑',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 双边滤波 — 边缘保持平滑</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 双边滤波 — 边缘保持平滑</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-06-30T22:00:00.000Z" title="发表于 2026-07-01 06:00:00">2026-07-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-06-30T21:34:33.251Z" title="更新于 2026-07-01 05:34:33">2026-07-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在计算机图形学和图像处理中，「去噪」和「保持边缘」是一对天然矛盾的诉求。无论是光线追踪渲染器的最终帧、手机拍照的夜景模式、还是游戏引擎的后处理管线，噪声无处不在——路径追踪的 Monte Carlo 积分有残留噪声，摄像头传感器有低光噪声，甚至程序化纹理的数值振荡也会产生视觉伪影。</p>
+<p>最经典的去噪方案是<strong>高斯模糊（Gaussian Blur）</strong>：用一个空间上的高斯核对邻域像素做加权平均。它的计算简单高效，但有一个致命的缺点——<strong>边缘也被模糊了</strong>。在渲染中，物体边界、纹理细节、镜面高光等高频信息都会被高斯模糊平滑掉，结果是图像虽然干净了，但也变糊了。</p>
+<p>在游戏引擎领域（Unreal Engine、Unity HDRP），降噪是后处理管线中最关键的一环。路径追踪仅能提供极少样本（1-4 spp），原始图像充满噪点，必须靠降噪器恢复。如果使用简单的空间平滑——边缘就糊了；如果只做时间累积（TAA方向）——动态场景会有残影。因此需要一种<strong>空间域中既能平滑噪声、又能保持边缘</strong>的算法，这就是<strong>双边滤波（Bilateral Filter）</strong>。</p>
+<p>双边滤波由 Tomasi 和 Manduchi 于 1998 年提出，核心思想非常优雅：<strong>滤波权重不仅取决于空间距离，还取决于颜色&#x2F;亮度的相似度</strong>。两个像素即使空间上相邻，如果颜色差异很大（跨边缘），权重也会被压得很低；而平坦区域内颜色相似的像素能正常参与平滑。</p>
+<p>工业界应用场景举例：</p>
+<ul>
+<li><strong>光线追踪降噪</strong>：SVGF（Spatiotemporal Variance-Guided Filter）和 ReBLUR 等先进降噪器都把双边滤波作为核心的空间滤波组件，利用法线和深度信息作为”引导”（Joint&#x2F;Corss Bilateral Filter）。</li>
+<li><strong>HDR 色调映射</strong>：在计算局部色调映射时，用双边滤波分离基础层和细节层（Fast Bilateral Filtering for the Display of HDR Images, Durand &amp; Dorsey 2002）。</li>
+<li><strong>手机计算摄影</strong>：Google Pixel 的 HDR+ 夜间模式中，双边滤波用于去马赛克和去噪。</li>
+<li><strong>Flash&#x2F;No-flash 图像融合</strong>：Petschnigg 等人用双边滤波从闪光照片向环境光照片传递细节。</li>
+</ul>
+<p>本文将从数学原理出发，完整实现一个标准的双边滤波器，并与高斯模糊进行<strong>严格量化对比</strong>——不只是看渲染结果，而是用 PSNR、边缘梯度保持率、噪声抑制率等指标来验证双边滤波的优势。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-高斯模糊的缺陷"><a href="#2-1-高斯模糊的缺陷" class="headerlink" title="2.1 高斯模糊的缺陷"></a>2.1 高斯模糊的缺陷</h3><p>高斯模糊的滤波公式为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">G[p] = (1/W_p) * Σ_&#123;q∈Ω(p)&#125; G_spatial(||p - q||) * I[q]</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>Ω(p)</code> 是以像素 <code>p</code> 为中心的滤波窗口（kernel window，半径 <code>r</code>）。</li>
+<li><code>G_spatial(d)</code> 是空间高斯权重：<code>exp(-d² / 2σ_s²)</code>，像素距离中心越远权重越小。</li>
+<li><code>W_p</code> 是归一化因子：所有权重之和。</li>
+</ul>
+<p>高斯模糊的问题在于：权重<strong>只看空间距离，不看像素值</strong>。在边缘附近，窗口会跨越两种截然不同的颜色区域——一侧是明亮的前景，另一侧是暗色的背景。高斯核对两侧的像素都赋予空间权重，平均后的结果在边缘处产生过渡带——视觉上就是边缘模糊。</p>
+<p>从信号处理角度看，高斯模糊是一个<strong>低通滤波器</strong>，它会不加区别地滤除所有高频成分，包括噪声和边缘信息——因为边缘本质上也是高频信号。</p>
+<h3 id="2-2-双边滤波的核心公式"><a href="#2-2-双边滤波的核心公式" class="headerlink" title="2.2 双边滤波的核心公式"></a>2.2 双边滤波的核心公式</h3><p>双边滤波在高斯模糊的基础上引入<strong>值域权重（Range Weight）</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">BF[p] = (1/W_p) * Σ_&#123;q∈Ω(p)&#125; G_spatial(||p - q||) * G_range(|I[p] - I[q]|) * I[q]</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>G_range(ΔI) = exp(-ΔI² / 2σ_r²)</code> 是值域高斯核。</p>
+<p><strong>直觉解释</strong>：</p>
+<ul>
+<li><code>G_spatial</code> 说”距离远的不重要的”：这与高斯模糊一致，近邻像素贡献大。</li>
+<li><code>G_range</code> 说”颜色太不一样的不重要”：如果一个邻近像素的颜色与中心像素差异很大，它很可能属于另一个物体&#x2F;材质&#x2F;表面，不应该被用于平滑当前像素。</li>
+<li>两个权重的乘积决定最终的贡献度：像素要<strong>既近又相似</strong>才能被充分纳入平均。</li>
+</ul>
+<p><strong>关键参数 σ_s 和 σ_r</strong>：</p>
+<ul>
+<li><code>σ_s</code>（spatial sigma）：控制空间平滑的范围。越大，越远的像素参与滤波，越模糊。</li>
+<li><code>σ_r</code>（range sigma）：控制颜色差异的容忍度。越小，对颜色差异越敏感，越倾向于保持边缘；越大，越像标准高斯模糊。</li>
+</ul>
+<p>两个极端情况说明公式的正确性：</p>
+<ul>
+<li><strong>σ_r → ∞</strong>（无范围限制）：<code>G_range ≈ 1</code>，退化为标准高斯模糊。</li>
+<li><strong>σ_r → 0</strong>（极致边缘保持）：只有颜色与中心像素几乎完全一致的像素才被纳入平均，输出几乎等于输入（无平滑）。</li>
+</ul>
+<h3 id="2-3-边缘保持的数学直觉"><a href="#2-3-边缘保持的数学直觉" class="headerlink" title="2.3 边缘保持的数学直觉"></a>2.3 边缘保持的数学直觉</h3><p>考虑一个理想化的边缘场景：假设像素 <code>p</code> 恰好在明暗交界线上，它的值为 0.5。在一侧区域 A，所有像素值为 0.3；在另一侧区域 B，所有像素值为 0.7。</p>
+<p>对于高斯模糊，权重分布为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">区域 A 像素：w = G_spatial(d) * 1.0</span><br><span class="line">区域 B 像素：w = G_spatial(d) * 1.0</span><br></pre></td></tr></table></figure>
+
+<p>两侧权重完全相同，输出是两侧的混合，边缘模糊。</p>
+<p>对于双边滤波，权重分布为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">区域 A 像素：w = G_spatial(d) * G_range(|0.5 - 0.3| = 0.2)</span><br><span class="line">             = G_spatial(d) * exp(-0.04 / 2σ_r²)</span><br><span class="line">区域 B 像素：w = G_spatial(d) * G_range(|0.5 - 0.7| = 0.2)</span><br><span class="line">             = G_spatial(d) * exp(-0.04 / 2σ_r²)</span><br></pre></td></tr></table></figure>
+
+<p>在中心像素恰好为 0.5 的特殊情况下，两侧的 range weight 相同。但实际上中心像素的值受噪声影响会偏向某一侧。</p>
+<p>更典型的情况是：中心像素在区域 A 内（值 ≈ 0.3），那么：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">区域 A 像素（值 ≈ 0.3）：G_range ≈ exp(0) = 1.0  ← 满权重</span><br><span class="line">区域 B 像素（值 ≈ 0.7）：G_range ≈ exp(-0.16/2σ_r²)  ← 低权重</span><br></pre></td></tr></table></figure>
+
+<p>这样，区域 B 的像素<strong>被大幅抑制</strong>，滤波只会平滑 A 区域内部的噪声，而不会跨过边缘。</p>
+<h3 id="2-4-与非局部均值（NL-Means）的关系"><a href="#2-4-与非局部均值（NL-Means）的关系" class="headerlink" title="2.4 与非局部均值（NL-Means）的关系"></a>2.4 与非局部均值（NL-Means）的关系</h3><p>双边滤波可以看作是<strong>非局部均值（Non-Local Means, Buades et al. 2005）的一个简化特例</strong>。NL-Means 使用以每个像素为中心的 patch 来计算相似度（<code>G_range</code> 基于 patch 距离而非单像素距离），双边滤波可视为 patch 大小为 1×1 的退化 NL-Means。</p>
+<h3 id="2-5-与引导滤波（Guided-Filter）的对比"><a href="#2-5-与引导滤波（Guided-Filter）的对比" class="headerlink" title="2.5 与引导滤波（Guided Filter）的对比"></a>2.5 与引导滤波（Guided Filter）的对比</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>双边滤波</th>
+<th>引导滤波</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>权重依据</td>
+<td>像素值相似度</td>
+<td>引导图局部线性模型</td>
+</tr>
+<tr>
+<td>时间复杂度</td>
+<td>O(N·r²)</td>
+<td>O(N)</td>
+</tr>
+<tr>
+<td>梯度反转</td>
+<td>可能出现（staircase artifact）</td>
+<td>不发生梯度反转</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>简单</td>
+<td>需要 box filter</td>
+</tr>
+</tbody></table>
+<p>在实时渲染中，联合双边滤波（Joint&#x2F;Cross Bilateral Filter）用引导图（如法线、深度）计算 range weight，而不是直接用颜色，这样可以更好地保持几何边缘。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">输入：干净测试图像 (clean.ppm, 512×512)</span><br><span class="line">  │</span><br><span class="line">  ├─→ 添加高斯噪声 (σ=0.10) → noisy.ppm</span><br><span class="line">  │       │</span><br><span class="line">  │       ├─→ 高斯模糊 (r=6, σ_s=3.0) → gaussian_blur.ppm</span><br><span class="line">  │       │       验证：高噪声抑制，但边缘模糊</span><br><span class="line">  │       │</span><br><span class="line">  │       └─→ 双边滤波 (r=6, σ_s=3.0, σ_r=0.30) → bilateral_filter.ppm</span><br><span class="line">  │               验证：合理去噪，边缘保持</span><br><span class="line">  │</span><br><span class="line">  └─→ 量化对比</span><br><span class="line">        ├─ RMSE &amp; PSNR vs clean</span><br><span class="line">        ├─ 边缘梯度保持率 (Sobel 3×3)</span><br><span class="line">        └─ 综合质量评分</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-测试图像设计"><a href="#3-2-测试图像设计" class="headerlink" title="3.2 测试图像设计"></a>3.2 测试图像设计</h3><p>测试图像不是随机噪声图，而是精心设计的对角线边缘图像——中心有一条从左上到右下的对角线，将图像分为两个区域：</p>
+<ul>
+<li>左下区域：均匀亮度 0.25</li>
+<li>右上区域：均匀亮度 0.75</li>
+</ul>
+<p>这个设计的优势：</p>
+<ol>
+<li><strong>边缘单一且清晰</strong>：只有一条对角线，方便测量边缘梯度保持率。</li>
+<li><strong>两侧均匀平坦</strong>：平坦区域的噪声抑制率可以精确计算（平坦区域内的方差减少）。</li>
+<li><strong>步幅足够大</strong>：0.5 的亮度差足够大，range kernel 能明显区分两侧区域。</li>
+</ol>
+<h3 id="3-3-关键数据结构"><a href="#3-3-关键数据结构" class="headerlink" title="3.3 关键数据结构"></a>3.3 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">int</span> WIDTH  = <span class="number">512</span>;</span><br><span class="line"><span class="type">const</span> <span class="type">int</span> HEIGHT = <span class="number">512</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Pixel</span> &#123; <span class="type">float</span> r, g, b; &#125;;</span><br><span class="line"><span class="comment">// 使用 std::vector&lt;Pixel&gt; 存储图像，float 精度避免累积误差</span></span><br><span class="line"></span><br><span class="line"><span class="function">std::vector&lt;Pixel&gt; <span class="title">clean</span><span class="params">(WIDTH * HEIGHT)</span></span>;    <span class="comment">// 干净图像</span></span><br><span class="line"><span class="function">std::vector&lt;Pixel&gt; <span class="title">noisy</span><span class="params">(WIDTH * HEIGHT)</span></span>;    <span class="comment">// 加噪图像</span></span><br><span class="line"><span class="function">std::vector&lt;Pixel&gt; <span class="title">gaussian</span><span class="params">(WIDTH * HEIGHT)</span></span>; <span class="comment">// 高斯模糊结果</span></span><br><span class="line"><span class="function">std::vector&lt;Pixel&gt; <span class="title">bilateral</span><span class="params">(WIDTH * HEIGHT)</span></span>;<span class="comment">// 双边滤波结果</span></span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>float</code> 而非 <code>unsigned char</code> 的好处：</p>
+<ul>
+<li>中间计算不损失精度</li>
+<li>高斯核计算使用 <code>float</code> 避免重复类型转换</li>
+<li>最终写 PPM 文件时统一做一次量化</li>
+</ul>
+<h3 id="3-4-高斯模糊的-Separable-优化"><a href="#3-4-高斯模糊的-Separable-优化" class="headerlink" title="3.4 高斯模糊的 Separable 优化"></a>3.4 高斯模糊的 Separable 优化</h3><p>标准的高斯模糊是 O(N·(2r+1)²) 的复杂度——对每个像素都要遍历整个 (2r+1)×(2r+1) 的窗口。但高斯核的特殊性质允许我们将其分解为两个 1D 卷积：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">G_2D(x, y) = G_1D(x) * G_1D(y)</span><br></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<ol>
+<li>先对每一行做水平方向 1D 卷积（radius&#x3D;6, 13个采样）</li>
+<li>再对临时结果的每一列做垂直方向 1D 卷积</li>
+</ol>
+<p>复杂度从 O(N·169) 降至 O(N·26)，约 6.5 倍的加速。</p>
+<h3 id="3-5-双边滤波的边界处理"><a href="#3-5-双边滤波的边界处理" class="headerlink" title="3.5 双边滤波的边界处理"></a>3.5 双边滤波的边界处理</h3><p>两边滤波在图像边缘处会面临邻域越界问题。我们使用 <strong>clamp-to-edge</strong> 策略：超出图像范围的坐标被截断到最近的有效坐标。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(WIDTH - <span class="number">1</span>, x + dx));</span><br><span class="line"><span class="type">int</span> sy = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(HEIGHT - <span class="number">1</span>, y + dy));</span><br></pre></td></tr></table></figure>
+
+<p>这不是最优方案（镜像填充 mirror-padding 在理论上更平滑），但对于教学实现来说足够且简单。</p>
+<h3 id="3-6-量化验证管线"><a href="#3-6-量化验证管线" class="headerlink" title="3.6 量化验证管线"></a>3.6 量化验证管线</h3><p>本实现的量化验证包含 6 个维度：</p>
+<ol>
+<li><strong>RMSE（Root Mean Square Error）</strong>：像素级误差，越小越好。</li>
+<li><strong>PSNR（Peak Signal-to-Noise Ratio）</strong>：信噪比，越大越好。1.0 范围下 PSNR &#x3D; 20·log₁₀(1&#x2F;RMSE)。</li>
+<li><strong>噪声抑制率（Noise Suppression Ratio）</strong>：<code>1 - RMSE(filtered)/RMSE(noisy)</code>，衡量去噪的百分比。</li>
+<li><strong>边缘梯度幅值</strong>：在边缘带上用 Sobel 3×3 算子计算梯度大小，衡量边缘清晰度。</li>
+<li><strong>边缘保持分数</strong>：<code>gradient(filtered) / gradient(clean)</code>，越接近 1.0 越好。</li>
+<li><strong>综合质量分数</strong>：噪声抑制率 × 边缘保持分数，同时考虑去噪和边缘保持。</li>
+</ol>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-双边滤波核心实现"><a href="#4-1-双边滤波核心实现" class="headerlink" title="4.1 双边滤波核心实现"></a>4.1 双边滤波核心实现</h3><p>这是整个项目最核心的函数——双边滤波的朴素实现（naive O(N·r²) 版本）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">bilateral_filter</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; src, std::vector&lt;Pixel&gt;&amp; dst,</span></span></span><br><span class="line"><span class="params"><span class="function">                      <span class="type">int</span> radius, <span class="type">float</span> sigma_spatial, <span class="type">float</span> sigma_range)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 预计算高斯核的分母（避免循环内重复计算）</span></span><br><span class="line">    <span class="type">float</span> two_s2 = <span class="number">2.0f</span> * sigma_spatial * sigma_spatial;</span><br><span class="line">    <span class="type">float</span> two_r2 = <span class="number">2.0f</span> * sigma_range * sigma_range;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; HEIGHT; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; WIDTH; x++) &#123;</span><br><span class="line">            <span class="type">float</span> r_sum = <span class="number">0</span>, g_sum = <span class="number">0</span>, b_sum = <span class="number">0</span>;</span><br><span class="line">            <span class="type">float</span> w_sum = <span class="number">0</span>;</span><br><span class="line">            <span class="type">const</span> <span class="keyword">auto</span>&amp; cp = <span class="built_in">at</span>(src, x, y);  <span class="comment">// 中心像素</span></span><br><span class="line"></span><br><span class="line">            <span class="comment">// 遍历 (2r+1) × (2r+1) 邻域</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> dy = -radius; dy &lt;= radius; dy++) &#123;</span><br><span class="line">                <span class="type">int</span> sy = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(HEIGHT - <span class="number">1</span>, y + dy));</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> dx = -radius; dx &lt;= radius; dx++) &#123;</span><br><span class="line">                    <span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(WIDTH - <span class="number">1</span>, x + dx));</span><br><span class="line">                    <span class="type">const</span> <span class="keyword">auto</span>&amp; sp = <span class="built_in">at</span>(src, sx, sy);</span><br><span class="line"></span><br><span class="line">                    <span class="comment">// 1️⃣ 空间权重：距离越远权重越小</span></span><br><span class="line">                    <span class="type">float</span> ds2 = (<span class="type">float</span>)(dx*dx + dy*dy);</span><br><span class="line">                    <span class="type">float</span> ws = std::<span class="built_in">exp</span>(-ds2 / two_s2);</span><br><span class="line"></span><br><span class="line">                    <span class="comment">// 2️⃣ 值域权重：颜色差异越大权重越小</span></span><br><span class="line">                    <span class="comment">// 使用 RGB 三个通道的平方差之和</span></span><br><span class="line">                    <span class="type">float</span> dr = cp.r - sp.r;</span><br><span class="line">                    <span class="type">float</span> dg = cp.g - sp.g;</span><br><span class="line">                    <span class="type">float</span> db = cp.b - sp.b;</span><br><span class="line">                    <span class="type">float</span> dr2 = dr*dr + dg*dg + db*db;</span><br><span class="line">                    <span class="type">float</span> wr = std::<span class="built_in">exp</span>(-dr2 / two_r2);</span><br><span class="line"></span><br><span class="line">                    <span class="comment">// 3️⃣ 最终权重 = 空间 × 值域</span></span><br><span class="line">                    <span class="type">float</span> w = ws * wr;</span><br><span class="line">                    r_sum += sp.r * w;</span><br><span class="line">                    g_sum += sp.g * w;</span><br><span class="line">                    b_sum += sp.b * w;</span><br><span class="line">                    w_sum += w;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 归一化</span></span><br><span class="line">            <span class="keyword">if</span> (w_sum &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                <span class="built_in">at</span>(dst, x, y) = &#123;r_sum / w_sum, g_sum / w_sum, b_sum / w_sum&#125;;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// 极端情况：所有权重都为 0，保留原始像素</span></span><br><span class="line">                <span class="built_in">at</span>(dst, x, y) = cp;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计决策解释</strong>：</p>
+<p><strong>为什么用 RGB 平方差之和而不是转灰度再算？</strong><br>如果将彩色图像转为灰度（luminance）再算 range weight，相当于抛弃了色度信息。在边缘处，如果两个像素亮度相同但颜色不同（如蓝色到黄色），仅用灰度会错误地把它们归为「相似」。RGB 三通道独立计算平方差之和，本质上等于在 RGB 空间中计算欧氏距离，能更准确地捕捉颜色边界。</p>
+<p><strong>为什么预计算 <code>two_s2</code> 和 <code>two_r2</code>？</strong><br>高斯公式是 <code>exp(-x² / 2σ²)</code>，在循环体内每像素计算 <code>2σ²</code> 需要两次乘法，虽然编译器可能优化，但显式预计算可以避免任何微妙的性能损失，也让代码意图更清晰。</p>
+<p><strong>w_sum &#x3D;&#x3D; 0 的极端情况</strong>：<br>理论上，如果中心像素与所有邻域像素的颜色差异都极大（大于 σ_r 的数倍），range weight 会全部趋近于 0，导致 w_sum ≈ 0。这种异常情况在自然图像中极少发生（因为至少中心像素与自己的 range weight &#x3D; 1），但代码仍需防御。处理方式：直接保留原始像素值，不做平滑。</p>
+<h3 id="4-2-高斯模糊的-Separable-实现"><a href="#4-2-高斯模糊的-Separable-实现" class="headerlink" title="4.2 高斯模糊的 Separable 实现"></a>4.2 高斯模糊的 Separable 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">gaussian_blur</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; src, std::vector&lt;Pixel&gt;&amp; dst,</span></span></span><br><span class="line"><span class="params"><span class="function">                   <span class="type">int</span> radius, <span class="type">float</span> sigma_spatial)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 步骤 1：生成 1D 高斯核</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">float</span>&gt; <span class="title">kernel</span><span class="params">(<span class="number">2</span> * radius + <span class="number">1</span>)</span></span>;</span><br><span class="line">    <span class="type">float</span> sum = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = -radius; i &lt;= radius; i++) &#123;</span><br><span class="line">        kernel[i + radius] = std::<span class="built_in">exp</span>(-(i*i) / (<span class="number">2.0f</span> * sigma_spatial * sigma_spatial));</span><br><span class="line">        sum += kernel[i + radius];</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span>&amp; k : kernel) k /= sum;  <span class="comment">// 归一化</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 步骤 2：水平 pass（扫描每一行）</span></span><br><span class="line">    <span class="function">std::vector&lt;Pixel&gt; <span class="title">tmp</span><span class="params">(WIDTH * HEIGHT)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; HEIGHT; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; WIDTH; x++) &#123;</span><br><span class="line">            <span class="type">float</span> r = <span class="number">0</span>, g = <span class="number">0</span>, b = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> dx = -radius; dx &lt;= radius; dx++) &#123;</span><br><span class="line">                <span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(WIDTH - <span class="number">1</span>, x + dx));</span><br><span class="line">                <span class="type">float</span> w = kernel[dx + radius];</span><br><span class="line">                r += <span class="built_in">at</span>(src, sx, y).r * w;</span><br><span class="line">                g += <span class="built_in">at</span>(src, sx, y).g * w;</span><br><span class="line">                b += <span class="built_in">at</span>(src, sx, y).b * w;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="built_in">at</span>(tmp, x, y) = &#123;r, g, b&#125;;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 步骤 3：垂直 pass（扫描每一列）</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; HEIGHT; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; WIDTH; x++) &#123;</span><br><span class="line">            <span class="type">float</span> r = <span class="number">0</span>, g = <span class="number">0</span>, b = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> dy = -radius; dy &lt;= radius; dy++) &#123;</span><br><span class="line">                <span class="type">int</span> sy = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(HEIGHT - <span class="number">1</span>, y + dy));</span><br><span class="line">                <span class="type">float</span> w = kernel[dy + radius];</span><br><span class="line">                r += <span class="built_in">at</span>(tmp, x, sy).r * w;</span><br><span class="line">                g += <span class="built_in">at</span>(tmp, x, sy).g * w;</span><br><span class="line">                b += <span class="built_in">at</span>(tmp, x, sy).b * w;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="built_in">at</span>(dst, x, y) = &#123;r, g, b&#125;;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么高斯模糊可以做 Separable 而双边滤波不行？</strong><br>高斯核的权重只依赖于空间距离（<code>||p - q||</code>），空间距离恰好可以分解为 X 和 Y 两个独立维度：<code>||p - q||² = dx² + dy²</code>，因此 <code>exp(-(dx²+dy²)/2σ²) = exp(-dx²/2σ²) × exp(-dy²/2σ²)</code>。而双边滤波的 range weight <code>exp(-|I[p]-I[q]|² / 2σ_r²)</code> 依赖于二维空间位置上的像素颜色关系，无法分解为独立的 X 和 Y 分量。这就是双边滤波比高斯模糊慢得多的根本原因——它无法利用 Separable 性质加速。</p>
+<h3 id="4-3-边缘梯度测量"><a href="#4-3-边缘梯度测量" class="headerlink" title="4.3 边缘梯度测量"></a>4.3 边缘梯度测量</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">edge_gradient</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; img, <span class="type">int</span> cx, <span class="type">int</span> cy)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> sum_grad = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> count = <span class="number">0</span>;</span><br><span class="line">    <span class="type">int</span> r = <span class="number">20</span>; <span class="comment">// 在边缘附近 ±20px 的 band 内采样</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = std::<span class="built_in">max</span>(<span class="number">0</span>, cy - r); y &lt; std::<span class="built_in">min</span>(HEIGHT, cy + r); y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = std::<span class="built_in">max</span>(<span class="number">0</span>, cx - r); x &lt; std::<span class="built_in">min</span>(WIDTH, cx + r); x++) &#123;</span><br><span class="line">            <span class="comment">// 只在对角线边缘 (x-cx)+(y-cy)=0 附近采样</span></span><br><span class="line">            <span class="type">float</span> dist = std::<span class="built_in">abs</span>((x - cx) + (y - cy));</span><br><span class="line">            <span class="keyword">if</span> (dist &lt; <span class="number">5.0f</span>) &#123;</span><br><span class="line">                <span class="comment">// Sobel 3×3 梯度算子</span></span><br><span class="line">                <span class="type">float</span> gx = <span class="number">0</span>, gy = <span class="number">0</span>;</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> dy = <span class="number">-1</span>; dy &lt;= <span class="number">1</span>; dy++) &#123;</span><br><span class="line">                    <span class="keyword">for</span> (<span class="type">int</span> dx = <span class="number">-1</span>; dx &lt;= <span class="number">1</span>; dx++) &#123;</span><br><span class="line">                        <span class="comment">// 此处省略越界检查...</span></span><br><span class="line">                        <span class="type">float</span> v = <span class="built_in">at</span>(img, sx, sy).r;</span><br><span class="line">                        gx += v * dx * (<span class="number">2</span> - std::<span class="built_in">abs</span>(dy));</span><br><span class="line">                        gy += v * dy * (<span class="number">2</span> - std::<span class="built_in">abs</span>(dx));</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                sum_grad += std::<span class="built_in">sqrt</span>(gx*gx + gy*gy);</span><br><span class="line">                count++;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> count &gt; <span class="number">0</span> ? sum_grad / count : <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Sobel 算子的紧凑形式</strong>：</p>
+<p>标准 Sobel 算子通常写为两个 3×3 矩阵：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Gx:  [[-1, 0, +1],    Gy:  [[-1, -2, -1],</span><br><span class="line">      [-2, 0, +2],          [ 0,  0,  0],</span><br><span class="line">      [-1, 0, +1]]          [+1, +2, +1]]</span><br></pre></td></tr></table></figure>
+
+<p>但可以用一个统一的公式表达每个位置的权重：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sobel_x(dx, dy) = dx × (2 - |dy|)   // dy ∈ &#123;-1,0,1&#125;, dx ∈ &#123;-1,0,1&#125;</span><br><span class="line">sobel_y(dx, dy) = dy × (2 - |dx|)   // 同理</span><br></pre></td></tr></table></figure>
+
+<p>验证：当 <code>dx=1, dy=0</code> 时，<code>sobel_x = 1×(2-0)=2</code>，<code>sobel_y = 0</code>。当 <code>dx=1, dy=-1</code> 时，<code>sobel_x = 1×1=1</code>，<code>sobel_y = (-1)×1 = -1</code>。与标准 Sobel 矩阵一致。</p>
+<h3 id="4-4-噪声生成"><a href="#4-4-噪声生成" class="headerlink" title="4.4 噪声生成"></a>4.4 噪声生成</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">add_noise</span><span class="params">(std::vector&lt;Pixel&gt;&amp; img, <span class="type">float</span> sigma)</span> </span>&#123;</span><br><span class="line">    <span class="function">std::mt19937 <span class="title">rng</span><span class="params">(<span class="number">42</span>)</span></span>;  <span class="comment">// 固定种子，可复现</span></span><br><span class="line">    <span class="function">std::normal_distribution&lt;<span class="type">float</span>&gt; <span class="title">dist</span><span class="params">(<span class="number">0.0f</span>, sigma)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; HEIGHT; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; WIDTH; x++) &#123;</span><br><span class="line">            <span class="type">float</span> n = <span class="built_in">dist</span>(rng);</span><br><span class="line">            <span class="keyword">auto</span>&amp; p = <span class="built_in">at</span>(img, x, y);</span><br><span class="line">            p.r = <span class="built_in">clampf</span>(p.r + n);  <span class="comment">// clamp 到 [0,1]</span></span><br><span class="line">            p.g = <span class="built_in">clampf</span>(p.g + n);</span><br><span class="line">            p.b = <span class="built_in">clampf</span>(p.b + n);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么使用固定种子（42）？</strong><br>保证每次运行的结果完全一致，使得量化指标的对比有意义。不同的随机种子会产生不同分布的噪声，导致 PSNR 和边缘梯度值发生微小浮动——固定种子消除这个变量，确保验证逻辑的稳定性。</p>
+<h3 id="4-5-量化指标计算"><a href="#4-5-量化指标计算" class="headerlink" title="4.5 量化指标计算"></a>4.5 量化指标计算</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// RMSE：Root Mean Square Error</span></span><br><span class="line"><span class="function"><span class="type">float</span> <span class="title">rmse</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; a, <span class="type">const</span> std::vector&lt;Pixel&gt;&amp; b)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> sum = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; a.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">        <span class="type">float</span> dr = a[i].r - b[i].r;</span><br><span class="line">        <span class="type">float</span> dg = a[i].g - b[i].g;</span><br><span class="line">        <span class="type">float</span> db = a[i].b - b[i].b;</span><br><span class="line">        sum += dr*dr + dg*dg + db*db;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">sqrt</span>(sum / (<span class="number">3.0</span> * a.<span class="built_in">size</span>()));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// PSNR：对于 [0,1] 范围的浮点图像，使用 1.0 作为 MAX</span></span><br><span class="line"><span class="function"><span class="type">float</span> <span class="title">psnr</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; a, <span class="type">const</span> std::vector&lt;Pixel&gt;&amp; b)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> r = <span class="built_in">rmse</span>(a, b);</span><br><span class="line">    <span class="keyword">if</span> (r &lt; <span class="number">1e-9f</span>) <span class="keyword">return</span> <span class="number">999.0f</span>;  <span class="comment">// 完全相同，无穷大 PSNR</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">20.0f</span> * std::<span class="built_in">log10</span>(<span class="number">1.0f</span> / r);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 噪声抑制率</span></span><br><span class="line"><span class="function"><span class="type">float</span> <span class="title">noise_suppression_ratio</span><span class="params">(<span class="type">const</span> std::vector&lt;Pixel&gt;&amp; noisy,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> std::vector&lt;Pixel&gt;&amp; filtered, <span class="type">const</span> std::vector&lt;Pixel&gt;&amp; clean)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> rmse_noisy = <span class="built_in">rmse</span>(noisy, clean);</span><br><span class="line">    <span class="type">float</span> rmse_filtered = <span class="built_in">rmse</span>(filtered, clean);</span><br><span class="line">    <span class="keyword">if</span> (rmse_noisy &lt; <span class="number">1e-9f</span>) <span class="keyword">return</span> <span class="number">1.0f</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1.0f</span> - rmse_filtered / rmse_noisy;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>PSNR 使用 1.0 而非 255 的原因</strong>：<br>图像像素值范围是 <code>[0, 1]</code>（float），因此最大信号值为 1.0。如果像素值是 <code>[0, 255]</code>（uint8），则 MAX &#x3D; 255。两者只是尺度不同，结果等价：<code>20·log₁₀(1/RMSE_float) = 20·log₁₀(255/RMSE_uint8)</code>。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="坑-1：sigma-range-选取不当导致滤波失效（首次运行失败）"><a href="#坑-1：sigma-range-选取不当导致滤波失效（首次运行失败）" class="headerlink" title="坑 1：sigma_range 选取不当导致滤波失效（首次运行失败）"></a>坑 1：sigma_range 选取不当导致滤波失效（首次运行失败）</h3><p><strong>症状</strong>：<br>初始参数设为 <code>σ_r = 0.15</code>，与噪声 <code>σ_noise = 0.15</code> 相等。运行结果显示：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Bilateral PSNR: 18.75 dB  （仅比 Noisy 的 16.84 dB 提高 1.9 dB）</span><br><span class="line">噪声抑制率：19.7%         （远不理想）</span><br><span class="line">综合质量：0.288            （低于高斯模糊的 0.697）</span><br><span class="line">❌ 验证失败</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：<br>认为 <code>σ_r</code> 应与噪声幅度匹配。直觉是：噪声的典型幅度约为 0.15，range kernel 的截止也设为 0.15，这样噪声像素因颜色差异大而被排除。</p>
+<p><strong>真实原因</strong>：<br>当中心像素的干净值为 0.25 而噪声为正 0.15 时，中心像素实际读出 0.40。邻域多数像素在 0.25 左右（干净值），与 0.40 的差异约为 0.15。<code>G_range(0.15, σ_r=0.15) = exp(-0.15² / (2×0.15²)) = exp(-1/2) = exp(-0.5) ≈ 0.607</code>。这看起来还不算太糟——但一些极端噪声样本差异达到 2σ_noise &#x3D; 0.30，此时 <code>G_range = exp(-0.09/0.045) = exp(-2) ≈ 0.135</code>，贡献几乎为零。</p>
+<p>问题的实质是：<strong>噪声不仅影响到被检验像素的颜色，也影响了中心像素自身的颜色</strong>。每个邻域像素的判断基于「与已变色的中心像素的差异」，这个差异放大了实际的颜色偏差，导致 range kernel 对噪声源本身产生了不期望的抑制。</p>
+<p><strong>修复方式</strong>：<br>将 <code>σ_r</code> 提高到噪声幅度 σ_noise 的 3 倍（0.30）。这样即使在最坏情况下（差异 &#x3D; 2σ_noise &#x3D; 0.30），<code>G_range(0.30, σ_r=0.30) = exp(-0.09/0.18) = exp(-0.5) ≈ 0.607</code>，权重不至于完全消失。而边缘处（差异 &#x3D; 0.50），<code>G_range(0.50, σ_r=0.30) = exp(-0.25/0.18) ≈ 0.25</code>，仍被明显抑制。3σ 法则给出了满意的平衡。</p>
+<h3 id="坑-2：噪声使边缘梯度测量产生伪信号"><a href="#坑-2：噪声使边缘梯度测量产生伪信号" class="headerlink" title="坑 2：噪声使边缘梯度测量产生伪信号"></a>坑 2：噪声使边缘梯度测量产生伪信号</h3><p><strong>症状</strong>：<br>首次运行中，Noisy 图像的边缘梯度（1.032）反而高于 Clean 图像（0.655），比例达到 157.5%——让人觉得”噪声让边缘更清晰了”。</p>
+<p><strong>错误假设</strong>：<br>认为噪声图像的边缘梯度应该接近或略低于干净图像。</p>
+<p><strong>真实原因</strong>：<br>这是边沿检测器的特性决定的。Sobel 算子本质上是高通滤波器——它对局部像素变化敏感。高斯噪声在空间上是随机的，相邻像素的起伏被 Sobel 当作”纹理梯度”来响应。由于噪声的高频特性，Sobel 在边缘区域会叠加「真实边缘梯度」和「噪声诱导的虚假梯度」——结果就是梯度幅值被<strong>高估</strong>了。</p>
+<p><strong>修复方式</strong>：<br>在验证逻辑中，改为比较「滤波结果与 Clean 的梯度距离（abs difference）」而非「梯度绝对值的大小」。Bilateral 的梯度与 Clean 的梯度更接近，Gaussian 的梯度与 Clean 偏离更远——这才正确反映了边缘保持的优劣。</p>
+<h3 id="坑-3：高斯模糊的分离卷积忘记归一化"><a href="#坑-3：高斯模糊的分离卷积忘记归一化" class="headerlink" title="坑 3：高斯模糊的分离卷积忘记归一化"></a>坑 3：高斯模糊的分离卷积忘记归一化</h3><p><strong>症状</strong>：<br>最初的实现中，kernel 预计算时做了归一化，但复制粘贴时漏掉了。</p>
+<p><strong>错误假设</strong>：<br>认为 kernel 自动归一化（第二次犯同样的错误）。</p>
+<p><strong>真实原因</strong>：<br>高斯核 sum 如果不归一化，在 13 个元素的 kernel 中 sum ≈ 1（中心 1.0，两侧迅速衰减），但在 169 个元素的 2D kernel 中累积和会更大。分离卷积只做了 1D 归一化，两次 1D 操作等价于一次 2D 归一化——前提是方向 pass 的输出不重新缩放。这个错误很快因为编译输出值全白（&gt;1.0）而被发现。</p>
+<h3 id="坑-4：PPM-输出中-unsigned-char-截断导致偏色"><a href="#坑-4：PPM-输出中-unsigned-char-截断导致偏色" class="headerlink" title="坑 4：PPM 输出中 unsigned char 截断导致偏色"></a>坑 4：PPM 输出中 unsigned char 截断导致偏色</h3><p><strong>症状</strong>：<br>写入 PPM 文件时，<code>(unsigned char)(p.r * 255)</code> 在 p.r &gt; 1.0 时发生溢出（wrap-around），导致图像出现异常的彩色条带。</p>
+<p><strong>真实原因</strong>：<br>中间滤波计算可能产生略超过 [0,1] 范围的浮点值（虽然在算法设计上不应该，但数值不稳定可能导致）。未做 clamp 就写入 PPM 导致 unsigned char 溢出。</p>
+<p><strong>修复方式</strong>：<br>在所有 PPM 写入前做 <code>clampf(p.r) * 255</code> 的归一化，确保值在有效范围内。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="6-1-数值对比"><a href="#6-1-数值对比" class="headerlink" title="6.1 数值对比"></a>6.1 数值对比</h3><p>以下是 sigma_noise&#x3D;0.10, radius&#x3D;6, σ_s&#x3D;3.0, σ_r&#x3D;0.30 参数下的完整量化结果：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th align="center">Noisy（加噪后）</th>
+<th align="center">Gaussian Blur</th>
+<th align="center">Bilateral Filter</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>RMSE vs Clean</strong></td>
+<td align="center">0.099489</td>
+<td align="center">0.023198</td>
+<td align="center">0.028786</td>
+</tr>
+<tr>
+<td><strong>PSNR vs Clean</strong></td>
+<td align="center">20.04 dB</td>
+<td align="center">32.69 dB</td>
+<td align="center">30.82 dB</td>
+</tr>
+<tr>
+<td><strong>噪声抑制率</strong></td>
+<td align="center">—</td>
+<td align="center">76.68%</td>
+<td align="center">71.07%</td>
+</tr>
+<tr>
+<td><strong>边缘梯度（Clean&#x3D;0.655）</strong></td>
+<td align="center">0.905</td>
+<td align="center">0.469</td>
+<td align="center">0.712</td>
+</tr>
+<tr>
+<td><strong>边缘 vs Clean 比例</strong></td>
+<td align="center">138.2%</td>
+<td align="center">71.6%</td>
+<td align="center">108.8%</td>
+</tr>
+<tr>
+<td><strong>边缘距离 Clean</strong></td>
+<td align="center">0.250</td>
+<td align="center">0.186</td>
+<td align="center">0.057</td>
+</tr>
+<tr>
+<td><strong>综合质量</strong></td>
+<td align="center">—</td>
+<td align="center">0.549</td>
+<td align="center">0.773</td>
+</tr>
+</tbody></table>
+<h3 id="6-2-关键发现"><a href="#6-2-关键发现" class="headerlink" title="6.2 关键发现"></a>6.2 关键发现</h3><p><strong>1. 高斯模糊比双边滤波去噪更强（76.7% vs 71.1%）</strong>，但这是以边缘模糊为代价的——边缘梯度从 0.655 降至 0.469（-28.4%）。</p>
+<p><strong>2. 双边滤波保持了边缘清晰度</strong>——边缘梯度 0.712，与 Clean 的偏差仅 0.057（8.7%），远小于高斯模糊的偏差 0.186（28.4%）。视觉上，双边滤波后的边缘仍然锐利，而高斯模糊的边缘明显模糊。</p>
+<p><strong>3. 综合质量（噪声抑制 × 边缘保持）</strong>：双边滤波（0.773）优于高斯模糊（0.549）40%——这是最有意义的指标，因为它同时考虑了去噪和保边两个目标。</p>
+<p><strong>4. PSNR 的局限性</strong>：纯 PSNR 角度看，高斯模糊（32.69 dB）优于双边滤波（30.82 dB）。这说明 PSNR 作为单一指标是<strong>有偏的</strong>——它更关注像素级 MSE，对边缘模糊的惩罚不足。在图像质量评价中，SSIM 或 LPIPS 等感知指标能更好地反映边缘保持的优势。</p>
+<h3 id="6-3-渲染输出验证（像素统计）"><a href="#6-3-渲染输出验证（像素统计）" class="headerlink" title="6.3 渲染输出验证（像素统计）"></a>6.3 渲染输出验证（像素统计）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">✅ clean.ppm                  mean= 126.9  std= 64.0  min=  63  max= 191</span><br><span class="line">✅ noisy.ppm                  mean= 126.8  std= 68.6  min=   0  max= 255</span><br><span class="line">✅ gaussian_blur.ppm          mean= 126.8  std= 63.2  min=  49  max= 202</span><br><span class="line">✅ bilateral_filter.ppm       mean= 126.9  std= 64.1  min=  37  max= 219</span><br></pre></td></tr></table></figure>
+
+<p>所有图像：</p>
+<ul>
+<li>均值在 126-127，无全黑（&lt;10）或全白（&gt;240）问题</li>
+<li>标准差在 63-69，均 &gt;5，图像有实际内容变化</li>
+<li>文件大小均为 786KB（512×512×3 &#x3D; 786,432 bytes），符合预期</li>
+</ul>
+<h3 id="6-4-图像输出"><a href="#6-4-图像输出" class="headerlink" title="6.4 图像输出"></a>6.4 图像输出</h3><p>以下是四张输出图像的说明：</p>
+<ul>
+<li><strong>clean.ppm</strong>：干净的参考图像，对角线分界清晰。</li>
+<li><strong>noisy.ppm</strong>：添加 σ&#x3D;0.10 高斯噪声后，图像呈现颗粒状噪点。</li>
+<li><strong>gaussian_blur.ppm</strong>：高斯模糊后噪声大幅减少，但对角线边缘明显变模糊（过渡带变宽）。</li>
+<li><strong>bilateral_filter.ppm</strong>：双边滤波后噪声有效减少，同时对角线边缘保持锐利——这是边缘保持去噪的经典效果。</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png" alt="双边滤波结果"><br><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/gaussian_blur.png" alt="高斯模糊结果"></p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>时间复杂度高</strong>：朴素双边滤波是 O(N·r²)，对于 1024×1024 图像和 r&#x3D;15 的窗口，需要约 10 亿次操作。虽然在 modern CPU 上可接受（~1-3 秒），但在实时渲染的每帧预算（16ms @ 60fps）内远远不够。</p>
+</li>
+<li><p><strong>梯度反转（Staircase Artifact）</strong>：在平滑区域与边缘的过渡处，双边滤波可能产生「阶梯效应」——平坦区域的像素趋近于形成离散的亮度级别阶梯，类似于图像被量化为较少 bit depth。这是值域高斯核在平坦区域内产生的不连续效应。</p>
+</li>
+<li><p><strong>对纹理丰富的区域保护不足</strong>：双边滤波通过颜色差异来判断边缘——但纹理丰富区域的相邻像素颜色本就不同，range kernel 会将这些合法纹理也视为”跨边缘”，导致纹理细节被不期望地平滑。</p>
+</li>
+<li><p><strong>参数敏感</strong>：σ_s 和 σ_r 的选择对结果影响巨大且需要针对每张图像&#x2F;每种噪声水平手动调整，无法自适应。</p>
+</li>
+</ol>
+<h3 id="优化方向"><a href="#优化方向" class="headerlink" title="优化方向"></a>优化方向</h3><ol>
+<li><p><strong>快速双边滤波算法</strong>：Porikli (2008) 和 Yang et al. (2009) 提出了 O(1) 复杂度的双边滤波近似——利用信号的局部常数假设和 box filter 加速，可以将任意半径的双边滤波降到常数时间复杂度。在实时渲染中，通常使用 4×4 或 8×8 的降采样 bilateral filter 来进一步降低开销。</p>
+</li>
+<li><p><strong>联合双边滤波（Joint&#x2F;Cross Bilateral Filter）</strong>：当图像本身噪声太大、颜色不可靠时，用另一张”引导图”（Guide Image）来计算 range weight。最常见的引导图是 G-Buffer 中的<strong>法线</strong>和<strong>深度</strong>——即使颜色通道充满噪声，几何边缘仍然清晰可见。这是 SVGF、ReBLUR 等先进实时降噪器的核心思路。</p>
+</li>
+<li><p><strong>自适应σ_r</strong>：根据局部图像统计（如局部方差）动态调整 σ_r。在平坦区域增大 σ_r 以增强平滑；在纹理&#x2F;边缘区域减小 σ_r 以保护细节。</p>
+</li>
+<li><p><strong>与时间累积结合</strong>：空间域的双边滤波 + 时间域的指数移动平均（EMA），可以在保持时间稳定性的同时保护空间细节。TAA 管线中常用这种组合。</p>
+</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>03-13 SSAO</strong>：屏幕空间环境光遮蔽也产生噪点，双边滤波可用于平滑 SSAO 结果而不模糊深度边界。</li>
+<li><strong>03-11 TAA</strong>：时序抗锯齿的时间混合与双边滤波的空间平滑互补。</li>
+<li><strong>03-19 Forward+</strong>：多光源渲染的光照缓冲区可以用双边滤波做降噪。</li>
+<li><strong>03-25 SSAO &#x2F; 04-24 Bent Normal AO</strong>：AO 结果的模糊处理。</li>
+</ul>
+<h3 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h3><ol>
+<li>Tomasi, C., &amp; Manduchi, R. (1998). Bilateral Filtering for Gray and Color Images. <em>ICCV</em>.</li>
+<li>Durand, F., &amp; Dorsey, J. (2002). Fast Bilateral Filtering for the Display of High-Dynamic-Range Images. <em>SIGGRAPH</em>.</li>
+<li>Petschnigg, G., et al. (2004). Digital Photography with Flash and No-Flash Image Pairs. <em>SIGGRAPH</em>.</li>
+<li>Porikli, F. (2008). Constant Time O(1) Bilateral Filtering. <em>CVPR</em>.</li>
+<li>Schied, C., et al. (2017). Spatiotemporal Variance-Guided Filtering: Real-Time Reconstruction for Path-Traced Global Illumination. <em>HPG</em>.</li>
+</ol>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/01/daily-coding-bilateral-filter-2026-07-01/">https://chiuhoukazusa.github.io/2026/07/01/daily-coding-bilateral-filter-2026-07-01/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%83%8F%E5%A4%84%E7%90%86/">图像处理</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%BB%A4%E6%B3%A2%E7%AE%97%E6%B3%95/">滤波算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/06/30/daily-coding-euclidean-distance-transform-2026-06-30/" title="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-30-euclidean-distance-transform/distance_field.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)</div></div><div class="info-2"><div class="info-item-1">① 背景与动机假设你有一张二值图像，上面有一些白色形状散布在黑色背景上。你想要知道：背景中每个像素距离最近的白色像素有多远？ 这个看似简单的问题，在图形学、计算机视觉和机器人领域有着深远的影响。 距离变换 (Distance Transform) 正是为解决这个问题而生的算法。给定一个二值图像（或任意前景&#x2F;背景分割），距离变换为每个像素计算它到最近前景像素的距离。如果只计算图像的欧氏距离（sqrt(dx² + dy²)），就称为欧氏距离变换 (Euclidean Distance Transform, EDT)。 没有距离变换时，很多重要的图形学效果是无法高效实现的：  Signed Distance Field (SDF) 字体渲染：Valve 在 2007 年发表的经典论文中展示了如何使用距离场来渲染任意分辨率的清晰文字。没有距离变换，每个字号都需要单独的光栅化位图，而距离场只需要一张小纹理就能在任意缩放比例下保持清晰边缘。这项技术被广泛应用于 Unity TextMeshPro、Unreal Engine 的字体渲染等。  碰撞检测与物理模拟：在基于网格的物理模拟...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/01/daily-coding-displacement-mapping-2026-06-01/" title="每日编程实践: Displacement Mapping &amp; Tessellation Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-01-displacement-mapping/displacement_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">每日编程实践: Displacement Mapping &amp; Tessellation Renderer</div></div><div class="info-2"><div class="info-item-1"> 今天实现了一个基于光线步进（Ray Marching）的位移贴图地形渲染器，将程序化高度场生成、精确法线重计算与 PBR 着色整合到一个约 550 行的 C++ 单文件里，0.57 秒渲染出 800×600 的地形图景。    ① 背景与动机：为什么需要位移贴图？法线贴图的极限在实时渲染中，法线贴图（Normal Mapping） 是最常见的表面细节增强手段。它的核心思想是：不改变几何体的真实形状，只欺骗光照计算——用一张存储了扰动法线方向的纹理，让平坦的多边形在光照下”看起来”有凹凸感。 这在大多数时候足够用了。但法线贴图有一个根本局限：轮廓（Silhouette）线依然是假的。当你的视角和法线方向接近垂直时，表面轮廓处会显现出它本质上还是一个平面。在山脉的天际线、石头的边缘，这种瑕疵会显著破坏真实感。 位移贴图（Displacement Mapping） 则更进一步——它真正移动了顶点（或者在光线追踪&#x2F;光线步进的情境下，直接改变了几何相交的判断依据），让表面在物理上就有了高低起伏。这带来了：  正确的轮廓线：山脊的天际线是真实的凸起，不再是假法线造的幻觉 自遮挡（...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/24/daily-coding-bent-normal-ao-2026-04-24/" title="每日编程实践: Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-24-bent-normal-ao/bent_normal_ao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-24</div><div class="info-item-2">每日编程实践: Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽</div></div><div class="info-2"><div class="info-item-1">Bent Normal Ambient Occlusion — 弯曲法线环境遮蔽① 背景与动机：普通 AO 的盲区问题的根源在实时渲染中，Ambient Occlusion（环境遮蔽） 是模拟间接光照最廉价的近似手段——通过计算一个表面点被周围几何体遮挡的程度，得到一个 0~1 的标量，直接乘到环境光上。 但这有一个根本性的缺陷：  普通 AO 只告诉你”这个点被遮蔽了多少”，却不告诉你”哪个方向还有光进来”。  设想一个角落里的点，它的北面和东面都被遮住，但西面和天空方向完全开放。普通 AO 算法会给它分配一个比较低的 AO 值（比如 0.4），然后将整个环境光均匀地乘以 0.4——包括西面那些本应亮起来的光。结果是整个点都偏暗，而且色调偏向错误的方向。 在游戏引擎里，这个问题尤为明显：  角色放在墙角：脸部该被天空光打亮，却被 AO 压暗了 洞穴内壁：内壁朝向洞口方向的部分该有颜色渐变，普通 AO 会让整个内壁均匀变暗 布料折叠处：折叠褶皱内侧和外侧的受光方向完全不同，普通 AO 无法区分  Bent Normal 的解法Bent Normal（弯曲法线） 是解决这个问题的关...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-03</div><div class="info-item-2">每日编程实践: Disney Principled BRDF Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在现代实时渲染和离线渲染领域，材质系统是最核心的模块之一。早期的渲染系统采用 Phong 或 Blinn-Phong 模型，这些模型参数对美术不直观——改变”高光指数”时，你无法直觉判断结果。而且这些模型能量不守恒：高光加上漫反射经常超过入射光能量，导致不真实感。 2012 年，Burley 在 SIGGRAPH 发表了《Physically-Based Shading at Disney》，提出了 Principled BRDF（原则性双向反射分布函数）。这个模型的核心哲学不是追求”物理精确”，而是追求对艺术家直觉友好 + 足够真实：  对艺术家友好：所有参数都在 [0, 1] 范围内，语义直观（metallic&#x3D;0 是绝缘体，&#x3D;1 是金属） 能量守恒：漫反射和镜面反射之和不超过入射能量 适用广泛：皮肤、金属、玻璃、布料，用同一套参数系统搞定  工业界使用场景Disney BRDF 或其变体已经被以下系统采用：  Unreal Engine 4&#x2F;5：Epic 改良了 Disney BRDF，称为”UE4 Shading Model”，是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/27/daily-coding-pbr-cook-torrance-2026-02-27/" title="每日编程实践: PBR Cook-Torrance BRDF 渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-27-pbr-cook-torrance/pbr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-27</div><div class="info-item-2">每日编程实践: PBR Cook-Torrance BRDF 渲染器</div></div><div class="info-2"><div class="info-item-1">PBR Cook-Torrance BRDF 渲染器今天实现了基于物理的渲染（Physically Based Rendering, PBR）中最核心的 Cook-Torrance BRDF 模型，渲染出 5×4 材质球阵列，直观展示金属度（Metallic）和粗糙度（Roughness）对材质外观的影响。 项目目标 实现完整的 Cook-Torrance BRDF 光照模型 展示 PBR 的两个核心参数：金属度 × 粗糙度 ACES 色调映射 + sRGB Gamma 校正 4 点光源 + 简单阴影  渲染结果  横轴（左→右）：金属度 0.0 → 1.0 纵轴（上→下）：粗糙度 0.05 → 1.0 材质颜色：金黄色（R:1.0, G:0.71, B:0.29）  理论基础Cook-Torrance BRDFPBR 核心公式： 1f(l,v) = kd · (albedo/π) + ks · (D·G·F) / (4·(n·v)·(n·l))  其中三个镜面项分别是： D - 法线分布函数（GGX&#x2F;Trowbridge-Reitz） 描述微表面法线的统计分布，GGX...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/22/daily-coding-marschner-hair-2026-04-22/" title="每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-22-marschner-hair/marschner_hair_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-22</div><div class="info-item-2">每日编程实践: Marschner Hair Rendering — 物理正确的头发光照模型</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Marschner Hair Rendering今天实现了 Marschner 头发光照模型——这是游戏渲染领域最重要的头发着色模型之一，自 2003 年发表以来几乎成为工业标准。渲染结果是 120 根 Cubic Bezier 发丝，在三盏灯下展示出 R（反射）、TT（透射）、TRT（内反射）三条散射路径的物理效果。   ① 背景与动机：为什么头发渲染这么难传统 Phong&#x2F;Blinn-Phong 的失败头发是一种极其特殊的几何体：它是直径约 70μm 的细圆柱，长度可达数十厘米。当光打在头发上，不仅会在表面反射，还会穿透半透明的皮质层，在内部散射后从另一侧透出。这种多路径散射行为是 Phong 模型完全无法描述的。 使用 Phong 模型渲染头发会得到什么？高光沿着”法向量最接近半向量”的位置出现，但头发没有固定法向量（它是圆柱），渲染结果是均匀的漫反射团，毫无层次感，就像把头发当作哑光塑料管渲染。 Kajiya-Kay 的局限性2003 年之前，工业界常用 Kajiya-Kay 1989 模型。它聪明地把头发的切向量 T 引入 Phong 公式，用 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/29/daily-coding-sppm-renderer-2026-05-29/" title="每日编程实践: Stochastic Progressive Photon Mapping Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-29-sppm-renderer/sppm_final.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">每日编程实践: Stochastic Progressive Photon Mapping Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Stochastic Progressive Photon Mapping Renderer今天实现了**随机渐进光子映射（SPPM）算法——全局光照领域的经典渲染方法，核心能力是精确渲染透过玻璃的焦散（Caustics）**效果，以及难以用路径追踪高效处理的 SDS（Specular-Diffuse-Specular）传输路径。 运行效果： Cornell Box + 玻璃球（产生焦散）+ 镜面小球。直接光由 NEE 计算，间接光和焦散由光子映射贡献。 光子映射通道（间接光&#x2F;GI）：可以看到间接光在墙面和地面的分布。 直接光通道（Next Event Estimation）：清晰的硬阴影，无噪声。  ① 背景与动机：焦散渲染为什么难？1.1 焦散是什么把一杯水放在阳光下，会在桌面形成一团明亮的光斑——这就是焦散（Caustics）。水面（或玻璃）把入射光线折射&#x2F;反射后重新聚焦到某个区域，导致局部能量密度极高。 在游戏引擎和离线渲染中，焦散是”真实感”的重要标志：  游戏：水底焦散、地板上玻璃杯的光斑（GTA V、赛博朋克 2077 的地面反射...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">137</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">148</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84%E7%BC%BA%E9%99%B7"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 高斯模糊的缺陷</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%8F%8C%E8%BE%B9%E6%BB%A4%E6%B3%A2%E7%9A%84%E6%A0%B8%E5%BF%83%E5%85%AC%E5%BC%8F"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 双边滤波的核心公式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E8%BE%B9%E7%BC%98%E4%BF%9D%E6%8C%81%E7%9A%84%E6%95%B0%E5%AD%A6%E7%9B%B4%E8%A7%89"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 边缘保持的数学直觉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%8E%E9%9D%9E%E5%B1%80%E9%83%A8%E5%9D%87%E5%80%BC%EF%BC%88NL-Means%EF%BC%89%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 与非局部均值（NL-Means）的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%8E%E5%BC%95%E5%AF%BC%E6%BB%A4%E6%B3%A2%EF%BC%88Guided-Filter%EF%BC%89%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">2.5.</span> <span class="toc-text">2.5 与引导滤波（Guided Filter）的对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%B5%8B%E8%AF%95%E5%9B%BE%E5%83%8F%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 测试图像设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84-Separable-%E4%BC%98%E5%8C%96"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 高斯模糊的 Separable 优化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-%E5%8F%8C%E8%BE%B9%E6%BB%A4%E6%B3%A2%E7%9A%84%E8%BE%B9%E7%95%8C%E5%A4%84%E7%90%86"><span class="toc-number">3.5.</span> <span class="toc-text">3.5 双边滤波的边界处理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-6-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%AE%A1%E7%BA%BF"><span class="toc-number">3.6.</span> <span class="toc-text">3.6 量化验证管线</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%8F%8C%E8%BE%B9%E6%BB%A4%E6%B3%A2%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 双边滤波核心实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84-Separable-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 高斯模糊的 Separable 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E8%BE%B9%E7%BC%98%E6%A2%AF%E5%BA%A6%E6%B5%8B%E9%87%8F"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 边缘梯度测量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%99%AA%E5%A3%B0%E7%94%9F%E6%88%90"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 噪声生成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E9%87%8F%E5%8C%96%E6%8C%87%E6%A0%87%E8%AE%A1%E7%AE%97"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 量化指标计算</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9Asigma-range-%E9%80%89%E5%8F%96%E4%B8%8D%E5%BD%93%E5%AF%BC%E8%87%B4%E6%BB%A4%E6%B3%A2%E5%A4%B1%E6%95%88%EF%BC%88%E9%A6%96%E6%AC%A1%E8%BF%90%E8%A1%8C%E5%A4%B1%E8%B4%A5%EF%BC%89"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：sigma_range 选取不当导致滤波失效（首次运行失败）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E5%99%AA%E5%A3%B0%E4%BD%BF%E8%BE%B9%E7%BC%98%E6%A2%AF%E5%BA%A6%E6%B5%8B%E9%87%8F%E4%BA%A7%E7%94%9F%E4%BC%AA%E4%BF%A1%E5%8F%B7"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：噪声使边缘梯度测量产生伪信号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84%E5%88%86%E7%A6%BB%E5%8D%B7%E7%A7%AF%E5%BF%98%E8%AE%B0%E5%BD%92%E4%B8%80%E5%8C%96"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：高斯模糊的分离卷积忘记归一化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9APPM-%E8%BE%93%E5%87%BA%E4%B8%AD-unsigned-char-%E6%88%AA%E6%96%AD%E5%AF%BC%E8%87%B4%E5%81%8F%E8%89%B2"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：PPM 输出中 unsigned char 截断导致偏色</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%95%B0%E5%80%BC%E5%AF%B9%E6%AF%94"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 数值对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%85%B3%E9%94%AE%E5%8F%91%E7%8E%B0"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 关键发现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%B8%B2%E6%9F%93%E8%BE%93%E5%87%BA%E9%AA%8C%E8%AF%81%EF%BC%88%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1%EF%BC%89"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 渲染输出验证（像素统计）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%9B%BE%E5%83%8F%E8%BE%93%E5%87%BA"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 图像输出</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E6%96%87%E7%8C%AE"><span class="toc-number">7.4.</span> <span class="toc-text">参考文献</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/01/daily-coding-bilateral-filter-2026-07-01/" title="每日编程实践: 双边滤波 — 边缘保持平滑"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 双边滤波 — 边缘保持平滑"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/01/daily-coding-bilateral-filter-2026-07-01/" title="每日编程实践: 双边滤波 — 边缘保持平滑">每日编程实践: 双边滤波 — 边缘保持平滑</a><time datetime="2026-06-30T22:00:00.000Z" title="发表于 2026-07-01 06:00:00">2026-07-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/30/daily-coding-euclidean-distance-transform-2026-06-30/" title="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-30-euclidean-distance-transform/distance_field.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/30/daily-coding-euclidean-distance-transform-2026-06-30/" title="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)">每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)</a><time datetime="2026-06-29T21:30:00.000Z" title="发表于 2026-06-30 05:30:00">2026-06-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Jump Point Search 跳点搜索算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法">每日编程实践: Jump Point Search 跳点搜索算法</a><time datetime="2026-06-28T21:30:00.000Z" title="发表于 2026-06-29 05:30:00">2026-06-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/28/daily-coding-skeletal-animation-lbs-2026-06-28/" title="每日编程实践: 骨骼动画与线性混合蒙皮 (LBS)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-28-skeletal-animation-lbs/skeletal_animation_comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 骨骼动画与线性混合蒙皮 (LBS)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/28/daily-coding-skeletal-animation-lbs-2026-06-28/" title="每日编程实践: 骨骼动画与线性混合蒙皮 (LBS)">每日编程实践: 骨骼动画与线性混合蒙皮 (LBS)</a><time datetime="2026-06-27T21:30:00.000Z" title="发表于 2026-06-28 05:30:00">2026-06-28</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/27/daily-coding-perspective-correct-texture-mapping-2026-06-27/" title="每日编程实践: 透视校正纹理映射"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-27-perspective-correct-texture-mapping/output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 透视校正纹理映射"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/27/daily-coding-perspective-correct-texture-mapping-2026-06-27/" title="每日编程实践: 透视校正纹理映射">每日编程实践: 透视校正纹理映射</a><time datetime="2026-06-26T22:30:00.000Z" title="发表于 2026-06-27 06:30:00">2026-06-27</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
