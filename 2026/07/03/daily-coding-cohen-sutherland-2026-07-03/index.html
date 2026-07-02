@@ -1,0 +1,446 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Cohen-Sutherland 直线裁剪算法 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机在计算机图形学中，裁剪（Clipping） 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Cohen-Sutherland 直线裁剪算法">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机在计算机图形学中，裁剪（Clipping） 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png">
+<meta property="article:published_time" content="2026-07-02T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-02T21:34:08.837Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Cohen-Sutherland 直线裁剪算法",
+  "url": "https://chiuhoukazusa.github.io/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png",
+  "datePublished": "2026-07-02T21:30:00.000Z",
+  "dateModified": "2026-07-02T21:34:08.837Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Cohen-Sutherland 直线裁剪算法',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Cohen-Sutherland 直线裁剪算法</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Cohen-Sutherland 直线裁剪算法</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-02T21:30:00.000Z" title="发表于 2026-07-03 05:30:00">2026-07-03</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-02T21:34:08.837Z" title="更新于 2026-07-03 05:34:08">2026-07-03</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>在计算机图形学中，<strong>裁剪（Clipping）</strong> 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看不见的东西。</p>
+<p><strong>Cohen-Sutherland 算法</strong>正是为了解决这个”直线与矩形窗口的裁剪”问题而生。它由 Ivan Sutherland（图灵奖得主、Sketchpad 之父）和 Dan Cohen 于 1967 年提出，距今已有近 60 年历史。尽管现在 GPU 管线已经高度成熟，但理解 Cohen-Sutherland 依然是每个图形学工程师的必修课，因为它展示了几种算法设计的核心范式：<strong>平凡接受&#x2F;拒绝（trivial accept&#x2F;reject）</strong>、<strong>区域编码（region encoding）</strong>、以及<strong>逐次逼近（successive approximation）</strong>。</p>
+<p>在工业界，Cohen-Sutherland 的思想被广泛应用于：</p>
+<ul>
+<li><strong>视锥体裁剪（Frustum Culling）</strong>：虽然从 2D 扩展到了 3D，但”先检查 AABB 各顶点是否全在同一侧”的策略如出一辙</li>
+<li><strong>GUI 控件裁剪</strong>：窗口系统中的滚动视图、Canvas 绘制，都需要高效判断哪些元素需要重绘</li>
+<li><strong>地图渲染</strong>：只渲染可视区域内的道路和建筑，减少每帧的 draw call</li>
+</ul>
+<p>如果不用裁剪，会发生什么？所有图元都会被完整处理——屏幕外的三角形要经过顶点着色器、三角形设置、光栅化，最后到像素着色器才发现”哦，这个像素不属于屏幕范围”。这不仅浪费 GPU 时间，在某些架构上甚至可能触发内存越界。Cohen-Sutherland 提供了一种<strong>O(1) 的开销</strong>来判断一条线是否完全可见或完全不可见，平均只需几次迭代就能完成裁剪。</p>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="区域编码（Outcode）"><a href="#区域编码（Outcode）" class="headerlink" title="区域编码（Outcode）"></a>区域编码（Outcode）</h3><p>Cohen-Sutherland 的核心思想是将 2D 平面以裁剪窗口为界划分为 <strong>9 个区域</strong>，每个区域用一个 <strong>4 位二进制编码（Outcode）</strong> 标记：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1001 | 1000 | 1010</span><br><span class="line">-----+------+-----</span><br><span class="line">0001 | 0000 | 0010</span><br><span class="line">-----+------+-----</span><br><span class="line">0101 | 0100 | 0110</span><br></pre></td></tr></table></figure>
+
+<p>四位编码的含义从高位到低位分别是：</p>
+<table>
+<thead>
+<tr>
+<th>Bit</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3 (8)</td>
+<td>TOP</td>
+<td>点位于裁剪窗口上方 (y &gt; ymax)</td>
+</tr>
+<tr>
+<td>2 (4)</td>
+<td>BOTTOM</td>
+<td>点位于裁剪窗口下方 (y &lt; ymin)</td>
+</tr>
+<tr>
+<td>1 (2)</td>
+<td>RIGHT</td>
+<td>点位于裁剪窗口右侧 (x &gt; xmax)</td>
+</tr>
+<tr>
+<td>0 (1)</td>
+<td>LEFT</td>
+<td>点位于裁剪窗口左侧 (x &lt; xmin)</td>
+</tr>
+</tbody></table>
+<p><strong>编码的计算方法</strong>极其简单——四次比较即可：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">computeCode</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> code = <span class="number">0</span>; <span class="comment">// INSIDE = 0000</span></span><br><span class="line">    <span class="keyword">if</span> (x &lt; xmin) code |= <span class="number">1</span>;   <span class="comment">// LEFT</span></span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (x &gt; xmax) code |= <span class="number">2</span>; <span class="comment">// RIGHT</span></span><br><span class="line">    <span class="keyword">if</span> (y &lt; ymin) code |= <span class="number">4</span>;   <span class="comment">// BOTTOM</span></span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (y &gt; ymax) code |= <span class="number">8</span>; <span class="comment">// TOP</span></span><br><span class="line">    <span class="keyword">return</span> code;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个编码的妙处在于：<strong>两个端点的 Outcode 直接决定了线段与裁剪窗口的关系</strong>。</p>
+<h3 id="平凡接受（Trivial-Accept）"><a href="#平凡接受（Trivial-Accept）" class="headerlink" title="平凡接受（Trivial Accept）"></a>平凡接受（Trivial Accept）</h3><p>当一条线段<strong>两个端点的 Outcode 都是 0000</strong>（即都在裁剪窗口内部）时，这条线完全可见，无需任何裁剪。用位运算表达就是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(code0 | code1) == 0  → 平凡接受，直接绘制整条线段</span><br></pre></td></tr></table></figure>
+
+<p>这个判断只需要两次位运算（OR + 比较），没有任何浮点数计算。</p>
+<h3 id="平凡拒绝（Trivial-Reject）"><a href="#平凡拒绝（Trivial-Reject）" class="headerlink" title="平凡拒绝（Trivial Reject）"></a>平凡拒绝（Trivial Reject）</h3><p>当一条线段<strong>两个端点在同一个外侧半平面</strong>时（比如都在上方，或都在左侧），它完全不可见。用位运算表达：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(code0 &amp; code1) != 0  → 平凡拒绝，完全丢弃</span><br></pre></td></tr></table></figure>
+
+<p>这个判断同样只需一次位运算。这里的关键洞察是：如果 <code>code0 &amp; code1</code> 的某一位是 1，说明两个端点在某一侧”一致地越界”——比如都在裁剪窗口上方（两个 Outcode 的 BIT_TOP 都是 1），那整条线段一定在上方，永远不可见。</p>
+<h3 id="为什么平凡的接受-拒绝能覆盖大多数情况？"><a href="#为什么平凡的接受-拒绝能覆盖大多数情况？" class="headerlink" title="为什么平凡的接受&#x2F;拒绝能覆盖大多数情况？"></a>为什么平凡的接受&#x2F;拒绝能覆盖大多数情况？</h3><p>在一个典型的 3D 场景渲染中，经过视口变换后，有大量图元会完全落在视口之外（被近平面裁剪、被视锥体侧面切掉、或在屏幕范围外）。每处理 100 条线段，可能只有 30%~40% 需要真正的逐边裁剪——其余都可以通过平凡接受&#x2F;拒绝快速处理。这就是 Cohen-Sutherland 的性能优势所在。</p>
+<h3 id="非平凡裁剪（Non-Trivial-Case）：逐边缩短"><a href="#非平凡裁剪（Non-Trivial-Case）：逐边缩短" class="headerlink" title="非平凡裁剪（Non-Trivial Case）：逐边缩短"></a>非平凡裁剪（Non-Trivial Case）：逐边缩短</h3><p>当平凡接受和平凡拒绝都不满足时，说明线段跨越了裁剪边界。此时需要<strong>选择外侧端点，计算它与裁剪边界的交点，用交点替换该端点，然后重复整个流程</strong>。</p>
+<p><strong>选择哪个端点？</strong> 选 Outcode 不为 0 的那个（即在外面）。如果两个都在外面（但不在同一侧），任选一个即可。</p>
+<p><strong>计算与哪条边的交点？</strong> 根据被选中的 Outcode 的最高位来判断：</p>
+<ul>
+<li>TOP (8)：与上边界 <code>y = ymax</code> 求交</li>
+<li>BOTTOM (4)：与下边界 <code>y = ymin</code> 求交</li>
+<li>RIGHT (2)：与右边界 <code>x = xmax</code> 求交</li>
+<li>LEFT (1)：与左边界 <code>x = xmin</code> 求交</li>
+</ul>
+<p><strong>如何计算交点？</strong> 利用直线的参数方程：</p>
+<p>我们知道线段的两个端点是 (x₀, y₀) 和 (x₁, y₁)。直线的参数形式为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">x(t) = x₀ + (x₁ - x₀) * t</span><br><span class="line">y(t) = y₀ + (y₁ - y₀) * t</span><br></pre></td></tr></table></figure>
+
+<p>当 t&#x3D;0 时是起点，t&#x3D;1 时是终点。求与上边界 <code>y = ymax</code> 的交点，我们只需要解：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ymax = y₀ + (y₁ - y₀) * t</span><br><span class="line">→ t = (ymax - y₀) / (y₁ - y₀)</span><br></pre></td></tr></table></figure>
+
+<p>然后将 t 代入 x 方程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">x = x₀ + (x₁ - x₀) * t</span><br></pre></td></tr></table></figure>
+
+<p>这里有一个容易忽视的细节：<strong>如果线段恰好水平</strong>（y₁ &#x3D; y₀），上式的分母为 0，会导致除零错误。但实际上这种情况已经在平凡拒绝阶段被处理了——如果线段在上方且 y₁&#x3D;y₀，两个端点的 TOP bit 都为 1，(code0 &amp; code1) ≠ 0，会直接被拒绝。所以当代码走到”与上边界求交”这一步时，这个线段一定不水平，不需要额外检查。</p>
+<p>同理，与左右边界求交时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">xmax = x₀ + (x₁ - x₀) * t</span><br><span class="line">→ t = (xmax - x₀) / (x₁ - x₀)</span><br><span class="line">→ y = y₀ + (y₁ - y₀) * t</span><br></pre></td></tr></table></figure>
+
+<h3 id="完整的算法流程"><a href="#完整的算法流程" class="headerlink" title="完整的算法流程"></a>完整的算法流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">输入: 线段 P₀P₁, 裁剪窗口 R</span><br><span class="line"></span><br><span class="line">1. 计算 code₀ = computeCode(P₀), code₁ = computeCode(P₁)</span><br><span class="line"></span><br><span class="line">2. while (true):</span><br><span class="line">   a. 如果 code₀ == 0 且 code₁ == 0:</span><br><span class="line">      输出 P₀P₁ (平凡接受)</span><br><span class="line"></span><br><span class="line">   b. 如果 (code₀ &amp; code₁) != 0:</span><br><span class="line">      丢弃 (平凡拒绝)</span><br><span class="line"></span><br><span class="line">   c. 选择外侧端点：code_out = (code₀ != 0) ? code₀ : code₁</span><br><span class="line"></span><br><span class="line">   d. 根据 code_out 确定与哪条边求交：</span><br><span class="line">      - TOP:    用上边界求交点</span><br><span class="line">      - BOTTOM: 用下边界求交点</span><br><span class="line">      - RIGHT:  用右边界求交点</span><br><span class="line">      - LEFT:   用左边界求交点</span><br><span class="line"></span><br><span class="line">   e. 用交点替换被选中的端点</span><br><span class="line"></span><br><span class="line">   f. 重新计算被替换端点的 Outcode</span><br><span class="line"></span><br><span class="line">3. 循环回到步骤 2</span><br></pre></td></tr></table></figure>
+
+<h3 id="与同类算法的对比"><a href="#与同类算法的对比" class="headerlink" title="与同类算法的对比"></a>与同类算法的对比</h3><table>
+<thead>
+<tr>
+<th>算法</th>
+<th>时间复杂度</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Cohen-Sutherland</strong></td>
+<td>O(1) 平均，O(4) 最坏</td>
+<td>平凡接受&#x2F;拒绝超快，位运算</td>
+<td>边界情况需要多次迭代</td>
+</tr>
+<tr>
+<td><strong>Liang-Barsky</strong></td>
+<td>O(1)</td>
+<td>参数化，扩展性好，一次计算所有交点</td>
+<td>没有快速拒绝机制</td>
+</tr>
+<tr>
+<td><strong>Nicholl-Lee-Nicholl</strong></td>
+<td>O(1)</td>
+<td>最少计算量，9 区域空间划分</td>
+<td>实现复杂，需要大量查找表</td>
+</tr>
+</tbody></table>
+<p>在我们的实现中，我们使用 <strong>Liang-Barsky</strong> 算法作为对照验证。Liang-Barsky 将裁剪问题转化为参数 t 在 [0,1] 区间上满足四个不等式的问题。对于每一条边，它计算对应的 t 值并更新 t 的上下界。虽然 Liang-Barsky 计算量更大（每条边都要处理），但它天然支持 3D 裁剪的扩展。</p>
+<p><strong>为什么选择 Cohen-Sutherland 而不是 Liang-Barsky？</strong> 在大量线段中，很大一部分会通过平凡接受或平凡拒绝被快速筛选掉。Cohen-Sutherland 对这类情况只需要两次位运算，而 Liang-Barsky 无论如何都要处理四个不等式。这就是 Cohen-Sutherland 在其诞生 60 年后仍然被广泛教授的原因。</p>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">随机线段生成 (100条)</span><br><span class="line">    │</span><br><span class="line">    ├──→ Cohen-Sutherland 裁剪 ──→ 可见/拒绝判定 + 裁剪后坐标</span><br><span class="line">    │</span><br><span class="line">    ├──→ Liang-Barsky 对照裁剪 ──→ 可见/拒绝判定 + 裁剪后坐标</span><br><span class="line">    │</span><br><span class="line">    ├──→ 算法一致性验证 (逐条比对)</span><br><span class="line">    │         ├── accept/reject 判断是否一致？</span><br><span class="line">    │         └── 裁剪后端点是否在窗口内？</span><br><span class="line">    │</span><br><span class="line">    └──→ PPM 图像输出</span><br><span class="line">              ├── 黄色裁剪矩形</span><br><span class="line">              ├── 绿色 = 裁剪后可见线段</span><br><span class="line">              ├── 灰色 = 被完全拒绝的线段</span><br><span class="line">              └── 红色 = 算法不一致 (异常标记)</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 裁剪窗口：定义在连续世界坐标中</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">ClipRect</span> &#123;</span><br><span class="line">    <span class="type">double</span> xmin, ymin, xmax, ymax;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 计算一个点所在的区域编码</span></span><br><span class="line">    <span class="function"><span class="type">int</span> <span class="title">computeCode</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> <span class="type">const</span></span>;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 线段：两个端点</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">LineSeg</span> &#123;</span><br><span class="line">    <span class="type">double</span> x0, y0, x1, y1;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 视口映射：将世界坐标映射到像素坐标</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Viewport</span> &#123;</span><br><span class="line">    <span class="type">int</span> imgW, imgH;</span><br><span class="line">    <span class="type">double</span> worldXmin, worldYmin, worldXmax, worldYmax;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 世界坐标 → 屏幕坐标（Y轴翻转）</span></span><br><span class="line">    <span class="function"><span class="type">int</span> <span class="title">toScreenX</span><span class="params">(<span class="type">double</span> wx)</span> <span class="type">const</span></span>;</span><br><span class="line">    <span class="function"><span class="type">int</span> <span class="title">toScreenY</span><span class="params">(<span class="type">double</span> wy)</span> <span class="type">const</span></span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>设计理由：</p>
+<ul>
+<li><strong>裁剪窗口用连续坐标</strong>：避免整数精度问题。PPM 图像是离散的，但数学计算必须在连续域中进行</li>
+<li><strong>视口映射独立</strong>：分离”裁剪逻辑”和”显示逻辑”，便于修改图像尺寸而不影响算法</li>
+<li><strong>线段用 double</strong>：交点计算可能产生小数值，float 精度不够</li>
+</ul>
+<h3 id="CPU-侧职责（没有-Shader）"><a href="#CPU-侧职责（没有-Shader）" class="headerlink" title="CPU 侧职责（没有 Shader）"></a>CPU 侧职责（没有 Shader）</h3><p>这是一个纯 CPU 算法。在真实的 GPU 管线中，Cohen-Sutherland 的思想被用于<strong>Guard Band Clipping</strong>——GPU 驱动在顶点着色器后、光栅化前，用 Guard Band（一个比视口稍大的矩形）来做快速裁剪。但我们的实现是纯软件版本：所有计算在 CPU 完成，通过 Bresenham 算法将裁剪后的线段绘制到 PPM 图像中。</p>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="核心循环：Cohen-Sutherland-裁剪"><a href="#核心循环：Cohen-Sutherland-裁剪" class="headerlink" title="核心循环：Cohen-Sutherland 裁剪"></a>核心循环：Cohen-Sutherland 裁剪</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">cohenSutherlandClip</span><span class="params">(LineSeg&amp; line, <span class="type">const</span> ClipRect&amp; rect)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> x0 = line.x0, y0 = line.y0;</span><br><span class="line">    <span class="type">double</span> x1 = line.x1, y1 = line.y1;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 第一步：计算两个端点的 Outcode</span></span><br><span class="line">    <span class="type">int</span> code0 = rect.<span class="built_in">computeCode</span>(x0, y0);</span><br><span class="line">    <span class="type">int</span> code1 = rect.<span class="built_in">computeCode</span>(x1, y1);</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">        <span class="comment">// 检查平凡接受：两个端点都在窗口内</span></span><br><span class="line">        <span class="keyword">if</span> ((code0 | code1) == <span class="number">0</span>) &#123;</span><br><span class="line">            line.x0 = x0; line.y0 = y0;</span><br><span class="line">            line.x1 = x1; line.y1 = y1;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 检查平凡拒绝：两个端点在同一外侧半平面</span></span><br><span class="line">        <span class="keyword">if</span> (code0 &amp; code1) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 非平凡情况：选择一个外侧端点</span></span><br><span class="line">        <span class="type">int</span> codeOut = (code0 != <span class="number">0</span>) ? code0 : code1;</span><br><span class="line">        <span class="type">double</span> x, y;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 根据 Outcode 的最高位确定与哪条边求交</span></span><br><span class="line">        <span class="keyword">if</span> (codeOut &amp; TOP) &#123;</span><br><span class="line">            <span class="comment">// 与上边界 y = ymax 求交</span></span><br><span class="line">            <span class="comment">// t = (ymax - y0) / (y1 - y0)</span></span><br><span class="line">            <span class="comment">// x = x0 + (x1 - x0) * t</span></span><br><span class="line">            x = x0 + (x1 - x0) * (rect.ymax - y0) / (y1 - y0);</span><br><span class="line">            y = rect.ymax;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (codeOut &amp; BOTTOM) &#123;</span><br><span class="line">            <span class="comment">// 与下边界 y = ymin 求交</span></span><br><span class="line">            x = x0 + (x1 - x0) * (rect.ymin - y0) / (y1 - y0);</span><br><span class="line">            y = rect.ymin;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (codeOut &amp; RIGHT) &#123;</span><br><span class="line">            <span class="comment">// 与右边界 x = xmax 求交</span></span><br><span class="line">            y = y0 + (y1 - y0) * (rect.xmax - x0) / (x1 - x0);</span><br><span class="line">            x = rect.xmax;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123; <span class="comment">// LEFT</span></span><br><span class="line">            <span class="comment">// 与左边界 x = xmin 求交</span></span><br><span class="line">            y = y0 + (y1 - y0) * (rect.xmin - x0) / (x1 - x0);</span><br><span class="line">            x = rect.xmin;</span><br><span class="line">        &#125;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 用交点替换外侧端点，并重新计算它的 Outcode</span></span><br><span class="line">        <span class="keyword">if</span> (codeOut == code0) &#123;</span><br><span class="line">            x0 = x; y0 = y;</span><br><span class="line">            code0 = rect.<span class="built_in">computeCode</span>(x0, y0);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            x1 = x; y1 = y;</span><br><span class="line">            code1 = rect.<span class="built_in">computeCode</span>(x1, y1);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐步骤解释</strong>：</p>
+<ol>
+<li><p><strong><code>(code0 | code1) == 0</code></strong>：位或运算检查是否有任何一位是 1。如果结果为 0，说明两个编码全是 0，两个端点都在内部。这是最优路径。</p>
+</li>
+<li><p><strong><code>(code0 &amp; code1) != 0</code></strong>：位与运算检查两个端点是否在某一侧”一致越界”。如果某一位同时为 1，说明整条线段在该侧之外。</p>
+</li>
+<li><p><strong><code>int codeOut = (code0 != 0) ? code0 : code1</code></strong>：选择在外侧的端点。如果 code0 不为 0（点 A 在外面），用它；否则用点 B。这里优先选点 A 只是约定，没有实际差别。</p>
+</li>
+<li><p><strong>分支根据 codeOut 的位判断</strong>：注意是用 <code>if-else if</code> 链按 TOP→BOTTOM→RIGHT→LEFT 的顺序检查，这等价于检查最高位。TOP(8) 在最前面，LEFT(1) 在最后。这个顺序保证了每次裁剪只处理一个边界。</p>
+</li>
+<li><p><strong>交点计算公式</strong>：<code>x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0)</code>。这里 <code>(ymax - y0) / (y1 - y0)</code> 就是参数 t。注意我们<strong>没有单独计算 t</strong>，而是直接内联了。这样写避免了中间变量，但也意味着每个 case 里要写类似的表达式。</p>
+</li>
+</ol>
+<p><strong>容易写错的地方</strong>：</p>
+<ul>
+<li><strong>除零</strong>：如果线段水平且在上方，<code>(y1 - y0) = 0</code>。但如前所述，这种情况已经在平凡拒绝中被拦截了</li>
+<li><strong>用错端点</strong>：替换时分清是替换的 code0 还是 code1 对应的点。一条线段可能在迭代中更换”外侧端点”</li>
+<li><strong>忘记更新 Outcode</strong>：替换坐标后必须重新计算 Outcode，否则下一个循环会检测到过时的区域编码</li>
+</ul>
+<h3 id="Liang-Barsky-对照实现"><a href="#Liang-Barsky-对照实现" class="headerlink" title="Liang-Barsky 对照实现"></a>Liang-Barsky 对照实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">naiveClip</span><span class="params">(LineSeg&amp; line, <span class="type">const</span> ClipRect&amp; rect)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> x0 = line.x0, y0 = line.y0;</span><br><span class="line">    <span class="type">double</span> x1 = line.x1, y1 = line.y1;</span><br><span class="line">    </span><br><span class="line">    <span class="type">double</span> dx = x1 - x0;</span><br><span class="line">    <span class="type">double</span> dy = y1 - y0;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 四个不等式 p_i * t &lt;= q_i</span></span><br><span class="line">    <span class="type">double</span> p[<span class="number">4</span>] = &#123;-dx, dx, -dy, dy&#125;;</span><br><span class="line">    <span class="type">double</span> q[<span class="number">4</span>] = &#123;x0 - rect.xmin, rect.xmax - x0, </span><br><span class="line">                   y0 - rect.ymin, rect.ymax - y0&#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="type">double</span> t0 = <span class="number">0.0</span>, t1 = <span class="number">1.0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">4</span>; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (std::<span class="built_in">abs</span>(p[i]) &lt; <span class="number">1e-12</span>) &#123;</span><br><span class="line">            <span class="comment">// 线段与边界平行</span></span><br><span class="line">            <span class="keyword">if</span> (q[i] &lt; <span class="number">0</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="type">double</span> t = q[i] / p[i];</span><br><span class="line">            <span class="keyword">if</span> (p[i] &lt; <span class="number">0</span>) &#123;</span><br><span class="line">                <span class="comment">// 进入边界：更新 t 的下界</span></span><br><span class="line">                <span class="keyword">if</span> (t &gt; t1) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">                <span class="keyword">if</span> (t &gt; t0) t0 = t;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">// 离开边界：更新 t 的上界</span></span><br><span class="line">                <span class="keyword">if</span> (t &lt; t0) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">                <span class="keyword">if</span> (t &lt; t1) t1 = t;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (t0 &gt; t1) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    line.x0 = x0 + dx * t0;</span><br><span class="line">    line.y0 = y0 + dy * t0;</span><br><span class="line">    line.x1 = x0 + dx * t1;</span><br><span class="line">    line.y1 = y0 + dy * t1;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Liang-Barsky 的核心公式是 <code>x = x0 + t * dx</code> 受限于 <code>xmin &lt;= x &lt;= xmax</code>，代入得 <code>t * (-dx) &lt;= x0 - xmin</code> 和 <code>t * dx &lt;= xmax - x0</code>。四个不等式同时满足时，t 的区间 [t0, t1] 就是裁剪后的线段参数。如果 t0 &gt; t1，则线段不可见。</p>
+<p>Liang-Barsky 的优势是<strong>一次遍历解决所有裁剪</strong>，不需要循环。但它没有”平凡接受&#x2F;拒绝”的快速路径——即使线段完全可见，也要检查四个不等式。</p>
+<h3 id="Bresenham-直线绘制"><a href="#Bresenham-直线绘制" class="headerlink" title="Bresenham 直线绘制"></a>Bresenham 直线绘制</h3><p>有了裁剪后的线段端点，还需要把它们画到 PPM 图像中。我们使用经典的 Bresenham 算法：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">drawLine</span><span class="params">(<span class="type">int</span> x0, <span class="type">int</span> y0, <span class="type">int</span> x1, <span class="type">int</span> y1, </span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">uint8_t</span> r, <span class="type">uint8_t</span> g, <span class="type">uint8_t</span> b)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> dx = std::<span class="built_in">abs</span>(x1 - x0), sx = x0 &lt; x1 ? <span class="number">1</span> : <span class="number">-1</span>;</span><br><span class="line">    <span class="type">int</span> dy = -std::<span class="built_in">abs</span>(y1 - y0), sy = y0 &lt; y1 ? <span class="number">1</span> : <span class="number">-1</span>;</span><br><span class="line">    <span class="type">int</span> err = dx + dy;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">while</span> (<span class="literal">true</span>) &#123;</span><br><span class="line">        <span class="built_in">setPixel</span>(x0, y0, r, g, b);</span><br><span class="line">        <span class="keyword">if</span> (x0 == x1 &amp;&amp; y0 == y1) <span class="keyword">break</span>;</span><br><span class="line">        <span class="type">int</span> e2 = <span class="number">2</span> * err;</span><br><span class="line">        <span class="keyword">if</span> (e2 &gt;= dy) &#123; err += dy; x0 += sx; &#125;</span><br><span class="line">        <span class="keyword">if</span> (e2 &lt;= dx) &#123; err += dx; y0 += sy; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Bresenham 的核心思想是维护一个误差累积器 <code>err</code>，当它在某方向累积超过阈值时，就向该方向移动。这个实现只用整数运算，效率极高。<code>dy</code> 初始化为负值是为了用统一的判决逻辑处理所有八分象限。</p>
+<h3 id="量化验证逻辑"><a href="#量化验证逻辑" class="headerlink" title="量化验证逻辑"></a>量化验证逻辑</h3><p>算法完成后，需要量化验证而非肉眼检查。我们的验证分为两层：</p>
+<p><strong>第一层：算法一致性</strong>。对随机生成的 100 条线段，分别用 Cohen-Sutherland 和 Liang-Barsky 裁剪，比较两者的 accept&#x2F;reject 判定：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> cs_vis = <span class="built_in">cohenSutherlandClip</span>(cs, clipRect);</span><br><span class="line"><span class="type">bool</span> naive_vis = <span class="built_in">naiveClip</span>(naive, clipRect);</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (cs_vis == naive_vis) &#123;</span><br><span class="line">    agreement++;</span><br><span class="line">    <span class="keyword">if</span> (cs_vis) &#123;</span><br><span class="line">        <span class="comment">// 额外验证：裁剪后的端点确实在窗口内</span></span><br><span class="line">        <span class="type">bool</span> p0_inside = (cs.x0 &gt;= clipRect.xmin - <span class="number">1e-9</span> &amp;&amp; </span><br><span class="line">                          cs.x0 &lt;= clipRect.xmax + <span class="number">1e-9</span> &amp;&amp;</span><br><span class="line">                          cs.y0 &gt;= clipRect.ymin - <span class="number">1e-9</span> &amp;&amp; </span><br><span class="line">                          cs.y0 &lt;= clipRect.ymax + <span class="number">1e-9</span>);</span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二层：像素统计</strong>。生成的 PPM 图像需要进行统计检查：</p>
+<ul>
+<li>像素均值不在极端范围（非全黑&#x2F;全白）</li>
+<li>标准差大于阈值（有实际内容）</li>
+<li>彩色像素的存在验证了裁剪框（黄色）和可见线段（绿色）确实被绘制</li>
+</ul>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：Outcode-位掩码顺序错误"><a href="#Bug-1：Outcode-位掩码顺序错误" class="headerlink" title="Bug 1：Outcode 位掩码顺序错误"></a>Bug 1：Outcode 位掩码顺序错误</h3><p><strong>症状</strong>：部分线段裁剪后完全错误，本该可见的线段被裁剪成奇怪的位置。</p>
+<p><strong>错误假设</strong>：我最初写 Outcode 定义时，按直觉顺序写了 LEFT&#x3D;1, RIGHT&#x3D;2, BOTTOM&#x3D;4, TOP&#x3D;8，但在检查时用 <code>if (codeOut &amp; TOP)</code> 来判断是否与上边界求交。位运算没问题，但我在求交分支里混淆了 <code>LEFT</code> 与 xmin 的对应关系——我以为 LEFT&#x3D;1 表示在左边，所以在求交时用了 <code>x = rect.xmin</code>，但这个逻辑在迭代中被错误地应用到了 RIGHT 的情况。</p>
+<p><strong>真实原因</strong>：四条边界的求交逻辑应该是互斥的。Cohen-Sutherland <strong>一次只裁剪一条边</strong>，选择最外侧的那条边求交。但我在代码中错误地使用了 <code>if-else</code> 链，导致当 codeOut 同时包含 LEFT 和 BOTTOM 时（比如点位于左下角），只处理了 LEFT 而忽略了 BOTTOM。</p>
+<p><strong>修复方式</strong>：改用按位优先级：<code>if (codeOut &amp; TOP)</code> always first，然后是 BOTTOM、RIGHT、LEFT。这样保证先处理”更外侧”的边。实际上，只要循环结构正确（每次只裁剪一条边），多次循环自然会处理所有越界的边。</p>
+<h3 id="Bug-2：交点计算方向错误"><a href="#Bug-2：交点计算方向错误" class="headerlink" title="Bug 2：交点计算方向错误"></a>Bug 2：交点计算方向错误</h3><p><strong>症状</strong>：裁剪后的线段端点不在边界线上，肉眼可见偏移。</p>
+<p><strong>错误假设</strong>：我直接在代码中写了类似这样的公式：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误写法</span></span><br><span class="line">x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0);  <span class="comment">// 这个其实是对的</span></span><br><span class="line">y = y0 + (y1 - y0) * (ymax - y0) / (y1 - y0);  <span class="comment">// 这个也对了</span></span><br></pre></td></tr></table></figure>
+<p>实际上公式本身是对的，但我在替换端点时，<strong>错误地替换了内侧端点而非外侧端点</strong>。当 code0 和 code1 都非零时，我交换了两者——导致线段突然翻转。</p>
+<p><strong>修复方式</strong>：严格遵循”只替换外侧端点”的原则：code0 ≠ 0 时替换 P₀，否则替换 P₁。不进行任何端点交换。</p>
+<h3 id="Bug-3：PPM-图像的-Y-轴翻转"><a href="#Bug-3：PPM-图像的-Y-轴翻转" class="headerlink" title="Bug 3：PPM 图像的 Y 轴翻转"></a>Bug 3：PPM 图像的 Y 轴翻转</h3><p><strong>症状</strong>：视觉检查时裁剪框位置正确，但线段位置似乎不对。后来通过像素统计发现 green pixel 占比异常——应该集中在大约 40% 的画面中央，但实际散布在上下两侧。</p>
+<p><strong>错误假设</strong>：我以为世界坐标 Y 轴和屏幕坐标 Y 轴方向相同。</p>
+<p><strong>真实原因</strong>：世界坐标中 Y 轴向上增大（数学惯例），而 PPM 像素坐标 Y 轴向下增大（图像惯例）。Viewport 映射中缺少翻转：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误写法</span></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">toScreenY</span><span class="params">(<span class="type">double</span> wy)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;((wy - worldYmin) * imgH / (worldYmax - worldYmin));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 正确写法</span></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">toScreenY</span><span class="params">(<span class="type">double</span> wy)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> imgH - <span class="number">1</span> - <span class="built_in">static_cast</span>&lt;<span class="type">int</span>&gt;(</span><br><span class="line">        (wy - worldYmin) * imgH / (worldYmax - worldYmin));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个 bug 在之前的项目中出现过多次（02-20 坐标系 Bug），再次提醒：<strong>量化检查必须包含坐标方向的验证</strong>，不能只靠肉眼。</p>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="算法一致性验证"><a href="#算法一致性验证" class="headerlink" title="算法一致性验证"></a>算法一致性验证</h3><p>对 100 条随机生成的线段（使用固定种子 42 以确保可复现），两种算法的对比结果：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>Cohen-Sutherland</th>
+<th>Liang-Barsky</th>
+<th>一致率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>可见线段</td>
+<td>92</td>
+<td>92</td>
+<td></td>
+</tr>
+<tr>
+<td>拒绝线段</td>
+<td>8</td>
+<td>8</td>
+<td></td>
+</tr>
+<tr>
+<td>判定一致率</td>
+<td></td>
+<td></td>
+<td><strong>100% (100&#x2F;100)</strong></td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>零分歧</strong>：两种独立实现的算法对 100 条线段给出了完全一致的 accept&#x2F;reject 判定</li>
+<li><strong>平均裁剪后线段长度</strong>：8.65 单位（裁剪窗口为 16×12 单位）</li>
+<li><strong>可见率</strong>：92%——符合预期，因为裁剪窗口 (16×12) 占有较大的比例 (80% × 75% &#x3D; 60% 面积)，大量线段至少部分穿越</li>
+</ul>
+<h3 id="PPM-图像像素统计"><a href="#PPM-图像像素统计" class="headerlink" title="PPM 图像像素统计"></a>PPM 图像像素统计</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>图像尺寸</td>
+<td>800×600</td>
+</tr>
+<tr>
+<td>像素均值</td>
+<td>245.2</td>
+</tr>
+<tr>
+<td>像素标准差</td>
+<td>48.6</td>
+</tr>
+<tr>
+<td>绿色像素占比 (裁剪后线段)</td>
+<td>5.30%</td>
+</tr>
+<tr>
+<td>黄色像素占比 (裁剪框)</td>
+<td>0.44%</td>
+</tr>
+<tr>
+<td>白色背景占比</td>
+<td>93.97%</td>
+</tr>
+<tr>
+<td>文件大小 (PNG)</td>
+<td>37KB</td>
+</tr>
+</tbody></table>
+<p><strong>解读</strong>：</p>
+<ul>
+<li><strong>标准差 48.6</strong>：远大于阈值 5，说明图像有丰富的内容变化（不是全白或空白）</li>
+<li><strong>绿色像素 5.30%</strong>：对应 92 条可见线段的绘制。每条线段平均约 350 像素，92 × 350 ≈ 32,200 像素，而 800×600×5.30% &#x3D; 25,440 像素，两者在合理范围内吻合（部分线段较短，像素有重叠）</li>
+<li><strong>黄色像素 0.44%</strong>：裁剪框周长约 (2×16+2×12)×(800&#x2F;20) ≈ 2100 像素，占比 &#x3D; 2100&#x2F;480,000 &#x3D; 0.44%，精确吻合</li>
+<li><strong>像素均值 245.2</strong>：略高于”全白检查”阈值 240，这是因为背景确实接近白色（RGB 255,255,255）。标准差足够大，排除了”全白图像”的可能</li>
+</ul>
+<h3 id="算法效率分析"><a href="#算法效率分析" class="headerlink" title="算法效率分析"></a>算法效率分析</h3><p>虽然我们没做 nanosecond 级的性能测试，但可以从理论上分析：</p>
+<ul>
+<li><strong>平凡接受</strong>：2 次比较（两次 computeCode）+ 1 次位或 + 1 次零检查 &#x3D; ~10 条 CPU 指令</li>
+<li><strong>平凡拒绝</strong>：同上 + 1 次位与 + 1 次非零检查 &#x3D; ~12 条指令</li>
+<li><strong>需要实际裁剪</strong>：每次迭代约 10 次浮点运算 + 重新计算 Outcode（4 次比较），最坏 4 次迭代</li>
+</ul>
+<p>对于随机线段，约 91.5% 的线段要么被平凡接受要么可以直接拒绝（根据裁剪窗口覆盖比例估算），只有约 8.5% 需要进入裁剪循环。这在实际场景中是非常可观的加速。</p>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>仅适用于矩形裁剪窗口</strong>：Cohen-Sutherland 的 Outcode 依赖于轴对齐的矩形窗口。对于任意多边形窗口，需要更通用的算法如 <strong>Sutherland-Hodgman</strong> 或 <strong>Weiler-Atherton</strong>。</p>
+</li>
+<li><p><strong>只能裁剪线段</strong>：不能直接处理多边形或曲线。对于多边形裁剪，通常需要将多边形分解为边，逐边用 Cohen-Sutherland 裁剪后重组。</p>
+</li>
+<li><p><strong>最坏情况需要 4 次迭代</strong>：虽然传统教材说是 O(1)，但一条跨越四个边界的线段确实需要 4 次迭代。每条线段平均迭代次数约 1.3 次。</p>
+</li>
+<li><p><strong>数值精度</strong>：交点计算中的除法和乘法可能累积浮点误差。边界情况（端点恰好落在边界上）需要 epsilon 容差处理。</p>
+</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><strong>位运算优化</strong>：用查表法替代四次比较的 Outcode 计算，将 x 和 y 坐标量化为两个索引，直接用 256 条目查找表得到 4-bit 编码</li>
+<li><strong>SIMD 并行</strong>：一次处理 4 条或 8 条线段的 Outcode 计算和裁剪</li>
+<li><strong>3D 扩展</strong>：将 4-bit Outcode 扩展为 6-bit（xmin, xmax, ymin, ymax, zmin, zmax），用于视锥体裁剪</li>
+<li><strong>GPU Compute Shader</strong>：在 GPU 上用 Compute Shader 批量裁剪线段，利用 GPU 的大规模并行能力</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>02-14 Bresenham Line Algorithm</strong>：像素绘制的基础，本文用它来可视化裁剪结果</li>
+<li><strong>06-25 Frustum Culling Renderer</strong>：3D 视锥剔除，Cohen-Sutherland 的 3D 延伸</li>
+<li><strong>06-19 SAT Collision Detection</strong>：同样使用”分离轴”思想——SAT 检查投影是否分离，Cohen-Sutherland 检查 Outcode 是否”同侧”</li>
+</ul>
+<p>Cohen-Sutherland 算法诞生于 1967 年，但它展示的”先做廉价检查，再进入昂贵计算”的策略，在今天的高性能计算和 GPU 编程中仍然是黄金法则。理解它，就是理解了性能优化的最基本方法：<strong>快速排除绝大多数不需要处理的情况，把宝贵的时间留给真正需要计算的部分</strong>。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/">https://chiuhoukazusa.github.io/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/02/daily-coding-floyd-steinberg-dithering-2026-07-02/" title="每日编程实践: Floyd-Steinberg 误差扩散抖动算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-02-floyd-steinberg-dithering/original.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Floyd-Steinberg 误差扩散抖动算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，图像量化（Image Quantization）是一个经典而实际的问题：当你需要将一张 24 位真彩色图像（每个通道 256 级）显示在一个只支持 8 位或 16 色的设备上时，如何让结果看起来不那么糟糕？ 先看一个具体的例子。假设你有一张色彩丰富的原始图像，但你只能使用 8 种颜色（黑、白、红、绿、蓝、黄、品红、青）来表达它。最简单的做法是”最近邻量化”——对每个像素，从 8 色调色板中找出颜色最接近的那个，直接替换过去。结果会是什么样？大块大块的纯色区域，边界生硬，整张图看起来像是被油漆泼过一样。 这种”色带效应”（Color Banding）的根本原因在于：最近邻量化丢弃了”不够接近”的信息。一个像素的颜色是 (200, 100, 50)，而调色板中最近的红色是 (255, 0, 0)——量化后就变成了 (255, 0, 0)，中间 (55, -100, -50) 的误差被直接扔掉了。当成千上万个像素的误差都被独立丢弃时，就形成了肉眼可见的色块。 工业界的真实需求：  GIF 编码（1987 年至今）：GIF 格式最多支持 256 色，要将照片转...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/29/daily-coding-hdr-tone-mapping-2026-03-29/" title="每日编程实践: HDR Tone Mapping &amp; Color Grading"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-29-hdr-tone-mapping/tonemap_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-29</div><div class="info-item-2">每日编程实践: HDR Tone Mapping &amp; Color Grading</div></div><div class="info-2"><div class="info-item-1">背景与动机每一帧游戏画面的最后一道工序，往往最不起眼，却决定了一切的观感——色调映射（Tone Mapping）。 问题的根源：显示器不是眼睛现实世界的亮度范围极为宽广。晴天户外的直射阳光亮度约为 100,000 cd&#x2F;m²，室内阴影处可能只有 0.01 cd&#x2F;m²，动态范围高达 10 个数量级（100dB）。人眼通过瞳孔收缩和视杆&#x2F;视锥细胞的自适应，能感知约 20 个 EV（Exposure Value）的动态范围。 然而，家用显示器的 SDR（Standard Dynamic Range）面板通常只能显示 0.1 到 300 cd&#x2F;m² 的亮度，不足 3 个数量级。HDR 显示器能达到 1000–4000 nits，也仅覆盖 4 个数量级。 一个物理正确的渲染器（Path Tracer、光栅化 + 全局光照），输出的是线性光照空间的辐射值，可以包含从 0.001（深阴影）到 20+（太阳直射）甚至更高的值域。如果我们直接把这些值限制在 [0, 1] 范围内显示，高光区域全部爆掉变成一片白，暗部细节也因非线性感知而全部消失。 色调映射就是...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/01/daily-coding-displacement-mapping-2026-06-01/" title="每日编程实践: Displacement Mapping &amp; Tessellation Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-01-displacement-mapping/displacement_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-01</div><div class="info-item-2">每日编程实践: Displacement Mapping &amp; Tessellation Renderer</div></div><div class="info-2"><div class="info-item-1"> 今天实现了一个基于光线步进（Ray Marching）的位移贴图地形渲染器，将程序化高度场生成、精确法线重计算与 PBR 着色整合到一个约 550 行的 C++ 单文件里，0.57 秒渲染出 800×600 的地形图景。    ① 背景与动机：为什么需要位移贴图？法线贴图的极限在实时渲染中，法线贴图（Normal Mapping） 是最常见的表面细节增强手段。它的核心思想是：不改变几何体的真实形状，只欺骗光照计算——用一张存储了扰动法线方向的纹理，让平坦的多边形在光照下”看起来”有凹凸感。 这在大多数时候足够用了。但法线贴图有一个根本局限：轮廓（Silhouette）线依然是假的。当你的视角和法线方向接近垂直时，表面轮廓处会显现出它本质上还是一个平面。在山脉的天际线、石头的边缘，这种瑕疵会显著破坏真实感。 位移贴图（Displacement Mapping） 则更进一步——它真正移动了顶点（或者在光线追踪&#x2F;光线步进的情境下，直接改变了几何相交的判断依据），让表面在物理上就有了高低起伏。这带来了：  正确的轮廓线：山脊的天际线是真实的凸起，不再是假法线造的幻觉 自遮挡（...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-02-ssr-renderer/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">每日编程实践: Screen-Space Reflections (SSR) Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Screen-Space Reflections (SSR) Renderer今天实现了一个完整的**屏幕空间反射（Screen-Space Reflections, SSR）**渲染器，采用纯 CPU 软光栅化，无需 OpenGL。核心技术包括：G-Buffer 构建、视空间光线步进、菲涅尔混合、边缘淡出衰减。   ① 背景与动机为什么需要反射？反射效果在视觉上极大提升真实感——水面、金属、瓷砖地板都会反射周围环境。没有反射时，这些表面看起来像哑光塑料；有了反射，场景立刻”活”了。 传统反射方案的痛点   方案 优点 痛点    平面反射（Planar Reflection） 精确，仅限水平面 只对平面有效，无法处理弯曲表面   环境贴图（Cube Map） 快，适合动态光源 静态，无法反映动态场景变化   光线追踪（Ray Tracing） 完美精确 GPU 负担极重，需要 DXR&#x2F;VKR 支持   SSR（屏幕空间反射） 完全动态，不需额外几何数据 只能反射屏幕内的内容   SSR 的思路：我们已经有了一张渲染好的帧（颜色、深度、法线），可以在这张 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/13/daily-coding-ssao-screen-space-ambient-occlusion-2026-03-13/" title="每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-13-SSAO/ssao_comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-13</div><div class="info-item-2">每日编程实践: SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽</div></div><div class="info-2"><div class="info-item-1">SSAO - Screen Space Ambient Occlusion 屏幕空间环境光遮蔽今天实现了 SSAO（Screen Space Ambient Occlusion）——现代实时渲染管线中最重要的后处理技术之一。从 Crysis（2007）开始被引入游戏工业，此后成为 UE、Unity 等引擎的标配功能，也是《赛博朋克 2077》、《荒野大镖客2》等 AAA 游戏中真实感的重要来源。 本项目在纯 CPU + 软光栅化器上从零实现完整的 SSAO 管线，不依赖 GPU 或任何图形 API，完整掌控每个数学细节。   为什么需要 SSAO？传统环境光的问题实时渲染中，处理全局光照（Global Illumination）在计算上开销极大。最简单的近似是用一个常数环境光项代替所有间接光照： 1ambient = albedo × k_a × L_ambient  这意味着场景中所有点受到同样强度的环境光，结果是球体底部贴地处和空旷的墙面获得完全相同的环境光强度——不真实，缺乏层次感。 现实中，环境光不是均匀到达的：  狭窄缝隙里的光线被周围几何体阻挡 凹陷区域（角落、裂缝）...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/03/daily-coding-disney-brdf-2026-04-03/" title="每日编程实践: Disney Principled BRDF Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-03-disney-brdf/disney_brdf_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-03</div><div class="info-item-2">每日编程实践: Disney Principled BRDF Renderer</div></div><div class="info-2"><div class="info-item-1">背景与动机在现代实时渲染和离线渲染领域，材质系统是最核心的模块之一。早期的渲染系统采用 Phong 或 Blinn-Phong 模型，这些模型参数对美术不直观——改变”高光指数”时，你无法直觉判断结果。而且这些模型能量不守恒：高光加上漫反射经常超过入射光能量，导致不真实感。 2012 年，Burley 在 SIGGRAPH 发表了《Physically-Based Shading at Disney》，提出了 Principled BRDF（原则性双向反射分布函数）。这个模型的核心哲学不是追求”物理精确”，而是追求对艺术家直觉友好 + 足够真实：  对艺术家友好：所有参数都在 [0, 1] 范围内，语义直观（metallic&#x3D;0 是绝缘体，&#x3D;1 是金属） 能量守恒：漫反射和镜面反射之和不超过入射能量 适用广泛：皮肤、金属、玻璃、布料，用同一套参数系统搞定  工业界使用场景Disney BRDF 或其变体已经被以下系统采用：  Unreal Engine 4&#x2F;5：Epic 改良了 Disney BRDF，称为”UE4 Shading Model”，是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/12/daily-coding-csm-cascaded-shadow-maps-2026-03-12/" title="每日编程实践: Cascaded Shadow Maps CSM 级联阴影"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-12-csm-cascaded-shadow-maps/csm_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-12</div><div class="info-item-2">每日编程实践: Cascaded Shadow Maps CSM 级联阴影</div></div><div class="info-2"><div class="info-item-1">Cascaded Shadow Maps — CSM 级联阴影昨天实现了 PCSS 软阴影，解决了”阴影软化”的问题。今天面对另一个经典难题：大场景下的阴影精度。 问题是这样的：用一张 Shadow Map 覆盖整个场景，近处的阴影分辨率会严重不足——一个 Shadow Map 的纹素可能对应几十平方米的地面，阴影边缘会出现巨大的锯齿块；但如果把 Shadow Map 只覆盖近处，远处又会完全没有阴影。 CSM（Cascaded Shadow Maps，级联阴影映射） 的解法是：把视锥体按深度切成若干段，每段用一张独立的 Shadow Map，近处精细、远处粗略——跟 Mipmap 的思路如出一辙。 今天完整实现了 4 级 CSM，包含对数线性级联分割、每级独立正交投影和 PCF 软阴影。  效果展示主渲染（含 CSM 阴影） 近景红球、中景紫球橙球、远景山丘都投射出软化阴影，地面阴影由近到远精度自然过渡。 级联区域可视化 颜色叠层：红色 &#x3D; Cascade 0（最近） | 绿色 &#x3D; Cascade 1 | 蓝色 &#x3D; Cascade 2 | 黄色 &...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">139</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">148</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8C%BA%E5%9F%9F%E7%BC%96%E7%A0%81%EF%BC%88Outcode%EF%BC%89"><span class="toc-number">2.1.</span> <span class="toc-text">区域编码（Outcode）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B9%B3%E5%87%A1%E6%8E%A5%E5%8F%97%EF%BC%88Trivial-Accept%EF%BC%89"><span class="toc-number">2.2.</span> <span class="toc-text">平凡接受（Trivial Accept）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B9%B3%E5%87%A1%E6%8B%92%E7%BB%9D%EF%BC%88Trivial-Reject%EF%BC%89"><span class="toc-number">2.3.</span> <span class="toc-text">平凡拒绝（Trivial Reject）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%B9%B3%E5%87%A1%E7%9A%84%E6%8E%A5%E5%8F%97-%E6%8B%92%E7%BB%9D%E8%83%BD%E8%A6%86%E7%9B%96%E5%A4%A7%E5%A4%9A%E6%95%B0%E6%83%85%E5%86%B5%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">为什么平凡的接受&#x2F;拒绝能覆盖大多数情况？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%9D%9E%E5%B9%B3%E5%87%A1%E8%A3%81%E5%89%AA%EF%BC%88Non-Trivial-Case%EF%BC%89%EF%BC%9A%E9%80%90%E8%BE%B9%E7%BC%A9%E7%9F%AD"><span class="toc-number">2.5.</span> <span class="toc-text">非平凡裁剪（Non-Trivial Case）：逐边缩短</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%8C%E6%95%B4%E7%9A%84%E7%AE%97%E6%B3%95%E6%B5%81%E7%A8%8B"><span class="toc-number">2.6.</span> <span class="toc-text">完整的算法流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%90%8C%E7%B1%BB%E7%AE%97%E6%B3%95%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">2.7.</span> <span class="toc-text">与同类算法的对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%EF%BC%88%E6%B2%A1%E6%9C%89-Shader%EF%BC%89"><span class="toc-number">3.3.</span> <span class="toc-text">CPU 侧职责（没有 Shader）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%BE%AA%E7%8E%AF%EF%BC%9ACohen-Sutherland-%E8%A3%81%E5%89%AA"><span class="toc-number">4.1.</span> <span class="toc-text">核心循环：Cohen-Sutherland 裁剪</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Liang-Barsky-%E5%AF%B9%E7%85%A7%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">Liang-Barsky 对照实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bresenham-%E7%9B%B4%E7%BA%BF%E7%BB%98%E5%88%B6"><span class="toc-number">4.3.</span> <span class="toc-text">Bresenham 直线绘制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E9%80%BB%E8%BE%91"><span class="toc-number">4.4.</span> <span class="toc-text">量化验证逻辑</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9AOutcode-%E4%BD%8D%E6%8E%A9%E7%A0%81%E9%A1%BA%E5%BA%8F%E9%94%99%E8%AF%AF"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：Outcode 位掩码顺序错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E4%BA%A4%E7%82%B9%E8%AE%A1%E7%AE%97%E6%96%B9%E5%90%91%E9%94%99%E8%AF%AF"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：交点计算方向错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9APPM-%E5%9B%BE%E5%83%8F%E7%9A%84-Y-%E8%BD%B4%E7%BF%BB%E8%BD%AC"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：PPM 图像的 Y 轴翻转</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E4%B8%80%E8%87%B4%E6%80%A7%E9%AA%8C%E8%AF%81"><span class="toc-number">6.1.</span> <span class="toc-text">算法一致性验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PPM-%E5%9B%BE%E5%83%8F%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.2.</span> <span class="toc-text">PPM 图像像素统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E6%95%88%E7%8E%87%E5%88%86%E6%9E%90"><span class="toc-number">6.3.</span> <span class="toc-text">算法效率分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/" title="每日编程实践: Cohen-Sutherland 直线裁剪算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Cohen-Sutherland 直线裁剪算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/" title="每日编程实践: Cohen-Sutherland 直线裁剪算法">每日编程实践: Cohen-Sutherland 直线裁剪算法</a><time datetime="2026-07-02T21:30:00.000Z" title="发表于 2026-07-03 05:30:00">2026-07-03</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/02/daily-coding-floyd-steinberg-dithering-2026-07-02/" title="每日编程实践: Floyd-Steinberg 误差扩散抖动算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-02-floyd-steinberg-dithering/original.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Floyd-Steinberg 误差扩散抖动算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/02/daily-coding-floyd-steinberg-dithering-2026-07-02/" title="每日编程实践: Floyd-Steinberg 误差扩散抖动算法">每日编程实践: Floyd-Steinberg 误差扩散抖动算法</a><time datetime="2026-07-01T22:00:00.000Z" title="发表于 2026-07-02 06:00:00">2026-07-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/01/daily-coding-bilateral-filter-2026-07-01/" title="每日编程实践: 双边滤波 — 边缘保持平滑"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 双边滤波 — 边缘保持平滑"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/01/daily-coding-bilateral-filter-2026-07-01/" title="每日编程实践: 双边滤波 — 边缘保持平滑">每日编程实践: 双边滤波 — 边缘保持平滑</a><time datetime="2026-06-30T22:00:00.000Z" title="发表于 2026-07-01 06:00:00">2026-07-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/30/daily-coding-euclidean-distance-transform-2026-06-30/" title="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-30-euclidean-distance-transform/distance_field.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/30/daily-coding-euclidean-distance-transform-2026-06-30/" title="每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)">每日编程实践: 欧氏距离变换 (Euclidean Distance Transform)</a><time datetime="2026-06-29T21:30:00.000Z" title="发表于 2026-06-30 05:30:00">2026-06-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Jump Point Search 跳点搜索算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法">每日编程实践: Jump Point Search 跳点搜索算法</a><time datetime="2026-06-28T21:30:00.000Z" title="发表于 2026-06-29 05:30:00">2026-06-29</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
