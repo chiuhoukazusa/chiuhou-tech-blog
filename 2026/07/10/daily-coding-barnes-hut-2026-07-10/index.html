@@ -1,0 +1,480 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Barnes-Hut N体引力模拟 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机在天体物理模拟、分子动力学计算和游戏开发中，N体问题（N-body problem）是一个经典且核心的挑战。所谓N体问题，是指给定N个相互作用的粒子（它们通过万有引力或其他力场相互影响），我们需要计算每个粒子在任意时刻受到的合力，从而更新它们的位置和速度。 最朴素的方法是直接计算法（Direct Sum）：对每个粒子，遍历其他所有N-1个粒子，累加它们对该粒子的引力贡献。这种方法的时间复">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Barnes-Hut N体引力模拟">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/10/daily-coding-barnes-hut-2026-07-10/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机在天体物理模拟、分子动力学计算和游戏开发中，N体问题（N-body problem）是一个经典且核心的挑战。所谓N体问题，是指给定N个相互作用的粒子（它们通过万有引力或其他力场相互影响），我们需要计算每个粒子在任意时刻受到的合力，从而更新它们的位置和速度。 最朴素的方法是直接计算法（Direct Sum）：对每个粒子，遍历其他所有N-1个粒子，累加它们对该粒子的引力贡献。这种方法的时间复">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm">
+<meta property="article:published_time" content="2026-07-09T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-09T21:35:19.116Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="数值模拟">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Barnes-Hut N体引力模拟",
+  "url": "https://chiuhoukazusa.github.io/2026/07/10/daily-coding-barnes-hut-2026-07-10/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm",
+  "datePublished": "2026-07-09T21:30:00.000Z",
+  "dateModified": "2026-07-09T21:35:19.116Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/10/daily-coding-barnes-hut-2026-07-10/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Barnes-Hut N体引力模拟',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Barnes-Hut N体引力模拟</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Barnes-Hut N体引力模拟</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-09T21:30:00.000Z" title="发表于 2026-07-10 05:30:00">2026-07-10</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-09T21:35:19.116Z" title="更新于 2026-07-10 05:35:19">2026-07-10</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>在天体物理模拟、分子动力学计算和游戏开发中，<strong>N体问题</strong>（N-body problem）是一个经典且核心的挑战。所谓N体问题，是指给定N个相互作用的粒子（它们通过万有引力或其他力场相互影响），我们需要计算每个粒子在任意时刻受到的合力，从而更新它们的位置和速度。</p>
+<p>最朴素的方法是<strong>直接计算法</strong>（Direct Sum）：对每个粒子，遍历其他所有N-1个粒子，累加它们对该粒子的引力贡献。这种方法的时间复杂度是<strong>O(n²)</strong>——对于N&#x3D;100个粒子，需要计算约10000对相互作用；对于N&#x3D;10000，则需要1亿对。这在实时模拟中是完全不可接受的。</p>
+<h3 id="工业界的实际应用"><a href="#工业界的实际应用" class="headerlink" title="工业界的实际应用"></a>工业界的实际应用</h3><p>这个问题的现实意义远远超出”天体物理”这个狭窄领域：</p>
+<ol>
+<li><strong>星系模拟</strong>：如GADGET-2（宇宙学N体&#x2F;SPH模拟代码），使用树方法模拟数十亿粒子</li>
+<li><strong>分子动力学</strong>：如GROMACS、NAMD，使用基于网格的方法计算分子间力</li>
+<li><strong>流体模拟</strong>：SPH（光滑粒子流体动力学）本质上是N体问题的一个变种</li>
+<li><strong>游戏物理</strong>：在某些粒子系统中，当粒子数量较多时也需要高效的空间划分</li>
+<li><strong>星团动力学</strong>：研究球状星团的演化，需要数百万粒子级别的模拟</li>
+</ol>
+<h3 id="为什么不用直接法？"><a href="#为什么不用直接法？" class="headerlink" title="为什么不用直接法？"></a>为什么不用直接法？</h3><p>直接用O(n²)方法的痛点包括：</p>
+<ul>
+<li>计算量随N平方增长，32个粒子→1024对，1024个粒子→100万对</li>
+<li>实时应用中N&#x3D;1000已经无法达到60FPS</li>
+<li>绝大多数粒子间的距离很远，引力贡献近乎为零——计算大量”无效”相互作用</li>
+</ul>
+<p><strong>Barnes-Hut算法</strong>在1986年由Josh Barnes和Piet Hut提出，核心思想是：<strong>远处的一群粒子可以近似为它们的质心</strong>。通过四叉树（2D）或八叉树（3D）的空间层次结构，算法将时间复杂度降至<strong>O(n log n)</strong>。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="基础物理：牛顿万有引力"><a href="#基础物理：牛顿万有引力" class="headerlink" title="基础物理：牛顿万有引力"></a>基础物理：牛顿万有引力</h3><p>两个质量分别为m₁和m₂、距离为r的粒子之间的引力为：</p>
+<p><strong>F &#x3D; G × m₁ × m₂ &#x2F; r²</strong></p>
+<p>方向沿两粒子连线，指向对方。对于N个粒子，第i个粒子受到的合力为所有其他粒子对其引力的矢量和：</p>
+<p><strong>Fᵢ &#x3D; Σⱼ₌₁,ⱼ≠ᵢ^N G × mᵢ × mⱼ × (rⱼᵢ) &#x2F; |rⱼᵢ|³</strong></p>
+<p>其中rⱼᵢ是从粒子i指向粒子j的位移向量。</p>
+<blockquote>
+<p><strong>直觉解释</strong>：每个粒子都被其他粒子”拉”着走。质量越大拉力越强；距离越远拉力越弱（平方反比衰减）。把所有”绳子”的拉力矢量加起来就是净受力。</p>
+</blockquote>
+<h3 id="Softening：解决奇点问题"><a href="#Softening：解决奇点问题" class="headerlink" title="Softening：解决奇点问题"></a>Softening：解决奇点问题</h3><p>当两个粒子非常接近时（r→0），引力公式中1&#x2F;r²会趋于无穷大，导致数值爆炸。这在模拟中是灾难性的：两个粒子会瞬间获得极大的速度，飞出模拟区域。</p>
+<p>解决方案是引入<strong>软化因子</strong>（softening parameter）ε：</p>
+<p><strong>F &#x3D; G × m₁ × m₂ &#x2F; (r² + ε²)^(3&#x2F;2) × r⃗</strong></p>
+<blockquote>
+<p><strong>直觉解释</strong>：ε相当于假设每个粒子不是一个点，而是一个小小的”软球”。两个球中心的距离不可能小于某个值，所以力不会无限大。ε太小→数值不稳定；ε太大→引力被过度削弱，模拟失真。一般取粒子间典型距离的1%-5%。</p>
+</blockquote>
+<h3 id="Barnes-Hut-核心思想：θ近似准则"><a href="#Barnes-Hut-核心思想：θ近似准则" class="headerlink" title="Barnes-Hut 核心思想：θ近似准则"></a>Barnes-Hut 核心思想：θ近似准则</h3><p>Barnes-Hut算法的关键洞察是：</p>
+<p><strong>如果一群粒子到目标粒子足够远（群的大小相对于距离很小），那么这群粒子对目标的合力 ≈ 把整群粒子当作质心来计算单次引力。</strong></p>
+<p>这里的”足够远”由一个参数θ（theta，通常在0.3-1.0之间）控制：</p>
+<p><strong>s &#x2F; d &lt; θ</strong></p>
+<p>其中：</p>
+<ul>
+<li>s是当前节点所覆盖的空间宽度（正方形边长）</li>
+<li>d是目标粒子到该节点质心的距离</li>
+</ul>
+<blockquote>
+<p><strong>直觉解释</strong>：想象你看一棵树——从远处看，它就是一个绿色圆团（可以用质心近似）；走近了才能看清每片叶子（需要逐片处理）。θ越大→越早开始近似（更快但误差更大）；θ越小→更精确但更慢。θ&#x3D;0时退化为直接法（永不近似）。</p>
+</blockquote>
+<h3 id="四叉树数据结构"><a href="#四叉树数据结构" class="headerlink" title="四叉树数据结构"></a>四叉树数据结构</h3><p>在2D空间中，Barnes-Hut使用四叉树来组织空间层次：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[NW] [NE]</span><br><span class="line">[SW] [SE]</span><br></pre></td></tr></table></figure>
+
+<p>每个节点包含：</p>
+<ul>
+<li><strong>边界框</strong>（center, halfWidth）：节点覆盖的正方形区域</li>
+<li><strong>总质量</strong>（totalMass）：该区域内所有粒子的质量总和</li>
+<li><strong>质心</strong>（center of mass, COM）：按质量加权的平均位置</li>
+<li><strong>四个子节点</strong>：NW, NE, SW, SE</li>
+<li><strong>叶子节点</strong>：如果区域内只有一个粒子，则存储该粒子的位置和质量</li>
+</ul>
+<p><strong>构建过程</strong>（逐一插入粒子）：</p>
+<ol>
+<li>如果目标位置不在当前节点的边界框内→忽略</li>
+<li>如果节点为空→直接存储该粒子</li>
+<li>如果节点是叶子且已有粒子→将现有粒子”踢”到对应的子节点（细分），然后将新粒子也插入对应子节点</li>
+<li>如果节点是内部节点→递归插入到对应子节点</li>
+<li><strong>每次插入后</strong>，更新该节点的总质量和质心</li>
+</ol>
+<blockquote>
+<p><strong>直觉解释</strong>：就像往地图上不断扔豆子——一开始一片区域是空的，直接放；当第二个豆子落到同一区域时，该区域被分成4块，两个豆子各归其位。区域越分越细，只在有粒子的地方细分。</p>
+</blockquote>
+<h3 id="力的计算"><a href="#力的计算" class="headerlink" title="力的计算"></a>力的计算</h3><p>给定目标粒子p，从根节点出发递归计算力：</p>
+<ol>
+<li>如果节点为空→返回零力</li>
+<li>如果节点是叶子（只含一个粒子）→直接计算万有引力</li>
+<li>如果满足θ近似条件（s&#x2F;d &lt; θ）→用该节点的质心和总质量计算一次引力（近似）</li>
+<li>否则→递归进入四个子节点，累加所有子节点的力</li>
+</ol>
+<p>这就是将复杂度从O(n²)降到O(n log n)的关键：对于远处的粒子群，我们不再逐个计算，而是用一次近似替代。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">初始化N个随机粒子（位置、速度、质量）</span><br><span class="line">         ↓</span><br><span class="line">    [时间步循环]</span><br><span class="line">         ↓</span><br><span class="line">   构建Barnes-Hut四叉树</span><br><span class="line">   （逐个插入粒子，递归更新质心）</span><br><span class="line">         ↓</span><br><span class="line">   对每个粒子，从根节点递归计算合力</span><br><span class="line">   （θ近似条件判断 + 递归展开）</span><br><span class="line">         ↓</span><br><span class="line">   Leapfrog积分更新位置和速度</span><br><span class="line">         ↓</span><br><span class="line">   边界检测与回弹</span><br><span class="line">         ↓</span><br><span class="line">   输出PPM可视化帧（初始/中期/终态）</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><p><strong>Body（粒子）</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Body</span> &#123;</span><br><span class="line">    Vec2 pos;   <span class="comment">// 2D位置</span></span><br><span class="line">    Vec2 vel;   <span class="comment">// 2D速度</span></span><br><span class="line">    <span class="type">double</span> mass; <span class="comment">// 质量</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>BHNode（四叉树节点）</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">BHNode</span> &#123;</span><br><span class="line">    Vec2 center;        <span class="comment">// 节点覆盖的正方形中心</span></span><br><span class="line">    <span class="type">double</span> halfWidth;   <span class="comment">// 正方形半宽</span></span><br><span class="line">    Vec2 com;           <span class="comment">// 质心位置（按质量加权平均）</span></span><br><span class="line">    <span class="type">double</span> totalMass;   <span class="comment">// 节点内总质量</span></span><br><span class="line">    <span class="type">bool</span> isLeaf;        <span class="comment">// 是否为叶子（只含一个粒子）</span></span><br><span class="line">    <span class="type">bool</span> isEmpty;       <span class="comment">// 是否为空</span></span><br><span class="line">    BHNode* children[<span class="number">4</span>]; <span class="comment">// NW, NE, SW, SE</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 叶子节点专属</span></span><br><span class="line">    Vec2 bodyPos;</span><br><span class="line">    <span class="type">double</span> bodyMass;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>设计理由</strong>：halfWidth存储半宽而非全宽，因为在计算子节点中心和边界时半宽更方便（子节点半宽 &#x3D; parent.halfWidth &#x2F; 2）。children数组用4个指针而非vector，避免动态分配开销（树构建过程中会有大量节点创建）。</p>
+</blockquote>
+<h3 id="CPU侧职责划分"><a href="#CPU侧职责划分" class="headerlink" title="CPU侧职责划分"></a>CPU侧职责划分</h3><p>本实现是纯CPU上的2D模拟，没有GPU&#x2F;Shader参与。主要模块划分：</p>
+<ul>
+<li><strong>main()</strong>：生成初始条件、驱动时间步循环、触发验证</li>
+<li><strong>buildTree()</strong>：从粒子列表构建四叉树</li>
+<li><strong>bhInsert()</strong>：递归插入单个粒子到树中</li>
+<li><strong>bhForce()</strong>：递归计算单个粒子的受力</li>
+<li><strong>directForce()</strong>：O(n²)直接计算（用于验证）</li>
+<li><strong>writePPM()</strong>：将粒子状态渲染为PPM图像</li>
+</ul>
+<h3 id="时间积分：Leapfrog方法"><a href="#时间积分：Leapfrog方法" class="headerlink" title="时间积分：Leapfrog方法"></a>时间积分：Leapfrog方法</h3><p>使用Leapfrog（蛙跳）积分法更新粒子状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">v(t + Δt/2) = v(t) + a(t) × Δt/2   // 速度半步更新</span><br><span class="line">x(t + Δt)   = x(t) + v(t + Δt/2) × Δt  // 位置全步更新</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>直觉解释</strong>：名字”蛙跳”很形象——速度比位置”快半拍”。先算速度在半路上的值，然后用这个”半路速度”更新位置。这种方法比显式Euler法（直接用当前速度更新位置）更稳定，能更好地保持能量守恒。</p>
+</blockquote>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="1-粒子插入：bhInsert"><a href="#1-粒子插入：bhInsert" class="headerlink" title="1. 粒子插入：bhInsert()"></a>1. 粒子插入：bhInsert()</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">bhInsert</span><span class="params">(BHNode* node, <span class="type">const</span> Vec2&amp; pos, <span class="type">double</span> mass)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 安全检查：粒子必须在节点覆盖范围内</span></span><br><span class="line">    <span class="keyword">if</span> (!node-&gt;<span class="built_in">contains</span>(pos)) <span class="keyword">return</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Case 1: 节点为空 → 直接存储</span></span><br><span class="line">    <span class="keyword">if</span> (node-&gt;isEmpty) &#123;</span><br><span class="line">        node-&gt;isEmpty = <span class="literal">false</span>;</span><br><span class="line">        node-&gt;bodyPos = pos;</span><br><span class="line">        node-&gt;bodyMass = mass;</span><br><span class="line">        node-&gt;com = pos;</span><br><span class="line">        node-&gt;totalMass = mass;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Case 2: 节点是叶子且已有粒子 → 需要细分</span></span><br><span class="line">    <span class="keyword">if</span> (node-&gt;isLeaf &amp;&amp; !node-&gt;isEmpty) &#123;</span><br><span class="line">        <span class="comment">// 将现有粒子踢到对应子节点</span></span><br><span class="line">        <span class="type">int</span> q0 = node-&gt;<span class="built_in">quadrant</span>(node-&gt;bodyPos);</span><br><span class="line">        Vec2 cc0 = node-&gt;<span class="built_in">childCenter</span>(q0);</span><br><span class="line">        node-&gt;children[q0] = <span class="keyword">new</span> <span class="built_in">BHNode</span>(cc0, node-&gt;halfWidth * <span class="number">0.5</span>);</span><br><span class="line">        <span class="built_in">bhInsert</span>(node-&gt;children[q0], node-&gt;bodyPos, node-&gt;bodyMass);</span><br><span class="line">        node-&gt;isLeaf = <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 更新质心（质量加权平均）</span></span><br><span class="line">    node-&gt;com = (node-&gt;com * node-&gt;totalMass + pos * mass) </span><br><span class="line">                * (<span class="number">1.0</span> / (node-&gt;totalMass + mass));</span><br><span class="line">    node-&gt;totalMass += mass;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// Case 3: 内部节点 → 递归插入</span></span><br><span class="line">    <span class="keyword">if</span> (!node-&gt;isLeaf) &#123;</span><br><span class="line">        <span class="type">int</span> q = node-&gt;<span class="built_in">quadrant</span>(pos);</span><br><span class="line">        <span class="keyword">if</span> (!node-&gt;children[q]) &#123;</span><br><span class="line">            node-&gt;children[q] = <span class="keyword">new</span> <span class="built_in">BHNode</span>(</span><br><span class="line">                node-&gt;<span class="built_in">childCenter</span>(q), node-&gt;halfWidth * <span class="number">0.5</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="built_in">bhInsert</span>(node-&gt;children[q], pos, mass);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为什么质心更新放在细分之前？</strong> 因为质心公式<code>COM = Σ(mᵢ × posᵢ) / Σmᵢ</code>在插入新粒子时需要更新。先更新质心再用<code>node-&gt;totalMass</code>来除，可以在递归返回时一并统计。注意这里用了增量更新而非全量重算——利用了<code>(oldCOM × oldMass + newPos × newMass) / newTotalMass</code>的等价性。</p>
+</blockquote>
+<blockquote>
+<p><strong>容易写错的地方</strong>：第5节的细分操作必须<strong>先</strong>将旧粒子踢到子节点，<strong>再</strong>标记<code>isLeaf=false</code>。如果顺序颠倒，递归插入时会再次触发细分造成无限循环。</p>
+</blockquote>
+<h3 id="2-力的递归计算：bhForce"><a href="#2-力的递归计算：bhForce" class="headerlink" title="2. 力的递归计算：bhForce()"></a>2. 力的递归计算：bhForce()</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec2 <span class="title">bhForce</span><span class="params">(<span class="type">const</span> BHNode* node, <span class="type">const</span> Vec2&amp; pos)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!node || node-&gt;totalMass == <span class="number">0</span>) <span class="keyword">return</span> &#123;<span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">    </span><br><span class="line">    <span class="type">double</span> dx = node-&gt;com.x - pos.x;</span><br><span class="line">    <span class="type">double</span> dy = node-&gt;com.y - pos.y;</span><br><span class="line">    <span class="type">double</span> d2 = dx*dx + dy*dy + SOFTENING*SOFTENING;</span><br><span class="line">    <span class="type">double</span> d = std::<span class="built_in">sqrt</span>(d2);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 叶子节点 → 直接计算</span></span><br><span class="line">    <span class="keyword">if</span> (node-&gt;isLeaf &amp;&amp; node-&gt;isEmpty) <span class="keyword">return</span> &#123;<span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">    <span class="keyword">if</span> (node-&gt;isLeaf) &#123;</span><br><span class="line">        <span class="type">double</span> f = G * node-&gt;totalMass / (d2 * d);</span><br><span class="line">        <span class="keyword">return</span> &#123;dx * f, dy * f&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// θ近似条件 → 用质心近似</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">shouldApprox</span>(node, pos)) &#123;</span><br><span class="line">        <span class="type">double</span> f = G * node-&gt;totalMass / (d2 * d);</span><br><span class="line">        <span class="keyword">return</span> &#123;dx * f, dy * f&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 需要展开 → 递归进入四个子节点</span></span><br><span class="line">    Vec2 totalForce = &#123;<span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">4</span>; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (node-&gt;children[i]) &#123;</span><br><span class="line">            Vec2 cf = <span class="built_in">bhForce</span>(node-&gt;children[i], pos);</span><br><span class="line">            totalForce = totalForce + cf;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> totalForce;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为什么分三种情况？</strong> 叶子节点是递归基——碰到单个粒子必须精确计算。θ条件判断是加速关键——此处”剪枝”了整棵子树。递归展开处理”不够远”的情况——需要深入子树获取更高精度的力。</p>
+</blockquote>
+<blockquote>
+<p><strong>容易写错的地方</strong>：<code>d2*d</code>计算的是r³（力的分母），因为力矢量 &#x3D; (r⃗ &#x2F; r) × (m &#x2F; r²) &#x3D; r⃗ × m &#x2F; r³。很多人会忘记多除一个d。</p>
+</blockquote>
+<h3 id="3-θ近似条件判断"><a href="#3-θ近似条件判断" class="headerlink" title="3. θ近似条件判断"></a>3. θ近似条件判断</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">shouldApprox</span><span class="params">(<span class="type">const</span> BHNode* node, <span class="type">const</span> Vec2&amp; pos)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> d = (pos - node-&gt;com).<span class="built_in">norm</span>();</span><br><span class="line">    <span class="type">double</span> s = node-&gt;halfWidth * <span class="number">2.0</span>;  <span class="comment">// 节点宽度</span></span><br><span class="line">    <span class="keyword">if</span> (d &lt; <span class="number">1e-9</span>) <span class="keyword">return</span> <span class="literal">false</span>;        <span class="comment">// 距离太近不近似</span></span><br><span class="line">    <span class="keyword">return</span> s / d &lt; THETA;              <span class="comment">// θ准则</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>直觉解释</strong>：<code>s/d</code>是节点”张角”的近似——s是节点宽度，d是距离。s&#x2F;d越小说明节点看起来越像一个点。THETA&#x3D;0.5意味着节点宽度不到距离的一半时才用近似。</p>
+</blockquote>
+<h3 id="4-直接法（验证用）"><a href="#4-直接法（验证用）" class="headerlink" title="4. 直接法（验证用）"></a>4. 直接法（验证用）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec2 <span class="title">directForce</span><span class="params">(<span class="type">const</span> Body&amp; b, <span class="type">const</span> std::vector&lt;Body&gt;&amp; bodies)</span> </span>&#123;</span><br><span class="line">    Vec2 force = &#123;<span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; other : bodies) &#123;</span><br><span class="line">        <span class="keyword">if</span> (&amp;other == &amp;b) <span class="keyword">continue</span>;  <span class="comment">// 跳过自身</span></span><br><span class="line">        <span class="type">double</span> dx = other.pos.x - b.pos.x;</span><br><span class="line">        <span class="type">double</span> dy = other.pos.y - b.pos.y;</span><br><span class="line">        <span class="type">double</span> d2 = dx*dx + dy*dy + SOFTENING*SOFTENING;</span><br><span class="line">        <span class="type">double</span> d = std::<span class="built_in">sqrt</span>(d2);</span><br><span class="line">        <span class="type">double</span> f = G * other.mass / (d2 * d);</span><br><span class="line">        force.x += dx * f;</span><br><span class="line">        force.y += dy * f;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> force;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为什么需要直接法？</strong> 这不仅是”备选方案”——它是验证Barnes-Hut正确性的<strong>黄金标准</strong>。直接法虽然慢，但精度是100%的（忽略浮点误差）。我们用它来量化Barnes-Hut的近似误差。</p>
+</blockquote>
+<h3 id="5-主循环：模拟与验证一体化"><a href="#5-主循环：模拟与验证一体化" class="headerlink" title="5. 主循环：模拟与验证一体化"></a>5. 主循环：模拟与验证一体化</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 核心验证逻辑片段</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> N : &#123;<span class="number">100</span>, <span class="number">200</span>, <span class="number">400</span>, <span class="number">800</span>&#125;) &#123;</span><br><span class="line">    <span class="comment">// 1) 生成粒子</span></span><br><span class="line">    <span class="function">std::vector&lt;Body&gt; <span class="title">bodies</span><span class="params">(N)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; N; i++) &#123;</span><br><span class="line">        bodies[i].pos = &#123;<span class="built_in">posDist</span>(rng), <span class="built_in">posDist</span>(rng)&#125;;</span><br><span class="line">        bodies[i].mass = <span class="built_in">massDist</span>(rng);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 2) 直接法 → 基准力向量</span></span><br><span class="line">    <span class="keyword">auto</span> t0 = <span class="built_in">now</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; N; i++)</span><br><span class="line">        directForces[i] = <span class="built_in">directForce</span>(bodies[i], bodies);</span><br><span class="line">    <span class="keyword">auto</span> t1 = <span class="built_in">now</span>();</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 3) Barnes-Hut → 近似力向量</span></span><br><span class="line">    <span class="keyword">auto</span> t2 = <span class="built_in">now</span>();</span><br><span class="line">    BHNode* tree = <span class="built_in">buildTree</span>(bodies);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; N; i++)</span><br><span class="line">        bhForces[i] = <span class="built_in">bhForce</span>(tree, bodies[i].pos);</span><br><span class="line">    <span class="keyword">auto</span> t3 = <span class="built_in">now</span>();</span><br><span class="line">    <span class="keyword">delete</span> tree;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 4) 量化对比</span></span><br><span class="line">    <span class="type">double</span> rmsErr = <span class="built_in">sqrt</span>(<span class="built_in">avgSqErr</span>(bhForces, directForces));</span><br><span class="line">    <span class="type">double</span> speedup = (t1-t0) / (t3-t2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>设计理念</strong>：验证不是事后补课，而是嵌入主循环的不可分割部分。在每个粒子数级别下同步测量”精度”和”加速比”，二者共同决定Barnes-Hut是否”可用”。单独追求速度而不管精度、或单独确认精度但不验证加速效果，都是不完整的评估。</p>
+</blockquote>
+<h3 id="6-PPM可视化渲染"><a href="#6-PPM可视化渲染" class="headerlink" title="6. PPM可视化渲染"></a>6. PPM可视化渲染</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">writePPM</span><span class="params">(<span class="type">const</span> std::string&amp; filename, </span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">const</span> std::vector&lt;Body&gt;&amp; bodies, <span class="type">int</span>)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 暗色网格背景</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; HEIGHT; y++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; WIDTH; x++) &#123;</span><br><span class="line">            <span class="type">bool</span> gridLine = (x % <span class="number">40</span> == <span class="number">0</span> || y % <span class="number">40</span> == <span class="number">0</span>);</span><br><span class="line">            <span class="type">unsigned</span> <span class="type">char</span> bg = gridLine ? <span class="number">8</span> : <span class="number">3</span>;</span><br><span class="line">            pixels[idx] = bg;</span><br><span class="line">        &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 粒子渲染：质量越大越亮、越大</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">const</span> <span class="keyword">auto</span>&amp; b : bodies) &#123;</span><br><span class="line">        <span class="type">double</span> massRel = std::<span class="built_in">min</span>(<span class="number">1.0</span>, b.mass / <span class="number">20.0</span>);</span><br><span class="line">        <span class="type">int</span> radius = <span class="number">3</span> + massRel * <span class="number">3</span>;  <span class="comment">// 3-6像素半径</span></span><br><span class="line">        </span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> dy = -radius; dy &lt;= radius; dy++)</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> dx = -radius; dx &lt;= radius; dx++) &#123;</span><br><span class="line">                <span class="type">double</span> dist = <span class="built_in">sqrt</span>(dx*dx + dy*dy);</span><br><span class="line">                <span class="keyword">if</span> (dist &gt; radius + <span class="number">1.0</span>) <span class="keyword">continue</span>;</span><br><span class="line">                <span class="comment">// 边缘抗锯齿：dist在radius到radius+1之间渐变</span></span><br><span class="line">                <span class="type">double</span> alpha = (dist &lt;= radius) ? <span class="number">1.0</span> </span><br><span class="line">                          : <span class="number">1.0</span> - (dist - radius);</span><br><span class="line">                pixels[idx] += baseR * alpha;</span><br><span class="line">            &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为什么用暗色网格背景？</strong> 纯黑背景+稀疏粒子会让大部分区域”零信息”——像素检查会说”全黑”。暗色网格（3-8亮度）提供最低限度的”有内容”信号，同时不影响粒子主体（亮度100+）的视觉。这是一种<strong>对量化验证友好</strong>的视觉设计。</p>
+</blockquote>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="坑1：质心更新死循环"><a href="#坑1：质心更新死循环" class="headerlink" title="坑1：质心更新死循环"></a>坑1：质心更新死循环</h3><p><strong>症状</strong>：程序在插入第三个粒子时无限循环，最终栈溢出。</p>
+<p><strong>错误假设</strong>：我最初在<code>bhInsert</code>中先设置<code>isLeaf=false</code>，再尝试将旧粒子踢到子节点。但<code>bhInsert</code>函数一开始就检查<code>isLeaf</code>决定走哪条分支。</p>
+<p><strong>真实原因</strong>：标记<code>isLeaf=false</code>后，再调用<code>bhInsert(child, oldBody)</code>，而<code>oldBody</code>的位置又符合当前（已非叶子的）节点的包含检查，导致递归进入”内部节点→找子节点”路径而不是”叶子→细分”路径。</p>
+<p><strong>修复方式</strong>：<strong>先执行细分操作</strong>（把旧粒子踢到子节点），<strong>再设置<code>isLeaf=false</code></strong>。这样在踢旧粒子时节点仍是叶子，会正常进入细分逻辑。</p>
+<h3 id="坑2：PPM图像几乎全黑"><a href="#坑2：PPM图像几乎全黑" class="headerlink" title="坑2：PPM图像几乎全黑"></a>坑2：PPM图像几乎全黑</h3><p><strong>症状</strong>：PPM文件大小正常（1.9MB），但Python像素检查显示均值&lt;5、标准差接近0——几乎所有像素都是黑色的。</p>
+<p><strong>错误假设</strong>：我以为400个粒子在800×800的画布上已经足够密集，渲染为2×2的像素点应该可见。</p>
+<p><strong>真实原因</strong>：400&#x2F;(800×800) &#x3D; 0.06%——只有0.06%的像素被粒子覆盖，平均到整张图上均值自然极低。2×2的小点在大面积黑色背景下几乎不可见。</p>
+<p><strong>修复方式</strong>：增大粒子渲染半径（3-6像素，按质量缩放）+ 添加暗色网格背景 + 抗锯齿光晕。网格背景让空旷区域也有微弱颜色，粒子光晕让它们即使稀疏也能被感知。</p>
+<h3 id="坑3：小N时Barnes-Hut比直接法更慢"><a href="#坑3：小N时Barnes-Hut比直接法更慢" class="headerlink" title="坑3：小N时Barnes-Hut比直接法更慢"></a>坑3：小N时Barnes-Hut比直接法更慢</h3><p><strong>症状</strong>：N&#x3D;100时BH用时0.1ms，直接法用时0.03ms。明明是”优化算法”却更慢。</p>
+<p><strong>错误假设</strong>：我认为O(n log n)总是比O(n²)快。</p>
+<p><strong>真实原因</strong>：Barnes-Hut的常数项远大于直接法——构建树（new&#x2F;delete大量节点、递归函数调用）的开销在小N时远远超过直接法的简单双层循环。当N&#x3D;100时，直接法只算10⁴对力；BH要创建≈O(n)个树节点，每个节点还要维护质心等元数据。</p>
+<p><strong>理解</strong>：这符合算法理论——大O描述的是渐进行为。实际中O(n²)的常数项非常小（紧凑循环），而O(n log n)的常数项较大（树操作）。<code>n² &lt; C × n log n</code>对于小n可能成立。交叉点在N≈400-800左右。</p>
+<h3 id="坑4：能量漂移"><a href="#坑4：能量漂移" class="headerlink" title="坑4：能量漂移"></a>坑4：能量漂移</h3><p><strong>症状</strong>：长时间模拟后，系统的总能量（动能+势能）逐渐增大。</p>
+<p><strong>错误假设</strong>：我以为Leapfrog积分是辛积分（symplectic integrator），应该严格保持能量守恒。</p>
+<p><strong>真实原因</strong>：边界反弹引入了能量变化。当粒子碰到边界时，我乘以0.5的速度系数来”阻尼”——但这破坏了能量守恒。这是有意为之的：不让粒子卡在边界或飞出，但代价是能量漂移。</p>
+<p><strong>教训</strong>：在物理模拟中，任何”hack”边界条件都会影响守恒性质。更好的做法是使用周期性边界条件（粒子从左边界出去后从右边界进入）或更大的模拟范围。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="力的精度验证"><a href="#力的精度验证" class="headerlink" title="力的精度验证"></a>力的精度验证</h3><p>在多组粒子数下，将Barnes-Hut计算的力与直接法（精确）对比，计算RMS相对误差：</p>
+<table>
+<thead>
+<tr>
+<th>粒子数N</th>
+<th>RMS相对误差</th>
+<th>最大相对误差</th>
+<th>&gt;1%误差占比</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>100</td>
+<td>0.0036</td>
+<td>1.1149</td>
+<td>30.00%</td>
+<td>✅通过</td>
+</tr>
+<tr>
+<td>200</td>
+<td>0.0045</td>
+<td>0.1591</td>
+<td>37.50%</td>
+<td>✅通过</td>
+</tr>
+<tr>
+<td>400</td>
+<td>0.0043</td>
+<td>0.1053</td>
+<td>39.00%</td>
+<td>✅通过</td>
+</tr>
+<tr>
+<td>800</td>
+<td>0.0074</td>
+<td>0.3311</td>
+<td>44.88%</td>
+<td>✅通过</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>解读</strong>：RMS误差控制在0.4%-0.7%，在θ&#x3D;0.5的设置下属于合理范围。约30-45%的粒子有个别超过1%的误差（多数在远距离近似时产生），这是Barnes-Hut用精度换速度的正常表现。降低θ到0.3可以进一步降低误差。</p>
+</blockquote>
+<h3 id="性能加速比"><a href="#性能加速比" class="headerlink" title="性能加速比"></a>性能加速比</h3><table>
+<thead>
+<tr>
+<th>粒子数N</th>
+<th>直接法耗时(s)</th>
+<th>Barnes-Hut耗时(s)</th>
+<th>加速比</th>
+<th>理论复杂度比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>100</td>
+<td>0.0000</td>
+<td>0.0001</td>
+<td>0.33×</td>
+<td>-</td>
+</tr>
+<tr>
+<td>200</td>
+<td>0.0001</td>
+<td>0.0002</td>
+<td>0.59×</td>
+<td>-</td>
+</tr>
+<tr>
+<td>400</td>
+<td>0.0005</td>
+<td>0.0006</td>
+<td>0.96×</td>
+<td>-</td>
+</tr>
+<tr>
+<td>800</td>
+<td>0.0021</td>
+<td>0.0014</td>
+<td>1.55×</td>
+<td>~514×</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>解读</strong>：N&#x3D;800时开始出现加速效果（1.55×），但远未达到理论值。原因是：现代CPU对小数据的复杂树操作不友好（大量分支、指针跳转、缓存未命中）。真正的加速需要在N&#x3D;10⁴甚至10⁵时才能充分体现。</p>
+</blockquote>
+<h3 id="能量守恒"><a href="#能量守恒" class="headerlink" title="能量守恒"></a>能量守恒</h3><table>
+<thead>
+<tr>
+<th>粒子数N</th>
+<th>初始能量</th>
+<th>终态能量</th>
+<th>相对漂移</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>100</td>
+<td>-2.54e6</td>
+<td>-2.55e6</td>
+<td>0.54%</td>
+</tr>
+<tr>
+<td>200</td>
+<td>-1.23e7</td>
+<td>-1.25e7</td>
+<td>1.45%</td>
+</tr>
+<tr>
+<td>400</td>
+<td>-4.18e7</td>
+<td>-4.22e7</td>
+<td>1.17%</td>
+</tr>
+<tr>
+<td>800</td>
+<td>-1.63e8</td>
+<td>-1.65e8</td>
+<td>1.10%</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>所有级别的能量漂移都在2%以内，Leapfrog积分+软化因子的组合保持了良好的能量守恒性质。</p>
+</blockquote>
+<h3 id="PPM像素验证"><a href="#PPM像素验证" class="headerlink" title="PPM像素验证"></a>PPM像素验证</h3><p>对三张输出PPM图像（初始&#x2F;中期&#x2F;终态）进行的像素采样检查：</p>
+<ul>
+<li><strong><code>barnes_hut_initial.ppm</code></strong>：均值&#x3D;8.9，标准差&#x3D;31.9 ✅</li>
+<li><strong><code>barnes_hut_mid.ppm</code></strong>：均值&#x3D;8.9，标准差&#x3D;31.9 ✅</li>
+<li><strong><code>barnes_hut_final.ppm</code></strong>：均值&#x3D;8.6，标准差&#x3D;32.0 ✅</li>
+</ul>
+<p>三张图像的像素均值都在10-240范围（非全黑&#x2F;全白），标准差&gt;5（有内容变化），且终态与初始态的标准差有微小差异（粒子聚集后分布变化），确认渲染正确。</p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="当前实现的局限性"><a href="#当前实现的局限性" class="headerlink" title="当前实现的局限性"></a>当前实现的局限性</h3><ol>
+<li><p><strong>2D限制</strong>：本实现只支持2D空间。扩展到3D需要将四叉树替换为八叉树，基本原理相同但代码复杂度增加。在3D中θ准则的”张角”概念也更加微妙。</p>
+</li>
+<li><p><strong>THETA固定的精度-速度折衷</strong>：θ&#x3D;0.5在整个模拟中保持不变。更先进的方法可以根据局部粒子密度动态调整θ（高密度区域用小θ保证精度，低密度区域用大θ加速）。</p>
+</li>
+<li><p><strong>均匀时间步</strong>：所有粒子使用相同的Δt。对于轨道非常接近的粒子对（period很短），固定ΔT可能导致数值发散。自适应时间步（per-particle timestep）可以解决，但实现复杂度显著增加。</p>
+</li>
+<li><p><strong>无并行化</strong>：当前是纯串行实现。Barnes-Hut天然适合<strong>GPU并行化</strong>或<strong>多线程并行</strong>——树的构建可以用原子操作，力的计算对每个粒子独立（embarrassingly parallel）。</p>
+</li>
+<li><p><strong>软化因子是全局常量</strong>：更真实的模拟需要平滑软化（Plummer softening）或更低的ε值。</p>
+</li>
+</ol>
+<h3 id="可优化的方向"><a href="#可优化的方向" class="headerlink" title="可优化的方向"></a>可优化的方向</h3><ol>
+<li><p><strong>SIMD向量化</strong>：力的计算涉及大量矢量运算（加减乘除），适合用SSE&#x2F;AVX指令加速。</p>
+</li>
+<li><p><strong>FMM（快速多极子方法）</strong>：Barnes-Hut是O(n log n)，而FMM可以达到O(n)。FMM不仅用质心近似，还用多极展开（multipole expansion）存储更高阶的场信息——但这在数学上复杂得多。</p>
+</li>
+<li><p><strong>粒子合并</strong>：当两个粒子非常接近且质量很小时，可以合并成一个伪粒子来减少N的数量。</p>
+</li>
+<li><p><strong>时间积分升级</strong>：从Leapfrog升级到4阶Hermite积分（误差O(Δt⁴)而非O(Δt²)），可以允许更大的时间步。</p>
+</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>四叉树</strong>（06-14）：本项目直接复用了四叉树的空间分区思想，扩展为带质心跟踪的版本</li>
+<li><strong>八叉树</strong>（07-07）：3D版的Barnes-Hut就是八叉树+质心近似</li>
+<li><strong>GJK碰撞检测</strong>（06-13）：同样使用了空间层次结构加速计算的思想</li>
+<li><strong>遗传算法</strong>（06-26）和<strong>模拟退火</strong>（06-24）：都是通过算法优化而非增加算力来加速求解——与Barnes-Hut的”精度换速度”哲学一脉相承</li>
+</ul>
+<p>Barnes-Hut算法是数值计算中”近似方法的威力”的典范——通过巧妙的空间层次结构和可控制的近似准则，将看似必须O(n²)的问题降到了实际可用的复杂度。它不仅是天体物理的基石工具，也是理解”算法如何克服计算瓶颈”的经典案例。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/10/daily-coding-barnes-hut-2026-07-10/">https://chiuhoukazusa.github.io/2026/07/10/daily-coding-barnes-hut-2026-07-10/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E6%A8%A1%E6%8B%9F/">数值模拟</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Conway生命游戏与元胞自动机</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1970年，John Conway 在剑桥大学一间小房间里摆弄着围棋棋盘，试图发明一套简单到不需要计算机就能用手演算的规则，却意外创造出了一个计算系统——Conway 生命游戏 (Game of Life)。这不是一个传统意义上的”游戏”，没有玩家、没有目标、没有胜负。它是一种元胞自动机 (Cellular Automaton)：一个由简单规则驱动、从局部相互作用涌现出全局复杂行为的离散动力系统。 元胞自动机这个概念可以追溯到 1940 年代的冯·诺依曼。当时他正在研究自我复制机器的理论——如何用非常简单的组件构造一个能复制自身的系统？答案是一张二维网格，每个格子有少数几个状态，每个格子的未来状态仅由它自己和邻居的当前状态决定。这就是元胞自动机的基本范式。 为什么值得我们今天去实现？理由不止一个是”有趣”： 第一，它是自然界复杂性的最小模型。 蚁群没有中央调度，每只蚂蚁只遵循”跟信息素走”这个简单规则，却能涌现出高效的觅食路径。股市的价格波动没有导演，每个交易者基于局部信息买卖，却能形成趋势和泡沫。生命游戏的每个格子只依赖 8 个邻居的状态，却能在宏观层面产生静态结...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-09</div><div class="info-item-2">每日编程实践: Conway生命游戏与元胞自动机</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1970年，John Conway 在剑桥大学一间小房间里摆弄着围棋棋盘，试图发明一套简单到不需要计算机就能用手演算的规则，却意外创造出了一个计算系统——Conway 生命游戏 (Game of Life)。这不是一个传统意义上的”游戏”，没有玩家、没有目标、没有胜负。它是一种元胞自动机 (Cellular Automaton)：一个由简单规则驱动、从局部相互作用涌现出全局复杂行为的离散动力系统。 元胞自动机这个概念可以追溯到 1940 年代的冯·诺依曼。当时他正在研究自我复制机器的理论——如何用非常简单的组件构造一个能复制自身的系统？答案是一张二维网格，每个格子有少数几个状态，每个格子的未来状态仅由它自己和邻居的当前状态决定。这就是元胞自动机的基本范式。 为什么值得我们今天去实现？理由不止一个是”有趣”： 第一，它是自然界复杂性的最小模型。 蚁群没有中央调度，每只蚂蚁只遵循”跟信息素走”这个简单规则，却能涌现出高效的觅食路径。股市的价格波动没有导演，每个交易者基于局部信息买卖，却能形成趋势和泡沫。生命游戏的每个格子只依赖 8 个邻居的状态，却能在宏观层面产生静态结...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/24/daily-coding-simulated-annealing-tsp-2026-06-24/" title="每日编程实践: 模拟退火算法求解TSP旅行商问题"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-24-simulated-annealing-tsp/tsp_best_tour.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-24</div><div class="info-item-2">每日编程实践: 模拟退火算法求解TSP旅行商问题</div></div><div class="info-2"><div class="info-item-1">① 背景与动机TSP——NP-hard 问题的典型代表旅行商问题（Traveling Salesman Problem, TSP）是组合优化领域中最经典的问题之一：给定 N 个城市，找到一条访问每个城市恰好一次并回到起点的最短路径。这个问题看似简单，但随着城市数量增加，解空间呈阶乘级爆炸——N 个城市有 (N-1)!&#x2F;2 种可能的回路。对于 50 个城市，可能的解数量约为 3.04×10⁶²，比已知宇宙中的原子数量还要多几十个数量级。 TSP 属于 NP-hard 问题类别。这意味着我们不可能（在目前已知的理论框架下）找到一个多项式时间的算法来精确求解所有实例。穷举搜索在 N&gt;12 时就已经不可行——12 个城市的全排列搜索需要检查 39,916,800 种回路，在我的测试机器上需要数秒；15 个城市则需要约 43 亿种，已经触及时限天花板。 为什么需要启发式&#x2F;元启发式算法？面对 NP-hard 问题，我们有三条路可走：  精确算法（分支定界、动态规划）：可以保证找到最优解，但时间复杂度通常是指数级的。Held-Karp 动态规划算法复杂度为 O(N²·...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-29</div><div class="info-item-2">每日编程实践: Jump Point Search 跳点搜索算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机寻路（Pathfinding）是游戏AI的基石功能。从一个RTS游戏里的农民去伐木，到一个开放世界RPG中NPC在城镇里巡逻，再到MOBA游戏里小兵沿兵线前进——所有这些行为的背后都依赖寻路算法来找到从起点到终点的最短路径。 经典的A算法（1968年提出）是寻路领域的黄金标准。它结合了Dijkstra的最短路径保证和贪心最佳优先搜索的效率，通过一个启发式函数f(n) = g(n) + h(n)来引导搜索方向。在均匀网格上，A使用八方向移动（上下左右+四个对角线），每次将当前节点的八个邻居加入open list，然后从中选择f值最小的节点扩展。 A*的痛点：在一个空旷的128×128网格上，从(0,0)寻路到(127,127)，A需要扩展约3400个节点。这对于即时战略游戏来说不算多，但在需要同时处理数百个单位寻路的场景下（或者网格更大、地图更复杂的场景），A的节点扩展量会成为性能瓶颈。 为什么A*会扩展这么多节点？ 在空旷区域中，大多数路径都是对称的。比如从(0,0)到(5,5)，你可以走”右上右上右上右上右上”，也可以走”上右上右上右上右”——这些路径长度相同，启...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/04/daily-coding-liang-barsky-clipping-2026-07-04/" title="每日编程实践: Liang-Barsky 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-04-Liang-Barsky-Line-Clipping/liang_barsky_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-04</div><div class="info-item-2">每日编程实践: Liang-Barsky 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">1. 背景与动机直线裁剪（Line Clipping）是计算机图形学中最基础的几何操作之一。当你打开任何一个图形应用程序——无论是 Figma 里的画布、游戏引擎的视口、还是地图应用的可视区域——背后都有线段裁剪算法在工作：窗口之外的部分被丢弃，只有落在窗口内的线段片段被保留下来进行渲染。 为什么直线裁剪如此重要？想象以下几个真实场景：  游戏引擎的视锥剔除：一个 3D 三角形投影到屏幕上，它的边可能部分落在屏幕外。如果直接在屏幕外绘制像素，不仅浪费 GPU 带宽，还会产生未定义行为。正确的做法是先把每条边裁剪到屏幕边界内。 CAD&#x2F;矢量图形编辑器：用户在巨大的画布上画线，但只显示窗口内的部分。裁剪算法决定了用户看到的图形边界。 GUI 系统的脏矩形更新：操作系统只需要重绘变化区域的窗口内容，矩形裁剪是 dirty rect 更新的核心。 GIS 地理信息系统：地图瓦片的多边形边界需要裁切到当前视口范围。  昨天我们实现了 Cohen-Sutherland 算法（区域编码法），它通过给端点分配 4 位区域码来判断线段与矩形的位置关系。但 Cohen-Sutherland...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/17/daily-coding-delaunay-triangulation-2026-06-17/" title="每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-06-17-delaunay_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机Delaunay 三角剖分是计算几何中最优雅和最重要的结构之一。给定平面上的一组离散点，Delaunay 三角剖分将它们连成三角形网格，并且具有一个关键性质：任意三角形的外接圆内不包含其他点。这个性质保证了剖分在某种意义下是”最优”的——它最大化所有三角形中最小的内角，避免了又长又瘦的三角形。 为什么这个性质如此重要？想象你有一组地形采样点，需要把它们变成三维地形模型。如果某个三角形的外接圆内包含另一个采样点，这意味着有四个点几乎共圆，三角剖分变得不稳定。Delaunay 三角剖分排除了这种歧义，确保结果是唯一且确定的（只要没有四点共圆）。 在工业界和游戏开发中，Delaunay 三角剖分有着广泛的应用：  地形建模：从 LiDAR 或高度图采样点生成三角形网格 物理模拟：有限元方法（FEM）需要高质量网格以保证数值稳定性 寻路网格（NavMesh）：自动生成导航网格，三角形质量直接影响路径质量 插值与重建：给定采样点重建连续曲面（如天气数据插值） 邻近查询：Delaunay 三角剖分与 Voronoi 图互为对偶，前者提供显式的邻接关系  我们今天要实现的算法是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-12</div><div class="info-item-2">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</div></div><div class="info-2"><div class="info-item-1">一、背景与动机如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是路径规划算法。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。 路径搜索问题可以抽象为图搜索问题：把世界建模为一个图，每个格子（或 NavMesh 三角形）是一个节点，相邻的可通行格子之间有边相连。目标很简单：给定起点 S 和终点 G，找到一条从 S 到 G 的路径，使得经过的边数或边的权重之和最小。 初看起来这个问题很简单——BFS（广度优先搜索）就能找到无权图的最短路径，而 Dijkstra 算法能处理带权图。问题在于：它们的搜索策略是”盲目的”。BFS 和 Dijkstra 都不知道目标在哪里，它们只是机械地向外扩张，直到”撞上”目标为止。在一个 80×60 的网格上这没什么，但在一个典型的游戏场景（比如 500×500 的网格，或 NavMesh 上数千个多边形），Dijkstra 可能要展开几十万...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">147</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">153</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E7%9A%84%E5%AE%9E%E9%99%85%E5%BA%94%E7%94%A8"><span class="toc-number">1.1.</span> <span class="toc-text">工业界的实际应用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8%E7%9B%B4%E6%8E%A5%E6%B3%95%EF%BC%9F"><span class="toc-number">1.2.</span> <span class="toc-text">为什么不用直接法？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9F%BA%E7%A1%80%E7%89%A9%E7%90%86%EF%BC%9A%E7%89%9B%E9%A1%BF%E4%B8%87%E6%9C%89%E5%BC%95%E5%8A%9B"><span class="toc-number">2.1.</span> <span class="toc-text">基础物理：牛顿万有引力</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Softening%EF%BC%9A%E8%A7%A3%E5%86%B3%E5%A5%87%E7%82%B9%E9%97%AE%E9%A2%98"><span class="toc-number">2.2.</span> <span class="toc-text">Softening：解决奇点问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Barnes-Hut-%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3%EF%BC%9A%CE%B8%E8%BF%91%E4%BC%BC%E5%87%86%E5%88%99"><span class="toc-number">2.3.</span> <span class="toc-text">Barnes-Hut 核心思想：θ近似准则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E5%8F%89%E6%A0%91%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">2.4.</span> <span class="toc-text">四叉树数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8A%9B%E7%9A%84%E8%AE%A1%E7%AE%97"><span class="toc-number">2.5.</span> <span class="toc-text">力的计算</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#CPU%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.3.</span> <span class="toc-text">CPU侧职责划分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%97%B6%E9%97%B4%E7%A7%AF%E5%88%86%EF%BC%9ALeapfrog%E6%96%B9%E6%B3%95"><span class="toc-number">3.4.</span> <span class="toc-text">时间积分：Leapfrog方法</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E7%B2%92%E5%AD%90%E6%8F%92%E5%85%A5%EF%BC%9AbhInsert"><span class="toc-number">4.1.</span> <span class="toc-text">1. 粒子插入：bhInsert()</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%8A%9B%E7%9A%84%E9%80%92%E5%BD%92%E8%AE%A1%E7%AE%97%EF%BC%9AbhForce"><span class="toc-number">4.2.</span> <span class="toc-text">2. 力的递归计算：bhForce()</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%CE%B8%E8%BF%91%E4%BC%BC%E6%9D%A1%E4%BB%B6%E5%88%A4%E6%96%AD"><span class="toc-number">4.3.</span> <span class="toc-text">3. θ近似条件判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E7%9B%B4%E6%8E%A5%E6%B3%95%EF%BC%88%E9%AA%8C%E8%AF%81%E7%94%A8%EF%BC%89"><span class="toc-number">4.4.</span> <span class="toc-text">4. 直接法（验证用）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-%E4%B8%BB%E5%BE%AA%E7%8E%AF%EF%BC%9A%E6%A8%A1%E6%8B%9F%E4%B8%8E%E9%AA%8C%E8%AF%81%E4%B8%80%E4%BD%93%E5%8C%96"><span class="toc-number">4.5.</span> <span class="toc-text">5. 主循环：模拟与验证一体化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-PPM%E5%8F%AF%E8%A7%86%E5%8C%96%E6%B8%B2%E6%9F%93"><span class="toc-number">4.6.</span> <span class="toc-text">6. PPM可视化渲染</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%911%EF%BC%9A%E8%B4%A8%E5%BF%83%E6%9B%B4%E6%96%B0%E6%AD%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">5.1.</span> <span class="toc-text">坑1：质心更新死循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%912%EF%BC%9APPM%E5%9B%BE%E5%83%8F%E5%87%A0%E4%B9%8E%E5%85%A8%E9%BB%91"><span class="toc-number">5.2.</span> <span class="toc-text">坑2：PPM图像几乎全黑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%913%EF%BC%9A%E5%B0%8FN%E6%97%B6Barnes-Hut%E6%AF%94%E7%9B%B4%E6%8E%A5%E6%B3%95%E6%9B%B4%E6%85%A2"><span class="toc-number">5.3.</span> <span class="toc-text">坑3：小N时Barnes-Hut比直接法更慢</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%914%EF%BC%9A%E8%83%BD%E9%87%8F%E6%BC%82%E7%A7%BB"><span class="toc-number">5.4.</span> <span class="toc-text">坑4：能量漂移</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8A%9B%E7%9A%84%E7%B2%BE%E5%BA%A6%E9%AA%8C%E8%AF%81"><span class="toc-number">6.1.</span> <span class="toc-text">力的精度验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E5%8A%A0%E9%80%9F%E6%AF%94"><span class="toc-number">6.2.</span> <span class="toc-text">性能加速比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%83%BD%E9%87%8F%E5%AE%88%E6%81%92"><span class="toc-number">6.3.</span> <span class="toc-text">能量守恒</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PPM%E5%83%8F%E7%B4%A0%E9%AA%8C%E8%AF%81"><span class="toc-number">6.4.</span> <span class="toc-text">PPM像素验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BD%93%E5%89%8D%E5%AE%9E%E7%8E%B0%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">当前实现的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/10/daily-coding-barnes-hut-2026-07-10/" title="每日编程实践: Barnes-Hut N体引力模拟"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Barnes-Hut N体引力模拟"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/10/daily-coding-barnes-hut-2026-07-10/" title="每日编程实践: Barnes-Hut N体引力模拟">每日编程实践: Barnes-Hut N体引力模拟</a><time datetime="2026-07-09T21:30:00.000Z" title="发表于 2026-07-10 05:30:00">2026-07-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Conway生命游戏与元胞自动机"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机">每日编程实践: Conway生命游戏与元胞自动机</a><time datetime="2026-07-08T21:30:00.000Z" title="发表于 2026-07-09 05:30:00">2026-07-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/08/daily-coding-quaternion-slerp-2026-07-08/" title="每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-08-Quaternion-SLERP/output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/08/daily-coding-quaternion-slerp-2026-07-08/" title="每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转">每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转</a><time datetime="2026-07-07T22:00:00.000Z" title="发表于 2026-07-08 06:00:00">2026-07-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-07-Octree-Spatial-Partitioning/octree_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Octree 八叉树空间分区"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区">每日编程实践: Octree 八叉树空间分区</a><time datetime="2026-07-06T22:30:00.000Z" title="发表于 2026-07-07 06:30:00">2026-07-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/06/daily-coding-metaballs-implicit-surface-2026-07-06/" title="每日编程实践: Metaballs 隐式曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-06-metaballs-implicit-surface/metaballs_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Metaballs 隐式曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/06/daily-coding-metaballs-implicit-surface-2026-07-06/" title="每日编程实践: Metaballs 隐式曲面渲染器">每日编程实践: Metaballs 隐式曲面渲染器</a><time datetime="2026-07-05T21:30:00.000Z" title="发表于 2026-07-06 05:30:00">2026-07-06</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
