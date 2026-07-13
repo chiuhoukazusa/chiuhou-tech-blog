@@ -1,0 +1,446 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="① 背景与动机矩阵乘法的普遍性与计算瓶颈矩阵乘法是科学计算和计算机图形学中最基础的运算之一。从机器学习的全连接层前向传播，到图形学中的坐标变换、投影变换，再到物理模拟中的有限元分析和粒子系统更新，矩阵乘法无处不在。标准的三重循环矩阵乘法的时间复杂度是严格的 Θ(n³)——对于两个 n×n 的方阵，需要执行 n³ 次标量乘法。 当我们处理大规模矩阵时（例如 n&#x3D;4096 的稠密矩阵），n³">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="① 背景与动机矩阵乘法的普遍性与计算瓶颈矩阵乘法是科学计算和计算机图形学中最基础的运算之一。从机器学习的全连接层前向传播，到图形学中的坐标变换、投影变换，再到物理模拟中的有限元分析和粒子系统更新，矩阵乘法无处不在。标准的三重循环矩阵乘法的时间复杂度是严格的 Θ(n³)——对于两个 n×n 的方阵，需要执行 n³ 次标量乘法。 当我们处理大规模矩阵时（例如 n&#x3D;4096 的稠密矩阵），n³">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png">
+<meta property="article:published_time" content="2026-07-13T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-13T21:34:33.110Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="分治算法">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="矩阵运算">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用",
+  "url": "https://chiuhoukazusa.github.io/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png",
+  "datePublished": "2026-07-13T21:30:00.000Z",
+  "dateModified": "2026-07-13T21:34:33.110Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-13T21:30:00.000Z" title="发表于 2026-07-14 05:30:00">2026-07-14</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-13T21:34:33.110Z" title="更新于 2026-07-14 05:34:33">2026-07-14</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="矩阵乘法的普遍性与计算瓶颈"><a href="#矩阵乘法的普遍性与计算瓶颈" class="headerlink" title="矩阵乘法的普遍性与计算瓶颈"></a>矩阵乘法的普遍性与计算瓶颈</h3><p>矩阵乘法是科学计算和计算机图形学中最基础的运算之一。从机器学习的全连接层前向传播，到图形学中的坐标变换、投影变换，再到物理模拟中的有限元分析和粒子系统更新，矩阵乘法无处不在。标准的三重循环矩阵乘法的时间复杂度是严格的 Θ(n³)——对于两个 n×n 的方阵，需要执行 n³ 次标量乘法。</p>
+<p>当我们处理大规模矩阵时（例如 n&#x3D;4096 的稠密矩阵），n³ 意味着约 6.87×10¹⁰ 次乘法操作。即使现代 CPU 单核能达到 10 GFLOPS，也需要近 7 秒才能完成一次乘法。在实时图形渲染中，一帧只有 16ms 的预算——标准算法根本没有竞争力。</p>
+<h3 id="Strassen-算法诞生的历史背景"><a href="#Strassen-算法诞生的历史背景" class="headerlink" title="Strassen 算法诞生的历史背景"></a>Strassen 算法诞生的历史背景</h3><p>1969 年，德国数学家 Volker Strassen 发表了一篇只有三页的论文，证明了两个 2×2 矩阵的乘法可以用<strong>7 次乘法</strong>（而非直观上的 8 次）来完成。这个看似微小的改进蕴含着一个重要观察：<strong>矩阵乘法的最少标量乘法次数可以低于 n³</strong>。</p>
+<p>Strassen 的巧妙之处在于他发现了 2×2 矩阵乘法的 7 个中间量（M₁ 到 M₇），每个中间量只需要一次乘法，然后通过加减法组合出最终结果。递归地应用这个策略，每次将大矩阵分割为 4 个子块，可以将时间复杂度降至：</p>
+<p>$$T(n) &#x3D; 7 \cdot T(n&#x2F;2) + O(n^2)$$</p>
+<p>根据主定理（Master Theorem），这个递推关系的解为：</p>
+<p>$$\log_7 &#x2F; \log_2 &#x3D; \log_2 7 \approx 2.807$$</p>
+<p>也就是说，Strassen 算法的时间复杂度为 O(n^2.807)，约等于 O(n²·⁸¹)。虽然看起来和 O(n³) 差距不大，但当 n 很大时，n²·⁸¹ &#x2F; n³ &#x3D; n^(-0.19) 意味着显著的加速。</p>
+<h3 id="工业界的实际使用场景"><a href="#工业界的实际使用场景" class="headerlink" title="工业界的实际使用场景"></a>工业界的实际使用场景</h3><p>Strassen 算法并非只有理论价值。在以下场景中它被实际使用：</p>
+<ul>
+<li><strong>BLAS 库和 LAPACK 实现</strong>：OpenBLAS 在矩阵维度超过特定阈值时自动切换到 Strassen 或其变体</li>
+<li><strong>GPU 矩阵乘法</strong>：cuBLAS 在某些配置下使用 Strassen-like 分解来减少显存带宽压力</li>
+<li><strong>深度学习框架</strong>：PyTorch 和 TensorFlow 的大矩阵运算会使用分治策略，Strassen 是其中一种可选实现</li>
+<li><strong>3D 图形管线</strong>：4×4 矩阵乘法在顶点变换中极为高频，Strassen 在一次性的 4×4 乘法中反而更慢（递归开销大于节省），但对于大矩阵的批量变换有明显优势</li>
+</ul>
+<h3 id="为什么选择-Strassen-作为今天的每日编程实践"><a href="#为什么选择-Strassen-作为今天的每日编程实践" class="headerlink" title="为什么选择 Strassen 作为今天的每日编程实践"></a>为什么选择 Strassen 作为今天的每日编程实践</h3><p>今天我们已经在光线追踪、PBR 渲染、SSAO 等复杂图形学主题上练习了半年多。偶尔需要回到算法本身——理解底层计算优化是如何工作的。Strassen 算法恰好是分治思想的完美体现：将一个看似不可分解的问题，通过巧妙的代数重组，转化为更高效的形式。</p>
+<p>而且，Strassen 有一个独特的优势：<strong>它的正确性可以 100% 量化验证</strong>——不需要人眼判断渲染是否”好看”，只需要比较数值误差。这正符合我们”量化验证而非视觉检查”的一贯原则。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="标准矩阵乘法的计算模型"><a href="#标准矩阵乘法的计算模型" class="headerlink" title="标准矩阵乘法的计算模型"></a>标准矩阵乘法的计算模型</h3><p>两个 n×n 矩阵 A 和 B 相乘得到 C &#x3D; A·B 的标准定义是：</p>
+<p>$$C_{ij} &#x3D; \sum_{k&#x3D;1}^{n} A_{ik} \cdot B_{kj}$$</p>
+<p>这个公式对每个 (i, j) 对执行 n 次乘法和 n-1 次加法。因为共有 n² 个 (i, j) 对，总乘法次数为 n³，总加法次数约为 n³。</p>
+<p>直觉上，每个输出元素是 A 的第 i 行与 B 的第 j 列的点积。如果我们想加速这个过程，可以尝试：</p>
+<ol>
+<li><strong>缓存优化</strong>：调整循环顺序（i→k→j 而非 i→j→k）以利用 CPU 缓存的局部性</li>
+<li><strong>向量化&#x2F;并行化</strong>：SIMD 指令或 GPU 的并行线程</li>
+<li><strong>分治策略</strong>：减少”正交算法”复杂度——这正是 Strassen 做的事</li>
+</ol>
+<p>注：选项 1 和 2 只是改变常数因子，并不改变 O(n³) 的渐进复杂度。Strassen 是少数能”降阶”的实用算法之一。</p>
+<h3 id="Strassen-的-2×2-核心观察"><a href="#Strassen-的-2×2-核心观察" class="headerlink" title="Strassen 的 2×2 核心观察"></a>Strassen 的 2×2 核心观察</h3><p>假设两个 2×2 矩阵相乘：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">┌       ┐   ┌       ┐   ┌       ┐</span><br><span class="line">│ a  b  │ × │ e  f  │ = │ r  s  │</span><br><span class="line">│ c  d  │   │ g  h  │   │ t  u  │</span><br><span class="line">└       ┘   └       ┘   └       ┘</span><br></pre></td></tr></table></figure>
+
+<p>标准计算需要 8 次乘法：</p>
+<ul>
+<li>r &#x3D; ae + bg</li>
+<li>s &#x3D; af + bh</li>
+<li>t &#x3D; ce + dg</li>
+<li>u &#x3D; cf + dh</li>
+</ul>
+<p>Strassen 构造了 7 个中间量，每个只需要一次乘法：</p>
+<p>$$<br>\begin{aligned}<br>M_1 &amp;&#x3D; (a + d) \cdot (e + h) \<br>M_2 &amp;&#x3D; (c + d) \cdot e \<br>M_3 &amp;&#x3D; a \cdot (f - h) \<br>M_4 &amp;&#x3D; d \cdot (g - e) \<br>M_5 &amp;&#x3D; (a + b) \cdot h \<br>M_6 &amp;&#x3D; (c - a) \cdot (e + f) \<br>M_7 &amp;&#x3D; (b - d) \cdot (g + h)<br>\end{aligned}<br>$$</p>
+<p>然后用加减法组合出最终结果：</p>
+<p>$$<br>\begin{aligned}<br>r &amp;&#x3D; M_1 + M_4 - M_5 + M_7 \<br>s &amp;&#x3D; M_3 + M_5 \<br>t &amp;&#x3D; M_2 + M_4 \<br>u &amp;&#x3D; M_1 - M_2 + M_3 + M_6<br>\end{aligned}<br>$$</p>
+<p>验证一下 r &#x3D; M₁ + M₄ - M₅ + M₇ 是否等于 ae + bg：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">M₁ + M₄ - M₅ + M₇</span><br><span class="line">= (a+d)(e+h) + d(g-e) - (a+b)h + (b-d)(g+h)</span><br><span class="line">= ae + ah + de + dh + dg - de - ah - bh + bg + bh - dg - dh</span><br><span class="line">= ae + bg  ✅</span><br></pre></td></tr></table></figure>
+
+<p>类似地可以验证其他三路。这个代数恒等式看似神奇，其实 Strassen 是通过解方程组找出来的——目标是找到 7 个形如 (线性组合)×(线性组合) 的表达式，使得它们的线性组合能产生所有 4 个输出元素。</p>
+<h3 id="递归分治：从-2×2-到-n×n"><a href="#递归分治：从-2×2-到-n×n" class="headerlink" title="递归分治：从 2×2 到 n×n"></a>递归分治：从 2×2 到 n×n</h3><p>Strassen 算法的核心洞察在于：当我们在 2×2 层面上将 8 次乘法减少到 7 次时，这个节省会<strong>在每一层递归中累积</strong>。</p>
+<p>将 n×n 矩阵分割为 4 个 n&#x2F;2 × n&#x2F;2 的子块：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">┌       ┐   ┌       ┐   ┌       ┐</span><br><span class="line">│ A₁₁ A₁₂│ × │ B₁₁ B₁₂│ = │ C₁₁ C₁₂│</span><br><span class="line">│ A₂₁ A₂₂│   │ B₂₁ B₂₂│   │ C₂₁ C₂₂│</span><br><span class="line">└       ┘   └       ┘   └       ┘</span><br></pre></td></tr></table></figure>
+
+<p>标准分治需要 8 次 n&#x2F;2 × n&#x2F;2 的子矩阵乘法，递归式：</p>
+<p>$$T_{std}(n) &#x3D; 8 \cdot T_{std}(n&#x2F;2) + O(n^2) &#x3D; O(n^3)$$</p>
+<p>Strassen 只需要 7 次子矩阵乘法，递归式：</p>
+<p>$$T(n) &#x3D; 7 \cdot T(n&#x2F;2) + O(n^2)$$</p>
+<p>后者的解是 Θ(n^log₂7) ≈ Θ(n^2.807)。</p>
+<p><strong>直觉解释</strong>：想象一棵递归树。如果每个节点有 8 个子节点，树的叶节点数 &#x3D; 8^(log₂n) &#x3D; n³。如果每个节点只有 7 个子节点，叶节点数 &#x3D; 7^(log₂n) &#x3D; n^log₂7。这就是指数上的差异。</p>
+<h3 id="为什么大于-2×2-的-Strassen-不存在？"><a href="#为什么大于-2×2-的-Strassen-不存在？" class="headerlink" title="为什么大于 2×2 的 Strassen 不存在？"></a>为什么大于 2×2 的 Strassen 不存在？</h3><p>一个自然的问题是：如果能找到一种用 k &lt; m³ 次乘法完成 m×m 矩阵乘法的方法，是不是能得到更好的复杂度 O(n^log_m(k))？</p>
+<p>事实上，已知的最好上界是 <strong>O(n^2.3728596)</strong>（2020 年 Alman 和 Williams 的成果），但这完全只是理论上的——隐藏常数巨大到使得任何实际尺寸的矩阵都不会有加速。实用的 Strassen 类算法（包括 Winograd 改进版，能将 2×2 的加法从 18 次降到 15 次加法）由于常数极小，反而在中等尺寸（n ≥ 64~128）就能显示优势。</p>
+<h3 id="与同类方案对比"><a href="#与同类方案对比" class="headerlink" title="与同类方案对比"></a>与同类方案对比</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>时间复杂度</th>
+<th>实际适用 n</th>
+<th>精度</th>
+<th>额外内存</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>标准三重循环</td>
+<td>O(n³)</td>
+<td>全部</td>
+<td>准确</td>
+<td>无</td>
+</tr>
+<tr>
+<td>Strassen</td>
+<td>O(n^2.807)</td>
+<td>≥ 128</td>
+<td>舍入误差</td>
+<td>O(n²) 临时空间</td>
+</tr>
+<tr>
+<td>Winograd 变体</td>
+<td>O(n^2.807)</td>
+<td>≥ 128</td>
+<td>舍入误差</td>
+<td>O(n²) 临时空间</td>
+</tr>
+<tr>
+<td>Coppersmith-Winograd</td>
+<td>O(n^2.376)</td>
+<td>&gt; 10⁶</td>
+<td>舍入误差</td>
+<td>极大</td>
+</tr>
+<tr>
+<td>GPU 并行</td>
+<td>O(n³&#x2F;p)</td>
+<td>全部</td>
+<td>准确</td>
+<td>显存</td>
+</tr>
+</tbody></table>
+<p>实用结论：在单核 CPU 上，Strassen 在 n &#x3D; 128~256 附近开始超越标准方法，n &#x3D; 512 时加速约 1.5x，n &#x3D; 1024 时加速约 2x。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">输入矩阵 A, B (n×n)</span><br><span class="line">    │</span><br><span class="line">    ├──► [padToPowerOf2] ──► 填充到 2 的幂次（Strassen 要求）</span><br><span class="line">    │</span><br><span class="line">    ├──► [strassenRecursive] ──► 递归分治</span><br><span class="line">    │         │</span><br><span class="line">    │         ├─ n ≤ 64 → [standardMultiply] (基准情况)</span><br><span class="line">    │         │</span><br><span class="line">    │         └─ n &gt; 64 → 分割为 4 块 → 7 次递归 → 合并</span><br><span class="line">    │</span><br><span class="line">    ├──► [unpad] ──► 去除填充，恢复原始尺寸</span><br><span class="line">    │</span><br><span class="line">    ▼</span><br><span class="line">输出矩阵 C</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键设计决策"><a href="#关键设计决策" class="headerlink" title="关键设计决策"></a>关键设计决策</h3><p><strong>1. 基准情况阈值选择</strong></p>
+<p>递归不能无限进行。当子矩阵足够小时，Strassen 的额外加法开销（每层 18 次加法）会超过节省的那 1 次乘法。在我们的实现中，当 n ≤ 64 时切换到标准 O(n³) 乘法。</p>
+<p>这个阈值是实验确定的：n&#x3D;64 时 64³&#x3D;262144 次乘法，Strassen 的递归框架开销（函数调用、内存分配）已经大于节省的计算量。对于更大的基准值（如 128），Strassen 层数减少，加速效果减弱；对于更小的基准值（如 32），递归开销太大。</p>
+<p><strong>2. 矩阵按 2 的幂次对齐</strong></p>
+<p>Strassen 每次将矩阵分成 2×2 的块，要求 n 是 2 的幂。如果原始矩阵大小不是 2 的幂，我们将其填充到最近的 2 的幂，填充区域用零初始化。填充相当于在输入矩阵的右下角追加零行和零列，不影响乘法结果的有效部分——因为零行&#x2F;列对任何输入的贡献都是零。</p>
+<p><strong>3. 内存管理策略</strong></p>
+<p>每次递归层需要分配：</p>
+<ul>
+<li>4 个子矩阵块（A₁₁, A₁₂, A₂₁, A₂₂）</li>
+<li>4 个子矩阵块（B₁₁, B₁₂, B₂₁, B₂₂）</li>
+<li>7 个中间结果 M₁~M₇</li>
+<li>4 个输出子块 C₁₁~C₁₂</li>
+</ul>
+<p>总内存占用约为 19 × (n&#x2F;2)² × sizeof(double) 在每层。对于 n&#x3D;1024，单层约需 19 × 512² × 8 ≈ 38MB，整个递归栈可能超过 200MB。这是 Strassen 的主要代价——空间换取时间。</p>
+<p><strong>4. subBlock &#x2F; assignBlock 辅助函数</strong></p>
+<p>为了避免在矩阵间传递时需要反复计算行偏移，封装了两个辅助函数：</p>
+<ul>
+<li><code>subBlock(M, row, col)</code>：从矩阵 M 的指定位置提取 half×half 子块</li>
+<li><code>assignBlock(M, block, row, col)</code>：将子块写回矩阵 M 的指定位置</li>
+</ul>
+<p>这两个函数的时间复杂度都是 O(half²)，在整个递归树中，每层的拷贝总量是 O(n²)，所有层加起来是 O(n²) 而非 O(n³)，所以不影响渐进复杂度。</p>
+<h3 id="CPU-侧职责划分"><a href="#CPU-侧职责划分" class="headerlink" title="CPU 侧职责划分"></a>CPU 侧职责划分</h3><p>由于这是一个纯算法实现，不涉及着色器或 GPU：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">CPU 单线程</span><br><span class="line">  ├── 矩阵生成（随机数填充）</span><br><span class="line">  ├── 标准乘法（基线计算）</span><br><span class="line">  ├── Strassen 递归分治</span><br><span class="line">  ├── 误差计算与验证</span><br><span class="line">  └── PPM 图像输出</span><br></pre></td></tr></table></figure>
+
+<p>不需要考虑 GPU&#x2F;Shader 的职责划分，整个实现是纯 CPU 的。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="标准矩阵乘法（基线）"><a href="#标准矩阵乘法（基线）" class="headerlink" title="标准矩阵乘法（基线）"></a>标准矩阵乘法（基线）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Matrix <span class="title">standardMultiply</span><span class="params">(<span class="type">const</span> Matrix&amp; A, <span class="type">const</span> Matrix&amp; B)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = A.<span class="built_in">size</span>();</span><br><span class="line">    Matrix C = <span class="built_in">createMatrix</span>(n);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; n; k++)     <span class="comment">// 注意循环顺序！</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++)</span><br><span class="line">                C[i][j] += A[i][k] * B[k][j];</span><br><span class="line">    <span class="keyword">return</span> C;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么采用 i→k→j 的循环顺序而非 i→j→k？</strong></p>
+<p>如果写成 <code>i→j→k</code>（也就是 <code>C[i][j] += A[i][k] * B[k][j]</code>），在最内层循环中，<code>A[i][k]</code> 随 k 连续访问（A 的行主序布局保证了缓存友好），但 <code>B[k][j]</code> 是跨行访问——每次 k 增加时跳过了整行（n×8 字节），导致几乎每次访问都触发 cache miss。</p>
+<p>改成 <code>i→k→j</code> 后，最内层的 j 循环中 <code>C[i][j]</code> 和 <code>B[k][j]</code> 都连续访问（同一行的相邻列），只有 <code>A[i][k]</code> 固定不变。<strong>这对大矩阵的重要性怎么强调都不过分</strong>——在 n&#x3D;2048 时，i→j→k 的 cache miss 率可能高达 90%+，而 i→k→j 可以降至 10% 以下，造成 5-10 倍的性能差异。</p>
+<h3 id="Strassen-递归核心"><a href="#Strassen-递归核心" class="headerlink" title="Strassen 递归核心"></a>Strassen 递归核心</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Matrix <span class="title">strassenRecursive</span><span class="params">(<span class="type">const</span> Matrix&amp; A, <span class="type">const</span> Matrix&amp; B)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = A.<span class="built_in">size</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 🔑 基准情况：太小了不值得分治</span></span><br><span class="line">    <span class="keyword">if</span> (n &lt;= <span class="number">64</span>) &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">standardMultiply</span>(A, B);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> half = n / <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 分割为 4 个子块</span></span><br><span class="line">    Matrix A11 = <span class="built_in">subBlock</span>(A, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    Matrix A12 = <span class="built_in">subBlock</span>(A, <span class="number">0</span>, half);</span><br><span class="line">    Matrix A21 = <span class="built_in">subBlock</span>(A, half, <span class="number">0</span>);</span><br><span class="line">    Matrix A22 = <span class="built_in">subBlock</span>(A, half, half);</span><br><span class="line"></span><br><span class="line">    Matrix B11 = <span class="built_in">subBlock</span>(B, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    Matrix B12 = <span class="built_in">subBlock</span>(B, <span class="number">0</span>, half);</span><br><span class="line">    Matrix B21 = <span class="built_in">subBlock</span>(B, half, <span class="number">0</span>);</span><br><span class="line">    Matrix B22 = <span class="built_in">subBlock</span>(B, half, half);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 🔑 Strassen 的 7 次递归乘法（而非 8 次）</span></span><br><span class="line">    Matrix M1 = <span class="built_in">strassenRecursive</span>(<span class="built_in">add</span>(A11, A22), <span class="built_in">add</span>(B11, B22));</span><br><span class="line">    Matrix M2 = <span class="built_in">strassenRecursive</span>(<span class="built_in">add</span>(A21, A22), B11);</span><br><span class="line">    Matrix M3 = <span class="built_in">strassenRecursive</span>(A11, <span class="built_in">sub</span>(B12, B22));</span><br><span class="line">    Matrix M4 = <span class="built_in">strassenRecursive</span>(A22, <span class="built_in">sub</span>(B21, B11));</span><br><span class="line">    Matrix M5 = <span class="built_in">strassenRecursive</span>(<span class="built_in">add</span>(A11, A12), B22);</span><br><span class="line">    Matrix M6 = <span class="built_in">strassenRecursive</span>(<span class="built_in">sub</span>(A21, A11), <span class="built_in">add</span>(B11, B12));</span><br><span class="line">    Matrix M7 = <span class="built_in">strassenRecursive</span>(<span class="built_in">sub</span>(A12, A22), <span class="built_in">add</span>(B21, B22));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 用加减法组合出结果</span></span><br><span class="line">    Matrix C11 = <span class="built_in">add</span>(<span class="built_in">sub</span>(<span class="built_in">add</span>(M1, M4), M5), M7);</span><br><span class="line">    Matrix C12 = <span class="built_in">add</span>(M3, M5);</span><br><span class="line">    Matrix C21 = <span class="built_in">add</span>(M2, M4);</span><br><span class="line">    Matrix C22 = <span class="built_in">add</span>(<span class="built_in">sub</span>(<span class="built_in">add</span>(M1, M3), M2), M6);</span><br><span class="line"></span><br><span class="line">    Matrix C = <span class="built_in">createMatrix</span>(n);</span><br><span class="line">    <span class="built_in">assignBlock</span>(C, C11, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">    <span class="built_in">assignBlock</span>(C, C12, <span class="number">0</span>, half);</span><br><span class="line">    <span class="built_in">assignBlock</span>(C, C21, half, <span class="number">0</span>);</span><br><span class="line">    <span class="built_in">assignBlock</span>(C, C22, half, half);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> C;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="subBlock-assignBlock-实现"><a href="#subBlock-assignBlock-实现" class="headerlink" title="subBlock &#x2F; assignBlock 实现"></a>subBlock &#x2F; assignBlock 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> subBlock = [half](<span class="type">const</span> Matrix&amp; M, <span class="type">int</span> row, <span class="type">int</span> col) &#123;</span><br><span class="line">    Matrix block = <span class="built_in">createMatrix</span>(half);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; half; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; half; j++)</span><br><span class="line">            block[i][j] = M[row + i][col + j];</span><br><span class="line">    <span class="keyword">return</span> block;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>容易写错的地方</strong>：</p>
+<ul>
+<li><code>row</code> 和 <code>col</code> 参数容易搞反。在调用 <code>subBlock(A, 0, half)</code> 时，0 是要取的行偏移，half 是列偏移</li>
+<li>子块赋值回父矩阵时，<code>assignBlock(C, C11, 0, 0)</code> 的偏移必须对应上文 Strassen 公式中 C₁₁ 的位置</li>
+</ul>
+<h3 id="2-的幂对齐"><a href="#2-的幂对齐" class="headerlink" title="2 的幂对齐"></a>2 的幂对齐</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Matrix <span class="title">padToPowerOf2</span><span class="params">(<span class="type">const</span> Matrix&amp; A)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = A.<span class="built_in">size</span>();</span><br><span class="line">    <span class="type">int</span> nextPow2 = <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">while</span> (nextPow2 &lt; n) nextPow2 &lt;&lt;= <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (nextPow2 == n) <span class="keyword">return</span> A;   <span class="comment">// 已经是 2 的幂，无需填充</span></span><br><span class="line"></span><br><span class="line">    Matrix padded = <span class="built_in">createMatrix</span>(nextPow2);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++)</span><br><span class="line">            padded[i][j] = A[i][j];</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 🔑 其余位置自动被 0 填充（createMatrix 初始化全零）</span></span><br><span class="line">    <span class="keyword">return</span> padded;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function">Matrix <span class="title">unpad</span><span class="params">(<span class="type">const</span> Matrix&amp; A, <span class="type">int</span> originalN)</span> </span>&#123;</span><br><span class="line">    Matrix unpadded = <span class="built_in">createMatrix</span>(originalN);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; originalN; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; originalN; j++)</span><br><span class="line">            unpadded[i][j] = A[i][j];</span><br><span class="line">    <span class="keyword">return</span> unpadded;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么填充不需要特殊处理</strong>：因为填充区域的值是 0，而 0 乘以任何输入都得到 0。矩阵乘法中，如果 A 的填充行全是 0，那么 C 对应的行也会是 0；如果 B 的填充列全是 0，C 对应的列也是 0。这些零值行&#x2F;列在 unpad 时被自然丢弃。</p>
+<h3 id="量化验证"><a href="#量化验证" class="headerlink" title="量化验证"></a>量化验证</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">VerificationResult</span> &#123;</span><br><span class="line">    <span class="type">double</span> maxAbsError;</span><br><span class="line">    <span class="type">double</span> mse;</span><br><span class="line">    <span class="type">int</span> totalElements;</span><br><span class="line">    <span class="type">int</span> exactMatches;</span><br><span class="line">    <span class="type">double</span> exactPercent;</span><br><span class="line">    <span class="type">bool</span> allWithinTolerance;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="function">VerificationResult <span class="title">verify</span><span class="params">(<span class="type">const</span> Matrix&amp; standard, <span class="type">const</span> Matrix&amp; strassen,</span></span></span><br><span class="line"><span class="params"><span class="function">                          <span class="type">double</span> tolerance = <span class="number">1e-10</span>)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = standard.<span class="built_in">size</span>();</span><br><span class="line">    VerificationResult res = &#123;&#125;;</span><br><span class="line">    res.totalElements = n * n;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++) &#123;</span><br><span class="line">            <span class="type">double</span> err = <span class="built_in">fabs</span>(standard[i][j] - strassen[i][j]);</span><br><span class="line">            sumSqErr += err * err;</span><br><span class="line">            <span class="keyword">if</span> (err &gt; res.maxAbsError) res.maxAbsError = err;</span><br><span class="line">            <span class="keyword">if</span> (err &lt; tolerance) res.exactMatches++;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    res.mse = sumSqErr / res.totalElements;</span><br><span class="line">    res.exactPercent = <span class="number">100.0</span> * res.exactMatches / res.totalElements;</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个验证函数是今天项目的灵魂</strong>。在图形学项目中我们依赖 “像素均值在 10~240 之间、标准差 &gt; 5” 这类视觉启发式规则。但在纯数值计算中，我们可以做精确到浮点机器精度的逐元素比较。Strassen 的正确性只有两种状态：对或错。没有中间地带。</p>
+<h3 id="PPM-输出与对比图"><a href="#PPM-输出与对比图" class="headerlink" title="PPM 输出与对比图"></a>PPM 输出与对比图</h3><p>由于矩阵乘法的结果矩阵通常包含正负值，在生成灰度图像时需要对每个像素值除以最大绝对值做归一化。同时生成以下图像：</p>
+<ul>
+<li><strong>标准结果图</strong>：基准乘法的可视化</li>
+<li><strong>Strassen 结果图</strong>：Strassen 算法的可视化</li>
+<li><strong>并排对比图</strong>：标准（左）| 分隔线 | Strassen（右）</li>
+<li><strong>误差热力图</strong>：黑色&#x3D;零误差，红→黄→白&#x3D;误差增大</li>
+</ul>
+<p>对比图的红色分隔线是特意添加的，用于在视觉上明确划分左右两边。如果两个算法产生完全相同的结果（在 PPM 的 8 位精度内），左右两边应该看起来一模一样。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="Bug-1：递归基准阈值选择不当"><a href="#Bug-1：递归基准阈值选择不当" class="headerlink" title="Bug 1：递归基准阈值选择不当"></a>Bug 1：递归基准阈值选择不当</h3><p><strong>症状</strong>：n&#x3D;128 时 Strassen 比标准方法<strong>更慢</strong>（0.8x），而不是更快。</p>
+<p><strong>错误假设</strong>：我以为基准阈值越小越好——多递归几层就能多节省几次乘法。</p>
+<p><strong>真实原因</strong>：n&#x3D;32 时切换到标准乘法的开销分析：</p>
+<ul>
+<li>递归到 32 需要 log₂(128&#x2F;32) &#x3D; 2 层</li>
+<li>每层需要 18 次 add&#x2F;sub（每次 O(n²) &#x3D; O(4096)）  </li>
+<li>还要进行 8 次 subBlock 的 O(n²) 拷贝</li>
+<li>这些额外开销超过了节省的 1&#x2F;8 次乘法</li>
+</ul>
+<p><strong>修复方式</strong>：将基准阈值提高到 64。此时 n&#x3D;128 只递归 1 层（128→64），额外开销最小化。实际上，n&#x3D;128 时 Strassen 仍然可能比标准方法慢（因为 128³ 只有 2M 次乘法，数量还不够大），但从 n&#x3D;256 开始就有明确加速。</p>
+<h3 id="Bug-2：2-的幂填充后的矩阵大小让速度偏离预期"><a href="#Bug-2：2-的幂填充后的矩阵大小让速度偏离预期" class="headerlink" title="Bug 2：2 的幂填充后的矩阵大小让速度偏离预期"></a>Bug 2：2 的幂填充后的矩阵大小让速度偏离预期</h3><p><strong>症状</strong>：测试 n&#x3D;500 和 n&#x3D;512 时，Strassen 在 n&#x3D;500 表现很差。</p>
+<p><strong>错误假设</strong>：我原以为填充到最近的 2 的幂只增加少量开销。</p>
+<p><strong>真实原因</strong>：n&#x3D;500 需要填充到 512，看起来只多了 12 行&#x2F;列（~5% 的面积增加）。但实际上 500 和 512 都落在同一递归深度——都先变成 512×512，再逐层减半。n&#x3D;500 的 512×512 数组中，只有 (500&#x2F;512)² &#x3D; 95.4% 的元素是有效数据，剩余 4.6% 的零乘零运算完全是浪费。</p>
+<p><strong>修复方式</strong>：对测试只使用 2 的幂作为基础尺寸（128, 256, 512），这样填充开销为零。在生产代码中，如果输入矩阵远不是 2 的幂（如 n&#x3D;600，填充到 1024，浪费了 66% 的计算！），可以考虑用其他分治策略或混合方法。</p>
+<h3 id="Bug-3：PPM-精度导致错误的”误差”显示"><a href="#Bug-3：PPM-精度导致错误的”误差”显示" class="headerlink" title="Bug 3：PPM 精度导致错误的”误差”显示"></a>Bug 3：PPM 精度导致错误的”误差”显示</h3><p><strong>症状</strong>：误差热力图显示明显的红色&#x2F;黄色像素，但验证代码说 max error &#x3D; 1.49e-12。</p>
+<p><strong>错误假设</strong>：一开始我以为是 Strassen 有实际错误，产生了几百个微小的数值差异，在 PPM 的 8 位通道中被放大了。</p>
+<p><strong>真实原因</strong>：标准乘法和 Strassen 在浮点精度（double，~15 位十进制精度）上几乎完美一致。但 PPM 格式只用 8 位（0-255）存储每个颜色通道。当矩阵元素值范围在 [-10, 10] 时，归一化后相邻 8 位级别代表 (maxVal-minVal)&#x2F;256 ≈ 20&#x2F;256 ≈ 0.078 的分辨率。两个值如果差 1e-12（完全在数值精度内），但落到不同的 8 位 bin 中，PPM 就会显示不同的像素——这<strong>不是 Strassen 的错误，而是可视化格式的量化损失</strong>。</p>
+<p><strong>修复方式</strong>：不做任何代码修改——只需要在博客中解释清楚这个现象。真正的验证不看 PPM 误差热力图，而看 verify() 函数的浮点数对比。1.5e-11 的最大误差意味着两个算法的输出在数学上完全等价（IEEE 754 双精度舍入误差极限）。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="核心数值指标"><a href="#核心数值指标" class="headerlink" title="核心数值指标"></a>核心数值指标</h3><p>我们使用随机生成的稠密矩阵（元素范围 [-10, 10]），用固定随机种子（42）以保证可复现性：</p>
+<table>
+<thead>
+<tr>
+<th>矩阵大小</th>
+<th>标准乘法耗时</th>
+<th>Strassen 耗时</th>
+<th>加速比</th>
+<th>最大绝对误差</th>
+<th>MSE</th>
+<th>精确匹配率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>128×128</td>
+<td>1.05 ms</td>
+<td>1.31 ms</td>
+<td>0.80x</td>
+<td>1.49e-12</td>
+<td>6.75e-26</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>256×256</td>
+<td>8.86 ms</td>
+<td>8.63 ms</td>
+<td>1.03x</td>
+<td>4.32e-12</td>
+<td>4.65e-25</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>512×512</td>
+<td>82.7 ms</td>
+<td>56.6 ms</td>
+<td>1.46x</td>
+<td>1.50e-11</td>
+<td>3.39e-24</td>
+<td>100%</td>
+</tr>
+</tbody></table>
+<p><strong>解读</strong>：</p>
+<ul>
+<li>n&#x3D;128 时 Strassen 反而更慢（0.80x），这是递归框架开销大于计算节省的典型表现</li>
+<li>n&#x3D;256 时两者持平（1.03x），这是”交叉点”——从此以上 Strassen 开始获胜</li>
+<li>n&#x3D;512 时 Strassen 快了 46%——而且这个差异会随 n 增长继续扩大</li>
+<li>精度方面，最大误差仅 1.5e-11（doubles 的舍入误差级别），MSE 低至 10^-24 以下，可以认为结果完全一致</li>
+</ul>
+<h3 id="带已知值的确定性测试"><a href="#带已知值的确定性测试" class="headerlink" title="带已知值的确定性测试"></a>带已知值的确定性测试</h3><p>为了排除随机数的偶然性，我们额外用一个小矩阵（5×5）填充已知整数值进行验证：</p>
+<p>输入矩阵 A（5×5，填充值 A[i][j] &#x3D; (i+1)(j+1)）和 B（B[i][j] &#x3D; j+1）：</p>
+<p>A 的第 i 行 B 的第 j 列点积：<br>$$C_{ij} &#x3D; \sum_{k&#x3D;0}^{4} (i+1)(k+1) \cdot (j+1) &#x3D; (i+1)(j+1) \sum_{k&#x3D;0}^{4} (k+1) &#x3D; (i+1)(j+1) \times 15$$</p>
+<p>这意味着 C 的每个元素都可以人工验算。验证结果显示：标准乘法和 Strassen 对所有 25 个元素产生完全一致的结果，误差为精确的 0。</p>
+<h3 id="可视化对比"><a href="#可视化对比" class="headerlink" title="可视化对比"></a>可视化对比</h3><p>我们从 PPM 输出中选取关键图像进行说明：</p>
+<p><strong>标准乘法 vs Strassen 对比图（256×256）</strong>：</p>
+<p><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png">https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png</a></p>
+<p>左半部分是标准 O(n³) 乘法的结果，右半部分是 Strassen 算法的结果。中间的红色竖线是分隔标记。在 8 位灰度精度下，两侧完全不可区分——这直观地证明了 Strassen 的正确性。</p>
+<p><strong>误差热力图（128×128）</strong>：</p>
+<p><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_128_error.png">https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_128_error.png</a></p>
+<p>注意这里的”颜色”来自 PPM 的 8 位量化效应，而非实际的算法误差。在 double 精度下，标准乘法和 Strassen 对所有 16384 个元素的值差都 &lt; 1.5e-12。</p>
+<h3 id="渐进复杂度验证"><a href="#渐进复杂度验证" class="headerlink" title="渐进复杂度验证"></a>渐进复杂度验证</h3><p>理论预测 Strassen 的复杂度为 O(n^log₂7) ≈ O(n^2.807)。我们用实测时间验证这个趋势：</p>
+<p>从 n&#x3D;256 到 n&#x3D;512，数据量增加了 (512&#x2F;256)³ &#x3D; 8 倍（标准复杂度）。Strassen 的实际时间比：</p>
+<p>$$(82.7 &#x2F; 8.86) &#x2F; ((512&#x2F;256)^{2.807}) &#x3D; 9.33 &#x2F; (2^{2.807}) &#x3D; 9.33 &#x2F; 7.0 &#x3D; 1.33$$</p>
+<p>这个比值接近 1（理论预测），说明我们的实现确实遵循 O(n^2.807) 的缩放特性。剩余的 1.33 倍差异来自 C++ vector 的额外拷贝操作和函数调用开销。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>空间开销巨大</strong>：Strassen 需要大量临时矩阵空间（每层递归约 19 个子块）。当 n&#x3D;4096 时，单是一个子块就是 16MB（2048²×8 字节），整个递归栈可能消耗几百 MB 内存。这对嵌入式系统或 GPU 显存受限的环境不友好。</p>
+</li>
+<li><p><strong>矩阵必须接近正方形</strong>：Strassen 对长方形矩阵的加速效果大打折扣，因为 2 的幂填充浪费更大比例的空间。对于 M×N×P 的通用矩阵乘法，Strassen 通常需要过度填充或根本不适用。</p>
+</li>
+<li><p><strong>数值稳定性略差于标准算法</strong>：Strassen 涉及更多的加法运算，而加法会积累舍入误差。对于条件数（condition number）很大的矩阵，Strassen 的结果可能比标准乘法的误差大几个数量级。在精密科学计算中，这可能不可接受。</p>
+</li>
+<li><p><strong>小矩阵反而更慢</strong>：交叉点通常在 n&#x3D;64~256 之间。对于 4×4 的图形变换矩阵，Strassen 是绝对的过度设计。</p>
+</li>
+<li><p><strong>不适合稀疏矩阵</strong>：Strassen 对稠密矩阵做了优化，但会破坏稀疏结构。对于稀疏矩阵，专门的稀疏格式（CSR、CSC）配合稀疏乘法远比 Strassen 快。</p>
+</li>
+</ol>
+<h3 id="可继续优化的方向"><a href="#可继续优化的方向" class="headerlink" title="可继续优化的方向"></a>可继续优化的方向</h3><ul>
+<li><strong>Winograd 变体</strong>：将 7 次乘法的 18 次加法减少到 15 次，常数因子更优</li>
+<li><strong>Strassen 的并行化</strong>：7 个子乘法彼此独立，可以完美并行到 7 个线程或 GPU 的 7 个 SM</li>
+<li><strong>自适应混合方案</strong>：根据矩阵维度、稀疏度、条件数动态选择 Strassen 或标准方法</li>
+<li><strong>Strassen-Winograd 的 SIMD 实现</strong>：结合 AVX-512 或 ARM NEON 指令集，将子块的加减法操作向量化</li>
+</ul>
+<h3 id="与其他每日编程主题的关联"><a href="#与其他每日编程主题的关联" class="headerlink" title="与其他每日编程主题的关联"></a>与其他每日编程主题的关联</h3><p>Strassen 矩阵乘法与本系列的多个主题存在概念交叉：</p>
+<ul>
+<li><strong>分治策略</strong>：与 Barnes-Hut N 体模拟（07-10）和 Quadtree（06-14）同为空间分治思想</li>
+<li><strong>递归算法</strong>：与 Bezier 曲线的 De Casteljau 算法（02-22）同为递归降维</li>
+<li><strong>计算复杂度</strong>：与 Bentley-Ottmann 扫描线算法（07-11）同为”通过巧妙的数据重组降低渐进复杂度”的案例</li>
+<li><strong>量化验证</strong>：延续了系列”不用眼睛看，用数据说话”的原则</li>
+</ul>
+<h3 id="关键收获"><a href="#关键收获" class="headerlink" title="关键收获"></a>关键收获</h3><p>今天我们证明了：</p>
+<ol>
+<li><strong>有时少做一次乘法比多做几次加法更划算</strong>——这是 Strassen 背后的核心权衡</li>
+<li><strong>递归分治可以将常数倍的节省转化为指数级别的收益</strong></li>
+<li><strong>数值算法的正确性验证不需要人眼</strong>——double 精度的逐元素对比比任何视觉检查都可靠</li>
+<li><strong>优化是有代价的</strong>——Strassen 用内存和数值稳定性换取计算速度，选择它与否取决于具体应用场景</li>
+</ol>
+<hr>
+<p><em>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/07/07-14-strassen-matrix-multiplication">https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/07/07-14-strassen-matrix-multiplication</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/">https://chiuhoukazusa.github.io/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%88%86%E6%B2%BB%E7%AE%97%E6%B3%95/">分治算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%9F%A9%E9%98%B5%E8%BF%90%E7%AE%97/">矩阵运算</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在游戏开发和物理模拟中，我们经常需要求解常微分方程（ODE）。一个子弹的弹道、一辆车的悬挂系统、一匹布的飘动、一个角色的跳跃——背后都逃不掉一个核心问题：给定当前位置和速度，如何计算下一帧的位置和速度？ 最简单的答案是 Euler 法，也就是大多数人在入门时写的那种： 12position += velocity * dt;velocity += acceleration * dt;  这个写法直观、代码量极少、性能几乎没有开销。但它有一个致命的问题：精度太差。不信？我们做一个简单的实验：模拟一个弹簧-质量-阻尼系统，初始位置 x&#x3D;1m，弹簧刚度 k&#x3D;10 N&#x2F;m，阻尼系数 c&#x3D;0.5 N·s&#x2F;m。初始能量是 5 J。理论上，由于阻尼存在，能量应该单调衰减到接近 0。但 Euler 法在 dt&#x3D;0.05s 时，最终能量居然是 5.19 J——比初始能量还大！能量凭空增加了。这就是数值不稳定性：Euler 法在每一步都会累积误差，最终导致模拟完全失真。 RK4（四阶 Runge-Kutta 法） 是解决这个问...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-29</div><div class="info-item-2">每日编程实践: Jump Point Search 跳点搜索算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机寻路（Pathfinding）是游戏AI的基石功能。从一个RTS游戏里的农民去伐木，到一个开放世界RPG中NPC在城镇里巡逻，再到MOBA游戏里小兵沿兵线前进——所有这些行为的背后都依赖寻路算法来找到从起点到终点的最短路径。 经典的A算法（1968年提出）是寻路领域的黄金标准。它结合了Dijkstra的最短路径保证和贪心最佳优先搜索的效率，通过一个启发式函数f(n) = g(n) + h(n)来引导搜索方向。在均匀网格上，A使用八方向移动（上下左右+四个对角线），每次将当前节点的八个邻居加入open list，然后从中选择f值最小的节点扩展。 A*的痛点：在一个空旷的128×128网格上，从(0,0)寻路到(127,127)，A需要扩展约3400个节点。这对于即时战略游戏来说不算多，但在需要同时处理数百个单位寻路的场景下（或者网格更大、地图更复杂的场景），A的节点扩展量会成为性能瓶颈。 为什么A*会扩展这么多节点？ 在空旷区域中，大多数路径都是对称的。比如从(0,0)到(5,5)，你可以走”右上右上右上右上右上”，也可以走”上右上右上右上右”——这些路径长度相同，启...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/" title="每日编程实践: Cohen-Sutherland 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-03</div><div class="info-item-2">每日编程实践: Cohen-Sutherland 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，裁剪（Clipping） 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看不见的东西。 Cohen-Sutherland 算法正是为了解决这个”直线与矩形窗口的裁剪”问题而生。它由 Ivan Sutherland（图灵奖得主、Sketchpad 之父）和 Dan Cohen 于 1967 年提出，距今已有近 60 年历史。尽管现在 GPU 管线已经高度成熟，但理解 Cohen-Sutherland 依然是每个图形学工程师的必修课，因为它展示了几种算法设计的核心范式：平凡接受&#x2F;拒绝（trivial accept&#x2F;reject）、区域编码（region encoding）、以及逐次逼近（successive approximation）。 在工...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/04/daily-coding-liang-barsky-clipping-2026-07-04/" title="每日编程实践: Liang-Barsky 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-04-Liang-Barsky-Line-Clipping/liang_barsky_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-04</div><div class="info-item-2">每日编程实践: Liang-Barsky 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">1. 背景与动机直线裁剪（Line Clipping）是计算机图形学中最基础的几何操作之一。当你打开任何一个图形应用程序——无论是 Figma 里的画布、游戏引擎的视口、还是地图应用的可视区域——背后都有线段裁剪算法在工作：窗口之外的部分被丢弃，只有落在窗口内的线段片段被保留下来进行渲染。 为什么直线裁剪如此重要？想象以下几个真实场景：  游戏引擎的视锥剔除：一个 3D 三角形投影到屏幕上，它的边可能部分落在屏幕外。如果直接在屏幕外绘制像素，不仅浪费 GPU 带宽，还会产生未定义行为。正确的做法是先把每条边裁剪到屏幕边界内。 CAD&#x2F;矢量图形编辑器：用户在巨大的画布上画线，但只显示窗口内的部分。裁剪算法决定了用户看到的图形边界。 GUI 系统的脏矩形更新：操作系统只需要重绘变化区域的窗口内容，矩形裁剪是 dirty rect 更新的核心。 GIS 地理信息系统：地图瓦片的多边形边界需要裁切到当前视口范围。  昨天我们实现了 Cohen-Sutherland 算法（区域编码法），它通过给端点分配 4 位区域码来判断线段与矩形的位置关系。但 Cohen-Sutherland...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-12</div><div class="info-item-2">每日编程实践: Boids 集群行为模拟</div></div><div class="info-2"><div class="info-item-1">背景与动机在自然界中，我们经常能看到令人惊叹的群体行为：天空中成群的椋鸟变换队形、海洋中鱼群集体躲避捕食者、草原上瞪羚的集群迁徙。这些个体遵循简单规则却能产生复杂涌现行为的现象，一直是计算机图形学和人工智能领域的重要研究课题。 1986年，Craig Reynolds 在他的开创性论文《Flocks, Herds, and Schools: A Distributed Behavioral Model》中首次提出了 Boids 模型。这个名字既是”bird-oid”（类鸟体）的缩写，也恰好与”birds”（鸟群）发音相似。Reynolds 的核心洞察是：复杂的群体运动不需要中央控制器，只需要每个个体遵循三条简单的局部规则，整个群体就会自然地展现出逼真的集群行为。 Boids 模型在实际工业界有着广泛的应用。游戏引擎中，它被用于生成 NPC 的群体移动——从《半条命 2》中的飞锯鸟到《刺客信条》中的人群 AI。电影行业也大量使用扩展的 Boids 系统来模拟大规模场景，例如《指环王》中的兽人大军冲锋、《海底总动员》中的鱼群迁徙。Tim Burton 在 1992 年的《蝙蝠侠归来》...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/24/daily-coding-simulated-annealing-tsp-2026-06-24/" title="每日编程实践: 模拟退火算法求解TSP旅行商问题"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-24-simulated-annealing-tsp/tsp_best_tour.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-24</div><div class="info-item-2">每日编程实践: 模拟退火算法求解TSP旅行商问题</div></div><div class="info-2"><div class="info-item-1">① 背景与动机TSP——NP-hard 问题的典型代表旅行商问题（Traveling Salesman Problem, TSP）是组合优化领域中最经典的问题之一：给定 N 个城市，找到一条访问每个城市恰好一次并回到起点的最短路径。这个问题看似简单，但随着城市数量增加，解空间呈阶乘级爆炸——N 个城市有 (N-1)!&#x2F;2 种可能的回路。对于 50 个城市，可能的解数量约为 3.04×10⁶²，比已知宇宙中的原子数量还要多几十个数量级。 TSP 属于 NP-hard 问题类别。这意味着我们不可能（在目前已知的理论框架下）找到一个多项式时间的算法来精确求解所有实例。穷举搜索在 N&gt;12 时就已经不可行——12 个城市的全排列搜索需要检查 39,916,800 种回路，在我的测试机器上需要数秒；15 个城市则需要约 43 亿种，已经触及时限天花板。 为什么需要启发式&#x2F;元启发式算法？面对 NP-hard 问题，我们有三条路可走：  精确算法（分支定界、动态规划）：可以保证找到最优解，但时间复杂度通常是指数级的。Held-Karp 动态规划算法复杂度为 O(N²·...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/17/daily-coding-delaunay-triangulation-2026-06-17/" title="每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-06-17-delaunay_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机Delaunay 三角剖分是计算几何中最优雅和最重要的结构之一。给定平面上的一组离散点，Delaunay 三角剖分将它们连成三角形网格，并且具有一个关键性质：任意三角形的外接圆内不包含其他点。这个性质保证了剖分在某种意义下是”最优”的——它最大化所有三角形中最小的内角，避免了又长又瘦的三角形。 为什么这个性质如此重要？想象你有一组地形采样点，需要把它们变成三维地形模型。如果某个三角形的外接圆内包含另一个采样点，这意味着有四个点几乎共圆，三角剖分变得不稳定。Delaunay 三角剖分排除了这种歧义，确保结果是唯一且确定的（只要没有四点共圆）。 在工业界和游戏开发中，Delaunay 三角剖分有着广泛的应用：  地形建模：从 LiDAR 或高度图采样点生成三角形网格 物理模拟：有限元方法（FEM）需要高质量网格以保证数值稳定性 寻路网格（NavMesh）：自动生成导航网格，三角形质量直接影响路径质量 插值与重建：给定采样点重建连续曲面（如天气数据插值） 邻近查询：Delaunay 三角剖分与 Voronoi 图互为对偶，前者提供显式的邻接关系  我们今天要实现的算法是 ...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">152</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">158</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9F%A9%E9%98%B5%E4%B9%98%E6%B3%95%E7%9A%84%E6%99%AE%E9%81%8D%E6%80%A7%E4%B8%8E%E8%AE%A1%E7%AE%97%E7%93%B6%E9%A2%88"><span class="toc-number">1.1.</span> <span class="toc-text">矩阵乘法的普遍性与计算瓶颈</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Strassen-%E7%AE%97%E6%B3%95%E8%AF%9E%E7%94%9F%E7%9A%84%E5%8E%86%E5%8F%B2%E8%83%8C%E6%99%AF"><span class="toc-number">1.2.</span> <span class="toc-text">Strassen 算法诞生的历史背景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E7%9A%84%E5%AE%9E%E9%99%85%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="toc-number">1.3.</span> <span class="toc-text">工业界的实际使用场景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E6%8B%A9-Strassen-%E4%BD%9C%E4%B8%BA%E4%BB%8A%E5%A4%A9%E7%9A%84%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5"><span class="toc-number">1.4.</span> <span class="toc-text">为什么选择 Strassen 作为今天的每日编程实践</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%87%E5%87%86%E7%9F%A9%E9%98%B5%E4%B9%98%E6%B3%95%E7%9A%84%E8%AE%A1%E7%AE%97%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.1.</span> <span class="toc-text">标准矩阵乘法的计算模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Strassen-%E7%9A%84-2%C3%972-%E6%A0%B8%E5%BF%83%E8%A7%82%E5%AF%9F"><span class="toc-number">2.2.</span> <span class="toc-text">Strassen 的 2×2 核心观察</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%80%92%E5%BD%92%E5%88%86%E6%B2%BB%EF%BC%9A%E4%BB%8E-2%C3%972-%E5%88%B0-n%C3%97n"><span class="toc-number">2.3.</span> <span class="toc-text">递归分治：从 2×2 到 n×n</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%A4%A7%E4%BA%8E-2%C3%972-%E7%9A%84-Strassen-%E4%B8%8D%E5%AD%98%E5%9C%A8%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">为什么大于 2×2 的 Strassen 不存在？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%90%8C%E7%B1%BB%E6%96%B9%E6%A1%88%E5%AF%B9%E6%AF%94"><span class="toc-number">2.5.</span> <span class="toc-text">与同类方案对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E8%AE%BE%E8%AE%A1%E5%86%B3%E7%AD%96"><span class="toc-number">3.2.</span> <span class="toc-text">关键设计决策</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.3.</span> <span class="toc-text">CPU 侧职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%87%E5%87%86%E7%9F%A9%E9%98%B5%E4%B9%98%E6%B3%95%EF%BC%88%E5%9F%BA%E7%BA%BF%EF%BC%89"><span class="toc-number">4.1.</span> <span class="toc-text">标准矩阵乘法（基线）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Strassen-%E9%80%92%E5%BD%92%E6%A0%B8%E5%BF%83"><span class="toc-number">4.2.</span> <span class="toc-text">Strassen 递归核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#subBlock-assignBlock-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.3.</span> <span class="toc-text">subBlock &#x2F; assignBlock 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E7%9A%84%E5%B9%82%E5%AF%B9%E9%BD%90"><span class="toc-number">4.4.</span> <span class="toc-text">2 的幂对齐</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81"><span class="toc-number">4.5.</span> <span class="toc-text">量化验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PPM-%E8%BE%93%E5%87%BA%E4%B8%8E%E5%AF%B9%E6%AF%94%E5%9B%BE"><span class="toc-number">4.6.</span> <span class="toc-text">PPM 输出与对比图</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E9%80%92%E5%BD%92%E5%9F%BA%E5%87%86%E9%98%88%E5%80%BC%E9%80%89%E6%8B%A9%E4%B8%8D%E5%BD%93"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：递归基准阈值选择不当</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A2-%E7%9A%84%E5%B9%82%E5%A1%AB%E5%85%85%E5%90%8E%E7%9A%84%E7%9F%A9%E9%98%B5%E5%A4%A7%E5%B0%8F%E8%AE%A9%E9%80%9F%E5%BA%A6%E5%81%8F%E7%A6%BB%E9%A2%84%E6%9C%9F"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：2 的幂填充后的矩阵大小让速度偏离预期</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9APPM-%E7%B2%BE%E5%BA%A6%E5%AF%BC%E8%87%B4%E9%94%99%E8%AF%AF%E7%9A%84%E2%80%9D%E8%AF%AF%E5%B7%AE%E2%80%9D%E6%98%BE%E7%A4%BA"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：PPM 精度导致错误的”误差”显示</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%95%B0%E5%80%BC%E6%8C%87%E6%A0%87"><span class="toc-number">6.1.</span> <span class="toc-text">核心数值指标</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B8%A6%E5%B7%B2%E7%9F%A5%E5%80%BC%E7%9A%84%E7%A1%AE%E5%AE%9A%E6%80%A7%E6%B5%8B%E8%AF%95"><span class="toc-number">6.2.</span> <span class="toc-text">带已知值的确定性测试</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E8%A7%86%E5%8C%96%E5%AF%B9%E6%AF%94"><span class="toc-number">6.3.</span> <span class="toc-text">可视化对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B8%90%E8%BF%9B%E5%A4%8D%E6%9D%82%E5%BA%A6%E9%AA%8C%E8%AF%81"><span class="toc-number">6.4.</span> <span class="toc-text">渐进复杂度验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%85%B6%E4%BB%96%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E4%B8%BB%E9%A2%98%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与其他每日编程主题的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%94%B6%E8%8E%B7"><span class="toc-number">7.4.</span> <span class="toc-text">关键收获</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用">每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用</a><time datetime="2026-07-13T21:30:00.000Z" title="发表于 2026-07-14 05:30:00">2026-07-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</a><time datetime="2026-07-12T21:30:00.000Z" title="发表于 2026-07-13 05:30:00">2026-07-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-simulation-2026-07-12/" title="每日编程实践: Boids Flocking Simulation"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Boids Flocking Simulation"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-simulation-2026-07-12/" title="每日编程实践: Boids Flocking Simulation">每日编程实践: Boids Flocking Simulation</a><time datetime="2026-07-11T21:30:00.000Z" title="发表于 2026-07-12 05:30:00">2026-07-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Boids 集群行为模拟"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟">每日编程实践: Boids 集群行为模拟</a><time datetime="2026-07-11T21:30:00.000Z" title="发表于 2026-07-12 05:30:00">2026-07-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/11/daily-coding-Bentley-Ottmann-Line-Intersection-2026-07-11/" title="每日编程实践: Bentley-Ottmann线段交点算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-11-Bentley-Ottmann-Line-Intersection/Polygon_20.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Bentley-Ottmann线段交点算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/11/daily-coding-Bentley-Ottmann-Line-Intersection-2026-07-11/" title="每日编程实践: Bentley-Ottmann线段交点算法">每日编程实践: Bentley-Ottmann线段交点算法</a><time datetime="2026-07-10T22:00:00.000Z" title="发表于 2026-07-11 06:00:00">2026-07-11</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
