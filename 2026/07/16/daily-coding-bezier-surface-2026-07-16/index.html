@@ -1,0 +1,482 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 贝塞尔曲面渲染器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)① 背景与动机在计算机图形学中，表示光滑曲面的能力是几乎所有三维建模工具的基础。从 Maya 和 Blender 中的曲面建模，到汽车外形的工业设计，再到角色动画中的皮肤变形，光滑曲面无处不在。 没有曲面表示时的痛点：如果只用三角形网格，要表达一个光滑的曲面（比如汽车引擎盖）需要成千上万个三角形。这不仅浪费内存，也让编">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 贝塞尔曲面渲染器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/16/daily-coding-bezier-surface-2026-07-16/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)① 背景与动机在计算机图形学中，表示光滑曲面的能力是几乎所有三维建模工具的基础。从 Maya 和 Blender 中的曲面建模，到汽车外形的工业设计，再到角色动画中的皮肤变形，光滑曲面无处不在。 没有曲面表示时的痛点：如果只用三角形网格，要表达一个光滑的曲面（比如汽车引擎盖）需要成千上万个三角形。这不仅浪费内存，也让编">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png">
+<meta property="article:published_time" content="2026-07-15T21:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-15T21:36:28.165Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="计算几何">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 贝塞尔曲面渲染器",
+  "url": "https://chiuhoukazusa.github.io/2026/07/16/daily-coding-bezier-surface-2026-07-16/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png",
+  "datePublished": "2026-07-15T21:30:00.000Z",
+  "dateModified": "2026-07-15T21:36:28.165Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/16/daily-coding-bezier-surface-2026-07-16/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 贝塞尔曲面渲染器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 贝塞尔曲面渲染器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 贝塞尔曲面渲染器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-15T21:30:00.000Z" title="发表于 2026-07-16 05:30:00">2026-07-16</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-15T21:36:28.165Z" title="更新于 2026-07-16 05:36:28">2026-07-16</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践：贝塞尔曲面渲染器-Bicubic-Bezier-Surface"><a href="#每日编程实践：贝塞尔曲面渲染器-Bicubic-Bezier-Surface" class="headerlink" title="每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)"></a>每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)</h1><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在计算机图形学中，表示光滑曲面的能力是几乎所有三维建模工具的基础。从 Maya 和 Blender 中的曲面建模，到汽车外形的工业设计，再到角色动画中的皮肤变形，光滑曲面无处不在。</p>
+<p><strong>没有曲面表示时的痛点</strong>：如果只用三角形网格，要表达一个光滑的曲面（比如汽车引擎盖）需要成千上万个三角形。这不仅浪费内存，也让编辑修改变得极其困难——移动一个顶点可能破坏光滑性，需要手动调整几十个相邻顶点来恢复形体的流畅感。</p>
+<p><strong>贝塞尔曲面的优势</strong>：仅需 16 个控制点（4×4 网格），就定义了任意精细程度的光滑曲面。这解决了三个核心问题：</p>
+<ol>
+<li><strong>紧凑表示</strong>：数据量极小，16 个点 vs 数千个三角面</li>
+<li><strong>直觉编辑</strong>：设计师拖动控制点即可直观地改变曲面形状——曲面会”跟随”控制点运动，但不一定穿过所有控制点</li>
+<li><strong>数学保证光滑</strong>：由于 Bernstein 多项式的 C^∞ 连续性，曲面在任意位置都是无限可微的</li>
+</ol>
+<p><strong>工业界使用场景</strong>：</p>
+<ul>
+<li><strong>汽车工业</strong>：Pierre Bézier 本人在雷诺汽车公司工作时发明了贝塞尔曲线和曲面，用于汽车外形设计。至今 CATIA 等 CAD 软件仍以此为核心建模基元</li>
+<li><strong>动画与特效</strong>：Bézier 曲面变形器（FFD，Free-Form Deformation）用于《玩具总动员》等影片中的角色动画，通过对控制晶格的操纵改变模型形状</li>
+<li><strong>字体设计</strong>：TrueType 和 OpenType 字体中的曲线轮廓由二次贝塞尔曲线构成，PostScript 字体使用三次贝塞尔曲线</li>
+</ul>
+<p>本文将从零实现一个双三次贝塞尔曲面渲染器，通过数学原理、代码实现、量化验证三步走，最终生成带 Phong 光照的曲面渲染图。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-从贝塞尔曲线到贝塞尔曲面"><a href="#2-1-从贝塞尔曲线到贝塞尔曲面" class="headerlink" title="2.1 从贝塞尔曲线到贝塞尔曲面"></a>2.1 从贝塞尔曲线到贝塞尔曲面</h3><p>贝塞尔曲线由一组控制点和一个参数方程定义：</p>
+<p>$$<br>\mathbf{P}(t) &#x3D; \sum_{i&#x3D;0}^{n} \mathbf{P}_i \cdot B_i^n(t), \quad t \in [0,1]<br>$$</p>
+<p>其中 $B_i^n(t) &#x3D; \binom{n}{i} t^i (1-t)^{n-i}$ 是 Bernstein 多项式。</p>
+<p><strong>直觉理解</strong>：可以把 $B_i^n(t)$ 理解为”第 $i$ 个控制点 $\mathbf{P}_i$ 在参数 $t$ 处的影响力”。当 $t&#x3D;0$ 时，只有 $B_0^n(0)&#x3D;1$（其他为 0），所以曲线起点恰好是 $\mathbf{P}_0$；当 $t&#x3D;1$ 时同理，终点恰好是 $\mathbf{P}_n$。这是<strong>端点插值性质</strong>——贝塞尔曲线穿过首尾控制点，但不一定穿过中间控制点。</p>
+<p><strong>贝塞尔曲面是曲线的张量积扩展</strong>。给定一个 $4\times4$ 的控制网格 ${\mathbf{P}_{ij}}$，曲面点由两个方向的参数 $(u,v) \in [0,1]^2$ 决定：</p>
+<p>$$<br>\mathbf{S}(u,v) &#x3D; \sum_{i&#x3D;0}^{3}\sum_{j&#x3D;0}^{3} \mathbf{P}_{ij} \cdot B_i^3(u) \cdot B_j^3(v)<br>$$</p>
+<p><strong>直觉解释</strong>：</p>
+<ul>
+<li>固定 $v$，$\mathbf{S}(u, v_0)$ 是一条贝塞尔曲线（控制点是 $\sum_j \mathbf{P}_{ij} B_j^3(v_0)$）</li>
+<li>固定 $u$，$\mathbf{S}(u_0, v)$ 是另一条贝塞尔曲线</li>
+<li>整个曲面是”双向曲线”的张量积——在 $u$ 和 $v$ 两个方向同时插值</li>
+</ul>
+<p>这个公式的优美之处在于：它把二维曲面问题分解为两个一维贝塞尔曲线问题的乘积，极大地简化了计算。对于任意 $(u,v)$，我们只需要计算 16 个 Bernstein 基函数的值，做 16 次加权平均即可得到空间中的点。</p>
+<hr>
+<h3 id="2-2-Bernstein-多项式"><a href="#2-2-Bernstein-多项式" class="headerlink" title="2.2 Bernstein 多项式"></a>2.2 Bernstein 多项式</h3><p>三次 Bernstein 基函数是：</p>
+<p>$$<br>\begin{aligned}<br>B_0^3(t) &amp;&#x3D; (1-t)^3 \<br>B_1^3(t) &amp;&#x3D; 3t(1-t)^2 \<br>B_2^3(t) &amp;&#x3D; 3t^2(1-t) \<br>B_3^3(t) &amp;&#x3D; t^3<br>\end{aligned}<br>$$</p>
+<p>这些基函数具有关键的<strong>单位分割</strong>性质：对所有 $t$，$\sum_{i&#x3D;0}^{3} B_i^3(t) &#x3D; 1$。这意味着曲面上的任何点都是控制点的凸组合，曲面始终落在控制网格的凸包内。这是为什么贝塞尔曲面”行为可预测”的数学保证——设计师可以确信曲面不会突然飞到控制网格外面去。</p>
+<p><strong>一般形式</strong>：<br>$$B_i^n(t) &#x3D; \binom{n}{i} t^i (1-t)^{n-i}$$</p>
+<p>其中二项式系数 $\binom{n}{i} &#x3D; \frac{n!}{i!(n-i)!}$ 决定每个控制点的最大影响力。</p>
+<p>下面是一张各基函数在 $t\in[0,1]$ 上的形状描述：</p>
+<ul>
+<li>$B_0^3(t)$：在 $t&#x3D;0$ 处为 1，单调递减到 0——控制点 $\mathbf{P}_0$ 在曲线的起点处影响最大</li>
+<li>$B_1^3(t)$：在 $t&#x3D;0$ 处为 0，先增后减到 0——$\mathbf{P}_1$ 在 $t \approx 1&#x2F;3$ 处影响最大</li>
+<li>$B_2^3(t)$：形状类似 $B_1^3$ 但对称到 $t \approx 2&#x2F;3$——$\mathbf{P}_2$ 在靠右半段起作用</li>
+<li>$B_3^3(t)$：在 $t&#x3D;0$ 处为 0，单调递增到 1——$\mathbf{P}_3$ 在曲线末尾区域主导</li>
+</ul>
+<hr>
+<h3 id="2-3-曲面法线计算"><a href="#2-3-曲面法线计算" class="headerlink" title="2.3 曲面法线计算"></a>2.3 曲面法线计算</h3><p>光照计算需要曲面在每个点上的法线。对于参数曲面，法线 &#x3D; 两个切向量的叉积：</p>
+<p>$$<br>\mathbf{N}(u,v) &#x3D; \frac{\partial \mathbf{S}}{\partial u} \times \frac{\partial \mathbf{S}}{\partial v}<br>$$</p>
+<p><strong>为什么是叉积？</strong> 切向量 $\partial \mathbf{S}&#x2F;\partial u$ 是曲面上”沿 $u$ 方向移动”的瞬时方向，$\partial \mathbf{S}&#x2F;\partial v$ 同理。这两个切向量张成了曲面在该点的切平面，而法线垂直于该切平面。叉积恰好产生了这样一个垂直于两个切向量的向量。</p>
+<p><strong>叉积的几何含义</strong>：$\mathbf{a} \times \mathbf{b}$ 的长度等于以 $\mathbf{a},\mathbf{b}$ 为边的平行四边形的面积。这个”面积”越大，说明曲面在该点越”陡峭”（两个切向量张得越开）。归一化后的单位法线方向则决定了光照中漫反射和高光的方向。</p>
+<p>偏导数的计算通过 Bernstein 基函数的导数完成。三次 Bernstein 基函数的导数为：</p>
+<p>$$<br>\begin{aligned}<br>\frac{dB_0^3}{dt} &amp;&#x3D; -3(1-t)^2 \<br>\frac{dB_1^3}{dt} &amp;&#x3D; 3(1-t)(1-3t) \<br>\frac{dB_2^3}{dt} &amp;&#x3D; 3t(2-3t) \<br>\frac{dB_3^3}{dt} &amp;&#x3D; 3t^2<br>\end{aligned}<br>$$</p>
+<p><strong>为什么偏导数如此重要？</strong> 因为光照方程中的漫反射项 $\max(0, \mathbf{N}\cdot\mathbf{L})$ 和镜面反射项都依赖于法线方向。如果法线计算错误（例如用三角形面的法线近似），曲面会显得多面体化，失去了光滑渲染的优势。</p>
+<p>利用链式法则，曲面对 $u$ 的偏导数是：</p>
+<p>$$<br>\frac{\partial \mathbf{S}}{\partial u} &#x3D; \sum_{i&#x3D;0}^{3}\sum_{j&#x3D;0}^{3} \mathbf{P}_{ij} \cdot \frac{dB_i^3(u)}{du} \cdot B_j^3(v)<br>$$</p>
+<p>对 $v$ 的偏导数类似，将导数放到 $B_j^3(v)$ 上即可。</p>
+<p><strong>数值稳定性注意事项</strong>：当切向量平行时（如在参数域的退化点），叉积为零向量，无法得到有意义的法线。在实际应用中，贝塞尔曲面在参数域的角点处是双线性插值产生的退化点，但由于我们选取的控制网格在合理范围内，四个角点处切向量不会平行，能产生良好定义的曲面法线。</p>
+<hr>
+<h3 id="2-4-与其他曲面表示的比较"><a href="#2-4-与其他曲面表示的比较" class="headerlink" title="2.4 与其他曲面表示的比较"></a>2.4 与其他曲面表示的比较</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>贝塞尔曲面</strong></td>
+<td>简洁优雅，端点插值保证，设计师友好</td>
+<td>移动一个控制点影响整个曲面（全局性）</td>
+</tr>
+<tr>
+<td><strong>B-样条曲面</strong></td>
+<td>局部控制，更高的灵活性</td>
+<td>更复杂的结点向量（knot vector）配置</td>
+</tr>
+<tr>
+<td><strong>NURBS 曲面</strong></td>
+<td>最通用，能精确表示圆锥曲线（圆&#x2F;椭圆等）</td>
+<td>权重调整不直观</td>
+</tr>
+<tr>
+<td><strong>Catmull-Clark 细分</strong></td>
+<td>支持任意拓扑，电影级曲面</td>
+<td>需要迭代细分，实时渲染性能差</td>
+</tr>
+<tr>
+<td><strong>三角形网格</strong></td>
+<td>GPU 原生加速，工具链完善</td>
+<td>大量数据，编辑不平滑</td>
+</tr>
+</tbody></table>
+<p>选择贝塞尔曲面是因为它是所有参数曲面的基础，理解它就理解了 B-样条和 NURBS 的出发点。B-样条本质上是把多个贝塞尔曲线段拼接起来并保证连续性。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-数据流概览"><a href="#3-1-数据流概览" class="headerlink" title="3.1 数据流概览"></a>3.1 数据流概览</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">控制网格 (4×4 Vec3)</span><br><span class="line">    │</span><br><span class="line">    ├─→ 参数域采样 (50×50 tessellation)</span><br><span class="line">    │     ├─→ evalBezier(u,v) → 3D 位置</span><br><span class="line">    │     ├─→ evaldU(u,v) × evaldV(u,v) → 法线</span><br><span class="line">    │     └─→ 透视投影 → 屏幕坐标</span><br><span class="line">    │</span><br><span class="line">    ├─→ 三角形光栅化（逐像素）</span><br><span class="line">    │     ├─→ Z-Buffer 深度测试</span><br><span class="line">    │     ├─→ Phong 着色（漫反射 + 镜面反射 + 环境光）</span><br><span class="line">    │     └─→ 帧缓冲颜色写入</span><br><span class="line">    │</span><br><span class="line">    └─→ PPM 输出 + 量化验证</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 3D 向量：用 float 三元组表示</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Vec3</span> &#123; <span class="type">float</span> x, y, z; &#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 颜色：字节三元组（范围 0-255）</span></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">Color</span> &#123; <span class="type">unsigned</span> <span class="type">char</span> r, g, b; &#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Z-Buffer：1D float 数组，大小 WIDTH*HEIGHT</span></span><br><span class="line"><span class="comment">// 帧缓冲：1D Color 数组，大小 WIDTH*HEIGHT</span></span><br><span class="line"><span class="function">std::vector&lt;<span class="type">float</span>&gt; <span class="title">zbuffer</span><span class="params">(WIDTH * HEIGHT, <span class="number">1e10f</span>)</span></span>;</span><br><span class="line"><span class="function">std::vector&lt;Color&gt; <span class="title">framebuffer</span><span class="params">(WIDTH * HEIGHT, ...)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>为什么选择这些数据结构？</p>
+<ul>
+<li><strong>Z-Buffer 用 float</strong> 而非 short 或 int：虽然精度要求不高，但 float 避免了定点数转换的复杂性，且深度比较直接</li>
+<li><strong>Color 用 unsigned char</strong>：PPM P6 格式本身就是 RGB 24-bit，字节对齐，直接 memcpy 即可写入</li>
+<li><strong>1D 数组拍平</strong>：WIDTH*HEIGHT 的 1D 布局比 2D 数组更快（缓存友好），且删除越界访问的风险</li>
+</ul>
+<h3 id="3-3-曲面细分策略（Tessellation）"><a href="#3-3-曲面细分策略（Tessellation）" class="headerlink" title="3.3 曲面细分策略（Tessellation）"></a>3.3 曲面细分策略（Tessellation）</h3><p>曲面在参数空间 $(u,v)$ 上进行均匀采样：<code>TESS=50</code> 表示 $50\times50$ 个四边形面片。为什么是 50？</p>
+<ul>
+<li>太少（如 10×10）：四边形过大，投影后的屏幕覆盖率不够，产生孔洞</li>
+<li>太多（如 200×200）：计算量增加 16 倍，但视觉上 50×50 已经足够，因为每个四边形覆盖 20×15 像素左右</li>
+<li><strong>性能分析</strong>：50×50 &#x3D; 2500 个四边形，每个内循环跑约 300 次像素填充（在投影面积内的包围盒），总计约 750k 次像素操作，对于软光栅化来说足够</li>
+</ul>
+<p><strong>为什么不自适应细分？</strong> 自适应细分（在曲率大的地方多采样，平坦处少采样）可以进一步优化，但增加了裂缝（cracking）的风险——相邻面片细分级别不同时会产生 T 形顶点。对这么小的控制网格，均匀细分足够好。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-Bernstein-多项式计算"><a href="#4-1-Bernstein-多项式计算" class="headerlink" title="4.1 Bernstein 多项式计算"></a>4.1 Bernstein 多项式计算</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">float</span> <span class="title">bernstein</span><span class="params">(<span class="type">int</span> i, <span class="type">int</span> n, <span class="type">float</span> t)</span> </span>&#123;</span><br><span class="line">    <span class="type">float</span> coeff = <span class="number">1.0f</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">1</span>; j &lt;= i; ++j) </span><br><span class="line">        coeff = coeff * (n - j + <span class="number">1</span>) / j;</span><br><span class="line">    <span class="keyword">return</span> coeff * std::<span class="built_in">pow</span>(t, i) * std::<span class="built_in">pow</span>(<span class="number">1.0f</span> - t, n - i);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用循环计算组合数而不是预计算？</strong> 虽然 $\binom{3}{i}$ 可以手算（1, 3, 3, 1），但循环写法保持了通用性——如果将来改用 5 次贝塞尔曲面（6 个控制点），只需改一行参数。循环使用<strong>乘法递减法</strong>避免浮点阶乘溢出：</p>
+<p>$$\binom{3}{2} &#x3D; \frac{3 \times 2}{2 \times 1} &#x3D; 3$$</p>
+<h3 id="4-2-曲面求值"><a href="#4-2-曲面求值" class="headerlink" title="4.2 曲面求值"></a>4.2 曲面求值</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Vec3 <span class="title">evalBezier</span><span class="params">(<span class="type">const</span> Vec3 ctrl[<span class="number">4</span>][<span class="number">4</span>], <span class="type">float</span> u, <span class="type">float</span> v)</span> </span>&#123;</span><br><span class="line">    Vec3 result;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">4</span>; ++i)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; <span class="number">4</span>; ++j)</span><br><span class="line">            result = result + ctrl[i][j] </span><br><span class="line">                     * (<span class="built_in">bernstein</span>(i, <span class="number">3</span>, u) * <span class="built_in">bernstein</span>(j, <span class="number">3</span>, v));</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是张量积曲面定义公式的直接翻译。$B_i^3(u) \times B_j^3(v)$ 给出了控制点 $\mathbf{P}_{ij}$ 在参数 $(u,v)$ 处的权重。</p>
+<p><strong>张量积展开的计算量分析</strong>：<br>对于每个 $(u,v)$ 采样点，<code>evalBezier</code> 做了 16 次 Bernstein 基函数求值和 16 次向量加权。其中每次 <code>bernstein</code> 涉及 1 次 <code>std::pow</code> 和 1 次循环（4 次迭代最坏情况）。总计每个采样点约 64 次乘法和 16 次 <code>std::pow</code> 调用。对于 50×50 的细分，共 2500 个采样点，$\approx 160k$ 次乘法和 $40k$ 次 <code>std::pow</code>——在 CPU 上完全可实时完成（&lt; 10ms）。</p>
+<p><strong>与 de Casteljau 算法的对比</strong>：<br>de Casteljau 算法通过递归线性插值求贝塞尔曲线上的点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">P_i^0 = P_i                           (初始控制点)</span><br><span class="line">P_i^k = (1-t) * P_i^&#123;k-1&#125; + t * P_&#123;i+1&#125;^&#123;k-1&#125;   (k 次迭代)</span><br><span class="line">P_0^n = 曲线上的点</span><br></pre></td></tr></table></figure>
+
+<p>de Casteljau 对于单条曲线需要 $O(n^2)$ 次线性插值（n&#x3D;3 时为 6 次），而 Bernstein 展开法需要 4 次 $t^i (1-t)^{n-i}$ 求值 + 4 次加法。两种方法在数学上等价，但 de Casteljau 更<strong>数值稳定</strong>：它只用加法乘法，避免了 $t&#x3D;0$ 或 $t&#x3D;1$ 处 $0^0$ 的数值问题。在真正的工业代码中，de Casteljau 是首选的求值方法。本实现使用 Bernstein 展开是因为它更直接映射到数学公式，便于理解。</p>
+<p><strong>容易写错的地方</strong>：</p>
+<ul>
+<li>混淆 <code>i</code> 和 <code>j</code> 分别对应 <code>u</code> 还是 <code>v</code>——这里 <code>i</code> 索引对应 $u$ 方向（列），<code>j</code> 对应 $v$ 方向（行），与控制网格 <code>ctrl[i][j]</code> 一致</li>
+<li>忘记录入所有 16 个控制点——编译器不会报错，但曲面会变形。务必确认控制网格的形状是你想要的</li>
+<li>忘了归一化法线——光照模型假设法线是单位向量，<code>cross()</code> 后的向量长度等于两切向量张成的平行四边形面积，不一定是 1</li>
+</ul>
+<h3 id="4-3-偏导数与法线"><a href="#4-3-偏导数与法线" class="headerlink" title="4.3 偏导数与法线"></a>4.3 偏导数与法线</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Bernstein 基函数的导数</span></span><br><span class="line"><span class="function"><span class="type">float</span> <span class="title">dbernstein</span><span class="params">(<span class="type">int</span> i, <span class="type">float</span> t)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (i == <span class="number">0</span>) <span class="keyword">return</span> <span class="number">-3.0f</span> * std::<span class="built_in">pow</span>(<span class="number">1.0f</span> - t, <span class="number">2</span>);</span><br><span class="line">    <span class="keyword">if</span> (i == <span class="number">1</span>) <span class="keyword">return</span> <span class="number">3.0f</span> * (<span class="number">1.0f</span> - t) * (<span class="number">1.0f</span> - <span class="number">3.0f</span> * t);</span><br><span class="line">    <span class="keyword">if</span> (i == <span class="number">2</span>) <span class="keyword">return</span> <span class="number">3.0f</span> * t * (<span class="number">2.0f</span> - <span class="number">3.0f</span> * t);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">3.0f</span> * t * t;  <span class="comment">// i == 3</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 对 u 的偏导数</span></span><br><span class="line"><span class="function">Vec3 <span class="title">evaldU</span><span class="params">(<span class="type">const</span> Vec3 ctrl[<span class="number">4</span>][<span class="number">4</span>], <span class="type">float</span> u, <span class="type">float</span> v)</span> </span>&#123;</span><br><span class="line">    Vec3 result;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">4</span>; ++i)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; <span class="number">4</span>; ++j)</span><br><span class="line">            result = result + ctrl[i][j] </span><br><span class="line">                     * (<span class="built_in">dbernstein</span>(i, u) * <span class="built_in">bernstein</span>(j, <span class="number">3</span>, v));</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 法线 = 两个切向量的叉积的归一化</span></span><br><span class="line"><span class="function">Vec3 <span class="title">evalNormal</span><span class="params">(<span class="type">const</span> Vec3 ctrl[<span class="number">4</span>][<span class="number">4</span>], <span class="type">float</span> u, <span class="type">float</span> v)</span> </span>&#123;</span><br><span class="line">    Vec3 du = <span class="built_in">evaldU</span>(ctrl, u, v);</span><br><span class="line">    Vec3 dv = <span class="built_in">evaldV</span>(ctrl, u, v);</span><br><span class="line">    <span class="keyword">return</span> du.<span class="built_in">cross</span>(dv).<span class="built_in">normalize</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>dbernstein</code> 展开为显式公式而非调用通用导数，原因有三：</p>
+<ol>
+<li><strong>性能</strong>：每次曲面求值调 16 次 <code>bernstein</code>，展开可以避免分支和循环</li>
+<li><strong>稳定性</strong>：避免在 $t&#x3D;0$ 或 $t&#x3D;1$ 处数值微分的不稳定</li>
+<li><strong>正确性</strong>：确保导数的闭式表达一致于定义</li>
+</ol>
+<h3 id="4-4-透视投影"><a href="#4-4-透视投影" class="headerlink" title="4.4 透视投影"></a>4.4 透视投影</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> proj = [&amp;](<span class="type">const</span> Vec3&amp; p) -&gt; std::pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt; &#123;</span><br><span class="line">    <span class="type">float</span> px = p.x / (camZ - p.z) * scale + cx;</span><br><span class="line">    <span class="type">float</span> py = -p.y / (camZ - p.z) * scale + cy;</span><br><span class="line">    <span class="keyword">return</span> &#123;(<span class="type">int</span>)(px + <span class="number">0.5f</span>), (<span class="type">int</span>)(py + <span class="number">0.5f</span>)&#125;;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键的 <code>-p.y</code> 是因为屏幕坐标的 Y 轴向下（PPM 左上角为原点），而世界空间的 Y 轴向上。这个 <code>-</code> 号是最容易被遗忘的细节。<em>（历史教训：2&#x2F;20 的坐标系 Bug 就是因为忘了这个翻转）</em></p>
+<p>投影使用单点透视（类似 pinhole camera 模型）。<code>scale</code> 参数计算自 <code>fov</code>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">float</span> fov = <span class="number">60.0f</span> * M_PI / <span class="number">180.0f</span>;</span><br><span class="line"><span class="type">float</span> scale = HEIGHT * <span class="number">0.5f</span> / std::<span class="built_in">tan</span>(fov * <span class="number">0.5f</span>);</span><br></pre></td></tr></table></figure>
+
+<p>$ \tan(30^\circ) &#x3D; 1&#x2F;\sqrt{3} \approx 0.577 $，取 $scale &#x3D; 384 &#x2F; 0.577 \approx 665$。</p>
+<h3 id="4-5-光栅化循环与-Phong-着色"><a href="#4-5-光栅化循环与-Phong-着色" class="headerlink" title="4.5 光栅化循环与 Phong 着色"></a>4.5 光栅化循环与 Phong 着色</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> iu = <span class="number">0</span>; iu &lt; TESS; ++iu) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> iv = <span class="number">0</span>; iv &lt; TESS; ++iv) &#123;</span><br><span class="line">        <span class="comment">// 4 个角点 + 4 个法线</span></span><br><span class="line">        Vec3 p00 = <span class="built_in">evalBezier</span>(ctrl, u0, v0);  <span class="comment">// ... etc</span></span><br><span class="line">        Vec3 n00 = <span class="built_in">evalNormal</span>(ctrl, u0, v0);  <span class="comment">// ... etc</span></span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 投影到屏幕</span></span><br><span class="line">        <span class="comment">// 计算包围盒</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> y = minY; y &lt;= maxY; ++y) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> x = minX; x &lt;= maxX; ++x) &#123;</span><br><span class="line">                <span class="comment">// Z-Buffer 深度测试</span></span><br><span class="line">                <span class="type">float</span> depth = camZ - pos.z;</span><br><span class="line">                <span class="keyword">if</span> (depth &gt;= zbuffer[idx]) <span class="keyword">continue</span>;</span><br><span class="line">                </span><br><span class="line">                <span class="comment">// Phong 光照</span></span><br><span class="line">                Vec3 n = <span class="built_in">bilinear_interpolate</span>(n00,n10,n01,n11,ax,ay);</span><br><span class="line">                <span class="type">float</span> NdotL = <span class="built_in">clamp</span>(n.<span class="built_in">dot</span>(lightDir), <span class="number">0</span>, <span class="number">1</span>);</span><br><span class="line">                <span class="type">float</span> spec = <span class="built_in">pow</span>(<span class="built_in">clamp</span>(n.<span class="built_in">dot</span>(halfVector), <span class="number">0</span>, <span class="number">1</span>), shininess);</span><br><span class="line">                Vec3 col = ambient + diffuse * NdotL + specular * spec;</span><br><span class="line">                </span><br><span class="line">                zbuffer[idx] = depth;</span><br><span class="line">                framebuffer[idx] = <span class="built_in">Color</span>(col);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Phong 光照模型的三项</strong>：</p>
+<ol>
+<li><strong>环境光</strong> (<code>ambient * 0.3</code>)：模拟多次散射的恒定光，防止背面全黑。乘 0.3 是因为环境光只是近似，不宜过强</li>
+<li><strong>漫反射</strong> (<code>diffuse * NdotL</code>)：Lambertian 反射，$\max(\mathbf{N}\cdot\mathbf{L}, 0)$ 表示光照随法线与光源夹角余弦衰减</li>
+<li><strong>镜面反射</strong> (<code>specular * spec^32</code>)：Blinn-Phong 近似，用半角向量 $\mathbf{H}&#x3D;(\mathbf{L}+\mathbf{V})&#x2F;|\mathbf{L}+\mathbf{V}|$ 代替反射向量计算，性能更好且视觉差别很小</li>
+</ol>
+<p><strong>为什么用 Z-Buffer 而不是画家算法？</strong> 贝塞尔曲面本身是没有自遮挡的简单曲面，但多个四边形面片会在屏幕空间重叠（尤其在曲面弯折处）。Z-Buffer 以像素级精度解决了遮挡问题，不需要为四边形排深度序。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="坑-1：法线方向反转"><a href="#坑-1：法线方向反转" class="headerlink" title="坑 1：法线方向反转"></a>坑 1：法线方向反转</h3><p><strong>症状</strong>：渲染的曲面一侧亮一侧暗，但暗的表面应该是朝光源的。</p>
+<p><strong>错误假设</strong>：以为 <code>evaldU × evaldV</code> 自动产生正确的向外法线。</p>
+<p><strong>真实原因</strong>：叉积的方向取决于 $(u,v)$ 参数化方向。对于我这个控制网格，<code>du × dv</code> 在某些区域指向上表面，在某些区域指向下表面，因为参数化的方向和我直观认知的”外表面”方向不一致。</p>
+<p><strong>修复方式</strong>：对每个四边形，比较法线 $\mathbf{N}$ 和视角向量 $\mathbf{V}$ 的点积。当 $\mathbf{N} \cdot \mathbf{V} &lt; 0$（法线背向摄像机），手动翻转法线方向。但在我的实现中，经过仔细设置控制网格后，所有可见面的法线都正确朝外，不需要翻转。</p>
+<h3 id="坑-2：包围盒内所有像素都被着色"><a href="#坑-2：包围盒内所有像素都被着色" class="headerlink" title="坑 2：包围盒内所有像素都被着色"></a>坑 2：包围盒内所有像素都被着色</h3><p><strong>症状</strong>：四边形之间的间隙和不平滑的渲染边缘。</p>
+<p><strong>错误假设</strong>：包围盒内的所有像素都属于当前四边形。</p>
+<p><strong>真实原因</strong>：投影后的四边形不一定是凸的（在特定视角下），包围盒覆盖了本应属于相邻四边形甚至背景的像素。</p>
+<p><strong>修复方式</strong>：Z-Buffer 深度测试解决了这个问题——只有距离相机最近的像素被写入最终帧缓冲。如果两个四边形重叠在同一像素上，较近的一个会赢得 Z-Buffer 竞争。</p>
+<h3 id="坑-3：Color-构造函数的歧义调用"><a href="#坑-3：Color-构造函数的歧义调用" class="headerlink" title="坑 3：Color 构造函数的歧义调用"></a>坑 3：Color 构造函数的歧义调用</h3><p><strong>症状</strong>：编译失败，报错 <code>call of overloaded &#39;Color(&lt;brace-enclosed initializer list&gt;)&#39; is ambiguous</code>。</p>
+<p><strong>错误假设</strong>：<code>Color{30, 50, 80}</code> 会自动推断为 <code>Color(unsigned char, unsigned char, unsigned char)</code>。</p>
+<p><strong>真实原因</strong>：C++ 中 <code>{30, 50, 80}</code> 既可以匹配 <code>Color(unsigned char, unsigned char, unsigned char)</code> 也可以匹配 <code>Color(float, float, float)</code>——因为整数字面量同时可以隐式转换到 <code>unsigned char</code> 和 <code>float</code>。</p>
+<p><strong>修复方式</strong>：</p>
+<ol>
+<li>方案 A：用 <code>Color(30, 50, 80)</code> 替代 <code>Color{30, 50, 80}</code>，圆括号初始化优先匹配精确类型</li>
+<li>方案 B：删除 <code>Color(float, float, float)</code> 构造，改用静态工厂方法 <code>Color::fromFloat()</code>——这是我最终的选择，它在语义上更清晰</li>
+</ol>
+<h3 id="坑-4：单元测试被跳过"><a href="#坑-4：单元测试被跳过" class="headerlink" title="坑 4：单元测试被跳过"></a>坑 4：单元测试被跳过</h3><p><strong>症状</strong>：代码编译成功、运行成功、输出 PPM 文件，但量化验证输出显示 P(0,1) 和 P(1,0) 的期望值写反了。</p>
+<p><strong>错误假设</strong>：以为肉眼一看就知道”渲染正确了”。</p>
+<p><strong>真实原因</strong>：没有认真分析每个测试用例的输出。实际上是期望值写错了（我把 u&#x2F;v 对应的角点搞反了），实际计算完全正确。<strong>这就是为什么量化验证不能省略</strong>——如果靠眼睛看，”看起来没错” 和”精确无误”之间的差距可能永远发现不了。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="6-1-像素统计"><a href="#6-1-像素统计" class="headerlink" title="6.1 像素统计"></a>6.1 像素统计</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>红色通道</th>
+<th>绿色通道</th>
+<th>蓝色通道</th>
+<th>平均</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>均值</td>
+<td>50.4</td>
+<td>73.7</td>
+<td>103.8</td>
+<td>75.9</td>
+</tr>
+<tr>
+<td>标准差</td>
+<td>17.9</td>
+<td>34.2</td>
+<td>50.2</td>
+<td>34.1</td>
+</tr>
+</tbody></table>
+<ul>
+<li>像素均值 75.9（范围 10-240 ✅），排除了全黑&#x2F;全白</li>
+<li>标准差 34.1（&gt;5 ✅），证实图像有丰富的内容变化</li>
+<li>输出图片大小：2304 KB（1024×768 PPM P6 格式）</li>
+</ul>
+<h3 id="6-2-几何验证"><a href="#6-2-几何验证" class="headerlink" title="6.2 几何验证"></a>6.2 几何验证</h3><table>
+<thead>
+<tr>
+<th>检查项</th>
+<th>结果</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>角点插值误差</td>
+<td>0.000000</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>中心深度 vs 角点</td>
+<td>差值 2.531</td>
+<td>✅ 有曲率</td>
+</tr>
+<tr>
+<td>法线角度标准差</td>
+<td>13.12°</td>
+<td>✅ 非平坦</td>
+</tr>
+<tr>
+<td>最大法线偏离</td>
+<td>59.35°</td>
+<td>✅ 曲面弯曲</td>
+</tr>
+<tr>
+<td>曲面近似面积</td>
+<td>50.477 平方单位</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-端点插值性质"><a href="#6-3-端点插值性质" class="headerlink" title="6.3 端点插值性质"></a>6.3 端点插值性质</h3><p>贝塞尔曲面的理论特性：角点恰好穿越对应的控制顶点。这是由 Bernstein 基函数在端点的特殊性质保证的：</p>
+<p>$$<br>B_0^3(0)&#x3D;1, B_1^3(0)&#x3D;B_2^3(0)&#x3D;B_3^3(0)&#x3D;0<br>$$<br>$$<br>B_3^3(1)&#x3D;1, B_0^3(1)&#x3D;B_1^3(1)&#x3D;B_2^3(1)&#x3D;0<br>$$</p>
+<p>在 $(u,v)&#x3D;(0,0)$ 处，只有 $B_0^3(0) \cdot B_0^3(0) &#x3D; 1$，其他 15 个基函数的乘积都是 0，所以 $\mathbf{S}(0,0) &#x3D; \mathbf{P}_{00}$。同理可证其他三个角点的插值性质。验证结果：</p>
+<ul>
+<li>P(0,0) &#x3D; (-3.000, -3.000, 2.000) &#x3D; 控制点 [0][0] ✅</li>
+<li>P(1,1) &#x3D; (3.000, 3.000, 2.000) &#x3D; 控制点 [3][3] ✅</li>
+<li>P(0,1) &#x3D; (-3.000, 3.000, 2.000) &#x3D; 控制点 [0][3] ✅</li>
+<li>P(1,0) &#x3D; (3.000, -3.000, 2.000) &#x3D; 控制点 [3][0] ✅</li>
+</ul>
+<p><strong>平均角点误差：0.000000</strong>（浮点精度完全一致），证实 Bernstein 基函数的端点插值性质实现正确。</p>
+<h3 id="6-4-鞍面曲率分析"><a href="#6-4-鞍面曲率分析" class="headerlink" title="6.4 鞍面曲率分析"></a>6.4 鞍面曲率分析</h3><p>我设计的控制网格将中心四个控制点（索引 [1][1]、[1][2]、[2][1]、[2][2]）的 Z 坐标压低到 -2.5，而角点和边缘在 +2.0。这创造了一个<strong>双曲鞍面</strong>（hyperbolic paraboloid）：</p>
+<ul>
+<li>角点平均 Z：2.000</li>
+<li>中心点 Z：-0.531（在控制点凹陷处上方）</li>
+<li>Z 相差 2.531，具有明显的鞍形曲率</li>
+</ul>
+<p>这是贝塞尔曲面的全局控制特性体现：中心区虽然被压低到 -2.5，但因为周围控制点的拉拽（拉力通过 Bernstein 权重传播），中心实际 Z 值”仅”降到 -0.531。这说明设计师压低中心控制点时，曲面其他部分也会受到委婉的影响。</p>
+<h3 id="6-5-渲染效果图"><a href="#6-5-渲染效果图" class="headerlink" title="6.5 渲染效果图"></a>6.5 渲染效果图</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png" alt="贝塞尔曲面渲染结果"></p>
+<p>图中可以清晰看到：</p>
+<ul>
+<li>蓝色调的 Phong 高光在曲面中部，反映了光源位置</li>
+<li>曲面四角向上翘、中心下凹的鞍形结构</li>
+<li>法线方向的连续变化带来平滑的光照过渡</li>
+<li>深蓝到浅蓝的渐变是由于曲面不同位置的法线与光源夹角变化</li>
+</ul>
+<h3 id="6-6-性能分析"><a href="#6-6-性能分析" class="headerlink" title="6.6 性能分析"></a>6.6 性能分析</h3><p>虽然这是 CPU 软光栅化原型，但了解一下性能特征有助于理解算法的效率。测试环境：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>曲面求值次数</td>
+<td>2500 (50×50 采样点)</td>
+</tr>
+<tr>
+<td>Bernstein 基函数调用</td>
+<td>40,000 (每点 16 次)</td>
+</tr>
+<tr>
+<td>像素填充操作</td>
+<td>~750,000 (包围盒遍历)</td>
+</tr>
+<tr>
+<td>输出分辨率</td>
+<td>1024×768</td>
+</tr>
+<tr>
+<td>Z-Buffer 测试</td>
+<td>~750,000 次</td>
+</tr>
+</tbody></table>
+<p><strong>复杂度分析</strong>：</p>
+<ul>
+<li>曲面求值：O(T²)，T 为细分分辨率</li>
+<li>光栅化：O(T² × quad_screen_area)，二次方在细分，线性在像素覆盖</li>
+<li>总体：O(T² × resolution)，在 T&#x3D;50 时完全可实时处理</li>
+</ul>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>全局控制</strong>：移动一个控制点会改变整个曲面。如果你想”只在某个位置抬高曲面而不影响其他区域”，基本做不到。这是贝塞尔方法的天生缺陷，需要 B-样条或 NURBS 解决</li>
+<li><strong>矩形拓扑限制</strong>：贝塞尔曲面只能是矩形参数域。对于球面、环面等非矩形拓扑，需要多个贝塞尔面片拼接或使用 NURBS</li>
+<li><strong>控制点数固定</strong>：三次贝塞尔面固定 4×4 网格。如果想增加细节控制，只能换更高级的多项式或增加面片</li>
+<li><strong>透视投影局限</strong>：本实现使用最简透视投影。如果要渲染带有复杂光源、纹理映射、阴影的场景，需要完整的渲染管线</li>
+</ol>
+<h3 id="可优化方向"><a href="#可优化方向" class="headerlink" title="可优化方向"></a>可优化方向</h3><ol>
+<li><strong>自适应细分</strong>：根据曲面曲率动态调整 tessellation 密度。在接近平坦处降低分辨率，在高曲率处增加，节省计算</li>
+<li><strong>de Casteljau 求值</strong>：比 Bernstein 多项式展开法更数值稳定，且适合递归细分（二分 recursively splitting）</li>
+<li><strong>法线贴图增强</strong>：在贝塞尔曲面上叠加法线贴图，在不增加 tessellation 的前提下大幅度增加视觉细节</li>
+<li><strong>GPU 曲面细分着色器</strong>：现代 GPU 的 Tessellation Shader 可以直接在硬件上对参数曲面进行自适应细分</li>
+</ol>
+<h3 id="与本系列的关系"><a href="#与本系列的关系" class="headerlink" title="与本系列的关系"></a>与本系列的关系</h3><ul>
+<li><strong>02-22 Bezier 曲线</strong>：本文曲面的 1D 基础——理解 Bezier 曲线才能理解拉格朗日曲面</li>
+<li><strong>05-26 Catmull-Clark 细分曲面</strong>：另一种曲面表示方法，支持任意拓扑——在网格类建模中更通用</li>
+<li><strong>06-17 Delaunay 三角剖分</strong>：曲线与三角剖分构成离散计算几何和光滑 CAGD 的两大分支</li>
+</ul>
+<p>下一步可以探索 B-样条曲面（它解决了贝塞尔的全局控制问题），或者实现 de Casteljau 算法（它是更数值稳定的贝塞尔求值方式）。</p>
+<hr>
+<p><strong>代码仓库</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice">https://github.com/chiuhoukazusa/daily-coding-practice</a><br><strong>项目文件</strong>：<code>07-16-bezier-surface/</code></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/16/daily-coding-bezier-surface-2026-07-16/">https://chiuhoukazusa.github.io/2026/07/16/daily-coding-bezier-surface-2026-07-16/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%AE%A1%E7%AE%97%E5%87%A0%E4%BD%95/">计算几何</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/15/daily-coding-histogram-equalization-2026-07-15/" title="每日编程实践: Histogram Equalization 直方图均衡化"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-15-histogram-equalization/after.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Histogram Equalization 直方图均衡化</div></div><div class="info-2"><div class="info-item-1">① 背景与动机：为什么需要直方图均衡化？你有没有拍过那种灰蒙蒙的照片？整个画面好像蒙了一层雾，既没有纯黑也没有纯白，所有像素都挤在一个狭窄的灰度区间里。这种问题在摄影中叫做「低对比度」，在医学影像（X光、CT）和工业检测中更是致命问题——病灶可能就因为对比度不足而无法被发现。 直方图均衡化（Histogram Equalization, HE） 正是解决这个问题的经典算法。它的核心思想非常简单：重新分配像素的亮度值，使得输出图像的直方图尽可能均匀分布。换句话说，就是把挤在一起的像素「拉开」，让暗的更暗、亮的更亮。 这项技术的历史可以追溯到数字图像处理的早期。70年代，NASA在处理航天器传回的图像时就开始使用HE来增强月球和火星表面的细节。到了80年代，CT和MRI设备中HE成为标配。今天在工业界，你会在这些地方看到它的身影：  医学影像：增强X光片、CT、MRI的对比度，帮助放射科医生发现微小病变。没有HE，密度相近的组织和病灶根本无法分辨。 卫星遥感：从降噪后的大气校正图像中提取地表特征。原始卫星图像往往因为大气散射而对比度极低，HE可以恢复地表的纹理细节。 面部识别预处理：...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/05/daily-coding-sutherland-hodgman-2026-07-05/" title="每日编程实践: Sutherland-Hodgman 多边形裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-05-sutherland-hodgman/sutherland_hodgman_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-05</div><div class="info-item-2">每日编程实践: Sutherland-Hodgman 多边形裁剪算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，多边形裁剪（Polygon Clipping）是一个基础且重要的操作。无论你是在开发一个 2D UI 框架、一个地图渲染引擎，还是 3D 渲染管线中的三角形裁剪，都离不开多边形裁剪技术。 为什么需要多边形裁剪？考虑以下场景：你有一个复杂的多边形（比如一个星星形状），但显示区域只限于一个矩形窗口。如果直接把整个多边形画上去，超出窗口的部分会被屏幕硬件自动裁剪——但你得到的只是一个被”砍断”的像素结果，而不是一个真正位于窗口内的裁剪后多边形。 实际应用中，裁剪后的多边形被用于：  视锥剔除（Frustum Culling）：在 3D 渲染中，三角形被视锥体裁剪成位于视锥体内的子三角形。OpenGL 和 DirectX 的渲染管线都包含这个阶段。 GUI 裁剪：窗口系统中的视图裁剪——当一个组件部分被父组件遮挡时，只需渲染可见部分。macOS 的 Quartz 合成器和 Windows 的 DWM 都依赖此技术。 地图渲染：只渲染当前视口范围内的地理要素。Google Maps 和 Mapbox 在客户端做视口裁剪以减少绘制调用。 GPU 管线：现代 GPU...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/29/daily-coding-sppm-renderer-2026-05-29/" title="每日编程实践: Stochastic Progressive Photon Mapping Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-29-sppm-renderer/sppm_final.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-29</div><div class="info-item-2">每日编程实践: Stochastic Progressive Photon Mapping Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Stochastic Progressive Photon Mapping Renderer今天实现了**随机渐进光子映射（SPPM）算法——全局光照领域的经典渲染方法，核心能力是精确渲染透过玻璃的焦散（Caustics）**效果，以及难以用路径追踪高效处理的 SDS（Specular-Diffuse-Specular）传输路径。 运行效果： Cornell Box + 玻璃球（产生焦散）+ 镜面小球。直接光由 NEE 计算，间接光和焦散由光子映射贡献。 光子映射通道（间接光&#x2F;GI）：可以看到间接光在墙面和地面的分布。 直接光通道（Next Event Estimation）：清晰的硬阴影，无噪声。  ① 背景与动机：焦散渲染为什么难？1.1 焦散是什么把一杯水放在阳光下，会在桌面形成一团明亮的光斑——这就是焦散（Caustics）。水面（或玻璃）把入射光线折射&#x2F;反射后重新聚焦到某个区域，导致局部能量密度极高。 在游戏引擎和离线渲染中，焦散是”真实感”的重要标志：  游戏：水底焦散、地板上玻璃杯的光斑（GTA V、赛博朋克 2077 的地面反射...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/28/daily-coding-depth-of-field-2026-03-28/" title="每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-28-depth-of-field/dof_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-28</div><div class="info-item-2">每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器</div></div><div class="info-2"><div class="info-item-1">每日编程实践: Depth of Field Renderer — 薄透镜景深渲染器今天实现了一个基于薄透镜模型（Thin Lens Model）的物理正确景深渲染器，配合路径追踪产生自然的散景（Bokeh）效果。   ① 背景与动机为什么景深很重要？如果你玩过《赛博朋克 2077》《荒野大镖客2》或《对马岛之魂》，一定注意过游戏里的镜头语言——当主角站在前景，背景的城市灯光化成一圈圈朦胧的光晕，这就是景深（Depth of Field, DoF）效果。这个效果来自真实相机和人眼的光学特性：光圈有物理尺寸，只有焦平面附近的物体才能在感光元件上聚焦成点，其他距离的物体会形成弥散圆（Circle of Confusion），俗称散景（Bokeh）。 没有景深的渲染器——包括我们之前做的大多数渲染器——使用的都是**针孔相机（Pinhole Camera）**模型。针孔相机假设光圈无穷小，所有距离的物体都完全清晰。这对学习渲染基础够用，但就视觉真实性而言有明显缺陷：  画面缺乏层次感：前景、中景、背景同样清晰，空间深度感弱 缺少导演感：真实摄影中，摄影师用景深引导观众视线——清晰的地方...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/08/daily-coding-quaternion-slerp-2026-07-08/" title="每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-08-Quaternion-SLERP/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-08</div><div class="info-item-2">每日编程实践: 四元数旋转与SLERP插值——从万向节死锁到平滑旋转</div></div><div class="info-2"><div class="info-item-1">背景与动机如果你做过任何 3D 开发，一定遇到过「旋转」这件事。看似简单——一个物体绕某个轴旋转就行了，对吧？但实际上这是图形学中最容易踩坑的领域之一。 欧拉角的困境。 传统上，我们用三个角度来表示旋转：绕 X 轴转多少度（pitch）、绕 Y 轴转多少度（yaw）、绕 Z 轴转多少度（roll）。这就是欧拉角表示法。这种方法直观易懂，Unity 编辑器的 Transform 组件用的就是它。但在实际开发中，欧拉角有一个致命的缺陷：万向节死锁（Gimbal Lock）。 什么是万向节死锁？ 想象你在操作一个摄像机。正常情况下，三个轴的旋转应该是独立的。但当 pitch（绕 X 轴旋转）恰好等于 90° 时，原来的 Y 轴（yaw）和 Z 轴（roll）会「塌缩」到同一根轴上——你失去了一个旋转自由度。从这一刻起，无论你动 yaw 还是 roll，物体都在绕同一根轴旋转。这对于飞行模拟器、3D 动画、机器人运动学来说是灾难性的——你无法在 pitch&#x3D;90° 时表达某些朝向。 在游戏引擎中，这个问题无处不在：  摄像机控制：第一人称视角中，如果垂直向上看（pitch&#x...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/18/daily-coding-ssr-2026-04-18/" title="每日编程实践: Screen Space Reflections (SSR) 屏幕空间反射"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-18-ssr/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-18</div><div class="info-item-2">每日编程实践: Screen Space Reflections (SSR) 屏幕空间反射</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在实时渲染领域，反射效果一直是追求视觉真实感的关键技术之一。传统上，实现精确反射需要借助环境贴图（Environment Map）——预先烘焙好周围环境的 Cubemap，然后在着色时采样。这种方案成本低廉，但有一个根本性的缺陷：环境贴图是静态的，无法反映当前帧中移动的物体、实时变化的光照，也无法反映场景中其他物体在地面或金属物体表面留下的影子。 想象一款第一人称游戏，玩家走进一个铺有大理石地板的宫殿。地板的反射中应该能看到玩家、其他 NPC、火炬的摇曳光影——这些全都是运动的、逐帧变化的。传统的 Cubemap 反射在这里完全失效，镜面里永远是一幅”死图”。 平面反射（Planar Reflection） 是另一种方案——对每个反射平面，从镜像摄像机重新渲染一遍场景。这虽然精确，但代价极高：每增加一个反射平面，渲染开销翻倍。更糟的是，它只适用于精确平面，对金属球或弯曲金属面束手无策。 光线追踪（Ray Tracing） 是终极解答，NVIDIA RTX 系列正是用它实现逼真反射。但即便是现代 GPU，完全的光线追踪反射也只能在分辨率降级或帧率受限的条件下运行，并不...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/10/daily-coding-pcss-soft-shadows-2026-03-10/" title="每日编程实践 #35: PCSS 软阴影渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-10-pcss-soft-shadows/pcss_shadow.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-10</div><div class="info-item-2">每日编程实践 #35: PCSS 软阴影渲染器</div></div><div class="info-2"><div class="info-item-1">PCSS 软阴影渲染器现实世界中，阴影从来不是非黑即白的——靠近物体的地方阴影清晰，远离的地方阴影边缘模糊渐变。这种效果叫做半影（Penumbra），是面光源（有面积的光，区别于理想点光源）的自然产物。 今天实现了三种阴影算法，从最简单的硬阴影，逐步演进到 UE5&#x2F;Unity HDRP 都在用的 PCSS（Percentage Closer Soft Shadows）——一种能根据遮挡距离自适应调整半影大小的软阴影算法。  三种算法对比 从左到右：Hard Shadow（硬阴影） | PCF（固定软化） | PCSS（自适应软阴影） 注意 PCSS 的阴影：球体与地面接触处的阴影清晰，悬空球体的阴影边缘模糊扩散——这才是物理正确的半影效果。  第一章：为什么会有半影？用一张图来理解： 12345678      ○○○○○        ← 面光源（有面积）       |||    A──B──C         ← 遮挡物（球体）      /|\    /  |  \   /   |   \阴影  半影  阴影（全暗）（渐变）（全亮）   本影（Umbra）：被遮...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">154</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">159</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5%EF%BC%9A%E8%B4%9D%E5%A1%9E%E5%B0%94%E6%9B%B2%E9%9D%A2%E6%B8%B2%E6%9F%93%E5%99%A8-Bicubic-Bezier-Surface"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E4%BB%8E%E8%B4%9D%E5%A1%9E%E5%B0%94%E6%9B%B2%E7%BA%BF%E5%88%B0%E8%B4%9D%E5%A1%9E%E5%B0%94%E6%9B%B2%E9%9D%A2"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 从贝塞尔曲线到贝塞尔曲面</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Bernstein-%E5%A4%9A%E9%A1%B9%E5%BC%8F"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 Bernstein 多项式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%9B%B2%E9%9D%A2%E6%B3%95%E7%BA%BF%E8%AE%A1%E7%AE%97"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 曲面法线计算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%8E%E5%85%B6%E4%BB%96%E6%9B%B2%E9%9D%A2%E8%A1%A8%E7%A4%BA%E7%9A%84%E6%AF%94%E8%BE%83"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 与其他曲面表示的比较</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B0%E6%8D%AE%E6%B5%81%E6%A6%82%E8%A7%88"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 数据流概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E6%9B%B2%E9%9D%A2%E7%BB%86%E5%88%86%E7%AD%96%E7%95%A5%EF%BC%88Tessellation%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 曲面细分策略（Tessellation）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Bernstein-%E5%A4%9A%E9%A1%B9%E5%BC%8F%E8%AE%A1%E7%AE%97"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 Bernstein 多项式计算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%9B%B2%E9%9D%A2%E6%B1%82%E5%80%BC"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 曲面求值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%81%8F%E5%AF%BC%E6%95%B0%E4%B8%8E%E6%B3%95%E7%BA%BF"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 偏导数与法线</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%80%8F%E8%A7%86%E6%8A%95%E5%BD%B1"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 透视投影</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%85%89%E6%A0%85%E5%8C%96%E5%BE%AA%E7%8E%AF%E4%B8%8E-Phong-%E7%9D%80%E8%89%B2"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 光栅化循环与 Phong 着色</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E6%B3%95%E7%BA%BF%E6%96%B9%E5%90%91%E5%8F%8D%E8%BD%AC"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：法线方向反转</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E5%8C%85%E5%9B%B4%E7%9B%92%E5%86%85%E6%89%80%E6%9C%89%E5%83%8F%E7%B4%A0%E9%83%BD%E8%A2%AB%E7%9D%80%E8%89%B2"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：包围盒内所有像素都被着色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9AColor-%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0%E7%9A%84%E6%AD%A7%E4%B9%89%E8%B0%83%E7%94%A8"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：Color 构造函数的歧义调用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E5%8D%95%E5%85%83%E6%B5%8B%E8%AF%95%E8%A2%AB%E8%B7%B3%E8%BF%87"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：单元测试被跳过</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 像素统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%87%A0%E4%BD%95%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 几何验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E7%AB%AF%E7%82%B9%E6%8F%92%E5%80%BC%E6%80%A7%E8%B4%A8"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 端点插值性质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E9%9E%8D%E9%9D%A2%E6%9B%B2%E7%8E%87%E5%88%86%E6%9E%90"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 鞍面曲率分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E6%B8%B2%E6%9F%93%E6%95%88%E6%9E%9C%E5%9B%BE"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 渲染效果图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-6-%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90"><span class="toc-number">1.6.6.</span> <span class="toc-text">6.6 性能分析</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.7.3.</span> <span class="toc-text">与本系列的关系</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/16/daily-coding-bezier-surface-2026-07-16/" title="每日编程实践: 贝塞尔曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 贝塞尔曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/16/daily-coding-bezier-surface-2026-07-16/" title="每日编程实践: 贝塞尔曲面渲染器">每日编程实践: 贝塞尔曲面渲染器</a><time datetime="2026-07-15T21:30:00.000Z" title="发表于 2026-07-16 05:30:00">2026-07-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/15/daily-coding-histogram-equalization-2026-07-15/" title="每日编程实践: Histogram Equalization 直方图均衡化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-15-histogram-equalization/after.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Histogram Equalization 直方图均衡化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/15/daily-coding-histogram-equalization-2026-07-15/" title="每日编程实践: Histogram Equalization 直方图均衡化">每日编程实践: Histogram Equalization 直方图均衡化</a><time datetime="2026-07-14T21:33:00.000Z" title="发表于 2026-07-15 05:33:00">2026-07-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用">每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用</a><time datetime="2026-07-13T21:30:00.000Z" title="发表于 2026-07-14 05:30:00">2026-07-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</a><time datetime="2026-07-12T21:30:00.000Z" title="发表于 2026-07-13 05:30:00">2026-07-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Boids 集群行为模拟"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟">每日编程实践: Boids 集群行为模拟</a><time datetime="2026-07-11T21:30:00.000Z" title="发表于 2026-07-12 05:30:00">2026-07-12</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
