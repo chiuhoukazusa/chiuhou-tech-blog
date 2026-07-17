@@ -1,0 +1,410 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: RRT 路径规划 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机想象一下：你有一个机器人需要从房间的一端移动到另一端，但房间里有桌子、椅子和柜子。机器人的任务是找到一条可行路径——不要求是最优的，但必须存在，而且要快。 这就是运动规划（Motion Planning）的核心问题。在传统算法中，我们可能会想到 A* 或 Dijkstra，但这些算法要求整个搜索空间被离散化为网格。对于高维连续空间（比如六自由度机械臂），网格的大小会呈指数爆炸——这就是经">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: RRT 路径规划">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机想象一下：你有一个机器人需要从房间的一端移动到另一端，但房间里有桌子、椅子和柜子。机器人的任务是找到一条可行路径——不要求是最优的，但必须存在，而且要快。 这就是运动规划（Motion Planning）的核心问题。在传统算法中，我们可能会想到 A* 或 Dijkstra，但这些算法要求整个搜索空间被离散化为网格。对于高维连续空间（比如六自由度机械臂），网格的大小会呈指数爆炸——这就是经">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png">
+<meta property="article:published_time" content="2026-07-17T22:10:00.000Z">
+<meta property="article:modified_time" content="2026-07-17T22:08:53.346Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="机器人">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="路径规划">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: RRT 路径规划",
+  "url": "https://chiuhoukazusa.github.io/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png",
+  "datePublished": "2026-07-17T22:10:00.000Z",
+  "dateModified": "2026-07-17T22:08:53.346Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: RRT 路径规划',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: RRT 路径规划</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: RRT 路径规划</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-17T22:10:00.000Z" title="发表于 2026-07-18 06:10:00">2026-07-18</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-17T22:08:53.346Z" title="更新于 2026-07-18 06:08:53">2026-07-18</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>想象一下：你有一个机器人需要从房间的一端移动到另一端，但房间里有桌子、椅子和柜子。机器人的任务是找到一条可行路径——不要求是最优的，但必须存在，而且要快。</p>
+<p>这就是<strong>运动规划</strong>（Motion Planning）的核心问题。在传统算法中，我们可能会想到 A* 或 Dijkstra，但这些算法要求整个搜索空间被离散化为网格。对于高维连续空间（比如六自由度机械臂），网格的大小会呈指数爆炸——这就是经典的”维度灾难”（Curse of Dimensionality）。</p>
+<p><strong>RRT（Rapidly-exploring Random Tree，快速探索随机树）<strong>由 Steven M. LaValle 在 1998 年提出，是解决连续空间运动规划问题的一个里程碑。它不需要离散化空间，不需要建立完整的连通图，只需要在连续空间中</strong>采样</strong>——它通过随机采样将搜索自然地”拉扯”向空间的未知区域。</p>
+<p>RRT 在工业界的应用非常广泛：</p>
+<ul>
+<li><strong>自动驾驶</strong>：用于轨迹规划（尤其是低速场景下的非完整约束规划），百度 Apollo、Waymo 都使用 RRT 变体</li>
+<li><strong>机器人机械臂</strong>：MoveIt! 框架（ROS 默认的运动规划库）的默认规划器就基于 RRT-Connect</li>
+<li><strong>无人机导航</strong>：在 3D 空间中绕过建筑、电线等障碍物</li>
+<li><strong>游戏 AI</strong>：用于 NPC 的动态寻路，尤其是地形不规则的开放世界游戏</li>
+<li><strong>蛋白质折叠模拟</strong>：在生物信息学中探索分子构象空间</li>
+</ul>
+<p>为什么不用 A* 直接做？因为 A* 在连续空间中需要将世界离散化为网格，而 RRT 天然不需要。对于 3D 空间中的 6-DOF 机械臂，A* 需要的状态数量是 O(k^n)（k 是每维离散化精度，n 是自由度），而 RRT 的复杂度只与空间的”困难程度”相关，与维度关系不大。</p>
+<p>今天我们就来实现一个 2D 的 RRT 路径规划器，包含：圆形和矩形障碍物、碰撞检测、路径平滑和量化验证。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="基本思想"><a href="#基本思想" class="headerlink" title="基本思想"></a>基本思想</h3><p>RRT 的核心思想非常简单，用一句话概括：<strong>从起点不断往随机方向扩展一棵树，直到有一根树枝碰到目标区域</strong>。</p>
+<p>具体而言，每一步：</p>
+<ol>
+<li>在自由空间中随机采一个点（偶尔直接采目标点，这叫 goal bias）</li>
+<li>在已有的树中找到离这个采样点最近的节点</li>
+<li>从最近节点向采样点方向”延伸”一小步（step size）</li>
+<li>如果延伸过程中没有碰到障碍物，就把新点加入树，成为最近节点的子节点</li>
+<li>如果新点离目标足够近，连接目标点并回溯构造路径</li>
+</ol>
+<p>这个算法的精妙之处在于：由于采样是均匀随机的，<strong>未探索的大面积区域被选中的概率更高</strong>，因此树会天然向空间的”空白区域”生长——这就是”Rapidly-exploring”的来源。</p>
+<h3 id="数学直觉"><a href="#数学直觉" class="headerlink" title="数学直觉"></a>数学直觉</h3><p>为什么 RRT 会快速探索大空间？这背后的数学直觉是<strong>Voronoi 偏置</strong>：</p>
+<p>考虑每个已有节点对应的 Voronoi 区域（空间中距离该节点最近的点集合）。当你在整个空间中随机采样时，某个节点的 Voronoi 区域越大，采样点落入该区域的概率就越大。而树边缘处节点的 Voronoi 区域通常比树内部节点的更大（内部节点的 Voronoi 区域被其他节点挤占），因此新节点更大概率被”拉”向未探索区域。</p>
+<p>换句话说：<strong>RRT 不需要显式地”决定”探索方向——随机采样自然地偏向空间中的大空白区域</strong>。</p>
+<h3 id="与同类算法的比较"><a href="#与同类算法的比较" class="headerlink" title="与同类算法的比较"></a>与同类算法的比较</h3><table>
+<thead>
+<tr>
+<th>算法</th>
+<th>离散化</th>
+<th>高维适应性</th>
+<th>路径最优</th>
+<th>速度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A*&#x2F;Dijkstra</td>
+<td>需要</td>
+<td>差（指数）</td>
+<td>✅ 最优</td>
+<td>小空间快</td>
+</tr>
+<tr>
+<td>PRM（概率路线图）</td>
+<td>不需要</td>
+<td>好</td>
+<td>✅ 渐近最优</td>
+<td>预处理慢</td>
+</tr>
+<tr>
+<td>RRT（基础版）</td>
+<td>不需要</td>
+<td>最好</td>
+<td>❌ 非最优</td>
+<td>单次查询快</td>
+</tr>
+<tr>
+<td>RRT*（优化版）</td>
+<td>不需要</td>
+<td>好</td>
+<td>✅ 渐近最优</td>
+<td>比 RRT 慢</td>
+</tr>
+<tr>
+<td>RRT-Connect</td>
+<td>不需要</td>
+<td>最好</td>
+<td>❌ 次优</td>
+<td>极快</td>
+</tr>
+</tbody></table>
+<p><strong>RRT 不是概率完备（probabilistically complete）的吗？</strong> 确切地说，RRT 是<strong>概率完备</strong>的：如果存在可行路径，当采样次数趋于无穷时，RRT 找到路径的概率趋于 1。但 RRT 找到的路径通常不是最优的——路径长度可能远大于理论最优解（这就是”zigzag”问题）。</p>
+<p><strong>RRT*</strong> 通过”重连”（rewire）机制来解决最优性问题：新节点加入后，会在其邻域内检查是否可以通过其他节点以更短的代价到达，从而持续优化树的结构。但这今天不在本文讨论范围内。</p>
+<h3 id="关键参数"><a href="#关键参数" class="headerlink" title="关键参数"></a>关键参数</h3><p>理解 RRT 的关键参数：</p>
+<ul>
+<li><strong>Step Size（步长）</strong>：每次从最近节点向采样点延伸的距离。太小会导致探索缓慢（树需要更多节点才能到达目标），太大会跳过狭窄通道。典型设置：物理空间的 2%-5%</li>
+<li><strong>Goal Bias（目标偏差）</strong>：以某概率直接采样目标点而不是随机点。这加快了向目标的收敛速度，但过高会导致树卡在障碍物附近出不来。典型设置：5%-10%</li>
+<li><strong>Goal Radius（目标半径）</strong>：新节点离目标多远时认为”到达”。小于 step size 即可</li>
+<li><strong>Collision Margin（碰撞边距）</strong>：在障碍物周围留出的安全距离，考虑到物理尺寸和控制误差</li>
+</ul>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Main Entry</span><br><span class="line">    ├── 定义 World（边界、起点、终点、障碍物）</span><br><span class="line">    ├── RRT 主循环</span><br><span class="line">    │   ├── Sample: 随机采样（含 goal bias）</span><br><span class="line">    │   ├── Nearest: 在 O(n) 中搜索最近节点</span><br><span class="line">    │   ├── Steer: 向采样点延伸一步</span><br><span class="line">    │   ├── CollisionCheck: 线段碰撞检测</span><br><span class="line">    │   └── AddNode: 加入树</span><br><span class="line">    ├── Path Extraction: 从目标回溯到起点</span><br><span class="line">    ├── Path Smoothing: Shortcut Pruning 优化路径</span><br><span class="line">    ├── Verification: 5 项量化检查</span><br><span class="line">    └── Visualization: PPM 渲染</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Vec2</span> &#123;</span><br><span class="line">    <span class="type">double</span> x, y;</span><br><span class="line">    <span class="comment">// 向量运算：加法、减法、数乘、点积、长度、归一化、距离</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">CircleObstacle</span> &#123;</span><br><span class="line">    Vec2 center;</span><br><span class="line">    <span class="type">double</span> radius;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">RectObstacle</span> &#123;</span><br><span class="line">    Vec2 min, max;  <span class="comment">// AABB（轴对齐包围盒）</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> <span class="title class_">RRTNode</span> &#123;</span><br><span class="line">    Vec2 pos;       <span class="comment">// 节点在 2D 空间中的位置</span></span><br><span class="line">    <span class="type">int</span> parent;     <span class="comment">// 父节点在 tree 数组中的索引（根节点为 -1）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用 <code>parent</code> 索引而不是指针？</strong> 因为树存储在 <code>std::vector&lt;RRTNode&gt;</code> 中。使用索引避免了指针的悬垂风险，且 path extraction（回溯）只需要沿着 parent 索引链逆向走即可。</p>
+<p><strong>为什么 Obstacle 只有 Circle 和 Rect？</strong> 这是为了简化碰撞检测的数学实现。这两种基本形状的组合已经可以近似大多数现实障碍物。工业级实现通常使用更复杂的几何表示（如凸多边形、SDF 符号距离场），但原理是相同的。</p>
+<h3 id="职责划分"><a href="#职责划分" class="headerlink" title="职责划分"></a>职责划分</h3><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Vec2</code></td>
+<td>2D 向量数学，所有几何计算的基础</td>
+</tr>
+<tr>
+<td>碰撞检测系统</td>
+<td><code>pointInCircle/pointInRect</code>（点检测）、<code>segmentCollidesCircle/segmentCollidesRect</code>（线段检测）</td>
+</tr>
+<tr>
+<td><code>rrt()</code></td>
+<td>主算法循环（采样、最近邻搜索、steer、碰撞检查）</td>
+</tr>
+<tr>
+<td><code>smoothPath()</code></td>
+<td>后处理：通过 shortcut pruning 优化路径</td>
+</tr>
+<tr>
+<td><code>writePPM()</code></td>
+<td>PPM 格式的可视化输出（树、原始路径、平滑路径、障碍物）</td>
+</tr>
+<tr>
+<td><code>main()</code></td>
+<td>场景配置、运行、验证、渲染</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="1-碰撞检测：线段-vs-圆"><a href="#1-碰撞检测：线段-vs-圆" class="headerlink" title="1. 碰撞检测：线段 vs 圆"></a>1. 碰撞检测：线段 vs 圆</h3><p>这是整个规划器的核心——如果碰撞检测不准确，会导致路径穿过障碍物或拒绝有效路径。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">segmentCollidesCircle</span><span class="params">(<span class="type">const</span> Vec2&amp; a, <span class="type">const</span> Vec2&amp; b, </span></span></span><br><span class="line"><span class="params"><span class="function">                           <span class="type">const</span> CircleObstacle&amp; c, <span class="type">double</span> margin = <span class="number">0.0</span>)</span> </span>&#123;</span><br><span class="line">    Vec2 d = b - a;                      <span class="comment">// 线段方向向量</span></span><br><span class="line">    Vec2 f = a - c.center;               <span class="comment">// 圆心到线段起点的向量</span></span><br><span class="line">    <span class="type">double</span> r = c.radius + margin;        <span class="comment">// 有效碰撞半径</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 参数化线段: P(t) = a + t*d, t ∈ [0,1]</span></span><br><span class="line">    <span class="comment">// 求 min ||P(t) - center||² = ||a + t*d - center||²</span></span><br><span class="line">    <span class="comment">//                         = ||f + t*d||²</span></span><br><span class="line">    <span class="comment">//                         = (f + t*d)·(f + t*d)</span></span><br><span class="line">    <span class="comment">//                         = t²(d·d) + 2t(f·d) + (f·f)</span></span><br><span class="line">    <span class="type">double</span> A = d.<span class="built_in">dot</span>(d);                 <span class="comment">// 二次项系数</span></span><br><span class="line">    <span class="type">double</span> B = <span class="number">2.0</span> * f.<span class="built_in">dot</span>(d);           <span class="comment">// 一次项系数</span></span><br><span class="line">    <span class="type">double</span> C = f.<span class="built_in">dot</span>(f) - r * r;         <span class="comment">// 常数项（包含半径）</span></span><br><span class="line"></span><br><span class="line">    <span class="type">double</span> discriminant = B*B - <span class="number">4</span>*A*C;</span><br><span class="line">    <span class="keyword">if</span> (discriminant &lt; <span class="number">0</span>) <span class="keyword">return</span> <span class="literal">false</span>;  <span class="comment">// 无交点，不相交</span></span><br><span class="line"></span><br><span class="line">    <span class="type">double</span> sqrtD = std::<span class="built_in">sqrt</span>(discriminant);</span><br><span class="line">    <span class="type">double</span> t1 = (-B - sqrtD) / (<span class="number">2</span>*A);    <span class="comment">// 距离线段起点最近的交点</span></span><br><span class="line">    <span class="type">double</span> t2 = (-B + sqrtD) / (<span class="number">2</span>*A);    <span class="comment">// 距离线段起点最远的交点</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 仅当任意交点在 [0,1] 范围内，或线段完全在圆内</span></span><br><span class="line">    <span class="keyword">return</span> (t1 &gt;= <span class="number">0</span> &amp;&amp; t1 &lt;= <span class="number">1</span>) </span><br><span class="line">        || (t2 &gt;= <span class="number">0</span> &amp;&amp; t2 &lt;= <span class="number">1</span>) </span><br><span class="line">        || (t1 &lt; <span class="number">0</span> &amp;&amp; t2 &gt; <span class="number">1</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要用二次方程的判别式？</strong> 线段与圆的碰撞本质上是求直线与圆的交点（二次方程），然后检查交点是否落在 [0,1] 参数范围内。直接计算比迭代采样更精确、更高效。</p>
+<p><strong>最后一个条件 <code>(t1 &lt; 0 &amp;&amp; t2 &gt; 1)</code> 是什么意思？</strong> 这覆盖了线段完全在圆内的情况——t1 在起点”之前”（&lt;0），t2 在终点”之后”（&gt;1）。如果缺少这个条件，当整个线段都在障碍物圆内时，碰撞检测会错误地返回”无碰撞”。</p>
+<h3 id="2-碰撞检测：线段-vs-矩形"><a href="#2-碰撞检测：线段-vs-矩形" class="headerlink" title="2. 碰撞检测：线段 vs 矩形"></a>2. 碰撞检测：线段 vs 矩形</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">segmentCollidesRect</span><span class="params">(<span class="type">const</span> Vec2&amp; a, <span class="type">const</span> Vec2&amp; b, </span></span></span><br><span class="line"><span class="params"><span class="function">                         <span class="type">const</span> RectObstacle&amp; r, <span class="type">double</span> margin = <span class="number">0.0</span>)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 先扩展矩形（margin）</span></span><br><span class="line">    RectObstacle expanded = &#123;</span><br><span class="line">        <span class="built_in">Vec2</span>(r.min.x - margin, r.min.y - margin),</span><br><span class="line">        <span class="built_in">Vec2</span>(r.max.x + margin, r.max.y + margin)</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 快速检查：有端点在里面？</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">pointInRect</span>(a, expanded)) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">pointInRect</span>(b, expanded)) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 检查与四条边的交点</span></span><br><span class="line">    <span class="comment">// 水平边：y = expanded.min.y 和 y = expanded.max.y</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">double</span> y : &#123;expanded.min.y, expanded.max.y&#125;) &#123;</span><br><span class="line">        <span class="keyword">if</span> (std::<span class="built_in">abs</span>(a.y - b.y) &gt; <span class="number">1e-9</span>) &#123;          <span class="comment">// 非水平线段</span></span><br><span class="line">            <span class="type">double</span> t = (y - a.y) / (b.y - a.y);     <span class="comment">// 解 a.y + t*(b.y-a.y) = y</span></span><br><span class="line">            <span class="keyword">if</span> (t &gt;= <span class="number">0</span> &amp;&amp; t &lt;= <span class="number">1</span>) &#123;                 <span class="comment">// 交点在参数范围内</span></span><br><span class="line">                <span class="type">double</span> x = a.x + t * (b.x - a.x);</span><br><span class="line">                <span class="keyword">if</span> (x &gt;= expanded.min.x &amp;&amp; x &lt;= expanded.max.x) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 垂直边同理</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">double</span> xv : &#123;expanded.min.x, expanded.max.x&#125;) &#123;</span><br><span class="line">        <span class="comment">// ... 与水平边对称，交换 x/y 角色</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么检查线段与矩形边的交点就够了？</strong> 矩形是凸集，AABB 的四条边构成了矩形的边界。如果一条线段与矩形碰撞（且两端点都不在内部），那么它必然穿过至少一条边——这是凸集分离定理的直接推论。因此检查四条边的交点可以完整判定碰撞。</p>
+<p><strong>注意浮点精度</strong>：<code>std::abs(a.y - b.y) &gt; 1e-9</code> 防止除以零（水平线段与水平边的”交点”）。在几何计算中，忽略这种边界情况会导致 NaN 传播和静默失败。</p>
+<h3 id="3-RRT-主循环"><a href="#3-RRT-主循环" class="headerlink" title="3. RRT 主循环"></a>3. RRT 主循环</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">RRTResult <span class="title">rrt</span><span class="params">(<span class="type">const</span> Vec2&amp; start, <span class="type">const</span> Vec2&amp; goal,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">const</span> std::vector&lt;CircleObstacle&gt;&amp; circles,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">const</span> std::vector&lt;RectObstacle&gt;&amp; rects,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">double</span> xmin, <span class="type">double</span> xmax, <span class="type">double</span> ymin, <span class="type">double</span> ymax,</span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">double</span> stepSize = <span class="number">0.5</span>,    <span class="comment">// 每次延伸步长</span></span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">double</span> goalBias = <span class="number">0.05</span>,   <span class="comment">// 5% 概率直接采样目标</span></span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">double</span> goalRadius = <span class="number">0.5</span>,  <span class="comment">// 距目标多近即为到达</span></span></span></span><br><span class="line"><span class="params"><span class="function">              <span class="type">int</span> maxIterations = <span class="number">5000</span>)</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="function">std::mt19937 <span class="title">rng</span><span class="params">(<span class="number">42</span>)</span></span>;  <span class="comment">// 固定种子保证可复现</span></span><br><span class="line">    <span class="function">std::uniform_real_distribution&lt;<span class="type">double</span>&gt; <span class="title">distX</span><span class="params">(xmin, xmax)</span></span>;</span><br><span class="line">    <span class="function">std::uniform_real_distribution&lt;<span class="type">double</span>&gt; <span class="title">distY</span><span class="params">(ymin, ymax)</span></span>;</span><br><span class="line">    <span class="function">std::uniform_real_distribution&lt;<span class="type">double</span>&gt; <span class="title">dist01</span><span class="params">(<span class="number">0.0</span>, <span class="number">1.0</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    RRTResult result;</span><br><span class="line">    result.tree.<span class="built_in">push_back</span>(<span class="built_in">RRTNode</span>(start, <span class="number">-1</span>));  <span class="comment">// 根节点</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> iter = <span class="number">0</span>; iter &lt; maxIterations; iter++) &#123;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Sample: 采样（含 goal bias）---</span></span><br><span class="line">        Vec2 sample;</span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">dist01</span>(rng) &lt; goalBias) &#123;</span><br><span class="line">            sample = goal;   <span class="comment">// 以 goalBias 概率直接采样目标</span></span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            sample = <span class="built_in">Vec2</span>(<span class="built_in">distX</span>(rng), <span class="built_in">distY</span>(rng));  <span class="comment">// 均匀随机采样</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Nearest: O(n) 最近邻搜索 ---</span></span><br><span class="line">        <span class="type">int</span> nearest = <span class="number">0</span>;</span><br><span class="line">        <span class="type">double</span> bestDist = sample.<span class="built_in">distToSq</span>(result.tree[<span class="number">0</span>].pos);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">1</span>; i &lt; result.tree.<span class="built_in">size</span>(); i++) &#123;</span><br><span class="line">            <span class="type">double</span> d = sample.<span class="built_in">distToSq</span>(result.tree[i].pos);</span><br><span class="line">            <span class="keyword">if</span> (d &lt; bestDist) &#123;</span><br><span class="line">                bestDist = d;</span><br><span class="line">                nearest = (<span class="type">int</span>)i;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Steer: 向采样点延伸 ---</span></span><br><span class="line">        Vec2 nearPos = result.tree[nearest].pos;</span><br><span class="line">        Vec2 dir = sample - nearPos;</span><br><span class="line">        <span class="type">double</span> dist = dir.<span class="built_in">len</span>();</span><br><span class="line">        <span class="keyword">if</span> (dist &lt; <span class="number">1e-9</span>) <span class="keyword">continue</span>;  <span class="comment">// 采样点与节点重合，跳过</span></span><br><span class="line"></span><br><span class="line">        Vec2 newPos;</span><br><span class="line">        <span class="keyword">if</span> (dist &gt; stepSize) &#123;</span><br><span class="line">            <span class="comment">// 往采样点方向走 stepSize</span></span><br><span class="line">            newPos = nearPos + dir.<span class="built_in">normalized</span>() * stepSize;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="comment">// 采样点在本步长内，直接到达</span></span><br><span class="line">            newPos = sample;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Collision Check ---</span></span><br><span class="line">        <span class="keyword">if</span> (!<span class="built_in">isPointCollisionFree</span>(newPos, circles, rects)) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="keyword">if</span> (!<span class="built_in">isCollisionFree</span>(nearPos, newPos, circles, rects)) <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Add Node ---</span></span><br><span class="line">        <span class="type">int</span> newNodeIdx = (<span class="type">int</span>)result.tree.<span class="built_in">size</span>();</span><br><span class="line">        result.tree.<span class="built_in">push_back</span>(<span class="built_in">RRTNode</span>(newPos, nearest));</span><br><span class="line"></span><br><span class="line">        <span class="comment">// --- Goal Check ---</span></span><br><span class="line">        <span class="keyword">if</span> (newPos.<span class="built_in">distTo</span>(goal) &lt; goalRadius) &#123;</span><br><span class="line">            <span class="keyword">if</span> (<span class="built_in">isCollisionFree</span>(newPos, goal, circles, rects)) &#123;</span><br><span class="line">                result.tree.<span class="built_in">push_back</span>(<span class="built_in">RRTNode</span>(goal, newNodeIdx));</span><br><span class="line">                result.success = <span class="literal">true</span>;</span><br><span class="line">                result.iterations = iter + <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">                <span class="comment">// 回溯提取路径</span></span><br><span class="line">                <span class="type">int</span> idx = (<span class="type">int</span>)result.tree.<span class="built_in">size</span>() - <span class="number">1</span>;</span><br><span class="line">                <span class="keyword">while</span> (idx &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">                    result.path.<span class="built_in">push_back</span>(idx);</span><br><span class="line">                    idx = result.tree[idx].parent;</span><br><span class="line">                &#125;</span><br><span class="line">                std::<span class="built_in">reverse</span>(result.path.<span class="built_in">begin</span>(), result.path.<span class="built_in">end</span>());</span><br><span class="line">                <span class="keyword">return</span> result;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    result.iterations = maxIterations;</span><br><span class="line">    <span class="keyword">return</span> result;  <span class="comment">// 未能找到路径</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么使用 <code>distToSq</code>（距离平方）而不是 <code>distTo</code>？</strong> 因为 <code>sqrt()</code> 是昂贵的操作，我们在最近邻搜索中只需要比较距离大小，不需要实际距离值。使用平方距离避免了数百次平方根运算，对大规模 RRT 树（成千上万节点）的加速效果显著。</p>
+<p><strong>为什么碰撞检测要分两步</strong>：<code>isPointCollisionFree</code> 检查新点是否在障碍物内，<code>isCollisionFree</code> 检查从最近节点到新点的整个线段是否无碰撞。两步缺一不可——前者防止树节点”嵌入”障碍物，后者防止路径”穿过”障碍物。</p>
+<p><strong>Goal bias 为什么是 5%？</strong> 这是一个经验值。太高的 goal bias（如 50%）会让树过度倾向于目标，在复杂障碍物环境中可能困住无法前进；太低的 goal bias（如 1%）会让树大量浪费时间在随机探索上，收敛速度极慢。5%-10% 是一个普遍的平衡点。</p>
+<h3 id="4-路径平滑：Shortcut-Pruning"><a href="#4-路径平滑：Shortcut-Pruning" class="headerlink" title="4. 路径平滑：Shortcut Pruning"></a>4. 路径平滑：Shortcut Pruning</h3><p>RRT 找到的原始路径通常有大量 zigzag（锯齿状），因为每次延伸的方向是随机的。路径平滑能够显著改善路径质量：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::vector&lt;Vec2&gt; <span class="title">smoothPath</span><span class="params">(<span class="type">const</span> std::vector&lt;Vec2&gt;&amp; path,</span></span></span><br><span class="line"><span class="params"><span class="function">                              <span class="type">const</span> std::vector&lt;CircleObstacle&gt;&amp; circles,</span></span></span><br><span class="line"><span class="params"><span class="function">                              <span class="type">const</span> std::vector&lt;RectObstacle&gt;&amp; rects,</span></span></span><br><span class="line"><span class="params"><span class="function">                              <span class="type">int</span> maxAttempts = <span class="number">100</span>)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (path.<span class="built_in">size</span>() &lt;= <span class="number">2</span>) <span class="keyword">return</span> path;</span><br><span class="line"></span><br><span class="line">    <span class="function">std::mt19937 <span class="title">rng</span><span class="params">(<span class="number">123</span>)</span></span>;</span><br><span class="line">    std::vector&lt;Vec2&gt; smoothed = path;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> attempt = <span class="number">0</span>; attempt &lt; maxAttempts; attempt++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (smoothed.<span class="built_in">size</span>() &lt;= <span class="number">2</span>) <span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">        <span class="type">int</span> n = (<span class="type">int</span>)smoothed.<span class="built_in">size</span>();</span><br><span class="line">        <span class="comment">// 随机选两个非相邻节点</span></span><br><span class="line">        <span class="function">std::uniform_int_distribution&lt;<span class="type">int</span>&gt; <span class="title">dist</span><span class="params">(<span class="number">0</span>, n<span class="number">-1</span>)</span></span>;</span><br><span class="line">        <span class="type">int</span> i = <span class="built_in">dist</span>(rng);</span><br><span class="line">        <span class="type">int</span> j = <span class="built_in">dist</span>(rng);</span><br><span class="line">        <span class="keyword">if</span> (i &gt; j) std::<span class="built_in">swap</span>(i, j);</span><br><span class="line">        <span class="keyword">if</span> (j - i &lt;= <span class="number">1</span>) <span class="keyword">continue</span>;  <span class="comment">// 必须非相邻，否则没有中间点可删</span></span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果 i 到 j 直接连接无碰撞，删除中间所有节点</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">isCollisionFree</span>(smoothed[i], smoothed[j], circles, rects)) &#123;</span><br><span class="line">            smoothed.<span class="built_in">erase</span>(smoothed.<span class="built_in">begin</span>() + i + <span class="number">1</span>, smoothed.<span class="built_in">begin</span>() + j);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> smoothed;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心思想</strong>：原始路径的一系列有序节点中，如果某两个非相邻节点（i 和 j，j &gt; i+1）之间可以直接用一条线段连接（无碰撞），那么 i 到 j 之间的所有中间节点都可以被删掉，路径直接跳过它们。</p>
+<p><strong>为什么使用随机选择而不是贪心（尝试所有配对）？</strong> 贪心方法的复杂度是 O(n² × 碰撞检测)，当路径有几百个节点时变得很慢。随机采样在给定足够尝试次数（如 100-200 次）下，实际效果非常接近贪心方法，但速度快得多。</p>
+<p><strong>实际效果</strong>：在我们的 7 圆 2 矩形场景中，原始路径 47 个节点 → 平滑后仅 6 个节点，路径长度从 22.61 缩短到 19.75（减少了 12.7%）。</p>
+<h3 id="5-PPM-可视化"><a href="#5-PPM-可视化" class="headerlink" title="5. PPM 可视化"></a>5. PPM 可视化</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">writePPM</span><span class="params">(<span class="type">const</span> std::string&amp; filename, <span class="type">int</span> w, <span class="type">int</span> h, ...)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 白色背景</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">unsigned</span> <span class="type">char</span>&gt; <span class="title">img</span><span class="params">(w * h * <span class="number">3</span>, <span class="number">255</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 坐标变换：世界坐标 → 像素坐标</span></span><br><span class="line">    <span class="keyword">auto</span> worldToPixel = [&amp;](<span class="type">const</span> Vec2&amp; p) -&gt; std::pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt; &#123;</span><br><span class="line">        <span class="type">int</span> px = (<span class="type">int</span>)((p.x - xmin) / (xmax - xmin) * w);</span><br><span class="line">        <span class="type">int</span> py = (<span class="type">int</span>)((<span class="number">1.0</span> - (p.y - ymin) / (ymax - ymin)) * h);</span><br><span class="line">        <span class="keyword">return</span> &#123;px, py&#125;;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 1. 绘制障碍物（深灰 100,100,120）</span></span><br><span class="line">    <span class="comment">// 2. 绘制 RRT 搜索树（浅蓝 200,200,220）</span></span><br><span class="line">    <span class="comment">// 3. 绘制原始路径（蓝色 30,50,200）</span></span><br><span class="line">    <span class="comment">// 4. 绘制平滑路径（红色 255,30,30）——覆盖在蓝色之上</span></span><br><span class="line">    <span class="comment">// 5. 绘制起点（绿色 0,200,0）和终点（橙色 255,100,0）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// PPM P6 格式：二进制 RGB</span></span><br><span class="line">    <span class="function">std::ofstream <span class="title">out</span><span class="params">(filename, std::ios::binary)</span></span>;</span><br><span class="line">    out &lt;&lt; <span class="string">&quot;P6\n&quot;</span> &lt;&lt; w &lt;&lt; <span class="string">&quot; &quot;</span> &lt;&lt; h &lt;&lt; <span class="string">&quot;\n255\n&quot;</span>;</span><br><span class="line">    out.<span class="built_in">write</span>((<span class="type">const</span> <span class="type">char</span>*)img.<span class="built_in">data</span>(), img.<span class="built_in">size</span>());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>P6 格式的优点</strong>：PPM P6（二进制格式）是最简单的图像格式之一——没有压缩，不需要任何库依赖，十几行代码就能实现。但缺点是文件体积较大（1400×1200×3 &#x3D; 5MB），因此我们同时生成 PNG（31KB）作为发布格式。</p>
+<p><strong>为什么覆盖顺序重要？</strong> 先画树（浅蓝），再画原始路径（蓝），最后画平滑路径（红）。这样平滑后的最终路径会覆盖在原始路径之上，视觉上有”优化改进”的对比效果。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="坑-1：margin-参数的双重作用"><a href="#坑-1：margin-参数的双重作用" class="headerlink" title="坑 1：margin 参数的双重作用"></a>坑 1：margin 参数的双重作用</h3><p><strong>症状</strong>：将 <code>margin</code> 从 0.1 改为 0 后，路径穿过了圆形障碍物的边缘。</p>
+<p><strong>错误假设</strong>：我以为 <code>isPointCollisionFree</code> 中已经检查了点是否在障碍物内，线段碰撞检测可以不需要 margin。</p>
+<p><strong>真实原因</strong>：RRT 的碰撞检测包含两部分——点检测和线段检测。<code>isPointCollisionFree</code> 确实会拒绝障碍物内的点，但步长为 0.5 的线段延伸可能<strong>刚好擦过</strong>障碍物的边缘（线段端点在障碍物外，但中间部分与障碍物的最近距离小于 step size 造成的离散化误差）。在没有 margin 时，二次方程的判别式可能刚好在临界值附近，浮点误差导致碰撞被误判为不碰撞。</p>
+<p><strong>修复方式</strong>：始终保留 margin（0.1），相当于在障碍物周围画一个”缓冲区”。在路径平滑时可以用 margin&#x3D;0 以获得更逼近障碍物的路径。</p>
+<h3 id="坑-2：Goal-Bias-过高导致死循环"><a href="#坑-2：Goal-Bias-过高导致死循环" class="headerlink" title="坑 2：Goal Bias 过高导致死循环"></a>坑 2：Goal Bias 过高导致死循环</h3><p><strong>症状</strong>：在障碍物密集的场景中，goalBias 设为 0.3 时，RRT 在 5000 次迭代后仍无法到达目标。</p>
+<p><strong>错误假设</strong>：更高的 goal bias 能更快到达目标，越多越好。</p>
+<p><strong>真实原因</strong>：当 goal bias 过高时（如 30%），树的大部分节点都在尝试向目标延伸。但目标可能被障碍物遮挡，导致这些延伸反复失败（碰撞检测不通过）。也就是说，大量的迭代次数被浪费在无效的”朝目标冲”上，而树的探索性增长（覆盖整个空间）不足。树在障碍物前”卡住了”。</p>
+<p><strong>修复方式</strong>：将 goalBias 降回 0.05。这保证了 95% 的迭代用于均匀探索（覆盖全空间），只有 5% 用于朝向目标。在 387 次迭代后就成功到达目标。</p>
+<h3 id="坑-3：路径回溯的索引顺序"><a href="#坑-3：路径回溯的索引顺序" class="headerlink" title="坑 3：路径回溯的索引顺序"></a>坑 3：路径回溯的索引顺序</h3><p><strong>症状</strong>：提取的路径顺序是”从目标到起点”的，后续平滑和渲染代码出错。</p>
+<p><strong>错误假设</strong>：我以为回溯自然就是从起点到目标。</p>
+<p><strong>真实原因</strong>：树的 <code>parent</code> 字段是从子节点指向父节点的。从目标叶子节点开始沿着 parent 链往上走，自然到达起点（parent&#x3D;-1 的根节点）。因此路径数组的顺序是 <code>[goal, ..., start]</code>。</p>
+<p><strong>修复方式</strong>：在 path extraction 后加一行 <code>std::reverse(result.path.begin(), result.path.end())</code>，保证路径顺序始终是 <code>start → goal</code>。这个 bug 非常经典——几乎所有第一次实现 RRT 的人都会犯这个错误。</p>
+<h3 id="坑-4：线段完全在圆内的情况"><a href="#坑-4：线段完全在圆内的情况" class="headerlink" title="坑 4：线段完全在圆内的情况"></a>坑 4：线段完全在圆内的情况</h3><p><strong>症状</strong>：碰撞检测有时会漏报——整条线段完全在圆形障碍物内，但 <code>segmentCollidesCircle</code> 返回 false。</p>
+<p><strong>错误假设</strong>：如果二次方程的判别式 ≥ 0，则一定存在 t ∈ [0, 1]。</p>
+<p><strong>真实原因</strong>：当线段完全在圆内时，二次方程的两个根 t1 和 t2 满足 <code>t1 &lt; 0 &amp;&amp; t2 &gt; 1</code>。这意味着从线段参数 t&#x3D;0 到 t&#x3D;1，整条线段都在圆内。如果只检查 <code>(t &gt;= 0 &amp;&amp; t &lt;= 1)</code>，就会被漏报。</p>
+<p><strong>修复方式</strong>：添加第三个条件 <code>(t1 &lt; 0 &amp;&amp; t2 &gt; 1)</code>。这个修复虽然是”一行代码”，但其背后的几何直觉是：二次方程的根代表了直线（无限延伸）与圆的参数范围，而我们需要的是线段（有限）与圆的覆盖关系。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="量化验证（5-项全部通过）"><a href="#量化验证（5-项全部通过）" class="headerlink" title="量化验证（5 项全部通过）"></a>量化验证（5 项全部通过）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">=== Verification Results ===</span><br><span class="line">  ✓ Start/goal position correct     — 起点终点位置精确匹配</span><br><span class="line">  ✓ All 5 path segments collision-free — 所有路径段均无碰撞</span><br><span class="line">  ✓ Path length (19.75) &gt;= direct distance (16.40) — 合理</span><br><span class="line">  ✓ Tree has sufficient nodes (282) — 树覆盖充分</span><br><span class="line">  ✓ All interpolated path points collision-free — 细粒度采样验证</span><br></pre></td></tr></table></figure>
+
+<h3 id="性能数据"><a href="#性能数据" class="headerlink" title="性能数据"></a>性能数据</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>总迭代次数</td>
+<td>387</td>
+</tr>
+<tr>
+<td>树节点数</td>
+<td>282</td>
+</tr>
+<tr>
+<td>原始路径节点</td>
+<td>47</td>
+</tr>
+<tr>
+<td>平滑后节点</td>
+<td>6</td>
+</tr>
+<tr>
+<td>原始路径长度</td>
+<td>22.61</td>
+</tr>
+<tr>
+<td>平滑后路径长度</td>
+<td>19.75</td>
+</tr>
+<tr>
+<td>路径缩短比例</td>
+<td>12.7%</td>
+</tr>
+<tr>
+<td>起点到目标直线距离</td>
+<td>16.40</td>
+</tr>
+<tr>
+<td>路径&#x2F;直线比</td>
+<td>1.20</td>
+</tr>
+</tbody></table>
+<p>路径&#x2F;直线比为 1.20，意味着平滑后的路径仅比理想直线长 20%——对于一个需要通过 9 个障碍物的场景来说，这是相当不错的路径质量。</p>
+<h3 id="可视化输出"><a href="#可视化输出" class="headerlink" title="可视化输出"></a>可视化输出</h3><p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png" alt="RRT Path Planning Result"></p>
+<p>图中可以清晰看到：</p>
+<ul>
+<li><strong>深灰色</strong>：7 个圆形障碍物 + 2 个矩形障碍物</li>
+<li><strong>浅蓝色网状</strong>：RRT 搜索树（282 个节点，覆盖了整个自由空间）</li>
+<li><strong>蓝色折线</strong>：RRT 找到的原始路径（47 个节点，有明显 zigzag）</li>
+<li><strong>红色直线</strong>：Shortcut Pruning 平滑后的最终路径（仅 6 个节点，几乎是最优路径）</li>
+<li><strong>绿色点</strong>：起点 (0, 0.5)</li>
+<li><strong>橙色点</strong>：终点 (13, 10.5)</li>
+</ul>
+<p>观察树的结构可以发现，树明显向”空白区域”扩展（尤其是上方大空地），证明了 RRT 的 Voronoi 偏置效应确实有效。</p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>O(n) 最近邻搜索</strong>：本文实现使用线性扫描查找最近节点，复杂度 O(n²)。对于大规模场景（几万节点），应使用 KD-Tree 将最近邻搜索优化至 O(log n)</li>
+<li><strong>非最优性</strong>：基础 RRT 找到的路径不需要是最优的。虽然 shortcut pruning 有所改善，但无法保证全局最优</li>
+<li><strong>狭窄通道困境</strong>：RRT 在狭窄通道中表现不佳——在狭窄通道中采样的概率极低，树的扩展在瓶颈处可能”停滞”</li>
+<li><strong>第二步路径平滑不保证碰撞安全</strong>：如果 shortcut 的两端点跨度很大，线段可能与障碍物相交（虽然我们做了碰撞检测，但非常密集的障碍物地形中随机尝试的效率降低）</li>
+</ol>
+<h3 id="优化方向"><a href="#优化方向" class="headerlink" title="优化方向"></a>优化方向</h3><ol>
+<li><strong>RRT*</strong>：加入 rewire 机制，新节点加入后在 δ 半径邻域内检查是否可以通过其他路径以更低代价到达，实现渐近最优性</li>
+<li><strong>RRT-Connect</strong>：从起点和目标同时构建两棵树（dual-tree），双向扩展，速度可以提升 10-100 倍</li>
+<li><strong>Informed RRT*</strong>：找到可行路径后，将采样空间限制在由当前路径长度决定的椭圆内，大幅减少无效采样</li>
+<li><strong>KD-Tree 加速</strong>：最近邻搜索从 O(n) 优化到 O(log n)</li>
+<li><strong>SDF（符号距离场）碰撞检测</strong>：用距离场替代显式几何，碰撞检测变为 O(1) 的查表操作</li>
+</ol>
+<h3 id="本系列关联"><a href="#本系列关联" class="headerlink" title="本系列关联"></a>本系列关联</h3><p>RRT 是搜索类算法的里程碑，与本系列其他文章的关系：</p>
+<ul>
+<li><strong>Boid Flocking（07-12）</strong>：集群行为与个体路径规划的互补——Boid 负责”群体智能”，RRT 负责”个体导航”</li>
+<li><strong>Octree（07-07）</strong>：Octree 的空间划分可以加速 RRT 的碰撞检测和最近邻搜索</li>
+<li>未来的 <strong>A* Pathfinding</strong>（离散空间）与 RRT（连续空间）将形成完整对比</li>
+</ul>
+<hr>
+<p><em>完整代码见 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/07/07-18-rrt-path-planning">GitHub: daily-coding-practice&#x2F;2026&#x2F;07&#x2F;07-18-rrt-path-planning</a></em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/">https://chiuhoukazusa.github.io/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%B7%AF%E5%BE%84%E8%A7%84%E5%88%92/">路径规划</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%9C%BA%E5%99%A8%E4%BA%BA/">机器人</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/17/daily-coding-ear-clipping-triangulation-2026-07-17/" title="每日编程实践: Ear Clipping 多边形三角剖分"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-17-ear-clipping-triangulation/triangulation_2_Concave_Star.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Ear Clipping 多边形三角剖分</div></div><div class="info-2"><div class="info-item-1">背景与动机多边形三角剖分（Polygon Triangulation）是计算几何中最经典的问题之一：给定一个简单多边形，将其分解为若干个三角形，使得这些三角形互不重叠且恰好覆盖整个多边形。 这个看似简单的问题有着极其广泛的应用场景： 图形渲染管线：现代 GPU 只能处理三角形。无论你在 3D 建模软件中画出怎样复杂的多边形面，在送入渲染管线之前都必须被剖分为三角形。OpenGL 的 glDrawElements 和 DirectX 的 DrawIndexed 都只接受三角形图元。如果你在 Blender 中用一个 n-gon（超过 4 条边的面）建模，引擎内部会调用三角剖分算法将其分解。 物理引擎中的碰撞检测：Havok、PhysX、Bullet 等物理引擎在处理复杂形状时，会将多边形网格剖分成三角形，然后用 GJK 或 SAT 对每个三角形进行碰撞检测。如果你使用一个凹多边形的碰撞体，引擎必须先将其三角剖分。 几何处理与有限元分析：在有限元法（FEM）中，分析域（比如一块金属板）需要被划分为简单的网格单元，三角形是最常用的单元类型。Ear Clipping 提供了一种简单、可靠...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-09</div><div class="info-item-2">每日编程实践: Conway生命游戏与元胞自动机</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1970年，John Conway 在剑桥大学一间小房间里摆弄着围棋棋盘，试图发明一套简单到不需要计算机就能用手演算的规则，却意外创造出了一个计算系统——Conway 生命游戏 (Game of Life)。这不是一个传统意义上的”游戏”，没有玩家、没有目标、没有胜负。它是一种元胞自动机 (Cellular Automaton)：一个由简单规则驱动、从局部相互作用涌现出全局复杂行为的离散动力系统。 元胞自动机这个概念可以追溯到 1940 年代的冯·诺依曼。当时他正在研究自我复制机器的理论——如何用非常简单的组件构造一个能复制自身的系统？答案是一张二维网格，每个格子有少数几个状态，每个格子的未来状态仅由它自己和邻居的当前状态决定。这就是元胞自动机的基本范式。 为什么值得我们今天去实现？理由不止一个是”有趣”： 第一，它是自然界复杂性的最小模型。 蚁群没有中央调度，每只蚂蚁只遵循”跟信息素走”这个简单规则，却能涌现出高效的觅食路径。股市的价格波动没有导演，每个交易者基于局部信息买卖，却能形成趋势和泡沫。生命游戏的每个格子只依赖 8 个邻居的状态，却能在宏观层面产生静态结...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/11/daily-coding-Bentley-Ottmann-Line-Intersection-2026-07-11/" title="每日编程实践: Bentley-Ottmann线段交点算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-11-Bentley-Ottmann-Line-Intersection/Polygon_20.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-11</div><div class="info-item-2">每日编程实践: Bentley-Ottmann线段交点算法</div></div><div class="info-2"><div class="info-item-1">背景与动机线段交点检测（Line Segment Intersection）是计算几何中最基础、最实用的问题之一。它的核心问题是：给定平面上 $n$ 条线段，找出所有线段之间的交点。 你可能会想：”这还不简单？双重循环遍历所有线段对，每对做一次几何判断不就行了？”没错，暴力法 $O(n^2)$ 确实可以，但在很多实际场景中，线段数量可能成百上千，而真正的交点数量 $k$ 却远小于 $n^2$。例如：  地图渲染：道路线段可能有上万条，但实际交叉路口（交点）数量只有几百个。如果你每次放大地图都要对所有道路对做交点检测，地图引擎会卡成幻灯片。 PCB 设计验证：电路板上的导线数百万条，短路检测（导线相交）是整个 EDA 流程的瓶颈之一。$O(n^2)$ 意味着 100 万条线需要 $10^{12}$ 次检查——这根本不可行。 碰撞检测：游戏中的障碍物边界线段之间，只有少数会相交，需要更高效的筛选机制。 GIS 空间分析：地理信息系统中，河流、道路、行政边界的交叉分析同样面临海量数据。  Bentley 和 Ottmann 在 1979 年提出的扫描线算法，将复杂度降到了 $O((n+...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/04/daily-coding-liang-barsky-clipping-2026-07-04/" title="每日编程实践: Liang-Barsky 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-04-Liang-Barsky-Line-Clipping/liang_barsky_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-04</div><div class="info-item-2">每日编程实践: Liang-Barsky 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">1. 背景与动机直线裁剪（Line Clipping）是计算机图形学中最基础的几何操作之一。当你打开任何一个图形应用程序——无论是 Figma 里的画布、游戏引擎的视口、还是地图应用的可视区域——背后都有线段裁剪算法在工作：窗口之外的部分被丢弃，只有落在窗口内的线段片段被保留下来进行渲染。 为什么直线裁剪如此重要？想象以下几个真实场景：  游戏引擎的视锥剔除：一个 3D 三角形投影到屏幕上，它的边可能部分落在屏幕外。如果直接在屏幕外绘制像素，不仅浪费 GPU 带宽，还会产生未定义行为。正确的做法是先把每条边裁剪到屏幕边界内。 CAD&#x2F;矢量图形编辑器：用户在巨大的画布上画线，但只显示窗口内的部分。裁剪算法决定了用户看到的图形边界。 GUI 系统的脏矩形更新：操作系统只需要重绘变化区域的窗口内容，矩形裁剪是 dirty rect 更新的核心。 GIS 地理信息系统：地图瓦片的多边形边界需要裁切到当前视口范围。  昨天我们实现了 Cohen-Sutherland 算法（区域编码法），它通过给端点分配 4 位区域码来判断线段与矩形的位置关系。但 Cohen-Sutherland...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/17/daily-coding-delaunay-triangulation-2026-06-17/" title="每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-06-17-delaunay_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机Delaunay 三角剖分是计算几何中最优雅和最重要的结构之一。给定平面上的一组离散点，Delaunay 三角剖分将它们连成三角形网格，并且具有一个关键性质：任意三角形的外接圆内不包含其他点。这个性质保证了剖分在某种意义下是”最优”的——它最大化所有三角形中最小的内角，避免了又长又瘦的三角形。 为什么这个性质如此重要？想象你有一组地形采样点，需要把它们变成三维地形模型。如果某个三角形的外接圆内包含另一个采样点，这意味着有四个点几乎共圆，三角剖分变得不稳定。Delaunay 三角剖分排除了这种歧义，确保结果是唯一且确定的（只要没有四点共圆）。 在工业界和游戏开发中，Delaunay 三角剖分有着广泛的应用：  地形建模：从 LiDAR 或高度图采样点生成三角形网格 物理模拟：有限元方法（FEM）需要高质量网格以保证数值稳定性 寻路网格（NavMesh）：自动生成导航网格，三角形质量直接影响路径质量 插值与重建：给定采样点重建连续曲面（如天气数据插值） 邻近查询：Delaunay 三角剖分与 Voronoi 图互为对偶，前者提供显式的邻接关系  我们今天要实现的算法是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-29</div><div class="info-item-2">每日编程实践: Jump Point Search 跳点搜索算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机寻路（Pathfinding）是游戏AI的基石功能。从一个RTS游戏里的农民去伐木，到一个开放世界RPG中NPC在城镇里巡逻，再到MOBA游戏里小兵沿兵线前进——所有这些行为的背后都依赖寻路算法来找到从起点到终点的最短路径。 经典的A算法（1968年提出）是寻路领域的黄金标准。它结合了Dijkstra的最短路径保证和贪心最佳优先搜索的效率，通过一个启发式函数f(n) = g(n) + h(n)来引导搜索方向。在均匀网格上，A使用八方向移动（上下左右+四个对角线），每次将当前节点的八个邻居加入open list，然后从中选择f值最小的节点扩展。 A*的痛点：在一个空旷的128×128网格上，从(0,0)寻路到(127,127)，A需要扩展约3400个节点。这对于即时战略游戏来说不算多，但在需要同时处理数百个单位寻路的场景下（或者网格更大、地图更复杂的场景），A的节点扩展量会成为性能瓶颈。 为什么A*会扩展这么多节点？ 在空旷区域中，大多数路径都是对称的。比如从(0,0)到(5,5)，你可以走”右上右上右上右上右上”，也可以走”上右上右上右上右”——这些路径长度相同，启...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/" title="每日编程实践: Cohen-Sutherland 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-03</div><div class="info-item-2">每日编程实践: Cohen-Sutherland 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，裁剪（Clipping） 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看不见的东西。 Cohen-Sutherland 算法正是为了解决这个”直线与矩形窗口的裁剪”问题而生。它由 Ivan Sutherland（图灵奖得主、Sketchpad 之父）和 Dan Cohen 于 1967 年提出，距今已有近 60 年历史。尽管现在 GPU 管线已经高度成熟，但理解 Cohen-Sutherland 依然是每个图形学工程师的必修课，因为它展示了几种算法设计的核心范式：平凡接受&#x2F;拒绝（trivial accept&#x2F;reject）、区域编码（region encoding）、以及逐次逼近（successive approximation）。 在工...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">156</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">161</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9F%BA%E6%9C%AC%E6%80%9D%E6%83%B3"><span class="toc-number">2.1.</span> <span class="toc-text">基本思想</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E5%AD%A6%E7%9B%B4%E8%A7%89"><span class="toc-number">2.2.</span> <span class="toc-text">数学直觉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%90%8C%E7%B1%BB%E7%AE%97%E6%B3%95%E7%9A%84%E6%AF%94%E8%BE%83"><span class="toc-number">2.3.</span> <span class="toc-text">与同类算法的比较</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E5%8F%82%E6%95%B0"><span class="toc-number">2.4.</span> <span class="toc-text">关键参数</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.3.</span> <span class="toc-text">职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E7%A2%B0%E6%92%9E%E6%A3%80%E6%B5%8B%EF%BC%9A%E7%BA%BF%E6%AE%B5-vs-%E5%9C%86"><span class="toc-number">4.1.</span> <span class="toc-text">1. 碰撞检测：线段 vs 圆</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E7%A2%B0%E6%92%9E%E6%A3%80%E6%B5%8B%EF%BC%9A%E7%BA%BF%E6%AE%B5-vs-%E7%9F%A9%E5%BD%A2"><span class="toc-number">4.2.</span> <span class="toc-text">2. 碰撞检测：线段 vs 矩形</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-RRT-%E4%B8%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">4.3.</span> <span class="toc-text">3. RRT 主循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E8%B7%AF%E5%BE%84%E5%B9%B3%E6%BB%91%EF%BC%9AShortcut-Pruning"><span class="toc-number">4.4.</span> <span class="toc-text">4. 路径平滑：Shortcut Pruning</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-PPM-%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">4.5.</span> <span class="toc-text">5. PPM 可视化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9Amargin-%E5%8F%82%E6%95%B0%E7%9A%84%E5%8F%8C%E9%87%8D%E4%BD%9C%E7%94%A8"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：margin 参数的双重作用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9AGoal-Bias-%E8%BF%87%E9%AB%98%E5%AF%BC%E8%87%B4%E6%AD%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：Goal Bias 过高导致死循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E8%B7%AF%E5%BE%84%E5%9B%9E%E6%BA%AF%E7%9A%84%E7%B4%A2%E5%BC%95%E9%A1%BA%E5%BA%8F"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：路径回溯的索引顺序</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E7%BA%BF%E6%AE%B5%E5%AE%8C%E5%85%A8%E5%9C%A8%E5%9C%86%E5%86%85%E7%9A%84%E6%83%85%E5%86%B5"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：线段完全在圆内的情况</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%EF%BC%885-%E9%A1%B9%E5%85%A8%E9%83%A8%E9%80%9A%E8%BF%87%EF%BC%89"><span class="toc-number">6.1.</span> <span class="toc-text">量化验证（5 项全部通过）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">6.2.</span> <span class="toc-text">性能数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E8%A7%86%E5%8C%96%E8%BE%93%E5%87%BA"><span class="toc-number">6.3.</span> <span class="toc-text">可视化输出</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">本系列关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/" title="每日编程实践: RRT 路径规划"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: RRT 路径规划"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/" title="每日编程实践: RRT 路径规划">每日编程实践: RRT 路径规划</a><time datetime="2026-07-17T22:10:00.000Z" title="发表于 2026-07-18 06:10:00">2026-07-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/17/daily-coding-ear-clipping-triangulation-2026-07-17/" title="每日编程实践: Ear Clipping 多边形三角剖分"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-17-ear-clipping-triangulation/triangulation_2_Concave_Star.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Ear Clipping 多边形三角剖分"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/17/daily-coding-ear-clipping-triangulation-2026-07-17/" title="每日编程实践: Ear Clipping 多边形三角剖分">每日编程实践: Ear Clipping 多边形三角剖分</a><time datetime="2026-07-16T22:00:00.000Z" title="发表于 2026-07-17 06:00:00">2026-07-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/16/daily-coding-bezier-surface-2026-07-16/" title="每日编程实践: 贝塞尔曲面渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 贝塞尔曲面渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/16/daily-coding-bezier-surface-2026-07-16/" title="每日编程实践: 贝塞尔曲面渲染器">每日编程实践: 贝塞尔曲面渲染器</a><time datetime="2026-07-15T21:30:00.000Z" title="发表于 2026-07-16 05:30:00">2026-07-16</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/15/daily-coding-histogram-equalization-2026-07-15/" title="每日编程实践: Histogram Equalization 直方图均衡化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-15-histogram-equalization/after.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Histogram Equalization 直方图均衡化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/15/daily-coding-histogram-equalization-2026-07-15/" title="每日编程实践: Histogram Equalization 直方图均衡化">每日编程实践: Histogram Equalization 直方图均衡化</a><time datetime="2026-07-14T21:33:00.000Z" title="发表于 2026-07-15 05:33:00">2026-07-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-14-strassen-matrix-multiplication/strassen_256_comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/14/daily-coding-strassen-matrix-multiplication-2026-07-14/" title="每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用">每日编程实践: Strassen 矩阵乘法 — 分治算法的经典应用</a><time datetime="2026-07-13T21:30:00.000Z" title="发表于 2026-07-14 05:30:00">2026-07-14</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
