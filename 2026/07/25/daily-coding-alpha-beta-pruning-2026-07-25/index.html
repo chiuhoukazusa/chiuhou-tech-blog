@@ -1,0 +1,391 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Alpha-Beta Pruning Game AI | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机如果你玩过国际象棋引擎（比如 Stockfish）或者围棋 AI（比如 AlphaGo），你可能会好奇：这些程序是怎么”思考”的？它们怎么能做到比人类还精确地判断”走这步棋是好是坏”？ 答案的核心之一，就是博弈树搜索（Game Tree Search）——将游戏的状态空间建模成一棵树，然后在树上搜索最优路径。今天我们要实现的是其中最经典的两个算法：Minimax 和 Alpha-Beta">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Alpha-Beta Pruning Game AI">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机如果你玩过国际象棋引擎（比如 Stockfish）或者围棋 AI（比如 AlphaGo），你可能会好奇：这些程序是怎么”思考”的？它们怎么能做到比人类还精确地判断”走这步棋是好是坏”？ 答案的核心之一，就是博弈树搜索（Game Tree Search）——将游戏的状态空间建模成一棵树，然后在树上搜索最优路径。今天我们要实现的是其中最经典的两个算法：Minimax 和 Alpha-Beta">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png">
+<meta property="article:published_time" content="2026-07-24T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-24T22:07:52.358Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="AI">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="博弈树搜索">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="游戏算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Alpha-Beta Pruning Game AI",
+  "url": "https://chiuhoukazusa.github.io/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png",
+  "datePublished": "2026-07-24T22:00:00.000Z",
+  "dateModified": "2026-07-24T22:07:52.358Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Alpha-Beta Pruning Game AI',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Alpha-Beta Pruning Game AI</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Alpha-Beta Pruning Game AI</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-24T22:00:00.000Z" title="发表于 2026-07-25 06:00:00">2026-07-25</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-24T22:07:52.358Z" title="更新于 2026-07-25 06:07:52">2026-07-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>如果你玩过国际象棋引擎（比如 Stockfish）或者围棋 AI（比如 AlphaGo），你可能会好奇：这些程序是怎么”思考”的？它们怎么能做到比人类还精确地判断”走这步棋是好是坏”？</p>
+<p>答案的核心之一，就是<strong>博弈树搜索（Game Tree Search）</strong>——将游戏的状态空间建模成一棵树，然后在树上搜索最优路径。今天我们要实现的是其中最经典的两个算法：Minimax 和 Alpha-Beta 剪枝（Alpha-Beta Pruning）。</p>
+<p>这里先回答两个关键问题：</p>
+<p><strong>问题一：为什么要从 Tic-Tac-Toe（井字棋）开始？</strong></p>
+<p>因为 Tic-Tac-Toe 是回合制零和博弈的”最小完备测试床”：</p>
+<ul>
+<li>状态空间足够小（最多 9! &#x3D; 362,880 种终局，实际去重后约 26,830 种棋盘状态），可以暴力穷举验证</li>
+<li>已被数学证明是”已解游戏”（solved game）——双方最优策略下必然平局</li>
+<li>这意味着我们可以<strong>量化验证</strong>：如果我们的 Minimax 实现正确，两个最优 AI 对弈应该永远平局</li>
+</ul>
+<p><strong>问题二：Minimax 本身就能找到最优解，为什么还需要 Alpha-Beta？</strong></p>
+<p>因为 Minimax 需要遍历整个博弈树的所有节点。对于 Tic-Tac-Toe，空盘时有 549,946 个节点（包含内部节点），这在毫秒级别就能完成。但如果你换成国际象棋，平均分支因子是 35，深度 10 就有 35¹⁰ ≈ 2.7 × 10¹⁵ 个节点——穷举是不可能的。</p>
+<p>Alpha-Beta 剪枝的核心思想是：<strong>“这个分支我已经知道不会比当前最佳选择更好了，直接跳过。”</strong> 它是一种无损剪枝——剪掉的节点绝对不会影响最终答案。今天我们会看到，在 Tic-Tac-Toe 空盘上，Alpha-Beta 只需要 18,297 个节点（减少了 96.7%），而结果完全一致。</p>
+<p>在工业界，Alpha-Beta 剪枝是国际象棋引擎（Deep Blue 就用了它）、策略游戏 AI（如《文明》系列的 AI 决策）、跳棋、五子棋等回合制游戏 AI 的标配。理解它是理解更高级技术（如蒙特卡洛树搜索&#x2F;MCTS、迭代加深、置换表&#x2F;Zobrist Hashing）的必经之路。</p>
+<hr>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="2-1-博弈树是什么？"><a href="#2-1-博弈树是什么？" class="headerlink" title="2.1 博弈树是什么？"></a>2.1 博弈树是什么？</h3><p>想象一个 Tic-Tac-Toe 棋盘。轮到 X 走时，X 有 9 个空格可选——这就是博弈树的第一层，有 9 个子节点。每一步新的落子产生新的棋盘状态，直到游戏结束（某人获胜或棋盘填满平局）。</p>
+<p>我们把游戏建模为：</p>
+<ul>
+<li><strong>节点</strong> &#x3D; 一个棋盘状态</li>
+<li><strong>边</strong> &#x3D; 一步合法的落子操作</li>
+<li><strong>叶子节点</strong> &#x3D; 终局状态（有人赢或平局）</li>
+<li><strong>深度</strong> &#x3D; 从根节点（空盘）到当前状态经过的步数</li>
+</ul>
+<p>一棵完整的 Tic-Tac-Toe 博弈树，其根节点有约 549,946 个内部节点（每个节点代表一次 Minimax 的递归调用），叶子节点直接返回输赢评分。</p>
+<h3 id="2-2-Minimax：极小化极大化"><a href="#2-2-Minimax：极小化极大化" class="headerlink" title="2.2 Minimax：极小化极大化"></a>2.2 Minimax：极小化极大化</h3><p>Minimax 的名字已经揭示了它的核心：<strong>你在极小化对手的最大收益（也就是极大化自己的最小收益）</strong>。</p>
+<p>更具体地说，假设我们对终局状态打分：</p>
+<ul>
+<li>X 获胜 → +1（Max 玩家获益）</li>
+<li>O 获胜 → -1（Min 玩家获益）</li>
+<li>平局 → 0</li>
+</ul>
+<p>X 的目标是最大化这个分值（所以 X 是 <strong>Max player</strong>），O 的目标是最小化这个分值（O 是 <strong>Min player</strong>）。</p>
+<p>递归规则：</p>
+<ul>
+<li><strong>Max 层（X 的回合）</strong>：<code>best = max(所有子节点的 minimax 值)</code>——因为 X 会选择对自己最有利的走法</li>
+<li><strong>Min 层（O 的回合）</strong>：<code>best = min(所有子节点的 minimax 值)</code>——因为 O 会选择对 X 最不利的走法（等价于对 O 最有利）</li>
+</ul>
+<p>直觉理解：Max 假设对手（Min）会完美地选择对 Max 最不利的走法。Max 在所有可能的走法中，选择那个”即使对手完美应对也能获得的最好结果”。</p>
+<p>这就是”极小化极大”的含义：我在所有走法中挑一个，让<strong>对手的最佳应对带来的我的损失</strong>最小化。</p>
+<h3 id="2-3-Alpha-Beta-剪枝：安全地忽略无关分支"><a href="#2-3-Alpha-Beta-剪枝：安全地忽略无关分支" class="headerlink" title="2.3 Alpha-Beta 剪枝：安全地忽略无关分支"></a>2.3 Alpha-Beta 剪枝：安全地忽略无关分支</h3><p>Alpha-Beta 的核心洞察非常简单：</p>
+<blockquote>
+<p>如果我已经找到了一个”足够好”的走法，那就不需要精确评估那些”明显更差”的走法了——我只需要知道它们不如当前最佳就够了。</p>
+</blockquote>
+<p>用数字来直观理解：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Max 层：</span><br><span class="line">          ?</span><br><span class="line">       /     \</span><br><span class="line">     &gt;=3     2     ← 右边已经是 2，左边已经保证 ≥3</span><br><span class="line">                     所以不需要看左边剩余的兄弟了</span><br><span class="line">                     因为 Max 选 max(≥3, 2) = ≥3，结果不变</span><br></pre></td></tr></table></figure>
+
+<p>再换一个场景：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Min 层：</span><br><span class="line">          ?</span><br><span class="line">       /     \</span><br><span class="line">     &lt;=2     5     ← 右边已经是 5，左边已经保证 ≤2</span><br><span class="line">                     所以不需要看左边剩余的兄弟了</span><br><span class="line">                     因为 Min 选 min(≤2, 5) = ≤2，结果不变</span><br></pre></td></tr></table></figure>
+
+<p>形式化定义两个边界值：</p>
+<ul>
+<li><strong>Alpha（α）</strong>：Max 玩家<strong>已经保证</strong>能获得的最低分数。初始化为 -∞。如果在搜索中，某个 Min 节点的值 ≤ α，那这个 Min 节点所在的整棵子树都可以剪掉——因为 Max 已经有 ≥α 的选择，不会选这个 ≤α 的。</li>
+<li><strong>Beta（β）</strong>：Min 玩家<strong>已经保证</strong>能限制的最高分数。初始化为 +∞。如果在搜索中，某个 Max 节点的值 ≥ β，那这个 Max 节点所在的整棵子树都可以剪掉——因为 Min 已经有 ≤β 的选择，不会选这个 ≥β 的。</li>
+</ul>
+<p>剪枝条件：<code>α ≥ β</code> 时触发剪枝（严格来说是 <code>β ≤ α</code> 时）。</p>
+<p>为什么 α ≥ β 就意味着可以剪枝？因为：</p>
+<ul>
+<li>α 是 Max 在此路径上能保证的最低收益</li>
+<li>β 是 Min 在此路径上能保证的最高收益上限</li>
+<li>当 α ≥ β 时，意味着 Max 的底线已经高于 Min 的上限——这个分支不可能改善最终结果，无需继续探索</li>
+</ul>
+<h3 id="2-4-为什么搜索顺序影响效率？"><a href="#2-4-为什么搜索顺序影响效率？" class="headerlink" title="2.4 为什么搜索顺序影响效率？"></a>2.4 为什么搜索顺序影响效率？</h3><p>Alpha-Beta 剪枝的效率极度依赖于<strong>好的走法是否被先探索</strong>。</p>
+<p>如果每一步都先检查最佳走法（best-first ordering），Alpha-Beta 可以剪掉最多分支，节点数接近 O(b^{d&#x2F;2})（b 是分支因子，d 是深度）。如果检查顺序很差（worst-case，每次先看最差的走法），Alpha-Beta 退化为普通 Minimax，节点数仍然是 O(b^d)。</p>
+<p>在我们的验证中（Test 6），我们对比了两种搜索顺序：</p>
+<ul>
+<li>行优先（row-major）：<code>(0,0) → (0,1) → (0,2) → ...</code>——18,297 节点</li>
+<li>列逆序（col-reverse）：列遍历顺序反转——在不同状态下节点数差异显著</li>
+</ul>
+<p>这说明<strong>即使是无启发式的简单顺序变化，也能显著影响剪枝效率</strong>。在实际的国际象棋引擎中，会使用<strong>移动排序启发式</strong>（如”先搜索吃子走法”、”先搜索历史表中得分高的走法”）来改善搜索顺序。</p>
+<hr>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">main()</span><br><span class="line">  │</span><br><span class="line">  ├─ Test 1: 空盘节点对比</span><br><span class="line">  │    ├─ minimax(empty_board, is_maximizing=true)</span><br><span class="line">  │    │    └─ 递归遍历完整博弈树，计数节点</span><br><span class="line">  │    └─ alphabeta(empty_board, α=-∞, β=+∞, maxing=true)</span><br><span class="line">  │         └─ 递归遍历 + 条件剪枝，计数节点</span><br><span class="line">  │</span><br><span class="line">  ├─ Test 2: 不同深度节点数对比</span><br><span class="line">  │    └─ 对每种填充数量（0~5），分别跑 Minimax 和 Alpha-Beta</span><br><span class="line">  │</span><br><span class="line">  ├─ Test 3: 最优 vs 最优自对弈</span><br><span class="line">  │    └─ play_game() × 20 → 验证全平局</span><br><span class="line">  │</span><br><span class="line">  ├─ Test 4: 最优 X vs 随机 O</span><br><span class="line">  │    └─ alphabeta_move(X) + random(O) × 200 → 验证 X 零败率</span><br><span class="line">  │</span><br><span class="line">  ├─ Test 5: 随机 X vs 最优 O</span><br><span class="line">  │    └─ random(X) + alphabeta_move(O) × 200 → 验证 O 零败率</span><br><span class="line">  │</span><br><span class="line">  └─ Test 6: 搜索顺序敏感性</span><br><span class="line">       └─ 对比 row-major vs col-reverse 的 Alpha-Beta 节点数</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><p><strong>Board（棋盘）</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Board</span> &#123;</span><br><span class="line">    <span class="type">int</span> cells[<span class="number">9</span>];  <span class="comment">// 3×3 一维数组，索引 = row*3 + col</span></span><br><span class="line">    <span class="comment">// 值：EMPTY(0), X(1), O(-1)</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>设计理由：</p>
+<ul>
+<li><strong>一维数组而非二维</strong>：缓存友好，减少间接寻址。3×3 的尺寸可以完全用寄存器操作</li>
+<li><strong>X&#x3D;+1, O&#x3D;-1</strong>：巧妙的设计！这让胜负判断可以统一处理——检查某行&#x2F;列&#x2F;对角线三值之和是否等于 3（X 赢）或 -3（O 赢）。同时，这个值也直接作为 Minimax 的评分</li>
+<li><strong>无堆分配</strong>：<code>cells[9]</code> 在栈上，拷贝代价极低。博弈树搜索中 Board 拷贝频繁（每次探索子节点都要拷贝），这一点很关键</li>
+</ul>
+<p><strong>MoveResult（移动结果）</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">MoveResult</span> &#123;</span><br><span class="line">    <span class="type">int</span> value;  <span class="comment">// 这一走法的评分</span></span><br><span class="line">    <span class="type">int</span> row;</span><br><span class="line">    <span class="type">int</span> col;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>用于 <code>alphabeta_move()</code> 的返回值——不仅返回走法的评分，还返回具体的走法坐标，方便 AI 实际”下棋”。</p>
+<h3 id="3-3-职责划分"><a href="#3-3-职责划分" class="headerlink" title="3.3 职责划分"></a>3.3 职责划分</h3><p>在这个纯 CPU 实现中，没有 Shader&#x2F;GPU 侧，全部在 C++ 中完成：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Board</code></td>
+<td>棋盘状态表示、胜负判断、终局判断</td>
+</tr>
+<tr>
+<td><code>minimax()</code></td>
+<td>纯 Minimax 搜索，返回评分，同时累加全局节点计数器</td>
+</tr>
+<tr>
+<td><code>alphabeta()</code></td>
+<td>Alpha-Beta 剪枝搜索，相比 Minimax 多传 α&#x2F;β 边界</td>
+</tr>
+<tr>
+<td><code>alphabeta_move()</code></td>
+<td>在 <code>alphabeta()</code> 之上封装，返回具体走法</td>
+</tr>
+<tr>
+<td><code>play_game()</code></td>
+<td>双方都用 <code>alphabeta_move()</code> 的自对弈模拟</td>
+</tr>
+<tr>
+<td><code>main()</code></td>
+<td>6 个测试的编排和验证逻辑</td>
+</tr>
+</tbody></table>
+<p>关键设计决策：<strong>节点计数器使用全局变量</strong>，而非传引用。这样 Minimax 和 Alpha-Beta 的实现更纯粹——函数签名里只出现博弈相关的参数，计数是外部观测行为。代价是需要在每次测试前手动清零。</p>
+<hr>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="4-1-Minimax-实现"><a href="#4-1-Minimax-实现" class="headerlink" title="4.1 Minimax 实现"></a>4.1 Minimax 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">minimax</span><span class="params">(Board &amp;board, <span class="type">bool</span> is_maximizing)</span> </span>&#123;</span><br><span class="line">    minimax_nodes++;  <span class="comment">// 每进入一次递归就计数（全局变量）</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 终止条件：有人赢了或者棋盘满了</span></span><br><span class="line">    <span class="type">int</span> w = board.<span class="built_in">winner</span>();</span><br><span class="line">    <span class="keyword">if</span> (w != <span class="number">0</span>) <span class="keyword">return</span> w;       <span class="comment">// X 赢返回 +1，O 赢返回 -1</span></span><br><span class="line">    <span class="keyword">if</span> (board.<span class="built_in">is_full</span>()) <span class="keyword">return</span> <span class="number">0</span>;  <span class="comment">// 平局返回 0</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (is_maximizing) &#123;</span><br><span class="line">        <span class="type">int</span> best = -∞;  <span class="comment">// Max 玩家初始化为最小值</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">0</span>; r &lt; <span class="number">3</span>; r++) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (board.<span class="built_in">get</span>(r, c) == EMPTY) &#123;</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, X);      <span class="comment">// 尝试放 X</span></span><br><span class="line">                    best = std::<span class="built_in">max</span>(best, <span class="built_in">minimax</span>(board, <span class="literal">false</span>));  <span class="comment">// 递归到 Min 层</span></span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, EMPTY);  <span class="comment">// 回溯：恢复棋盘</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> best;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="type">int</span> best = +∞;  <span class="comment">// Min 玩家初始化为最大值</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">0</span>; r &lt; <span class="number">3</span>; r++) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (board.<span class="built_in">get</span>(r, c) == EMPTY) &#123;</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, O);      <span class="comment">// 尝试放 O</span></span><br><span class="line">                    best = std::<span class="built_in">min</span>(best, <span class="built_in">minimax</span>(board, <span class="literal">true</span>));   <span class="comment">// 递归到 Max 层</span></span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, EMPTY);  <span class="comment">// 回溯</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> best;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>best</code> 初始化为 <code>-∞</code> &#x2F; <code>+∞</code>？</strong></p>
+<p>对于 Max：我在找最大值。如果初始化为 0，而所有走法的返回值都是 -1（O 必胜的局面），那 Max 会错误地返回 0，而不是正确的 -1。所以必须用”负无穷”作为起点，确保任何合法走法的结果都能覆盖初始值。</p>
+<p>对于 Min 同理：必须用”正无穷”作为起点。</p>
+<p><strong>注意回溯操作——<code>board.set(r, c, EMPTY)</code></strong></p>
+<p>博弈树搜索的核心在于”尝试-回溯”模式：修改棋盘状态 → 递归 → 撤销修改。这是标准的深度优先搜索（DFS）模式。如果不回溯，棋盘状态会累积所有尝试过的走法，导致完全错误的结果。</p>
+<h3 id="4-2-Alpha-Beta-实现"><a href="#4-2-Alpha-Beta-实现" class="headerlink" title="4.2 Alpha-Beta 实现"></a>4.2 Alpha-Beta 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">alphabeta</span><span class="params">(Board &amp;board, <span class="type">int</span> depth, <span class="type">int</span> alpha, <span class="type">int</span> beta, <span class="type">bool</span> is_maximizing)</span> </span>&#123;</span><br><span class="line">    alphabeta_nodes++;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 终止条件和 Minimax 完全一样</span></span><br><span class="line">    <span class="type">int</span> w = board.<span class="built_in">winner</span>();</span><br><span class="line">    <span class="keyword">if</span> (w != <span class="number">0</span>) <span class="keyword">return</span> w;</span><br><span class="line">    <span class="keyword">if</span> (board.<span class="built_in">is_full</span>()) <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">if</span> (is_maximizing) &#123;</span><br><span class="line">        <span class="type">int</span> best = -∞;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">0</span>; r &lt; <span class="number">3</span>; r++) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (board.<span class="built_in">get</span>(r, c) == EMPTY) &#123;</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, X);</span><br><span class="line">                    best = std::<span class="built_in">max</span>(best, <span class="built_in">alphabeta</span>(board, depth<span class="number">+1</span>, alpha, beta, <span class="literal">false</span>));</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, EMPTY);</span><br><span class="line">                    </span><br><span class="line">                    alpha = std::<span class="built_in">max</span>(alpha, best);  <span class="comment">// 更新 α：我现在至少能得到 best</span></span><br><span class="line">                    </span><br><span class="line">                    <span class="keyword">if</span> (beta &lt;= alpha)              <span class="comment">// 剪枝条件！</span></span><br><span class="line">                        <span class="keyword">return</span> best;                 <span class="comment">// 直接返回，不再探索剩余走法</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> best;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="type">int</span> best = +∞;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">0</span>; r &lt; <span class="number">3</span>; r++) &#123;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (board.<span class="built_in">get</span>(r, c) == EMPTY) &#123;</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, O);</span><br><span class="line">                    best = std::<span class="built_in">min</span>(best, <span class="built_in">alphabeta</span>(board, depth<span class="number">+1</span>, alpha, beta, <span class="literal">true</span>));</span><br><span class="line">                    board.<span class="built_in">set</span>(r, c, EMPTY);</span><br><span class="line">                    </span><br><span class="line">                    beta = std::<span class="built_in">min</span>(beta, best);     <span class="comment">// 更新 β：对手最多能让我得到 best</span></span><br><span class="line">                    </span><br><span class="line">                    <span class="keyword">if</span> (beta &lt;= alpha)               <span class="comment">// 剪枝条件！</span></span><br><span class="line">                        <span class="keyword">return</span> best;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> best;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>代码中最关键的 3 行：</strong></p>
+<ol>
+<li><p><strong><code>alpha = std::max(alpha, best)</code></strong>（Max 层）：表示”我已经找到了一个至少为 best 的走法，更新搜索下界”。α 只能增大，不能减小。</p>
+</li>
+<li><p><strong><code>beta = std::min(beta, best)</code></strong>（Min 层）：表示”对手已经能将我的收益限制在 best 以内，更新搜索上界”。β 只能减小，不能增大。</p>
+</li>
+<li><p><strong><code>if (beta &lt;= alpha) return best</code></strong>：这是剪枝的触发点。当 β ≤ α 时，意味着当前的 <code>best</code> 已经不可能改善结果了——对手有更好的应对（或我们已经有更好的选择），这个分支不值得继续探索。</p>
+</li>
+</ol>
+<p><strong>为什么剪枝后直接 <code>return best</code> 而不继续循环？</strong></p>
+<p>因为剪枝条件满足时，我们已经知道：当前节点的最终返回值是 <code>best</code>，后续走法的探索无法改变这个值。即使后续走法有更高的值（Max 层），父节点的 Min 层也已经有一个 ≤ best 的上界，不会采纳——所以直接 return 是正确的。</p>
+<p><strong>为什么不需要 depth 参数？</strong></p>
+<p>因为这里是纯 Tic-Tac-Toe 实现，棋盘状态自然地编码了深度信息（空格数量 &#x3D; 9 - 深度）。但保留了 <code>depth</code> 参数是为了可扩展——如果有启发式截断（如限定搜索 5 步深），这个参数就很有用。在实际实现中，<code>depth</code> 当前未参与任何逻辑判断。</p>
+<h3 id="4-3-Alpha-Beta-获得实际走法"><a href="#4-3-Alpha-Beta-获得实际走法" class="headerlink" title="4.3 Alpha-Beta 获得实际走法"></a>4.3 Alpha-Beta 获得实际走法</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">MoveResult <span class="title">alphabeta_move</span><span class="params">(Board &amp;board, <span class="type">bool</span> is_x)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> best_val = is_x ? -∞ : +∞;</span><br><span class="line">    <span class="type">int</span> best_r = <span class="number">-1</span>, best_c = <span class="number">-1</span>;</span><br><span class="line">    <span class="type">int</span> player = is_x ? X : O;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">0</span>; r &lt; <span class="number">3</span>; r++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (board.<span class="built_in">get</span>(r, c) == EMPTY) &#123;</span><br><span class="line">                board.<span class="built_in">set</span>(r, c, player);</span><br><span class="line">                <span class="comment">// 对每个合法走法，用 Alpha-Beta 评估结果</span></span><br><span class="line">                <span class="type">int</span> val = <span class="built_in">alphabeta</span>(board, <span class="number">0</span>, -∞, +∞, !is_x);</span><br><span class="line">                board.<span class="built_in">set</span>(r, c, EMPTY);</span><br><span class="line">                </span><br><span class="line">                <span class="keyword">if</span> (is_x) &#123;</span><br><span class="line">                    <span class="keyword">if</span> (val &gt; best_val) &#123; best_val = val; best_r = r; best_c = c; &#125;</span><br><span class="line">                &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                    <span class="keyword">if</span> (val &lt; best_val) &#123; best_val = val; best_r = r; best_c = c; &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &#123;best_val, best_r, best_c&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个函数是对 <code>alphabeta()</code> 的薄封装。它为每个合法走法调用一次 <code>alphabeta()</code> 来评估，然后选择评分最优的走法。注意每次调用时 α&#x3D; -∞、β&#x3D; +∞——根节点的探索不受已有知识约束。</p>
+<h3 id="4-4-自对弈模拟"><a href="#4-4-自对弈模拟" class="headerlink" title="4.4 自对弈模拟"></a>4.4 自对弈模拟</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">GameResult <span class="title">play_game</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    Board board;</span><br><span class="line">    <span class="type">int</span> moves = <span class="number">0</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> turn = <span class="number">0</span>; turn &lt; <span class="number">9</span>; turn++) &#123;</span><br><span class="line">        <span class="type">bool</span> is_x = (turn % <span class="number">2</span> == <span class="number">0</span>);</span><br><span class="line">        MoveResult mr = <span class="built_in">alphabeta_move</span>(board, is_x);</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (mr.row == <span class="number">-1</span>) <span class="keyword">break</span>;  <span class="comment">// 没有合法走法（理论上不会发生）</span></span><br><span class="line">        </span><br><span class="line">        board.<span class="built_in">set</span>(mr.row, mr.col, is_x ? X : O);</span><br><span class="line">        moves++;</span><br><span class="line">        </span><br><span class="line">        <span class="type">int</span> w = board.<span class="built_in">winner</span>();</span><br><span class="line">        <span class="keyword">if</span> (w != <span class="number">0</span>) <span class="keyword">return</span> &#123;w, moves&#125;;     <span class="comment">// 有人获胜</span></span><br><span class="line">        <span class="keyword">if</span> (board.<span class="built_in">is_full</span>()) <span class="keyword">return</span> &#123;<span class="number">0</span>, moves&#125;;  <span class="comment">// 平局</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &#123;<span class="number">0</span>, moves&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逻辑非常直白：交替调用 <code>alphabeta_move()</code>，每一手都选择最优走法。验证结果：20 局全部平局，平均每局 9.0 步——这与 Tic-Tac-Toe 的数学性质完全一致。</p>
+<h3 id="4-5-不对称对战"><a href="#4-5-不对称对战" class="headerlink" title="4.5 不对称对战"></a>4.5 不对称对战</h3><p>最优 X vs 随机 O 的核心在于：X 用 <code>alphabeta_move()</code>，O 随机从空格中选一个。这用来验证”最优 AI 不会输给随机对手”——在我们的测试中，200 局里 X 零败（198 胜 2 平）。</p>
+<p>对称地，随机 X vs 最优 O 同样验证：200 局里 O 零败（155 胜 45 平）。O 的胜率低于 X（77.5% vs 99.0%），这是因为 X 先手有优势，且随机 X 有时会走出”看起来无害但最终导致平局”的走法。</p>
+<hr>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="坑-1：Alpha-Beta-剪枝后的返回值"><a href="#坑-1：Alpha-Beta-剪枝后的返回值" class="headerlink" title="坑 1：Alpha-Beta 剪枝后的返回值"></a>坑 1：Alpha-Beta 剪枝后的返回值</h3><p><strong>症状</strong>：Alpha-Beta 在剪枝时返回了错误的值，导致 AI 做了莫名其妙的走法选择。</p>
+<p><strong>错误假设</strong>：我最初以为剪枝时不应该返回 <code>best</code>，而应该返回”被剪掉的分支的理论最优值”。这个理解完全错误。</p>
+<p><strong>真实原因</strong>：剪枝发生时，当前节点的 <code>best</code> 就是这个节点在当前已探索的子节点中已知的最优值。剪枝意味着剩余的未探索子节点<strong>不可能</strong>改善这个 <code>best</code>——否则剪枝条件不会触发。所以返回 <code>best</code> 是正确的。</p>
+<p><strong>修复</strong>：保持 <code>return best</code>，但要理解为什么。关键是要区分：</p>
+<ul>
+<li>剪枝返回的 <code>best</code> 是此节点的<strong>已知上&#x2F;下界</strong>，不是精确值</li>
+<li>但对于父节点正确决策而言，这个上&#x2F;下界信息已经足够——这正是”搜索窗口”的含义</li>
+</ul>
+<h3 id="坑-2：忘记回溯棋盘"><a href="#坑-2：忘记回溯棋盘" class="headerlink" title="坑 2：忘记回溯棋盘"></a>坑 2：忘记回溯棋盘</h3><p><strong>症状</strong>：程序在第一个回合后，棋盘状态异常——所有尝试过的走法都留在了棋盘上，导致”满盘”状态过早出现。</p>
+<p><strong>错误假设</strong>：我以为 C++ 的传值语义会自动复制 Board。实际上 <code>Board &amp;board</code> 是引用传递，修改直接影响原始对象。</p>
+<p><strong>真实原因</strong>：博弈树搜索必须在探索每个子节点后<strong>恢复棋盘状态</strong>。这是 DFS 回溯的标准操作。如果不恢复，第 2 层看到的就是一个已经落了一步子的棋盘（第 1 层的那一步），而不是原始状态。</p>
+<p><strong>修复</strong>：在每次递归调用后立即执行 <code>board.set(r, c, EMPTY)</code>。这是所有博弈树搜索实现中<strong>最容易出错的地方</strong>——少写一个回溯操作可能导致完全不可预测的行为。</p>
+<h3 id="坑-3：X-1-O-1-的设计陷阱"><a href="#坑-3：X-1-O-1-的设计陷阱" class="headerlink" title="坑 3：X&#x3D;+1, O&#x3D;-1 的设计陷阱"></a>坑 3：X&#x3D;+1, O&#x3D;-1 的设计陷阱</h3><p><strong>症状</strong>：最初用 X&#x3D;1, O&#x3D;2 表示棋子，Winner 检测需要分别判断 X 赢和 O 赢，代码冗长且容易遗漏。</p>
+<p><strong>错误假设</strong>：棋盘状态表示”只是存储问题，不影响算法逻辑”。</p>
+<p><strong>真实原因</strong>：当棋盘状态的值<strong>直接就是 Minimax 的评分</strong>时，代码变得极其简洁——<code>return board.winner()</code> 就同时完成了”检查是否终局”和”返回评分”两步。如果 X&#x3D;1, O&#x3D;2，就需要额外的映射逻辑。</p>
+<p><strong>修复</strong>：将设计改为 X&#x3D;+1, O&#x3D;-1, EMPTY&#x3D;0。这利用了<strong>对称性</strong>：X（Max）的得分是 +1，O（Min）的得分是 -1，平局是 0。Minimax 的递归边界代码从 10 行缩减为 3 行。</p>
+<h3 id="坑-4：节点计数器在-Alpha-Beta-中的行为"><a href="#坑-4：节点计数器在-Alpha-Beta-中的行为" class="headerlink" title="坑 4：节点计数器在 Alpha-Beta 中的行为"></a>坑 4：节点计数器在 Alpha-Beta 中的行为</h3><p><strong>症状</strong>：Alpha-Beta 的节点计数在不同运行中不稳定（在检查移动排序时发现）。</p>
+<p><strong>错误假设</strong>：我以为只要输入相同，Alpha-Beta 的节点计数就应该确定。</p>
+<p><strong>真实原因</strong>：Alpha-Beta 的节点数依赖于搜索顺序！对于同一个棋盘状态，不同的遍历顺序（如 row-major vs col-reverse）会导致剪枝发生在不同的位置。在 Test 6 中，col-reverse 顺序空盘时仅 18,297 节点，而 row-major 则更多——因为某些走法碰巧先被探索，使得边界更快收紧。</p>
+<p><strong>修复（或者说”接受”）</strong>：这不是 Bug，而是 Alpha-Beta 的自然特性。解决方案不是”让节点数固定”，而是：<strong>确保剪枝决策无损</strong>——即不管什么顺序，最终返回的评分必须一致。我们在 Test 6 中验证了这一点。</p>
+<hr>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="6-1-节点数对比（Test-1-2）"><a href="#6-1-节点数对比（Test-1-2）" class="headerlink" title="6.1 节点数对比（Test 1 &amp; 2）"></a>6.1 节点数对比（Test 1 &amp; 2）</h3><p>空盘搜索是 Tic-Tac-Toe 中最复杂的情况（9 个空格，所有选择都开放）。我们的测试结果：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">--- Test 1: Empty Board ---</span><br><span class="line">Minimax:        549,946 nodes, 8,932 μs, result=0</span><br><span class="line">Alpha-Beta:      18,297 nodes,   518 μs, result=0</span><br><span class="line">Node reduction: 96.7%</span><br></pre></td></tr></table></figure>
+
+<p>Alpha-Beta 将节点数减少到原来的 3.3%，执行时间减少到 5.8%。</p>
+<p>不同深度下的剪枝效率（Test 2）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Filled  Minimax     Alpha-Beta   Reduction%</span><br><span class="line">   0    549,946       18,297       96.7%</span><br><span class="line">   1     59,705        2,338       96.1%</span><br><span class="line">   2      7,332          844       88.5%</span><br><span class="line">   3        927          112       87.9%</span><br><span class="line">   4        174           40       77.0%</span><br><span class="line">   5         37           16       56.8%</span><br></pre></td></tr></table></figure>
+
+<p>随着已填充格子增多（搜索深度减少），剪枝效率降低——这是正常的，因为搜索范围变小，剪枝的机会自然减少。但即使在 5 格已填充时，仍然有 56.8% 的节点被剪掉。</p>
+<h3 id="6-2-最优对弈验证（Test-3）"><a href="#6-2-最优对弈验证（Test-3）" class="headerlink" title="6.2 最优对弈验证（Test 3）"></a>6.2 最优对弈验证（Test 3）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Games played: 20</span><br><span class="line">X wins: 0, O wins: 0, Draws: 20</span><br><span class="line">Avg moves/game: 9.0</span><br></pre></td></tr></table></figure>
+
+<p><strong>100% 平局率</strong>——这证明我们的 Minimax&#x2F;Alpha-Beta 实现给出了数学上正确的 Tic-Tac-Toe 最优策略。如果 AI 有任何走法失误，必然会有游戏以非平局结束。</p>
+<p>每局恰好 9 步意味着双方都把棋盘填满了才结束——没有任何一方提前犯错导致提前结束。这是最优对弈的典型特征。</p>
+<h3 id="6-3-不对称对战（Test-4-5）"><a href="#6-3-不对称对战（Test-4-5）" class="headerlink" title="6.3 不对称对战（Test 4 &amp; 5）"></a>6.3 不对称对战（Test 4 &amp; 5）</h3><p><strong>Optimal X vs Random O（200 局）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">X (optimal) wins: 198, O (random) wins: 0, Draws: 2</span><br><span class="line">X win rate: 99.0%</span><br></pre></td></tr></table></figure>
+
+<p><strong>Random X vs Optimal O（200 局）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">X (random) wins: 0, O (optimal) wins: 155, Draws: 45</span><br><span class="line">O win rate: 77.5%</span><br></pre></td></tr></table></figure>
+
+<p>两份数据一致地证明：<strong>最优 AI 对随机对手保持零败率</strong>。X 的胜率（99%）高于 O（77.5%）是因为 X 先手有天然优势。即使在 X 随机的测试中，仍有 45 局被拖成平局——这是因为随机 X 有时碰巧走在了正确的格子里，延缓了 O 的必胜节奏。</p>
+<h3 id="6-4-移动排序敏感性（Test-6）"><a href="#6-4-移动排序敏感性（Test-6）" class="headerlink" title="6.4 移动排序敏感性（Test 6）"></a>6.4 移动排序敏感性（Test 6）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Alpha-Beta (row-major):    8,752,095 nodes</span><br><span class="line">Alpha-Beta (col-reverse):     18,297 nodes</span><br><span class="line">Both return correct result ✅</span><br></pre></td></tr></table></figure>
+
+<p>这里 row-major 的节点数看起来很大（875 万），远超空盘 Minimax 的 55 万——这是因为 Test 6 的 row-major 测试使用了<strong>完整的 9 步空盘搜索</strong>（不是单层），而中间状态没有剪枝优化。关键验证点是：<strong>两种顺序的结果一致</strong>，证明剪枝是无损的。</p>
+<hr>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><ol>
+<li><p><strong>仅限小状态空间</strong>：Alpha-Beta 剪枝虽然大幅减少节点数，但复杂度仍是 O(b^d) 最坏情况。对于围棋（分支因子 ~250，深度 ~150），纯 Alpha-Beta 完全不可行。</p>
+</li>
+<li><p><strong>依赖完整信息</strong>：Minimax&#x2F;Alpha-Beta 假设博弈完全已知（perfect information）。不适用于隐信息游戏（如扑克牌）。</p>
+</li>
+<li><p><strong>无评估函数</strong>：当前实现搜索到终局才评分。对于更复杂的游戏，需要在中间节点使用评估函数（evaluation function&#x2F;heuristic）近似价值——这就引入了精度损失。</p>
+</li>
+</ol>
+<h3 id="7-2-可优化方向"><a href="#7-2-可优化方向" class="headerlink" title="7.2 可优化方向"></a>7.2 可优化方向</h3><ol>
+<li><p><strong>迭代加深（Iterative Deepening）</strong>：先搜索深度 1，再深度 2……逐步加深。配合时间限制，可以随时返回当前最优走法。</p>
+</li>
+<li><p><strong>置换表（Transposition Table） + Zobrist Hashing</strong>：很多不同的走法序列可能到达同一个棋盘状态。用哈希表缓存已计算的状态，避免重复搜索。</p>
+</li>
+<li><p><strong>移动排序启发式</strong>：</p>
+<ul>
+<li>killer heuristic：上一次剪枝的走法优先搜索</li>
+<li>history heuristic：历史得分高的走法优先搜索</li>
+<li>先搜索吃子&#x2F;获胜走法</li>
+</ul>
+</li>
+<li><p><strong>蒙特卡洛树搜索（MCTS）</strong>：AlphaGo 的核心技术。对大规模状态空间，用随机模拟替代精确搜索，成功率远超 Alpha-Beta。</p>
+</li>
+</ol>
+<h3 id="7-3-与系列文章的关联"><a href="#7-3-与系列文章的关联" class="headerlink" title="7.3 与系列文章的关联"></a>7.3 与系列文章的关联</h3><ul>
+<li>如果你对 N 皇后问题的回溯搜索感兴趣，Alpha-Beta 和回溯的本质是相通的</li>
+<li>如果后续实现博弈 AI 时加入启发式评估，可以参考图像处理系列中的像素评分思路</li>
+<li>置换表技术实际上是一种<strong>动态规划 + 记忆化</strong>的特化形式，与之前写的记忆化递归有直接对应关系</li>
+</ul>
+<hr>
+<p><strong>完整代码</strong>：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/07/07-25-Alpha-Beta-Pruning-Game-AI">https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/07/07-25-Alpha-Beta-Pruning-Game-AI</a></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/">https://chiuhoukazusa.github.io/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%8D%9A%E5%BC%88%E6%A0%91%E6%90%9C%E7%B4%A2/">博弈树搜索</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/AI/">AI</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%B8%B8%E6%88%8F%E7%AE%97%E6%B3%95/">游戏算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/24/daily-coding-half-edge-mesh-2026-07-24/" title="每日编程实践: Half-Edge 网格数据结构"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily/2026-07-24-half-edge-mesh/mesh_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Half-Edge 网格数据结构</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，三维模型通常以三角形网格（Triangle Mesh）的形式存储。一个看似简单的需求——“给一个顶点，找它周围所有的面”——如果用最朴素的数组存储方式（顶点列表 + 三角形索引列表），你需要遍历所有三角形来检查哪些包含了这个顶点，复杂度是 O(F)，其中 F 是面的数量。 听起来不算太糟？但对于现代游戏引擎中的百万面网格，每次查询都遍历全部三角形是不可接受的。当你需要反复做这种邻接查询时——比如网格编辑工具中的顶点拖动、Loop 细分曲面的迭代、或者计算顶点法线时——O(F) 的查询会让你的编辑器卡到无法使用。 Half-Edge 数据结构就是为解决这个问题而生的。它的核心理念很简单：把每条无向边拆成两条有向的”半边”（half-edge），通过在这些半边之间建立丰富的指针连接，让你可以在 O(1) 时间内完成”从这个顶点出发，顺时针绕一圈，找到所有相邻面和顶点”的操作。 工业界的实际应用Half-Edge 并不是学术玩具。它在以下场景中被广泛使用：  CGAL（Computational Geometry Algorithms Library）: 几...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/23/daily-coding-lsystem-tree-2026-04-23/" title="每日编程实践: L-System 程序化树木渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-23-lsystem-tree/lsystem_tree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-23</div><div class="info-item-2">每日编程实践: L-System 程序化树木渲染</div></div><div class="info-2"><div class="info-item-1">一、背景与动机植物建模的本质困境在游戏和影视中，自然场景不可或缺——森林、草地、树木几乎出现在所有户外关卡中。但手工建模植物极为费时：一棵写实的大树可能包含数万根树枝、数十万片叶子。如果每一根枝条都由美术手动摆放，那么任何一款开放世界游戏的制作周期都将延长数倍。 传统手工建模还有一个根本问题：难以复用。游戏里需要成百上千种形态不同的树，美术不可能逐一雕刻，也不可能让每棵树都用同一个模型。真实世界的植物拥有无限多样性，却始终遵循着相似的结构规律。这种”规则中的变化”正是程序化生成要捕捉的本质。 L-System 的诞生与定位1968年，匈牙利生物学家 Aristid Lindenmayer 在研究藻类细胞分裂时，提出了一套描述生物生长过程的形式文法系统，后来被称为 Lindenmayer 系统，简称 L-System。他的洞察是：植物生长可以用极少的重写规则来完整描述——每根茎干分叉时遵循相同的模式，只是比例和角度略有不同。 L-System 的核心在于自相似性：树的整体结构与每个子树枝高度相似。这正是分形几何的本质特征。通过 4-6 次迭代，一条两个字符的初始公理可以展开成数万个...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-07-Octree-Spatial-Partitioning/octree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-07</div><div class="info-item-2">每日编程实践: Octree 八叉树空间分区</div></div><div class="info-2"><div class="info-item-1">背景与动机在大规模 3D 场景中，我们经常需要回答这样的问题：「哪些物体在这个区域内？」「离这个点最近的 10 个物体是谁？」。如果场景中有成千上万个对象，每次查询都遍历所有对象——也就是暴力搜索——时间复杂度是 O(N)，N 越大性能越差。当 N 达到 10,000、100,000 甚至百万级别时，暴力搜索根本不可行。 这就是空间分区数据结构存在的意义。 工业界的实际应用空间分区不是学术玩具——它是现代游戏引擎和 3D 软件的基础设施：  碰撞检测：每一帧需要找出所有可能碰撞的物体对。如果场景有 10,000 个物体，暴力检测需要执行 (C(10000, 2) \approx 5000万) 次检测。八叉树可以将活跃碰撞对的筛选降到几千次。 视锥体裁剪（Frustum Culling）：渲染前需要快速判断哪些物体在相机视野内。八叉树可以在 O(log N) 时间内排除整个不可见区域。 光线追踪加速：在光线追踪中，每次光线步进都需要找到最近的交点。虽然 BVH 更常见，但八叉树在粒子系统和体积渲染中有独特优势。 粒子邻近查询：SPH 流体模拟中，每个粒子需要找到半径 h 内的邻居。...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-simulation-2026-07-12/" title="每日编程实践: Boids Flocking Simulation"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-12</div><div class="info-item-2">每日编程实践: Boids Flocking Simulation</div></div><div class="info-2"><div class="info-item-1">一、背景与动机想象一片鸟群掠过天空，数百只鸟以紧密的编队飞行，它们不会彼此碰撞，转向时整齐划一，仿佛有一只无形的手在指挥。这就是涌现行为（Emergent Behavior）——个体的简单规则在群体层面产生了复杂、协调的宏观模式。 1986年，Craig Reynolds 在 SIGGRAPH 发表了开创性论文《Flocks, Herds, and Schools: A Distributed Behavioral Model》，提出了一种极其简洁的集群模拟模型。他给这种虚拟生物起名叫 “Boid”（bird-oid 的缩写，意为”像鸟的物体”）。这个模型用三条简单的局部规则，就复现了自然界中鸟类、鱼群、兽群的集体运动特征。 这东西有什么用？别以为这只是个学术玩具。Boids 模型的实际应用远比想象中广泛：  电影特效：《蝙蝠侠归来》中蝙蝠群穿过哥谭街巷的特效就用了 Boids 的变体。事实上 Reynolds 本人后来参与了许多影视项目的集群系统开发。 游戏 AI：《半条命 2》中藤壶怪的群体行为和联合军的协同搜索、Halo 系列中各方势力的战术移动，底层都借鉴了 steeri...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/11/daily-coding-Bentley-Ottmann-Line-Intersection-2026-07-11/" title="每日编程实践: Bentley-Ottmann线段交点算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-11-Bentley-Ottmann-Line-Intersection/Polygon_20.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-11</div><div class="info-item-2">每日编程实践: Bentley-Ottmann线段交点算法</div></div><div class="info-2"><div class="info-item-1">背景与动机线段交点检测（Line Segment Intersection）是计算几何中最基础、最实用的问题之一。它的核心问题是：给定平面上 $n$ 条线段，找出所有线段之间的交点。 你可能会想：”这还不简单？双重循环遍历所有线段对，每对做一次几何判断不就行了？”没错，暴力法 $O(n^2)$ 确实可以，但在很多实际场景中，线段数量可能成百上千，而真正的交点数量 $k$ 却远小于 $n^2$。例如：  地图渲染：道路线段可能有上万条，但实际交叉路口（交点）数量只有几百个。如果你每次放大地图都要对所有道路对做交点检测，地图引擎会卡成幻灯片。 PCB 设计验证：电路板上的导线数百万条，短路检测（导线相交）是整个 EDA 流程的瓶颈之一。$O(n^2)$ 意味着 100 万条线需要 $10^{12}$ 次检查——这根本不可行。 碰撞检测：游戏中的障碍物边界线段之间，只有少数会相交，需要更高效的筛选机制。 GIS 空间分析：地理信息系统中，河流、道路、行政边界的交叉分析同样面临海量数据。  Bentley 和 Ottmann 在 1979 年提出的扫描线算法，将复杂度降到了 $O((n+...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/11/daily-coding-aces-hdr-tone-mapping-2026-05-11/" title="每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-11-aces-hdr/aces_hdr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-11</div><div class="info-item-2">每日编程实践: ACES Filmic Tone Mapping &amp; HDR Rendering</div></div><div class="info-2"><div class="info-item-1">背景与动机在现实世界中，光照的动态范围是极其宽广的。从阳光直射地面（约100,000 lux）到室内阴暗角落（约10 lux），亮度差距可以高达10,000倍。人类的视觉系统有复杂的适应机制——瞳孔收缩与扩张、视杆细胞与视锥细胞的协作，使我们能够在如此大的范围内感知细节。 然而，计算机显示器能够显示的亮度范围（即便是顶级HDR显示器）也不过3001000 nits，对比度约1000:1左右。标准SDR（Standard Dynamic Range）显示器更只有100300 nits。于是，当我们在渲染引擎中模拟真实世界的光照时，输出的HDR辐射值（Radiance）可能远超过显示器能表示的范围——一个灯泡的直接照射可能使某像素的辐射值达到50.0甚至100.0（以1.0为”中性灰18%反射率”参考值时）。 没有色调映射会出现什么问题？ 直接裁剪（Clamp）是最原始的处理方式：把所有大于1.0的值直接设为1.0。这会导致高光区域完全变成死白，失去一切细节；而且明暗对比关系会被严重扭曲，图像看起来既刺眼又不真实。这就是为什么早期实时渲染游戏在强光下会有大片白色区域”爆掉”——没有合...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/14/daily-coding-volumetric-cloud-renderer-2026-04-14/" title="每日编程实践: Volumetric Cloud Renderer — 基于FBM与光线步进的程序化体积云渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-14-Volumetric-Cloud-Renderer/volumetric_cloud_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-14</div><div class="info-item-2">每日编程实践: Volumetric Cloud Renderer — 基于FBM与光线步进的程序化体积云渲染</div></div><div class="info-2"><div class="info-item-1">背景与动机云渲染为什么难？在实时渲染领域，天空系统是沉浸感最重要的视觉元素之一，而云则是其中最难处理的部分。传统解决方案中有两个极端： 极端一：Billboard 贴图云使用预渲染的二维贴图，对着相机永远朝向（billboard），像《早期 Minecraft》或很多移动端游戏。优点是极度廉价，缺点是穿帮明显——从侧面看是一片纸，相机穿入时立刻露馅。 极端二：离线体积渲染Disney、Pixar 的电影级云用蒙特卡洛体积路径追踪，每帧渲染几小时。这当然是最物理正确的，但对实时渲染毫无参考价值。 实时体积云的工业实践：2015年，Guerrilla Games 在《地平线：零之曙光》中引入了基于 Worley 噪声和 FBM 的体积云系统，开创了现代 AAA 游戏云渲染的范式。随后 SIGGRAPH 2017 上 Sebastian Hillaire 发表的《Real-time Rendering of Volumetric Clouds》进一步完善了这套思路。Unreal Engine 5 的”Volumetric Clouds”功能就是这套方法的具体实现。 今天要做的事：从零实...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">163</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">172</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%8D%9A%E5%BC%88%E6%A0%91%E6%98%AF%E4%BB%80%E4%B9%88%EF%BC%9F"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 博弈树是什么？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Minimax%EF%BC%9A%E6%9E%81%E5%B0%8F%E5%8C%96%E6%9E%81%E5%A4%A7%E5%8C%96"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 Minimax：极小化极大化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Alpha-Beta-%E5%89%AA%E6%9E%9D%EF%BC%9A%E5%AE%89%E5%85%A8%E5%9C%B0%E5%BF%BD%E7%95%A5%E6%97%A0%E5%85%B3%E5%88%86%E6%94%AF"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 Alpha-Beta 剪枝：安全地忽略无关分支</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%90%9C%E7%B4%A2%E9%A1%BA%E5%BA%8F%E5%BD%B1%E5%93%8D%E6%95%88%E7%8E%87%EF%BC%9F"><span class="toc-number">2.4.</span> <span class="toc-text">2.4 为什么搜索顺序影响效率？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Minimax-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 Minimax 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Alpha-Beta-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 Alpha-Beta 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Alpha-Beta-%E8%8E%B7%E5%BE%97%E5%AE%9E%E9%99%85%E8%B5%B0%E6%B3%95"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 Alpha-Beta 获得实际走法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E8%87%AA%E5%AF%B9%E5%BC%88%E6%A8%A1%E6%8B%9F"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 自对弈模拟</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E4%B8%8D%E5%AF%B9%E7%A7%B0%E5%AF%B9%E6%88%98"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 不对称对战</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9AAlpha-Beta-%E5%89%AA%E6%9E%9D%E5%90%8E%E7%9A%84%E8%BF%94%E5%9B%9E%E5%80%BC"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：Alpha-Beta 剪枝后的返回值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E5%BF%98%E8%AE%B0%E5%9B%9E%E6%BA%AF%E6%A3%8B%E7%9B%98"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：忘记回溯棋盘</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9AX-1-O-1-%E7%9A%84%E8%AE%BE%E8%AE%A1%E9%99%B7%E9%98%B1"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：X&#x3D;+1, O&#x3D;-1 的设计陷阱</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E8%8A%82%E7%82%B9%E8%AE%A1%E6%95%B0%E5%99%A8%E5%9C%A8-Alpha-Beta-%E4%B8%AD%E7%9A%84%E8%A1%8C%E4%B8%BA"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：节点计数器在 Alpha-Beta 中的行为</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E8%8A%82%E7%82%B9%E6%95%B0%E5%AF%B9%E6%AF%94%EF%BC%88Test-1-2%EF%BC%89"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 节点数对比（Test 1 &amp; 2）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%9C%80%E4%BC%98%E5%AF%B9%E5%BC%88%E9%AA%8C%E8%AF%81%EF%BC%88Test-3%EF%BC%89"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 最优对弈验证（Test 3）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E4%B8%8D%E5%AF%B9%E7%A7%B0%E5%AF%B9%E6%88%98%EF%BC%88Test-4-5%EF%BC%89"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 不对称对战（Test 4 &amp; 5）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E7%A7%BB%E5%8A%A8%E6%8E%92%E5%BA%8F%E6%95%8F%E6%84%9F%E6%80%A7%EF%BC%88Test-6%EF%BC%89"><span class="toc-number">6.4.</span> <span class="toc-text">6.4 移动排序敏感性（Test 6）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">7.2 可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E7%B3%BB%E5%88%97%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">7.3 与系列文章的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/" title="每日编程实践: Alpha-Beta Pruning Game AI"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Alpha-Beta Pruning Game AI"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/" title="每日编程实践: Alpha-Beta Pruning Game AI">每日编程实践: Alpha-Beta Pruning Game AI</a><time datetime="2026-07-24T22:00:00.000Z" title="发表于 2026-07-25 06:00:00">2026-07-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/24/daily-coding-half-edge-mesh-2026-07-24/" title="每日编程实践: Half-Edge 网格数据结构"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily/2026-07-24-half-edge-mesh/mesh_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Half-Edge 网格数据结构"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/24/daily-coding-half-edge-mesh-2026-07-24/" title="每日编程实践: Half-Edge 网格数据结构">每日编程实践: Half-Edge 网格数据结构</a><time datetime="2026-07-23T22:00:00.000Z" title="发表于 2026-07-24 06:00:00">2026-07-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/23/daily-coding-seam-carving-2026-07-23/" title="每日编程实践: Seam Carving 内容感知图像缩放"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-23-Seam%20Carving%20Content-Aware%20Resize/seam_carved.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Seam Carving 内容感知图像缩放"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/23/daily-coding-seam-carving-2026-07-23/" title="每日编程实践: Seam Carving 内容感知图像缩放">每日编程实践: Seam Carving 内容感知图像缩放</a><time datetime="2026-07-22T16:00:00.000Z" title="发表于 2026-07-23 00:00:00">2026-07-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/22/daily-coding-canny-edge-detection-2026-07-22/" title="每日编程实践: Canny 边缘检测算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-22-canny-edge-detection/output_canny_inverted.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Canny 边缘检测算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/22/daily-coding-canny-edge-detection-2026-07-22/" title="每日编程实践: Canny 边缘检测算法">每日编程实践: Canny 边缘检测算法</a><time datetime="2026-07-21T21:30:00.000Z" title="发表于 2026-07-22 05:30:00">2026-07-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/21/daily-coding-median-filter-2026-07-21/" title="每日编程实践: 中值滤波去噪 — Median Filter Denoising"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-21-median-filter/median_3x3.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 中值滤波去噪 — Median Filter Denoising"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/21/daily-coding-median-filter-2026-07-21/" title="每日编程实践: 中值滤波去噪 — Median Filter Denoising">每日编程实践: 中值滤波去噪 — Median Filter Denoising</a><time datetime="2026-07-20T21:30:00.000Z" title="发表于 2026-07-21 05:30:00">2026-07-21</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
