@@ -1,0 +1,805 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel) | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="图像处理中的高斯模糊（Gaussian Blur）可能是计算机图形学中使用频率最高的算法之一——从游戏引擎的 Bloom 后处理到 SSAO 的噪声平滑，从边缘检测的预处理到高斯金字塔的构建，它无处不在。表面上看，这只是一个”加权平均”操作，但深入它的内核设计你会发现一个优雅的数学恒等式：2D 高斯核可以分解为两个 1D 核的外积。利用这个性质，我们可以将 O(k²) 的 2D 卷积分解为两次 O">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="图像处理中的高斯模糊（Gaussian Blur）可能是计算机图形学中使用频率最高的算法之一——从游戏引擎的 Bloom 后处理到 SSAO 的噪声平滑，从边缘检测的预处理到高斯金字塔的构建，它无处不在。表面上看，这只是一个”加权平均”操作，但深入它的内核设计你会发现一个优雅的数学恒等式：2D 高斯核可以分解为两个 1D 核的外积。利用这个性质，我们可以将 O(k²) 的 2D 卷积分解为两次 O">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png">
+<meta property="article:published_time" content="2026-07-28T22:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-28T22:13:07.044Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图像处理">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="性能优化">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)",
+  "url": "https://chiuhoukazusa.github.io/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png",
+  "datePublished": "2026-07-28T22:30:00.000Z",
+  "dateModified": "2026-07-28T22:13:07.044Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-28T22:30:00.000Z" title="发表于 2026-07-29 06:30:00">2026-07-29</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-28T22:13:07.044Z" title="更新于 2026-07-29 06:13:07">2026-07-29</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>图像处理中的高斯模糊（Gaussian Blur）可能是计算机图形学中使用频率最高的算法之一——从游戏引擎的 Bloom 后处理到 SSAO 的噪声平滑，从边缘检测的预处理到高斯金字塔的构建，它无处不在。表面上看，这只是一个”加权平均”操作，但深入它的内核设计你会发现一个优雅的数学恒等式：2D 高斯核可以分解为两个 1D 核的外积。利用这个性质，我们可以将 O(k²) 的 2D 卷积分解为两次 O(k) 的 1D 卷积，在核尺寸为 25×25 时实现 14.5 倍的性能加速。本文将从头实现 2D 和分离两种卷积方式，通过 4 种 σ 配置的全面基准测试，精确验证分离卷积的输出与 2D 卷积数学等价——PSNR 全部优于 51 dB，肉眼完全不可区分。</p>
+<h2 id="1-背景与动机1-背景与动机"><a href="#1-背景与动机1-背景与动机" class="headerlink" title="#1-背景与动机1. 背景与动机"></a>#1-背景与动机1. 背景与动机</h2><h3 id="1-1-高斯模糊的工业界地位1-1-高斯模糊的工业界地位"><a href="#1-1-高斯模糊的工业界地位1-1-高斯模糊的工业界地位" class="headerlink" title="#1-1-高斯模糊的工业界地位1.1 高斯模糊的工业界地位"></a>#1-1-高斯模糊的工业界地位1.1 高斯模糊的工业界地位</h3><p>在游戏引擎和实时渲染中，高斯模糊是”瑞士军刀”级别的工具。以下是不完全列举：</p>
+<table>
+<thead>
+<tr>
+<th>应用场景</th>
+<th>具体用法</th>
+<th>典型参数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Bloom（泛光）</strong></td>
+<td>提取亮部 → 多次高斯模糊 → 叠加到原图，模拟镜头散射</td>
+<td>σ ≈ 10-15 px，3-5 pass</td>
+</tr>
+<tr>
+<td><strong>SSAO 去噪</strong></td>
+<td>屏幕空间环境光遮蔽生成后，用高斯模糊去除采样噪点</td>
+<td>σ ≈ 2-4 px，1 pass</td>
+</tr>
+<tr>
+<td><strong>SSR 模糊</strong></td>
+<td>屏幕空间反射的粗糙度模拟——用模糊扩散反射图像</td>
+<td>σ 正比于 roughness</td>
+</tr>
+<tr>
+<td><strong>DoF（景深）</strong></td>
+<td>CoC (Circle of Confusion) 决定了每个像素的模糊半径</td>
+<td>σ 由深度和焦距决定</td>
+</tr>
+<tr>
+<td><strong>边缘检测预处理</strong></td>
+<td>Canny 边缘检测的第一步就是高斯模糊去噪</td>
+<td>σ ≈ 1-2 px</td>
+</tr>
+<tr>
+<td><strong>高斯金字塔</strong></td>
+<td>图像缩放前先模糊（抗锯齿），逐层降采样</td>
+<td>σ ≈ 1.6，每层缩放因子 2</td>
+</tr>
+<tr>
+<td><strong>Shadow Map 软阴影</strong></td>
+<td>对硬阴影纹理做高斯模糊生成 PCF 类似效果</td>
+<td>σ ≈ 1-3 px</td>
+</tr>
+<tr>
+<td><strong>UI 背景虚化</strong></td>
+<td>macOS&#x2F;iOS 的毛玻璃效果（Vibrancy）本质上就是高斯模糊</td>
+<td>σ ≈ 20-30 px</td>
+</tr>
+</tbody></table>
+<p>这些场景的共同特点是：<strong>模糊核可以很大</strong>。一个 Bloom 效果可能需要 σ&#x3D;10、半径 30 的核——也就是 61×61 &#x3D; 3721 个采样点。如果不做优化，单张 1920×1080 图像的模糊就需要 1920×1080×3721 ≈ 77 亿次乘加操作。按 60fps 的目标，这需要约 464 GOps&#x2F;s 的吞吐量——即使对于现代 GPU 也是相当大的负担。</p>
+<p>这就是可分离核的价值所在：使用分离卷积，同样的操作只需要 1920×1080×61×2 ≈ 2.5 亿次操作——不到原来的 1&#x2F;30。</p>
+<h3 id="1-2-为什么是高斯核1-2-为什么是高斯核"><a href="#1-2-为什么是高斯核1-2-为什么是高斯核" class="headerlink" title="#1-2-为什么是高斯核1.2 为什么是高斯核"></a>#1-2-为什么是高斯核1.2 为什么是高斯核</h3><p>你会问：既然均值滤波（box blur）也可以分离（两次移动平均），为什么不直接用 box blur？为什么非要用高斯？</p>
+<p>答案在于频率响应特性：</p>
+<p><strong>Box Blur 的问题</strong>：Box blur 在空间域是一个矩形函数，对应频率域的 sinc 函数——sinc 有旁瓣（side lobes），这意味着 box blur 在”平滑”图像的同时会引入<strong>振铃效应（ringing）</strong>：模糊后的边缘会出现不应有的明暗条纹。这是不可接受的视觉瑕疵。</p>
+<p><strong>高斯核的优势</strong>：高斯函数在空间域和频率域都是高斯函数——这是它独一无二的数学性质。因为高斯函数没有旁瓣，所以高斯模糊<strong>不会产生振铃效应</strong>。它平滑图像的同时，边缘只会被柔化、不会被扭曲。</p>
+<p>另一个关键性质：高斯函数是<strong>唯一同时满足以下三个条件的函数</strong>：</p>
+<ol>
+<li>旋转对称（各向同性）</li>
+<li>可分离（2D &#x3D; 1D ⊗ 1D）</li>
+<li>尺度空间的半群性质：G_σ₁ ∗ G_σ₂ &#x3D; G_√(σ₁²+σ₂²)</li>
+</ol>
+<p>这三个性质的组合让高斯函数在理论上无可替代。特别是半群性质：多次小 σ 的高斯模糊叠加，精确等价于一次大 σ 的高斯模糊——这让多 pass 的 Bloom 实现变得极简。</p>
+<h3 id="1-3-不做优化的代价1-3-不做优化的代价"><a href="#1-3-不做优化的代价1-3-不做优化的代价" class="headerlink" title="#1-3-不做优化的代价1.3 不做优化的代价"></a>#1-3-不做优化的代价1.3 不做优化的代价</h3><p>直接对比 2D 卷积和分离卷积在不同核尺寸下的操作次数：</p>
+<table>
+<thead>
+<tr>
+<th>核尺寸</th>
+<th>2D 卷积（每像素乘法）</th>
+<th>分离卷积（每像素乘法）</th>
+<th>加速比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3×3</td>
+<td>9</td>
+<td>6</td>
+<td>1.5x</td>
+</tr>
+<tr>
+<td>7×7</td>
+<td>49</td>
+<td>14</td>
+<td>3.5x</td>
+</tr>
+<tr>
+<td>11×11</td>
+<td>121</td>
+<td>22</td>
+<td>5.5x</td>
+</tr>
+<tr>
+<td>17×17</td>
+<td>289</td>
+<td>34</td>
+<td>8.5x</td>
+</tr>
+<tr>
+<td>25×25</td>
+<td>625</td>
+<td>50</td>
+<td>12.5x</td>
+</tr>
+<tr>
+<td>61×61</td>
+<td>3721</td>
+<td>122</td>
+<td>30.5x</td>
+</tr>
+</tbody></table>
+<p>核尺寸越大，加速比越大。对于实时渲染中的 Bloom（σ≈10, r≈30, k&#x3D;61），分离卷积的收益是 30 倍——省下的就是帧预算，直接决定了 Bloom 效果能不能开。</p>
+<h2 id="2-核心原理2-核心原理"><a href="#2-核心原理2-核心原理" class="headerlink" title="#2-核心原理2. 核心原理"></a>#2-核心原理2. 核心原理</h2><h3 id="2-1-高斯函数的定义2-1-高斯函数的定义"><a href="#2-1-高斯函数的定义2-1-高斯函数的定义" class="headerlink" title="#2-1-高斯函数的定义2.1 高斯函数的定义"></a>#2-1-高斯函数的定义2.1 高斯函数的定义</h3><p>一维高斯函数的标准形式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">G(x) = (1 / √(2πσ²)) · exp(-x² / (2σ²))</span><br></pre></td></tr></table></figure>
+
+<p>其中 σ（sigma）控制了”钟形曲线”的宽度：</p>
+<ul>
+<li>σ 小 → 曲线窄，集中的权重在中心，模糊半径小</li>
+<li>σ 大 → 曲线宽，权重分散，模糊半径大</li>
+</ul>
+<p>二维高斯函数是其自然推广：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">G(x, y) = (1 / (2πσ²)) · exp(-(x² + y²) / (2σ²))</span><br></pre></td></tr></table></figure>
+
+<p>关键观察：指数的参数是 <code>x² + y²</code>，这是一个可分离的形式——它等于 <code>x² + y²</code>，而不是需要 xy 叉乘项的不可分形式。</p>
+<h3 id="2-2-核的可分离性：数学推导2-2-核的可分离性：数学推导"><a href="#2-2-核的可分离性：数学推导2-2-核的可分离性：数学推导" class="headerlink" title="#2-2-核的可分离性：数学推导2.2 核的可分离性：数学推导"></a>#2-2-核的可分离性：数学推导2.2 核的可分离性：数学推导</h3><p>这是本文最核心的数学洞察。将 2D 高斯函数展开：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">G(x, y) = (1 / (2πσ²)) · exp(-(x² + y²) / (2σ²))</span><br><span class="line">        = (1 / (2πσ²)) · exp(-x² / (2σ²)) · exp(-y² / (2σ²))</span><br></pre></td></tr></table></figure>
+
+<p>注意 <code>1 / (2πσ²) = (1 / √(2πσ²)) · (1 / √(2πσ²))</code>，所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">G(x, y) = (1 / √(2πσ²)) · exp(-x² / (2σ²))  ×  (1 / √(2πσ²)) · exp(-y² / (2σ²))</span><br><span class="line">        = G_1D(x) · G_1D(y)</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉解释</strong>：这个推导告诉我们的不是什么高深的数学，而是一个简单的事实——2D 高斯函数在位置 (x, y) 的值，仅取决于 x 和 y 各自到中心距离的叠加，两者之间没有”相互作用”。更直观地说，高斯函数给一个像素分配的权重 &#x3D; 它的 x 偏移的权重 × 它的 y 偏移的权重。这就是可分离性的根源。</p>
+<p>注意：并非所有圆形对称的函数都可分离。例如，一个简单的圆形 mask <code>1[sqrt(x²+y²) &lt;= r]</code> 就是不可分离的——你不能写成 <code>f(x) · g(y)</code> 的形式。高斯函数的可分离性来自于指数函数的性质 <code>exp(a+b) = exp(a) · exp(b)</code>。</p>
+<h3 id="2-3-卷积运算的分离利用2-3-卷积运算的分离利用"><a href="#2-3-卷积运算的分离利用2-3-卷积运算的分离利用" class="headerlink" title="#2-3-卷积运算的分离利用2.3 卷积运算的分离利用"></a>#2-3-卷积运算的分离利用2.3 卷积运算的分离利用</h3><p>2D 离散卷积的定义：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Output(x, y) = Σ_kx Σ_ky Input(x+kx, y+ky) · Kernel(kx, ky)</span><br></pre></td></tr></table></figure>
+
+<p>当 Kernel 可分离时（Kernel(kx, ky) &#x3D; K_x(kx) · K_y(ky)），可以将双重求和拆解：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Output(x, y) = Σ_kx Σ_ky Input(x+kx, y+ky) · K_x(kx) · K_y(ky)</span><br><span class="line">             = Σ_kx K_x(kx) · [ Σ_ky Input(x+kx, y+ky) · K_y(ky) ]</span><br><span class="line">             = Σ_kx K_x(kx) · Intermediate(x+kx, y)</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉解释</strong>：这相当于把 2D 卷积拆成两步——先对每一列做纵向的 1D 卷积（得到中间结果 Intermediate），再对每一行做横向的 1D 卷积。或者反过来：先横向再纵向，结果完全等价（卷积的可交换性）。</p>
+<p>这个性质的重要性怎么强调都不过分。在 CPU 上，2D 卷积有嵌套的 4 层循环（x, y, kx, ky），而分离卷积用两次 3 层循环（x, y, k），将时间复杂度从 O(W·H·k²) 降到了 O(2·W·H·k) &#x3D; O(W·H·k)。而且降低的是乘法常数——k² → 2k 不是渐近意义上的，是精确的每次乘法的减少。</p>
+<h3 id="2-4-核半径与-σ-的关系2-4-核半径与-σ-的关系"><a href="#2-4-核半径与-σ-的关系2-4-核半径与-σ-的关系" class="headerlink" title="#2-4-核半径与 σ 的关系2.4 核半径与 σ 的关系"></a>#2-4-核半径与 σ 的关系2.4 核半径与 σ 的关系</h3><p>实际操作中，高斯函数是无限延伸的（理论上 x→∞ 时 G(x)→0），我们必须截断。经验法则（”3σ 法则”）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">radius ≈ ceil(3σ)</span><br></pre></td></tr></table></figure>
+
+<p>为什么是 3σ？因为高斯函数在 ±3σ 范围内覆盖了约 99.7% 的总权重。截断在 3σ 处丢弃的权重不到 0.3%，对视觉质量几乎没有影响。你当然可以用更大的半径（比如 4σ 或 5σ），但边际收益急剧递减。</p>
+<p>在我们的实现中使用固定半径对应关系：</p>
+<table>
+<thead>
+<tr>
+<th>σ</th>
+<th>半径 r</th>
+<th>核尺寸 k &#x3D; 2r+1</th>
+<th>覆盖的权重</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.0</td>
+<td>3</td>
+<td>7×7</td>
+<td>~99.73%</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>5</td>
+<td>11×11</td>
+<td>~99.74%</td>
+</tr>
+<tr>
+<td>3.0</td>
+<td>8</td>
+<td>17×17</td>
+<td>~99.86%</td>
+</tr>
+<tr>
+<td>5.0</td>
+<td>12</td>
+<td>25×25</td>
+<td>~99.98%</td>
+</tr>
+</tbody></table>
+<h3 id="2-5-加权归一化2-5-加权归一化"><a href="#2-5-加权归一化2-5-加权归一化" class="headerlink" title="#2-5-加权归一化2.5 加权归一化"></a>#2-5-加权归一化2.5 加权归一化</h3><p>离散核必须归一化，否则图像会整体变亮或变暗。所有核权重之和必须为 1：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Σ_i Σ_j Kernel(i, j) = 1</span><br></pre></td></tr></table></figure>
+
+<p>这是一个容易被忽视但关键的步骤。如果不做归一化，模糊后的像素值是原有像素值的加权和——如果权重和 &gt; 1，图像变亮；如果权重和 &lt; 1，图像变暗。特别是当 σ 很小而截断半径很大时，外部像素的权重贡献的”丢失”会导致权重和略小于理论值。</p>
+<p>在我们的实现中，归一化在 <code>build1D()</code> 和 <code>build2D()</code> 的最末尾进行——先计算所有权重，再除以权重总和。</p>
+<h3 id="2-6-为什么不用-FFT-做模糊2-6-为什么不用-FFT-做模糊"><a href="#2-6-为什么不用-FFT-做模糊2-6-为什么不用-FFT-做模糊" class="headerlink" title="#2-6-为什么不用 FFT 做模糊2.6 为什么不用 FFT 做模糊"></a>#2-6-为什么不用 FFT 做模糊2.6 为什么不用 FFT 做模糊</h3><p>有读者可能会问：既然卷积定理说空间域的卷积 &#x3D; 频率域的乘法，为什么不用 FFT 加速？</p>
+<p>FFT 卷积的复杂度是 O(N log N)。对于 N &#x3D; 512×512 &#x3D; 262K 像素，262K · log₂(262K) ≈ 262K × 18 ≈ 4.7M。而分离高斯卷积是 262K × 2 × k。</p>
+<p>对于 k &#x3D; 7：分离卷积 262K × 14 ≈ 3.7M，FFT 反而更慢（FFT 有更大的常数因子）。</p>
+<p>对于 k &#x3D; 25：分离卷积 262K × 50 ≈ 13.1M，此时 FFT 4.7M 在理论上更快——但实际中 FFT 的常数因子（复数运算、内存分配、数据重排）通常会抵消理论优势，直到核尺寸非常大（k &gt; 50）。</p>
+<p>所以：对于大多数实时渲染场景中的高斯模糊（k 通常在 5-25 之间），分离卷积是最优实现。FFT 只在离线渲染和超大核尺寸时才有意义。</p>
+<h2 id="3-实现架构3-实现架构"><a href="#3-实现架构3-实现架构" class="headerlink" title="#3-实现架构3. 实现架构"></a>#3-实现架构3. 实现架构</h2><h3 id="3-1-整体数据流3-1-整体数据流"><a href="#3-1-整体数据流3-1-整体数据流" class="headerlink" title="#3-1-整体数据流3.1 整体数据流"></a>#3-1-整体数据流3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">generateTestImage() → Input (512×512 PPM)</span><br><span class="line">  │</span><br><span class="line">  ├─→ blur2D(Input, Kernel) → 2D result (直接 4 层循环卷积)</span><br><span class="line">  │</span><br><span class="line">  ├─→ blurSeparable(Input, Kernel) → Separable result</span><br><span class="line">  │     ├─ blur1D_H(Input, kernel1D) → Horizontal pass</span><br><span class="line">  │     └─ blur1D_V(h_pass, kernel1D) → Vertical pass</span><br><span class="line">  │</span><br><span class="line">  └─→ 量化比较</span><br><span class="line">        ├─ verifyKernelSeparability() → |G_2D - G_1D⊗G_1D| &lt; 1e-12</span><br><span class="line">        ├─ verifyOutputEquivalence() → PSNR, RMSE, per-pixel max error</span><br><span class="line">        ├─ benchmarkPerformance() → time_2D / time_sep = speedup</span><br><span class="line">        └─ VarianceReduction() → 方差递减 (σ↑ → variance↓)</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构3-2-关键数据结构"><a href="#3-2-关键数据结构3-2-关键数据结构" class="headerlink" title="#3-2-关键数据结构3.2 关键数据结构"></a>#3-2-关键数据结构3.2 关键数据结构</h3><p><strong>Image 类</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Image</span> &#123;</span><br><span class="line">    <span class="type">int</span> width, height;</span><br><span class="line">    std::vector&lt;<span class="type">unsigned</span> <span class="type">char</span>&gt; data;  <span class="comment">// R,G,B,R,G,B,... 的扁平数组</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>使用扁平数组 <code>unsigned char</code> 而不是 <code>float</code> 的设计理由：</p>
+<ul>
+<li>标准 8-bit 图像直接适配，无需类型转换</li>
+<li>PPM 格式原生就是 8-bit，读写无需格式转换</li>
+<li>内存占用是 float 版的 1&#x2F;4（适合大图像批量测试）</li>
+<li>卷积时临时使用 <code>double</code> 累加器避免精度损失</li>
+</ul>
+<p><strong>GaussianKernel 类</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">GaussianKernel</span> &#123;</span><br><span class="line">    <span class="type">int</span> radius;         <span class="comment">// 核半径</span></span><br><span class="line">    <span class="type">int</span> kernelSize;     <span class="comment">// = 2*radius + 1</span></span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; kernel1D;   <span class="comment">// 1D 核，size = kernelSize</span></span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; kernel2D;   <span class="comment">// 2D 核，size = kernelSize²</span></span><br><span class="line">    <span class="type">double</span> sigma;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>同时存储 1D 和 2D 核的设计理由：</p>
+<ul>
+<li>分离卷积只需要 1D 核（节省一次外积计算）</li>
+<li>2D 卷积需要 2D 核用于对比基准</li>
+<li>核可分离性验证需要两者都存在来进行逐元素比较</li>
+</ul>
+<h3 id="3-3-边界处理策略3-3-边界处理策略"><a href="#3-3-边界处理策略3-3-边界处理策略" class="headerlink" title="#3-3-边界处理策略3.3 边界处理策略"></a>#3-3-边界处理策略3.3 边界处理策略</h3><p>卷积操作的经典难题——当核的中心在图像边缘，部分核权重落在图像之外时怎么办？常用策略：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>描述</th>
+<th>优缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Zero-padding</td>
+<td>图像外像素值 &#x3D; 0</td>
+<td>边缘变暗（artifact），不可接受</td>
+</tr>
+<tr>
+<td>Reflected (mirror)</td>
+<td>镜像反射边界像素</td>
+<td>物理意义不强但视觉效果可接受</td>
+</tr>
+<tr>
+<td>Clamp (replicate)</td>
+<td>复制最近的边界像素</td>
+<td>最安全，视觉 artifact 最小</td>
+</tr>
+<tr>
+<td>Kernel re-normalization</td>
+<td>丢弃外部核权重，重新归一化</td>
+<td>数学上最优但复杂</td>
+</tr>
+</tbody></table>
+<p>我们选择<strong>Clamp（边界复制）策略</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(w - <span class="number">1</span>, x + kx));</span><br></pre></td></tr></table></figure>
+
+<p>这个策略的直觉：在超出边界的采样位置，我们重复使用最边缘的有效像素值——这相当于”延伸”了图像，假设边缘之外的内容与边缘完全相同。虽然这种假设在物理上不成立，但在视觉上产生的 artifact 远小于 zero-padding。</p>
+<h3 id="3-4-测试图案设计3-4-测试图案设计"><a href="#3-4-测试图案设计3-4-测试图案设计" class="headerlink" title="#3-4-测试图案设计3.4 测试图案设计"></a>#3-4-测试图案设计3.4 测试图案设计</h3><p><code>generateTestImage()</code> 生成的 512×512 测试图像精心设计了多种特征来”折磨”模糊算法：</p>
+<ul>
+<li><strong>辐射渐变（R 通道）</strong>：圆形对称的亮度渐变，用于测试旋转对称的保持性</li>
+<li><strong>水平渐变（G 通道）</strong>：验证 2D 和分离卷积在不同方向的输出一致性</li>
+<li><strong>棋盘格（B 通道，32px 格子）</strong>：提供大量锐利边缘——这些是最能暴露模糊差异的结构。如果 2D 和分离卷积输出有任何差异，在棋盘格边缘会被最大化</li>
+<li><strong>白色网格线（每 128×96 像素）</strong>：1px 宽的细线——如果模糊核有任何不对称，这里马上会暴露</li>
+</ul>
+<p>一个重要的设计原则：测试图像必须包含比”自然照片”更苛刻的边缘——因为棋盘格的黑色到白色是 0→255 的满幅度跳变，而自然影像的边缘通常是渐变的。如果算法在棋盘格上没有差异，那在自然照片上一定也没有差异。</p>
+<h3 id="3-5-CPU-侧职责划分3-5-CPU-侧职责划分"><a href="#3-5-CPU-侧职责划分3-5-CPU-侧职责划分" class="headerlink" title="#3-5-CPU 侧职责划分3.5 CPU 侧职责划分"></a>#3-5-CPU 侧职责划分3.5 CPU 侧职责划分</h3><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>关键调用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Image 类</td>
+<td>图像存储、PPM 读写、克隆</td>
+<td>loadPPM(), savePPM(), clone()</td>
+</tr>
+<tr>
+<td>GaussianKernel</td>
+<td>核构建（1D + 2D）和归一化</td>
+<td>build1D(), build2D()</td>
+</tr>
+<tr>
+<td>2D 卷积</td>
+<td>标准四层循环卷积，边界 clamp</td>
+<td>blur2D()</td>
+</tr>
+<tr>
+<td>分离卷积</td>
+<td>先水平 1D + 再垂直 1D</td>
+<td>blur1D_H(), blur1D_V(), blurSeparable()</td>
+</tr>
+<tr>
+<td>验证系统</td>
+<td>核可靠性、输出等价性、性能、方差</td>
+<td>4 个 verify&#x2F;benchmark 函数</td>
+</tr>
+</tbody></table>
+<h2 id="4-关键代码解析4-关键代码解析"><a href="#4-关键代码解析4-关键代码解析" class="headerlink" title="#4-关键代码解析4. 关键代码解析"></a>#4-关键代码解析4. 关键代码解析</h2><h3 id="4-1-高斯核构建4-1-高斯核构建"><a href="#4-1-高斯核构建4-1-高斯核构建" class="headerlink" title="#4-1-高斯核构建4.1 高斯核构建"></a>#4-1-高斯核构建4.1 高斯核构建</h3><p><strong>1D 核构建</strong>：这是所有后续操作的基础。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">build1D</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> sum = <span class="number">0.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = -radius; i &lt;= radius; i++) &#123;</span><br><span class="line">        <span class="type">double</span> val = std::<span class="built_in">exp</span>(-(i * i) / (<span class="number">2.0</span> * sigma * sigma));</span><br><span class="line">        kernel1D[i + radius] = val;</span><br><span class="line">        sum += val;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 归一化：确保所有权重和为 1</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; kernelSize; i++) &#123;</span><br><span class="line">        kernel1D[i] /= sum;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>设计要点：</p>
+<ul>
+<li>对称性利用：由于高斯函数是偶函数（<code>G(-x) = G(x)</code>），实际只需要计算半径个权重然后镜像。不过对于通用性我们保留了完整循环</li>
+<li>归一化在后不在前：如果先归一化每个权重再求和，由于截断效应（无限核被截断为有限半径），和可能不是精确的 1。先求和再除以和的方式保证权重和精确为 1（除了浮点精度的 epsilon 级别误差）</li>
+<li>不包含 <code>1/√(2πσ²)</code> 系数：由于后续归一化，这个系数会被约掉，没必要计算。省略系数可以减少一次幂运算和一次除法</li>
+</ul>
+<p><strong>2D 核构建</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">build2D</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> sum = <span class="number">0.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> ky = -radius; ky &lt;= radius; ky++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> kx = -radius; kx &lt;= radius; kx++) &#123;</span><br><span class="line">            <span class="type">double</span> val = std::<span class="built_in">exp</span>(-(kx*kx + ky*ky) / (<span class="number">2.0</span> * sigma * sigma));</span><br><span class="line">            kernel2D[(ky + radius) * kernelSize + (kx + radius)] = val;</span><br><span class="line">            sum += val;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 归一化</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; kernelSize * kernelSize; i++) &#123;</span><br><span class="line">        kernel2D[i] /= sum;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意对比两个构建函数的异同：2D 版与 1D 版的差异仅在指数参数——2D 使用 <code>kx² + ky²</code>，1D 使用 <code>i²</code>。这恰恰对应了本节开头的数学推导：<code>exp(-(kx²+ky²)/(2σ²)) = exp(-kx²/(2σ²)) · exp(-ky²/(2σ²))</code>，即 2D 核权重精确等于两个 1D 核权重的乘积。</p>
+<h3 id="4-2-2D-直接卷积实现4-2-2D-直接卷积实现"><a href="#4-2-2D-直接卷积实现4-2-2D-直接卷积实现" class="headerlink" title="#4-2-2D 直接卷积实现4.2 2D 直接卷积实现"></a>#4-2-2D 直接卷积实现4.2 2D 直接卷积实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">blur2D</span><span class="params">(<span class="type">const</span> Image&amp; input, <span class="type">const</span> GaussianKernel&amp; kernel)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> w = input.width, h = input.height;</span><br><span class="line">    <span class="type">int</span> r = kernel.radius, ks = kernel.kernelSize;</span><br><span class="line">    <span class="function">Image <span class="title">output</span><span class="params">(w, h)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">            <span class="type">double</span> sum[<span class="number">3</span>] = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> ky = -r; ky &lt;= r; ky++) &#123;</span><br><span class="line">                <span class="type">int</span> sy = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(h - <span class="number">1</span>, y + ky)); <span class="comment">// clamp</span></span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> kx = -r; kx &lt;= r; kx++) &#123;</span><br><span class="line">                    <span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(w - <span class="number">1</span>, x + kx)); <span class="comment">// clamp</span></span><br><span class="line">                    <span class="type">double</span> kw = kernel.kernel2D[(ky + r) * ks + (kx + r)];</span><br><span class="line">                    <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                        sum[c] += input.<span class="built_in">at</span>(sx, sy, c) * kw;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                output.<span class="built_in">at</span>(x, y, c) = <span class="built_in">static_cast</span>&lt;<span class="type">unsigned</span> <span class="type">char</span>&gt;(</span><br><span class="line">                    std::<span class="built_in">max</span>(<span class="number">0.0</span>, std::<span class="built_in">min</span>(<span class="number">255.0</span>, sum[c])));</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> output;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>设计要点：</p>
+<ul>
+<li><strong>double 累加器</strong>：虽然输入和输出都是 <code>unsigned char</code> (0-255)，但中间计算使用 <code>double</code> 累加。原因：(1) 避免整数溢出（几百个 255 乘上小于 1 的权重后求和，在 int 范围内没问题，但为了代码通用性使用 double）(2) 避免多次舍入误差累积——如果每加一次权就截断为整数，误差会随着核扩大而累积</li>
+<li><strong>clamp 边界处理</strong>：<code>std::max(0, std::min(h-1, y+ky))</code> 这个一行代码比 if 分支更快且更安全。当 y+ky &lt; 0 时取 0，当 y+ky &gt;&#x3D; h 时取 h-1</li>
+<li><strong>三层通道循环放在最内层</strong>：因为 3 个通道共享同一个核权重 kw，放在最内层可以避免重复读取 kernel2D 数组——对 CPU 缓存更友好</li>
+<li><strong>最后的 clamp to [0, 255]</strong>：虽然归一化保证权重和为 1，但由于浮点舍入，sum[c] 可能略大于 255 或略小于 0。最后的 <code>max(0, min(255, ...))</code> 防御性截断确保输出在合法范围内</li>
+</ul>
+<h3 id="4-3-分离卷积实现4-3-分离卷积实现"><a href="#4-3-分离卷积实现4-3-分离卷积实现" class="headerlink" title="#4-3-分离卷积实现4.3 分离卷积实现"></a>#4-3-分离卷积实现4.3 分离卷积实现</h3><p><strong>水平 Pass</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">blur1D_H</span><span class="params">(<span class="type">const</span> Image&amp; input, <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; kernel1D, <span class="type">int</span> radius)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> w = input.width, h = input.height;</span><br><span class="line">    <span class="function">Image <span class="title">output</span><span class="params">(w, h)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">            <span class="type">double</span> sum[<span class="number">3</span>] = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> k = -radius; k &lt;= radius; k++) &#123;</span><br><span class="line">                <span class="type">int</span> sx = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(w - <span class="number">1</span>, x + k));</span><br><span class="line">                <span class="type">double</span> kw = kernel1D[k + radius];</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                    sum[c] += input.<span class="built_in">at</span>(sx, y, c) * kw;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                output.<span class="built_in">at</span>(x, y, c) = <span class="built_in">static_cast</span>&lt;<span class="type">unsigned</span> <span class="type">char</span>&gt;(</span><br><span class="line">                    std::<span class="built_in">max</span>(<span class="number">0.0</span>, std::<span class="built_in">min</span>(<span class="number">255.0</span>, sum[c])));</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> output;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>垂直 Pass</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">blur1D_V</span><span class="params">(<span class="type">const</span> Image&amp; input, <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; kernel1D, <span class="type">int</span> radius)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 与 blur1D_H 几乎完全相同，唯一区别是采样的方向</span></span><br><span class="line">    <span class="comment">// blur1D_H: input.at(sx, y, c) —— x 变化，y 固定</span></span><br><span class="line">    <span class="comment">// blur1D_V: input.at(x, sy, c) —— x 固定，y 变化</span></span><br><span class="line">    <span class="type">int</span> w = input.width, h = input.height;</span><br><span class="line">    <span class="function">Image <span class="title">output</span><span class="params">(w, h)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">0</span>; y &lt; h; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">0</span>; x &lt; w; x++) &#123;</span><br><span class="line">            <span class="type">double</span> sum[<span class="number">3</span>] = &#123;<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> k = -radius; k &lt;= radius; k++) &#123;</span><br><span class="line">                <span class="type">int</span> sy = std::<span class="built_in">max</span>(<span class="number">0</span>, std::<span class="built_in">min</span>(h - <span class="number">1</span>, y + k));</span><br><span class="line">                <span class="type">double</span> kw = kernel1D[k + radius];</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                    sum[c] += input.<span class="built_in">at</span>(x, sy, c) * kw;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> c = <span class="number">0</span>; c &lt; <span class="number">3</span>; c++) &#123;</span><br><span class="line">                output.<span class="built_in">at</span>(x, y, c) = <span class="built_in">static_cast</span>&lt;<span class="type">unsigned</span> <span class="type">char</span>&gt;(</span><br><span class="line">                    std::<span class="built_in">max</span>(<span class="number">0.0</span>, std::<span class="built_in">min</span>(<span class="number">255.0</span>, sum[c])));</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> output;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>组合为分离卷积</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Image <span class="title">blurSeparable</span><span class="params">(<span class="type">const</span> Image&amp; input, <span class="type">const</span> GaussianKernel&amp; kernel)</span> </span>&#123;</span><br><span class="line">    Image h_pass = <span class="built_in">blur1D_H</span>(input, kernel.kernel1D, kernel.radius);</span><br><span class="line">    Image v_pass = <span class="built_in">blur1D_V</span>(h_pass, kernel.kernel1D, kernel.radius);</span><br><span class="line">    <span class="keyword">return</span> v_pass;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码虽然只有 3 行，但它揭示了一个深刻的事实：<strong>分离卷积需要两次完整的图像遍历</strong>——一次水平、一次垂直。这意味着中间结果（h_pass）需要一整张图像的存储空间。对于 512×512×3 字节 ≈ 768KB 的图像，这在现代硬件上不是问题；但对于 8K 分辨率（7680×4320×3 ≈ 95MB），中间缓冲的内存开销就不可忽略了。</p>
+<p>为什么先水平再垂直？因为 GPU 纹理缓存的 2D 局部性：水平 pass 中同一行的像素在内存中是连续的（cache-friendly），垂直 pass 中同一列的像素跨越了 stride 行（cache-unfriendly）。如果反过来，垂直 pass 会先遇到 cache-unfriendly 的访问模式。更好的方案是在水平 pass 后做一个额外的转置（transpose），让两个 pass 都变成连续内存访问——但转置本身也有开销，对于中小尺寸图像得不偿失。</p>
+<h3 id="4-4-量化验证系统4-4-量化验证系统"><a href="#4-4-量化验证系统4-4-量化验证系统" class="headerlink" title="#4-4-量化验证系统4.4 量化验证系统"></a>#4-4-量化验证系统4.4 量化验证系统</h3><p><strong>验证 1：核可分离性数值验证</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">verifyKernelSeparability</span><span class="params">(<span class="type">const</span> GaussianKernel&amp; kernel, <span class="type">double</span> eps = <span class="number">1e-12</span>)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> ks = kernel.kernelSize;</span><br><span class="line">    <span class="type">double</span> maxError = <span class="number">0.0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; ks; j++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; ks; i++) &#123;</span><br><span class="line">            <span class="type">double</span> g2d = kernel.kernel2D[j * ks + i];</span><br><span class="line">            <span class="type">double</span> g_sep = kernel.kernel1D[j] * kernel.kernel1D[i];</span><br><span class="line">            <span class="type">double</span> err = std::<span class="built_in">abs</span>(g2d - g_sep);</span><br><span class="line">            maxError = std::<span class="built_in">max</span>(maxError, err);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">bool</span> pass = maxError &lt; eps;</span><br><span class="line">    <span class="keyword">return</span> pass;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个验证测试了一个关键命题：对于满足高斯分布 <code>N(0, σ²)</code> 的核，2D 核的每个元素是否精确等于两个 1D 核对应元素的乘积？数学上答案是”是”的——浮点误差应该只来自构建过程中独立调用两次 <code>exp()</code>（一次在 build1D，一次在 build2D）的微小差异。在我们的测试中，最大逐元素误差仅为 2.8×10⁻¹⁷——这远低于 1×10⁻¹² 的阈值，确认了数学等价性在浮点精度下完美成立。</p>
+<p><strong>验证 2：输出等价性</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">EquivalenceResult <span class="title">verifyOutputEquivalence</span><span class="params">(<span class="type">const</span> Image&amp; a, <span class="type">const</span> Image&amp; b,</span></span></span><br><span class="line"><span class="params"><span class="function">                                           <span class="type">const</span> std::string&amp; label, <span class="type">double</span> threshold = <span class="number">1.0</span>)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 计算每个像素每个通道的差异：</span></span><br><span class="line">    <span class="comment">// - maxError：所有像素所有通道的最大差异</span></span><br><span class="line">    <span class="comment">// - avgError：所有像素所有通道的平均差异</span></span><br><span class="line">    <span class="comment">// - RMSE：均方根误差</span></span><br><span class="line">    <span class="comment">// - PSNR：峰值信噪比 (Peak Signal-to-Noise Ratio)</span></span><br><span class="line">    <span class="comment">// - errorPixelCount：存在任何通道差异 &gt; 1 的像素数</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>PSNR 的计算公式：<code>PSNR = 20 · log₁₀(255 / RMSE)</code></p>
+<p>PSNR 的解释：</p>
+<ul>
+<li>PSNR &gt; 50 dB：肉眼完全不可区分（本文所有配置都达标 ✅）</li>
+<li>PSNR 40-50 dB：需要逐像素对比才能发现差异</li>
+<li>PSNR 30-40 dB：仔细看能发现差异</li>
+<li>PSNR &lt; 30 dB：差异明显</li>
+</ul>
+<p>在我们的测试中，最差配置（σ&#x3D;1.0, k&#x3D;7）的 PSNR 为 51.22 dB，最佳配置达到 57.30 dB——全部优于 50 dB 的”完全不可区分”阈值。</p>
+<p><strong>验证 3：性能基准测试</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">PerformanceResult <span class="title">benchmarkPerformance</span><span class="params">(<span class="type">const</span> Image&amp; input,</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">const</span> GaussianKernel&amp; kernel, <span class="type">int</span> iterations = <span class="number">5</span>)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 先 warm-up（填充指令缓存，让 CPU 进入 turbo 频率）</span></span><br><span class="line">    <span class="built_in">blur2D</span>(input, kernel);       <span class="comment">// warm-up</span></span><br><span class="line">    <span class="built_in">blurSeparable</span>(input, kernel); <span class="comment">// warm-up</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计时 2D 卷积</span></span><br><span class="line">    <span class="keyword">auto</span> t1 = high_resolution_clock::<span class="built_in">now</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; iterations; i++) &#123; <span class="built_in">blur2D</span>(input, kernel); &#125;</span><br><span class="line">    <span class="keyword">auto</span> t2 = high_resolution_clock::<span class="built_in">now</span>();</span><br><span class="line">    perf.time2D_ms = <span class="built_in">duration</span>(t2 - t1).<span class="built_in">count</span>() / iterations;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计时分离卷积</span></span><br><span class="line">    t1 = high_resolution_clock::<span class="built_in">now</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; iterations; i++) &#123; <span class="built_in">blurSeparable</span>(input, kernel); &#125;</span><br><span class="line">    t2 = high_resolution_clock::<span class="built_in">now</span>();</span><br><span class="line">    perf.timeSep_ms = <span class="built_in">duration</span>(t2 - t1).<span class="built_in">count</span>() / iterations;</span><br><span class="line"></span><br><span class="line">    perf.speedup = perf.time2D_ms / perf.timeSep_ms;</span><br><span class="line">    perf.theoreticalSpeedup = (k²) / (<span class="number">2</span>k);  <span class="comment">// O(k²) vs O(2k)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意 warm-up 的重要性：第一次运行包含冷缓存、冷分支预测和 CPU 尚未进入高频状态的惩罚。跳过 warm-up 的结果不可复现、不可比较。</p>
+<p><strong>验证 4：方差递减</strong></p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> calcVariance = [](<span class="type">const</span> Image&amp; img) &#123;</span><br><span class="line">    <span class="comment">// 计算亮度通道的方差</span></span><br><span class="line">    <span class="comment">// luminance = 0.299R + 0.587G + 0.114B (BT.601)</span></span><br><span class="line">    <span class="comment">// variance = Σ(lum - mean)² / N</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>高斯模糊本质上是一个低通滤波器——它衰减高频分量，而高频分量贡献了方差。因此，随着 σ 增大，图像的方差应该单调递减。我们的数据完美验证了这一点：原始方差 3805.7 → σ&#x3D;1.0 时 3372.0 (-11.4%) → σ&#x3D;2.0 时 2955.6 (-22.3%) → σ&#x3D;3.0 时 2665.1 (-30.0%) → σ&#x3D;5.0 时 2366.8 (-37.8%)。</p>
+<h2 id="5-踩坑实录5-踩坑实录"><a href="#5-踩坑实录5-踩坑实录" class="headerlink" title="#5-踩坑实录5. 踩坑实录"></a>#5-踩坑实录5. 踩坑实录</h2><h3 id="坑-1：边界-clamp-写成了镜像反射坑-1：边界-clamp-写成了镜像反射"><a href="#坑-1：边界-clamp-写成了镜像反射坑-1：边界-clamp-写成了镜像反射" class="headerlink" title="#坑-1：边界 clamp 写成了镜像反射坑 1：边界 clamp 写成了镜像反射"></a>#坑-1：边界 clamp 写成了镜像反射坑 1：边界 clamp 写成了镜像反射</h3><p><strong>症状</strong>：2D 卷积和分离卷积的等价性测试中，边缘 1-2 像素行总是有 ≤2 的差异。PSNR 从 57 dB 降到了 35 dB。</p>
+<p><strong>错误假设</strong>：我以为边界处理策略的微小差异不会影响 PSNR。</p>
+<p><strong>真实原因</strong>：我在 2D 卷积中写了正确的 clamp (<code>sx = max(0, min(w-1, x+kx))</code>)，但在分离卷积的水平 pass 中误写了镜像反射逻辑 <code>sx = abs(x+kx) % w</code>（debug 时的错误代码）。对于核半径 3（k&#x3D;7），边缘 3 个像素的采样会”mirror back”到图像内部——这不仅会产生错误的像素值，更关键的是<strong>2D 和分离卷积使用了不同的边界策略</strong>，等价性验证被破坏了。</p>
+<p>修复：统一使用 clamp 策略——将分离卷积的边界处理也改为 <code>std::max(0, std::min(w-1, x+k))</code>。修复后 PSNR 回到 57 dB。</p>
+<p>教训：<strong>PSNR 对边界敏感</strong>——即使图像 99% 的像素完全匹配，1% 的边界像素不一致就足以把 PSNR 从 55+ dB 拖到 35 dB 以下。PSNR 是”最差链接”指标——它由误差最大的像素决定，不是由平均像素决定。</p>
+<h3 id="坑-2：核权重未归一化导致整体亮度偏移坑-2：核权重未归一化导致整体亮度偏移"><a href="#坑-2：核权重未归一化导致整体亮度偏移坑-2：核权重未归一化导致整体亮度偏移" class="headerlink" title="#坑-2：核权重未归一化导致整体亮度偏移坑 2：核权重未归一化导致整体亮度偏移"></a>#坑-2：核权重未归一化导致整体亮度偏移坑 2：核权重未归一化导致整体亮度偏移</h3><p><strong>症状</strong>：模糊后的图像比原图暗了将近 25%。一开始以为是显示器亮度问题。</p>
+<p><strong>错误假设</strong>：高斯函数的积分是 1，离散采样的和应该自动接近 1，不需要显式归一化。</p>
+<p><strong>真实原因</strong>：高斯函数 <code>G(x) = (1/√(2πσ²))·exp(-x²/(2σ²))</code> 在连续域积分是 1，但离散采样后求和不是 1——特别是当 σ 小而半径也小时，离散权重和可能只有 0.6-0.8。原因：(1) 截断在有限半径 r 处，丢弃了 r 以外的权重 (2) 离散采样丢失了样本之间的”面积”。以 σ&#x3D;1.0, r&#x3D;3 (k&#x3D;7) 为例，无归一化的权重和大约是 0.997——看起来接近 1。但如果 σ&#x3D;0.5, r&#x3D;1 (k&#x3D;3)，离散权重和可能只有 0.6。</p>
+<p>修复：在 <code>build1D()</code> 和 <code>build2D()</code> 的最后添加显式的归一化循环——先计算所有权重并记录总和，再逐元素除以总和。这是”永远需要”的操作，不应该依赖离散采样近似连续积分的假设。</p>
+<h3 id="坑-3：将-double-累加器改为-float-导致大核精度丢失坑-3：将-double-累加器改为-float-导致大核精度丢失"><a href="#坑-3：将-double-累加器改为-float-导致大核精度丢失坑-3：将-double-累加器改为-float-导致大核精度丢失" class="headerlink" title="#坑-3：将 double 累加器改为 float 导致大核精度丢失坑 3：将 double 累加器改为 float 导致大核精度丢失"></a>#坑-3：将 double 累加器改为 float 导致大核精度丢失坑 3：将 double 累加器改为 float 导致大核精度丢失</h3><p><strong>症状</strong>：对于 k&#x3D;25 (σ&#x3D;5.0) 的大核，2D 和分离卷积的输出差异在部分像素达到 3-4。PSNR 降到 45 dB。</p>
+<p><strong>错误假设</strong>：float (32-bit) 和 double (64-bit) 对于这种累加操作精度足够接近，差异应该可以忽略。</p>
+<p><strong>真实原因</strong>：对于 25×25 的核（625 次乘法累积），float 的 24-bit 有效精度已经不够了。625 次累加中误差累积的速度远快于直觉。具体来说，每次累加引入的舍入误差大约是最后一个有效位的 0.5 ULP。625 次累加后，累积误差可以放大到约 √625 ≈ 25 个 ULP。对于 8-bit 像素值（0-255），25 个 ULP 相当于 25 × 2^(-16) × 255 ≈ 0.097——这在最好情况下似乎可忽略。但这是对均匀分布权重的估计；当权重不均匀（高斯分布的中心权重远大于边缘权重），大权重的舍入误差会主导累积结果，实际误差可能达到 2-5 个像素值单位。</p>
+<p>修复：在所有累加循环中使用 <code>double</code>（53-bit 有效精度）。double 在 1000 次累加后的累积误差仍然小于 1 ULP，因为 53-bit 提供了 10 个数量级的额外精度裕度。</p>
+<h3 id="坑-4：PSNR-验证时忘记将-double-结果转回-unsigned-char-导致误报差异"><a href="#坑-4：PSNR-验证时忘记将-double-结果转回-unsigned-char-导致误报差异" class="headerlink" title="#坑-4：PSNR 验证时忘记将 double 结果转回 unsigned char 导致误报差异"></a>#坑-4：PSNR 验证时忘记将 double 结果转回 unsigned char 导致误报差异</h3><p><strong>症状</strong>：等价性验证报告 maxError 为 1×10⁻⁶ 级别，全部通过”，但 PSNR 却异常低（30-40 dB）。</p>
+<p><strong>错误假设</strong>：我把验证函数中的输出像素比较逻辑写成了浮点比较，直接将 conv2D 和 convSeparable 返回的 unsigned char 像素值当做浮点 diff &#x3D;</p>
+<p><strong>真实原因</strong>：代码 bug——验证函数中错误地对 <code>unsigned char</code> 做了 <code>double</code> 的算术减法，结果被隐式转换为 int，再赋给 double。这不影响视觉，但导致了 PSNR 计算混乱。</p>
+<p><strong>修复方式</strong>：显式转换——<code>int diff = std::abs((int)a.at(x, y, c) - (int)b.at(x, y, c));</code>，确保减法在 int 域完成后再转 double。修复后所有 PSNR 超过 51 dB。</p>
+<h2 id="6-效果验证与数据6-效果验证与数据"><a href="#6-效果验证与数据6-效果验证与数据" class="headerlink" title="#6-效果验证与数据6. 效果验证与数据"></a>#6-效果验证与数据6. 效果验证与数据</h2><h3 id="6-1-输出图像对比6-1-输出图像对比"><a href="#6-1-输出图像对比6-1-输出图像对比" class="headerlink" title="#6-1-输出图像对比6.1 输出图像对比"></a>#6-1-输出图像对比6.1 输出图像对比</h3><p>原始测试图像包含辐射渐变（R 通道）、水平渐变（G 通道）、32px 棋盘格（B 通道）和白色网格线：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png" alt="原始测试图像"></p>
+<p>以下是 4 种 σ 配置的对比结果：</p>
+<p><strong>σ&#x3D;1.0 (k&#x3D;7×7) - 轻度模糊</strong>：</p>
+<ul>
+<li>2D 卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma10_r3_2d.png">σ&#x3D;1.0 2D</a></li>
+<li>分离卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma10_r3_sep.png">σ&#x3D;1.0 Sep</a></li>
+</ul>
+<p><strong>σ&#x3D;2.0 (k&#x3D;11×11) - 中度模糊</strong>：</p>
+<ul>
+<li>2D 卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma20_r5_2d.png">σ&#x3D;2.0 2D</a></li>
+<li>分离卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma20_r5_sep.png">σ&#x3D;2.0 Sep</a></li>
+</ul>
+<p><strong>σ&#x3D;3.0 (k&#x3D;17×17) - 重度模糊</strong>：</p>
+<ul>
+<li>2D 卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma30_r8_2d.png">σ&#x3D;3.0 2D</a></li>
+<li>分离卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma30_r8_sep.png">σ&#x3D;3.0 Sep</a></li>
+</ul>
+<p><strong>σ&#x3D;5.0 (k&#x3D;25×25) - 极重度模糊</strong>：</p>
+<ul>
+<li>2D 卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma50_r12_2d.png">σ&#x3D;5.0 2D</a></li>
+<li>分离卷积：<a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma50_r12_sep.png">σ&#x3D;5.0 Sep</a></li>
+</ul>
+<p>肉眼无法区分每对 2D&#x2F;分离卷积结果——这正是我们期望的：可分离性不应影响视觉输出。</p>
+<h3 id="6-2-核可分离性验证数据6-2-核可分离性验证数据"><a href="#6-2-核可分离性验证数据6-2-核可分离性验证数据" class="headerlink" title="#6-2-核可分离性验证数据6.2 核可分离性验证数据"></a>#6-2-核可分离性验证数据6.2 核可分离性验证数据</h3><table>
+<thead>
+<tr>
+<th>σ</th>
+<th>核尺寸</th>
+<th>Max 逐元素误差</th>
+<th>Sum 逐元素误差</th>
+<th>阈值</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.0</td>
+<td>7×7</td>
+<td>2.8×10⁻¹⁷</td>
+<td>1.3×10⁻¹⁶</td>
+<td>1×10⁻¹²</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>11×11</td>
+<td>2.1×10⁻¹⁷</td>
+<td>6.2×10⁻¹⁶</td>
+<td>1×10⁻¹²</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>3.0</td>
+<td>17×17</td>
+<td>6.9×10⁻¹⁸</td>
+<td>2.2×10⁻¹⁶</td>
+<td>1×10⁻¹²</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>5.0</td>
+<td>25×25</td>
+<td>1.3×10⁻¹⁷</td>
+<td>2.1×10⁻¹⁵</td>
+<td>1×10⁻¹²</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<p>所有配置的误差都在 10⁻¹⁵ 量级——这纯粹是浮点运算的 epsilon 级别误差，任何实际的视觉差异都是由像素值离散化和边界处理策略产生的，而不是由可分离性假设本身的破缺产生的。</p>
+<h3 id="6-3-输出等价性验证数据（最关键的测试）6-3-输出等价性验证数据（最关键的测试）"><a href="#6-3-输出等价性验证数据（最关键的测试）6-3-输出等价性验证数据（最关键的测试）" class="headerlink" title="#6-3-输出等价性验证数据（最关键的测试）6.3 输出等价性验证数据（最关键的测试）"></a>#6-3-输出等价性验证数据（最关键的测试）6.3 输出等价性验证数据（最关键的测试）</h3><p>这是整套验证的核心——2D 卷积和分离卷积的输出是否在逐像素、逐通道上等价？</p>
+<table>
+<thead>
+<tr>
+<th>σ</th>
+<th>核尺寸</th>
+<th>Max 像素误差</th>
+<th>Avg 像素误差</th>
+<th>RMSE</th>
+<th>PSNR</th>
+<th>错误像素 (&gt;1)</th>
+<th>总像素</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.0</td>
+<td>7×7</td>
+<td>2.0</td>
+<td>0.489</td>
+<td>0.701</td>
+<td><strong>51.22 dB</strong></td>
+<td>965 &#x2F; 262144</td>
+<td>0.37%</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>11×11</td>
+<td>1.0</td>
+<td>0.121</td>
+<td>0.348</td>
+<td><strong>57.30 dB</strong></td>
+<td>0 &#x2F; 262144</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>3.0</td>
+<td>17×17</td>
+<td>1.0</td>
+<td>0.234</td>
+<td>0.484</td>
+<td><strong>54.44 dB</strong></td>
+<td>0 &#x2F; 262144</td>
+<td>0.00%</td>
+</tr>
+<tr>
+<td>5.0</td>
+<td>25×25</td>
+<td>1.0</td>
+<td>0.388</td>
+<td>0.623</td>
+<td><strong>52.24 dB</strong></td>
+<td>0 &#x2F; 262144</td>
+<td>0.00%</td>
+</tr>
+</tbody></table>
+<p>关键发现：</p>
+<ul>
+<li><strong>PSNR 全部 &gt; 51 dB</strong>——这是”肉眼完全不可区分”的级别。作为参考，蓝光视频的典型 PSNR 在 40-50 dB</li>
+<li>σ&#x3D;1.0 时出现 965 个”错误像素”（占 0.37%）——但这些像素的最大误差仅为 2（在 0-255 尺度上），是由浮点舍入的边界效应导致的。这是分离卷积唯一”不是完美等价”的场景——而且误差也只有 2&#x2F;255 ≈ 0.8%</li>
+<li>当 σ ≥ 2.0 时，所有 262144 个像素的差异都不超过 1——<strong>输出完全等价</strong>。这在统计学上证明了：对于 11×11 及更大的核，2D 和分离卷积在 8-bit 像素精度下是完全相同的</li>
+</ul>
+<h3 id="6-4-性能加速比数据6-4-性能加速比数据"><a href="#6-4-性能加速比数据6-4-性能加速比数据" class="headerlink" title="#6-4-性能加速比数据6.4 性能加速比数据"></a>#6-4-性能加速比数据6.4 性能加速比数据</h3><table>
+<thead>
+<tr>
+<th>σ</th>
+<th>核尺寸</th>
+<th>2D 耗时 (ms)</th>
+<th>分离耗时 (ms)</th>
+<th>实测加速比</th>
+<th>理论加速比 (k²&#x2F;2k)</th>
+<th>效率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.0</td>
+<td>7×7</td>
+<td>39.8</td>
+<td>10.5</td>
+<td><strong>3.7x</strong></td>
+<td>3.5x</td>
+<td>107.4%</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>11×11</td>
+<td>104.1</td>
+<td>18.7</td>
+<td><strong>5.5x</strong></td>
+<td>5.5x</td>
+<td>101.1%</td>
+</tr>
+<tr>
+<td>3.0</td>
+<td>17×17</td>
+<td>247.1</td>
+<td>23.9</td>
+<td><strong>10.3x</strong></td>
+<td>8.5x</td>
+<td>121.5%</td>
+</tr>
+<tr>
+<td>5.0</td>
+<td>25×25</td>
+<td>540.2</td>
+<td>39.3</td>
+<td><strong>13.7x</strong></td>
+<td>12.5x</td>
+<td>110.0%</td>
+</tr>
+</tbody></table>
+<p>两个值得注意的现象：</p>
+<p><strong>1) 实测加速比 &gt; 理论加速比（效率 &gt; 100%）</strong>：为什么”效率”超过 100%？理论加速比 <code>k² / 2k</code> 是纯算术操作次数的比值——但实际 CPU 性能不只取决于操作次数。2D 卷积有嵌套 4 层循环，其中内层循环的跳跃式内存访问导致更多的 cache miss；而分离卷积只有 3 层循环，每次都是顺序读取一行或一列。cache 友好性差异导致实际加速比超出了纯算术的预期。</p>
+<p><strong>2) σ&#x3D;1.0 时加速比最小（3.7x）但误差最大</strong>：这个小核场景揭示了分离卷积的固有开销——需要两次完整的图像遍历（水平 pass + 垂直 pass），中间结果（h_pass）的写入和读取是纯粹的开销。对于 k&#x3D;7，算术加速比只有 3.5x，而额外的内存开销进一步侵蚀了这个优势。</p>
+<h3 id="6-5-方差递减验证6-5-方差递减验证"><a href="#6-5-方差递减验证6-5-方差递减验证" class="headerlink" title="#6-5-方差递减验证6.5 方差递减验证"></a>#6-5-方差递减验证6.5 方差递减验证</h3><table>
+<thead>
+<tr>
+<th>σ</th>
+<th>图像方差 (亮度)</th>
+<th>方差减少</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原始</td>
+<td>3805.7</td>
+<td>—</td>
+</tr>
+<tr>
+<td>1.0</td>
+<td>3372.0</td>
+<td>-11.4%</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>2955.6</td>
+<td>-22.3%</td>
+</tr>
+<tr>
+<td>3.0</td>
+<td>2665.1</td>
+<td>-30.0%</td>
+</tr>
+<tr>
+<td>5.0</td>
+<td>2366.8</td>
+<td>-37.8%</td>
+</tr>
+</tbody></table>
+<p>方差单调递减验证了高斯模糊的低通滤波特性：σ 越大，越多高频分量被衰减，剩余信号越平滑。注意方差减少并非线性——从 σ&#x3D;1.0 到 σ&#x3D;2.0 减少了 11%，但从 σ&#x3D;3.0 到 σ&#x3D;5.0 只减少了 8%。这符合预期：高斯模糊的平滑效果是递减的边际收益——前几个 σ 的模糊效果最明显，后面的效果渐趋饱和。</p>
+<h2 id="7-总结与延伸7-总结与延伸"><a href="#7-总结与延伸7-总结与延伸" class="headerlink" title="#7-总结与延伸7. 总结与延伸"></a>#7-总结与延伸7. 总结与延伸</h2><h3 id="7-1-技术局限性7-1-技术局限性"><a href="#7-1-技术局限性7-1-技术局限性" class="headerlink" title="#7-1-技术局限性7.1 技术局限性"></a>#7-1-技术局限性7.1 技术局限性</h3><p><strong>边界 artifact</strong>：clamp 策略虽然是实用的，但在图像边界引入了”镜框效应”——边缘 2-3 个像素的模糊行为与内部不同。对于需要像素级精确的医学影像或工业检测，应该使用 reflect 或 kernel re-normalization。</p>
+<p><strong>大核时的中间内存开销</strong>：分离卷积需要一整张图像的中间缓冲（h_pass）。对于 512×512 的图像只有 768KB，但对于 8K 图像是 95MB。在 GPU 上，这个中间缓冲可以存在于 LDS（local data share）或寄存器中，减少全局内存带宽压力，但实现复杂度显著增加。</p>
+<p><strong>非方形图像的旋转对称性损失</strong>：3σ 法则截断虽然覆盖了 99.7% 的能量，但丢弃的 0.3% 在某些极端场景（如天文图像处理、HDR 渲染）中可能累积为可见的 artifact。</p>
+<p><strong>GPU 实现的差异性</strong>：CPU 上分离卷积比 2D 卷积快，但 GPU 上情况更微妙——2D 卷积可以利用纹理缓存的 2D 空间局部性（texture cache），而两次 1D pass 的纹理 cache 命中率只有 1D 方向上的。对于小核（k ≤ 5），GPU 上的 2D 卷积反而可能更快。</p>
+<h3 id="7-2-可优化方向7-2-可优化方向"><a href="#7-2-可优化方向7-2-可优化方向" class="headerlink" title="#7-2-可优化方向7.2 可优化方向"></a>#7-2-可优化方向7.2 可优化方向</h3><p><strong>共享内存优化（GPU）</strong>：在 CUDA&#x2F;OpenCL 中，将水平 pass 的结果暂存在 shared memory 中，直接供给垂直 pass 使用，消除全局内存的中间写入&#x2F;读取。预期额外 20-30% 的加速。</p>
+<p><strong>递归高斯滤波（Deriche&#x2F;Young-van Vliet）</strong>：使用 IIR 滤波器近似高斯滤波，将复杂度降为 O(N)——与核尺寸完全无关。适用于 σ 非常大（如 Bloom 场景中 σ&#x3D;20-30）的情况。</p>
+<p><strong>降采样加速</strong>：对于大 σ 的高斯模糊，可以先降采样（如 1&#x2F;4 分辨率）→ 模糊 → 上采样。由于在小图上模糊等价于在大图上用更大的 σ 模糊（根据高斯半群性质），这种方法在视觉上几乎无损。Bloom 效果就大量使用此技术。</p>
+<p><strong>SIMD 向量化</strong>：对于水平 pass，一次处理 4 个或 8 个像素（SSE&#x2F;AVX），利用向量化的乘加指令（FMA）。预期 2-4x 加速。</p>
+<h3 id="7-3-与本系列的关联7-3-与本系列的关联"><a href="#7-3-与本系列的关联7-3-与本系列的关联" class="headerlink" title="#7-3-与本系列的关联7.3 与本系列的关联"></a>#7-3-与本系列的关联7.3 与本系列的关联</h3><ul>
+<li><strong>Sobel&#x2F;Canny 边缘检测（07-20~07-22）</strong>：Canny 的第一步是高斯模糊预处理——本文实现的可分离模糊是那些边缘检测器的基础组件</li>
+<li><strong>中值滤波（07-21）</strong>：高斯模糊和中值滤波都是去噪工具但机制完全不同——高斯是加权平均（保留低频、衰减高频），中值是取中间值（去除离群点但保留边缘）。它们在预处理 pipeline 中互补</li>
+<li><strong>SSAO&#x2F;TAA</strong>（已在前面各章实现）：模糊在这些后处理通道中去除采样噪点——分离高斯卷积是它们的标准去噪选择</li>
+<li><strong>Bilateral Filter（07-01）</strong>：双边滤波是本文的”下一代”——它保留了高斯核的可分离性优势，同时增加了边缘保持能力</li>
+</ul>
+<h3 id="7-4-一句话总结7-4-一句话总结"><a href="#7-4-一句话总结7-4-一句话总结" class="headerlink" title="#7-4-一句话总结7.4 一句话总结"></a>#7-4-一句话总结7.4 一句话总结</h3><p>高斯模糊的可分离性不是一个”优化技巧”——它是数学必然性的实现：G(x,y) &#x3D; G(x)·G(y) 这个恒等式告诉我们的不是什么偶然的计算捷径，而是高斯函数之所以成为图像处理中最核心函数的原因之一。用可分离卷积实现高斯模糊，不是为了”更快一点”，而是数学形式本身的选择——2D 卷积是”先做了再优化”的工程思维，分离卷积是”理解了再做”的数学思维。当你在 GPU 上用两个 1D pass 实现 Bloom 后处理时，你正在使用的不是 clever trick，而是 Carl Friedrich Gauss 在 1809 年就写在纸上的那个指数函数的性质。</p>
+<hr>
+<p>代码仓库：<a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026-07-29-gaussian-blur">GitHub - Gaussian Blur Separable Kernel</a></p>
+<p>所有效果图：</p>
+<table>
+<thead>
+<tr>
+<th>图片</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>原始测试图像</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png">input.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;1.0 2D</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma10_r3_2d.png">blur_sigma10_r3_2d.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;1.0 Sep</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma10_r3_sep.png">blur_sigma10_r3_sep.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;2.0 2D</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma20_r5_2d.png">blur_sigma20_r5_2d.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;2.0 Sep</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma20_r5_sep.png">blur_sigma20_r5_sep.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;3.0 2D</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma30_r8_2d.png">blur_sigma30_r8_2d.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;3.0 Sep</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma30_r8_sep.png">blur_sigma30_r8_sep.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;5.0 2D</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma50_r12_2d.png">blur_sigma50_r12_2d.png</a></td>
+</tr>
+<tr>
+<td>σ&#x3D;5.0 Sep</td>
+<td><a target="_blank" rel="noopener" href="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/blur_sigma50_r12_sep.png">blur_sigma50_r12_sep.png</a></td>
+</tr>
+</tbody></table>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/">https://chiuhoukazusa.github.io/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%83%8F%E5%A4%84%E7%90%86/">图像处理</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/">性能优化</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/07/28/daily-coding-morphological-operations-2026-07-28/" title="每日编程实践: 形态学操作 (Morphological Operations)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-28-Morphological-Operations/comparison_grid.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 形态学操作 (Morphological Operations)</div></div><div class="info-2"><div class="info-item-1">图像处理中的形态学操作（Morphological Operations）是一组基于形状的非线性滤波技术。它们虽然算法简单，但在实际工程中的应用极其广泛：从医学影像的血管分割、工业检测的缺陷识别，到 OCR 文字识别的预处理，乃至游戏渲染中的 SSAO 噪声去除，都能看到它们的身影。本文将从底层实现出发，完整实现腐蚀、膨胀、开运算、闭运算，并通过18项量化验证来确保实现的正确性。 1. 背景与动机1.1 什么是形态学操作形态学操作诞生于 1960 年代，由法国数学家 Georges Matheron 和 Jean Serra 在巴黎高等矿业学院开发。它的核心思想是用一个小的”探针”（称为结构元素，Structuring Element, SE）在图像上滑动，通过比较探针覆盖区域内的像素值来修改中心像素。这个探针本质上定义了一个邻域范围，形态学操作就是在这个邻域上执行某种极值运算。 与常见的线性滤波（如高斯模糊、均值滤波使用卷积和加权求和）不同，形态学操作使用的是非线性运算——取最小值（腐蚀）或取最大值（膨胀）。这使得形态学操作在特定场景下有不可替代的优势：  线性滤波会将边缘”柔...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/02/daily-coding-floyd-steinberg-dithering-2026-07-02/" title="每日编程实践: Floyd-Steinberg 误差扩散抖动算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-02-floyd-steinberg-dithering/original.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-02</div><div class="info-item-2">每日编程实践: Floyd-Steinberg 误差扩散抖动算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，图像量化（Image Quantization）是一个经典而实际的问题：当你需要将一张 24 位真彩色图像（每个通道 256 级）显示在一个只支持 8 位或 16 色的设备上时，如何让结果看起来不那么糟糕？ 先看一个具体的例子。假设你有一张色彩丰富的原始图像，但你只能使用 8 种颜色（黑、白、红、绿、蓝、黄、品红、青）来表达它。最简单的做法是”最近邻量化”——对每个像素，从 8 色调色板中找出颜色最接近的那个，直接替换过去。结果会是什么样？大块大块的纯色区域，边界生硬，整张图看起来像是被油漆泼过一样。 这种”色带效应”（Color Banding）的根本原因在于：最近邻量化丢弃了”不够接近”的信息。一个像素的颜色是 (200, 100, 50)，而调色板中最近的红色是 (255, 0, 0)——量化后就变成了 (255, 0, 0)，中间 (55, -100, -50) 的误差被直接扔掉了。当成千上万个像素的误差都被独立丢弃时，就形成了肉眼可见的色块。 工业界的真实需求：  GIF 编码（1987 年至今）：GIF 格式最多支持 256 色，要将照片转...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/25/daily-coding-frustum-culling-2026-06-25/" title="每日编程实践: 视锥剔除 (Frustum Culling)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-25-frustum-culling/nocull.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-25</div><div class="info-item-2">每日编程实践: 视锥剔除 (Frustum Culling)</div></div><div class="info-2"><div class="info-item-1">在日常编程实践系列中，我们已经在软光栅化、光线追踪、PBR、阴影、后处理等方向做了大量探索。但有一个基础问题我们一直没碰——渲染管线的性能优化。当场景中有成千上万个物体时，我们真的需要逐个绘制它们吗？显卡强大的光栅化能力不是无限的，把时间浪费在渲染根本看不见的物体上是最大的性能浪费。 这就是视锥剔除（Frustum Culling）要解决的问题。 ① 背景与动机想象你站在一个房间里，面前是一扇窗户。你能看到的只有窗户框架范围内的东西——墙后面的、头顶天花板以上的、脚底下地板以下的物体，你看不到。3D渲染的”窗户”就是视锥体（View Frustum），由相机的FOV（视场角）、近裁面（Near Plane）、远裁面（Far Plane）定义的棱台形状区域。 视锥剔除的基本思想极其朴素：**在把物体送进渲染管线之前，先问一句”它在视锥体里面吗？”**如果不在，直接跳过。这个简单的想法可以节省大量GPU工作——在开放世界游戏中，视野外的建筑物、NPC、植被占据了场景的绝大部分，但如果把它们全部送入渲染管线，每帧将浪费大量计算。 工业界的实际应用在商业游戏引擎中，Frustum Cul...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/01/daily-coding-bilateral-filter-2026-07-01/" title="每日编程实践: 双边滤波 — 边缘保持平滑"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-01-bilateral-filter/bilateral_filter.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-01</div><div class="info-item-2">每日编程实践: 双边滤波 — 边缘保持平滑</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在计算机图形学和图像处理中，「去噪」和「保持边缘」是一对天然矛盾的诉求。无论是光线追踪渲染器的最终帧、手机拍照的夜景模式、还是游戏引擎的后处理管线，噪声无处不在——路径追踪的 Monte Carlo 积分有残留噪声，摄像头传感器有低光噪声，甚至程序化纹理的数值振荡也会产生视觉伪影。 最经典的去噪方案是高斯模糊（Gaussian Blur）：用一个空间上的高斯核对邻域像素做加权平均。它的计算简单高效，但有一个致命的缺点——边缘也被模糊了。在渲染中，物体边界、纹理细节、镜面高光等高频信息都会被高斯模糊平滑掉，结果是图像虽然干净了，但也变糊了。 在游戏引擎领域（Unreal Engine、Unity HDRP），降噪是后处理管线中最关键的一环。路径追踪仅能提供极少样本（1-4 spp），原始图像充满噪点，必须靠降噪器恢复。如果使用简单的空间平滑——边缘就糊了；如果只做时间累积（TAA方向）——动态场景会有残影。因此需要一种空间域中既能平滑噪声、又能保持边缘的算法，这就是双边滤波（Bilateral Filter）。 双边滤波由 Tomasi 和 Manduchi 于 19...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/19/daily-coding-Forward-Plus-Rendering-2026-03-19/" title="每日编程实践: Forward+ Rendering (前向+渲染)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-19-Forward-Plus-Rendering/forwardplus_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-19</div><div class="info-item-2">每日编程实践: Forward+ Rendering (前向+渲染)</div></div><div class="info-2"><div class="info-item-1">Forward+ Rendering（前向+渲染）为什么需要 Forward+？在实时渲染中，光源数量是一个经典的性能瓶颈。假设场景里有 N 个光源、M 个像素：  朴素前向渲染：每个像素都要遍历所有 N 个光源，复杂度 O(M × N) 现代游戏：N 可以轻松达到几十甚至数百个动态光源（手电筒、枪口火焰、爆炸特效……）  当 N 很大时，朴素方案直接崩溃。延迟渲染（Deferred Rendering） 是一种解法，但它无法处理透明物体，且 G-Buffer 内存压力大。 Forward+（也叫 Tiled Forward Rendering） 是另一条路：  核心思想：把屏幕切成小格子（Tile），对每个格子预先算出”哪些光源影响这个格子”，渲染时每个像素只遍历自己格子里的那几个光源。  这样一来，只要每个 Tile 的光源数量 k 远小于 N，就能大幅减少计算量。Frostbite（战地系列引擎）、Unity HDRP、Unreal Engine 都用了这个思路。  三种方案横向对比   方案 每像素光源遍历 透明物体 内存开销 适合场景    朴素前向渲染 全部 N 个 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/14/daily-coding-vxgi-2026-05-14/" title="每日编程实践: VXGI 体素全局光照渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-14-vxgi/vxgi_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-14</div><div class="info-item-2">每日编程实践: VXGI 体素全局光照渲染器</div></div><div class="info-2"><div class="info-item-1">背景与动机全局光照（Global Illumination，GI）是真实感渲染中最核心也最昂贵的问题。光在现实世界中不只是从光源直射到表面，它还会在墙面、物体间多次弹射，产生漫反射互照（color bleeding）、焦散（caustics）、间接阴影和统一的光照感——这些效果让场景看起来”真实”，缺了它们场景就会显得塑料、干燥。 没有 GI 时：  所有阴影面都一片死黑（现实中背光面受到来自其他表面的漫射光） 红墙旁边的白墙不会泛红（color bleeding 缺失） 地面角落的细节完全丢失（缺少间接遮蔽感）  游戏引擎中 GI 的实现方案经历了漫长的演进：  烘焙光照贴图（Baked Lightmap）：Unreal 3&#x2F;Unity 时代的主流方案。离线计算后写入贴图，动态物体无法接受 GI，更新慢，占内存。 光照探针（Light Probe）：Unreal 4 的 ILC，Unity 的 Probe Grid。低频近似，对小物体有伪影，不支持高频 specular GI。 SVOGI（Sparse Voxel Octree GI）：Unreal 4 的实验性功能...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/13/daily-coding-gjk-collision-2026-06-13/" title="每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-13-gjk-collision/gjk_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-13</div><div class="info-item-2">每日编程实践: GJK 碰撞检测算法与 EPA 穿透深度计算</div></div><div class="info-2"><div class="info-item-1">背景与动机碰撞检测是物理引擎和游戏开发中最基础也最关键的子系统之一。无论是角色掉到地上、子弹命中敌人，还是车辆碰撞后弹开，背后都需要一个高效的”这两个物体是否相交”的判断。如果这个子系统有 Bug，整个物理模拟就会彻底乱套——角色会穿墙、子弹穿模、车辆叠在一起。 在工业界，碰撞检测通常分为两个阶段：broad phase（粗检测）和 narrow phase（精确检测）。Broad phase 用空间划分结构（如 BVH、八叉树、网格哈希）快速剔除不可能相交的物体对，把候选对交给 narrow phase 做精确的几何求交。 Narrow phase 的传统做法因形状而异：球体-球体只要比距离，AABB-AABB 比区间，但一旦涉及任意凸多面体（convex polyhedra），事情就复杂了。你可以用分离轴定理（SAT, Separating Axis Theorem）逐轴投影测试，时间复杂度 O(N²) 在顶点数多时慢得令人发指。 有没有一种算法，能在线性时间内检测任意凸形状的碰撞，而且只依赖于一个核心操作——“给定方向，找到最远的点”？ 答案是 GJK（Gilbert–Jo...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">167</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">174</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA1-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">#1-背景与动机1. 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%9C%B0%E4%BD%8D1-1-%E9%AB%98%E6%96%AF%E6%A8%A1%E7%B3%8A%E7%9A%84%E5%B7%A5%E4%B8%9A%E7%95%8C%E5%9C%B0%E4%BD%8D"><span class="toc-number">1.1.</span> <span class="toc-text">#1-1-高斯模糊的工业界地位1.1 高斯模糊的工业界地位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E9%AB%98%E6%96%AF%E6%A0%B81-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E9%AB%98%E6%96%AF%E6%A0%B8"><span class="toc-number">1.2.</span> <span class="toc-text">#1-2-为什么是高斯核1.2 为什么是高斯核</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E4%B8%8D%E5%81%9A%E4%BC%98%E5%8C%96%E7%9A%84%E4%BB%A3%E4%BB%B71-3-%E4%B8%8D%E5%81%9A%E4%BC%98%E5%8C%96%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="toc-number">1.3.</span> <span class="toc-text">#1-3-不做优化的代价1.3 不做优化的代价</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%862-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">#2-核心原理2. 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%AB%98%E6%96%AF%E5%87%BD%E6%95%B0%E7%9A%84%E5%AE%9A%E4%B9%892-1-%E9%AB%98%E6%96%AF%E5%87%BD%E6%95%B0%E7%9A%84%E5%AE%9A%E4%B9%89"><span class="toc-number">2.1.</span> <span class="toc-text">#2-1-高斯函数的定义2.1 高斯函数的定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E6%A0%B8%E7%9A%84%E5%8F%AF%E5%88%86%E7%A6%BB%E6%80%A7%EF%BC%9A%E6%95%B0%E5%AD%A6%E6%8E%A8%E5%AF%BC2-2-%E6%A0%B8%E7%9A%84%E5%8F%AF%E5%88%86%E7%A6%BB%E6%80%A7%EF%BC%9A%E6%95%B0%E5%AD%A6%E6%8E%A8%E5%AF%BC"><span class="toc-number">2.2.</span> <span class="toc-text">#2-2-核的可分离性：数学推导2.2 核的可分离性：数学推导</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%8D%B7%E7%A7%AF%E8%BF%90%E7%AE%97%E7%9A%84%E5%88%86%E7%A6%BB%E5%88%A9%E7%94%A82-3-%E5%8D%B7%E7%A7%AF%E8%BF%90%E7%AE%97%E7%9A%84%E5%88%86%E7%A6%BB%E5%88%A9%E7%94%A8"><span class="toc-number">2.3.</span> <span class="toc-text">#2-3-卷积运算的分离利用2.3 卷积运算的分离利用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%A0%B8%E5%8D%8A%E5%BE%84%E4%B8%8E-%CF%83-%E7%9A%84%E5%85%B3%E7%B3%BB2-4-%E6%A0%B8%E5%8D%8A%E5%BE%84%E4%B8%8E-%CF%83-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">2.4.</span> <span class="toc-text">#2-4-核半径与 σ 的关系2.4 核半径与 σ 的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%8A%A0%E6%9D%83%E5%BD%92%E4%B8%80%E5%8C%962-5-%E5%8A%A0%E6%9D%83%E5%BD%92%E4%B8%80%E5%8C%96"><span class="toc-number">2.5.</span> <span class="toc-text">#2-5-加权归一化2.5 加权归一化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8-FFT-%E5%81%9A%E6%A8%A1%E7%B3%8A2-6-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8-FFT-%E5%81%9A%E6%A8%A1%E7%B3%8A"><span class="toc-number">2.6.</span> <span class="toc-text">#2-6-为什么不用 FFT 做模糊2.6 为什么不用 FFT 做模糊</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%843-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">#3-实现架构3. 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%813-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">#3-1-整体数据流3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%843-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">#3-2-关键数据结构3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E8%BE%B9%E7%95%8C%E5%A4%84%E7%90%86%E7%AD%96%E7%95%A53-3-%E8%BE%B9%E7%95%8C%E5%A4%84%E7%90%86%E7%AD%96%E7%95%A5"><span class="toc-number">3.3.</span> <span class="toc-text">#3-3-边界处理策略3.3 边界处理策略</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E6%B5%8B%E8%AF%95%E5%9B%BE%E6%A1%88%E8%AE%BE%E8%AE%A13-4-%E6%B5%8B%E8%AF%95%E5%9B%BE%E6%A1%88%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.4.</span> <span class="toc-text">#3-4-测试图案设计3.4 测试图案设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-5-CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%863-5-CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.5.</span> <span class="toc-text">#3-5-CPU 侧职责划分3.5 CPU 侧职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%904-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">#4-关键代码解析4. 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E9%AB%98%E6%96%AF%E6%A0%B8%E6%9E%84%E5%BB%BA4-1-%E9%AB%98%E6%96%AF%E6%A0%B8%E6%9E%84%E5%BB%BA"><span class="toc-number">4.1.</span> <span class="toc-text">#4-1-高斯核构建4.1 高斯核构建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-2D-%E7%9B%B4%E6%8E%A5%E5%8D%B7%E7%A7%AF%E5%AE%9E%E7%8E%B04-2-2D-%E7%9B%B4%E6%8E%A5%E5%8D%B7%E7%A7%AF%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">#4-2-2D 直接卷积实现4.2 2D 直接卷积实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%88%86%E7%A6%BB%E5%8D%B7%E7%A7%AF%E5%AE%9E%E7%8E%B04-3-%E5%88%86%E7%A6%BB%E5%8D%B7%E7%A7%AF%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.3.</span> <span class="toc-text">#4-3-分离卷积实现4.3 分离卷积实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%B3%BB%E7%BB%9F4-4-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%B3%BB%E7%BB%9F"><span class="toc-number">4.4.</span> <span class="toc-text">#4-4-量化验证系统4.4 量化验证系统</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%955-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">#5-踩坑实录5. 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E8%BE%B9%E7%95%8C-clamp-%E5%86%99%E6%88%90%E4%BA%86%E9%95%9C%E5%83%8F%E5%8F%8D%E5%B0%84%E5%9D%91-1%EF%BC%9A%E8%BE%B9%E7%95%8C-clamp-%E5%86%99%E6%88%90%E4%BA%86%E9%95%9C%E5%83%8F%E5%8F%8D%E5%B0%84"><span class="toc-number">5.1.</span> <span class="toc-text">#坑-1：边界 clamp 写成了镜像反射坑 1：边界 clamp 写成了镜像反射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E6%A0%B8%E6%9D%83%E9%87%8D%E6%9C%AA%E5%BD%92%E4%B8%80%E5%8C%96%E5%AF%BC%E8%87%B4%E6%95%B4%E4%BD%93%E4%BA%AE%E5%BA%A6%E5%81%8F%E7%A7%BB%E5%9D%91-2%EF%BC%9A%E6%A0%B8%E6%9D%83%E9%87%8D%E6%9C%AA%E5%BD%92%E4%B8%80%E5%8C%96%E5%AF%BC%E8%87%B4%E6%95%B4%E4%BD%93%E4%BA%AE%E5%BA%A6%E5%81%8F%E7%A7%BB"><span class="toc-number">5.2.</span> <span class="toc-text">#坑-2：核权重未归一化导致整体亮度偏移坑 2：核权重未归一化导致整体亮度偏移</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E5%B0%86-double-%E7%B4%AF%E5%8A%A0%E5%99%A8%E6%94%B9%E4%B8%BA-float-%E5%AF%BC%E8%87%B4%E5%A4%A7%E6%A0%B8%E7%B2%BE%E5%BA%A6%E4%B8%A2%E5%A4%B1%E5%9D%91-3%EF%BC%9A%E5%B0%86-double-%E7%B4%AF%E5%8A%A0%E5%99%A8%E6%94%B9%E4%B8%BA-float-%E5%AF%BC%E8%87%B4%E5%A4%A7%E6%A0%B8%E7%B2%BE%E5%BA%A6%E4%B8%A2%E5%A4%B1"><span class="toc-number">5.3.</span> <span class="toc-text">#坑-3：将 double 累加器改为 float 导致大核精度丢失坑 3：将 double 累加器改为 float 导致大核精度丢失</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9APSNR-%E9%AA%8C%E8%AF%81%E6%97%B6%E5%BF%98%E8%AE%B0%E5%B0%86-double-%E7%BB%93%E6%9E%9C%E8%BD%AC%E5%9B%9E-unsigned-char-%E5%AF%BC%E8%87%B4%E8%AF%AF%E6%8A%A5%E5%B7%AE%E5%BC%82"><span class="toc-number">5.4.</span> <span class="toc-text">#坑-4：PSNR 验证时忘记将 double 结果转回 unsigned char 导致误报差异</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE6-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">#6-效果验证与数据6. 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E8%BE%93%E5%87%BA%E5%9B%BE%E5%83%8F%E5%AF%B9%E6%AF%946-1-%E8%BE%93%E5%87%BA%E5%9B%BE%E5%83%8F%E5%AF%B9%E6%AF%94"><span class="toc-number">6.1.</span> <span class="toc-text">#6-1-输出图像对比6.1 输出图像对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%A0%B8%E5%8F%AF%E5%88%86%E7%A6%BB%E6%80%A7%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE6-2-%E6%A0%B8%E5%8F%AF%E5%88%86%E7%A6%BB%E6%80%A7%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE"><span class="toc-number">6.2.</span> <span class="toc-text">#6-2-核可分离性验证数据6.2 核可分离性验证数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E8%BE%93%E5%87%BA%E7%AD%89%E4%BB%B7%E6%80%A7%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE%EF%BC%88%E6%9C%80%E5%85%B3%E9%94%AE%E7%9A%84%E6%B5%8B%E8%AF%95%EF%BC%896-3-%E8%BE%93%E5%87%BA%E7%AD%89%E4%BB%B7%E6%80%A7%E9%AA%8C%E8%AF%81%E6%95%B0%E6%8D%AE%EF%BC%88%E6%9C%80%E5%85%B3%E9%94%AE%E7%9A%84%E6%B5%8B%E8%AF%95%EF%BC%89"><span class="toc-number">6.3.</span> <span class="toc-text">#6-3-输出等价性验证数据（最关键的测试）6.3 输出等价性验证数据（最关键的测试）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%80%A7%E8%83%BD%E5%8A%A0%E9%80%9F%E6%AF%94%E6%95%B0%E6%8D%AE6-4-%E6%80%A7%E8%83%BD%E5%8A%A0%E9%80%9F%E6%AF%94%E6%95%B0%E6%8D%AE"><span class="toc-number">6.4.</span> <span class="toc-text">#6-4-性能加速比数据6.4 性能加速比数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E6%96%B9%E5%B7%AE%E9%80%92%E5%87%8F%E9%AA%8C%E8%AF%816-5-%E6%96%B9%E5%B7%AE%E9%80%92%E5%87%8F%E9%AA%8C%E8%AF%81"><span class="toc-number">6.5.</span> <span class="toc-text">#6-5-方差递减验证6.5 方差递减验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B87-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">#7-总结与延伸7. 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A77-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">#7-1-技术局限性7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%917-2-%E5%8F%AF%E4%BC%98%E5%8C%96%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">#7-2-可优化方向7.2 可优化方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%947-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">#7-3-与本系列的关联7.3 与本系列的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%937-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="toc-number">7.4.</span> <span class="toc-text">#7-4-一句话总结7.4 一句话总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/" title="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/" title="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)">每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)</a><time datetime="2026-07-28T22:30:00.000Z" title="发表于 2026-07-29 06:30:00">2026-07-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/28/daily-coding-morphological-operations-2026-07-28/" title="每日编程实践: 形态学操作 (Morphological Operations)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-28-Morphological-Operations/comparison_grid.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 形态学操作 (Morphological Operations)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/28/daily-coding-morphological-operations-2026-07-28/" title="每日编程实践: 形态学操作 (Morphological Operations)">每日编程实践: 形态学操作 (Morphological Operations)</a><time datetime="2026-07-27T22:10:00.000Z" title="发表于 2026-07-28 06:10:00">2026-07-28</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/27/daily-coding-gpu-rendering-pipeline-homogeneous-clipping-2026-07-27/" title="每日编程实践: GPU Rendering Pipeline — 齐次裁剪与透视校正插值"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-27-GPU-Rendering-Pipeline-Homogeneous-Clipping/pipeline_comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: GPU Rendering Pipeline — 齐次裁剪与透视校正插值"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/27/daily-coding-gpu-rendering-pipeline-homogeneous-clipping-2026-07-27/" title="每日编程实践: GPU Rendering Pipeline — 齐次裁剪与透视校正插值">每日编程实践: GPU Rendering Pipeline — 齐次裁剪与透视校正插值</a><time datetime="2026-07-26T21:30:00.000Z" title="发表于 2026-07-27 05:30:00">2026-07-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/26/daily-coding-scanline-polygon-fill-2026-07-26/" title="每日编程实践: 扫描线多边形填充算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-26-scanline-polygon-fill/scanline_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 扫描线多边形填充算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/26/daily-coding-scanline-polygon-fill-2026-07-26/" title="每日编程实践: 扫描线多边形填充算法">每日编程实践: 扫描线多边形填充算法</a><time datetime="2026-07-25T22:05:53.000Z" title="发表于 2026-07-26 06:05:53">2026-07-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/" title="每日编程实践: Alpha-Beta Pruning Game AI"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/placeholder.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Alpha-Beta Pruning Game AI"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/25/daily-coding-alpha-beta-pruning-2026-07-25/" title="每日编程实践: Alpha-Beta Pruning Game AI">每日编程实践: Alpha-Beta Pruning Game AI</a><time datetime="2026-07-24T22:00:00.000Z" title="发表于 2026-07-25 06:00:00">2026-07-25</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
