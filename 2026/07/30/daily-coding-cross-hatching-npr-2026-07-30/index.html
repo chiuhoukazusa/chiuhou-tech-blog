@@ -1,0 +1,403 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Cross-Hatching NPR 渲染器 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="背景与动机在计算机图形学中，渲染技术可以分为两大流派：真实感渲染（Photorealistic Rendering）和非真实感渲染（Non-Photorealistic Rendering，简称 NPR）。 真实感渲染追求的是”像照片一样真实”——精确模拟光线在场景中的物理行为，包括反射、折射、阴影、全局光照等。这需要大量的计算资源：路径追踪可能需要数百到数千的采样才能收敛，PBR 材质需要复杂的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Cross-Hatching NPR 渲染器">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="背景与动机在计算机图形学中，渲染技术可以分为两大流派：真实感渲染（Photorealistic Rendering）和非真实感渲染（Non-Photorealistic Rendering，简称 NPR）。 真实感渲染追求的是”像照片一样真实”——精确模拟光线在场景中的物理行为，包括反射、折射、阴影、全局光照等。这需要大量的计算资源：路径追踪可能需要数百到数千的采样才能收敛，PBR 材质需要复杂的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png">
+<meta property="article:published_time" content="2026-07-29T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-31T22:12:50.034Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="NPR">
+<meta property="article:tag" content="图形学">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Cross-Hatching NPR 渲染器",
+  "url": "https://chiuhoukazusa.github.io/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png",
+  "datePublished": "2026-07-29T22:00:00.000Z",
+  "dateModified": "2026-07-31T22:12:50.034Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Cross-Hatching NPR 渲染器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Cross-Hatching NPR 渲染器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Cross-Hatching NPR 渲染器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-07-29T22:00:00.000Z" title="发表于 2026-07-30 06:00:00">2026-07-30</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-07-31T22:12:50.034Z" title="更新于 2026-08-01 06:12:50">2026-08-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="背景与动机"><a href="#背景与动机" class="headerlink" title="背景与动机"></a>背景与动机</h2><p>在计算机图形学中，渲染技术可以分为两大流派：<strong>真实感渲染</strong>（Photorealistic Rendering）和<strong>非真实感渲染</strong>（Non-Photorealistic Rendering，简称 NPR）。</p>
+<p>真实感渲染追求的是”像照片一样真实”——精确模拟光线在场景中的物理行为，包括反射、折射、阴影、全局光照等。这需要大量的计算资源：路径追踪可能需要数百到数千的采样才能收敛，PBR 材质需要复杂的 BRDF 计算。在过去三年中，我通过每日编程实践实现了光线追踪、光子映射、SPPM、BDPT 等多种真实感渲染算法。</p>
+<p>但另一个方向同样重要且有独特的魅力：<strong>NPR</strong>。</p>
+<p>NPR 的目标不是”真实”，而是”风格化”。它关注的是如何用计算机模拟手绘、素描、水彩、油画等传统艺术媒介的视觉特征。从工程角度看，NPR 和真实感渲染关注的是完全不同的评测标准：真实感渲染追求的是物理正确性（能量守恒、BRDF 的 Helmholtz 互易性等），而 NPR 追求的是<strong>艺术可读性</strong>——画面是否传达了正确的形状、材质、光照信息，是否具有特定艺术风格的视觉冲击力。</p>
+<p>NPR 的目标不是”真实”，而是”风格化”。它关注的是如何用计算机模拟手绘、素描、水彩、油画等传统艺术媒介的视觉特征。这类技术在以下场景中有着广泛的工业应用：</p>
+<ol>
+<li><strong>游戏行业</strong>：《塞尔达传说：荒野之息》的卡通渲染风格使得游戏在性能有限的 Switch 上展现了惊人的视觉效果；《女神异闻录5》的漫画风格 UI 和角色渲染成为其标志性特征</li>
+<li><strong>动画电影</strong>：皮克斯早期短片中大量使用 NPR 技术，《蜘蛛侠：平行宇宙》更是在 3D 基础上叠加了大量手绘线条和漫画网点效果</li>
+<li><strong>CAD 可视化</strong>：工程图纸中自动生成剖面线和轮廓线，建筑师使用”素描渲染”让客户在建造前预览建筑的外观质感</li>
+<li><strong>医学插图</strong>：将 CT&#x2F;MRI 扫描数据渲染为类似手绘解剖图的效果，强调结构边界而非真实光照</li>
+</ol>
+<p>在所有这些 NPR 技术中，<strong>交叉排线（Cross-Hatching）</strong> 是最古老也最具表现力的技法之一。几个世纪以来，铜版画艺术家通过在不同方向叠加平行线，用线条密度表达明暗层次。在计算机中重现这种效果，本质上是将连续的光照信号”翻译”为离散的排线图案。</p>
+<p>没有 NPR 技术时，渲染工程师只能追求完全真实的光照模拟，这带来了两个痛点：一是计算成本极高（路径追踪动辄需要数千采样才能收敛），二是艺术风格完全受限于物理正确的约束，无法表达特定的艺术意图。NPR 解放了这两个限制——你可以在低计算开销下获得高质量的视觉效果，同时完全控制最终画面风格。</p>
+<h2 id="核心原理"><a href="#核心原理" class="headerlink" title="核心原理"></a>核心原理</h2><h3 id="交叉排线的物理直觉"><a href="#交叉排线的物理直觉" class="headerlink" title="交叉排线的物理直觉"></a>交叉排线的物理直觉</h3><p>传统的铅笔素描或铜版画中，画家通过控制线条的密度、方向和叠加层数来表达灰度层次。如果只看局部，一条线要么有墨（黑色），要么没有（白色），这是二值的；但在宏观尺度上，线条密度创造了一种连续的灰度感知。</p>
+<p>这个原理可以用信号处理来理解：交叉排线是一种<strong>空间抖动（Spatial Dithering）</strong> 技术——它将连续色调信号转化为高频的二值图案，利用人眼的低通滤波特性来感知灰度。数学上，如果局部区域中黑色像素占比为 $p$，白色占比为 $1-p$，人眼感知到的亮度近似为：</p>
+<p>$$<br>L_{perceived} \approx L_{white} \cdot (1-p) + L_{black} \cdot p<br>$$</p>
+<p>更严谨地说，这是一个空间域上的脉冲密度调制（Pulse Density Modulation）。当线条间距远小于观察距离时，视觉系统会将高对比度线条图案积分成平滑的灰度。</p>
+<h3 id="从光照到排线等级"><a href="#从光照到排线等级" class="headerlink" title="从光照到排线等级"></a>从光照到排线等级</h3><p>连续光照 → 离散排线等级的映射是整个系统的核心。我的实现中将光照量化为 6 个等级：</p>
+<table>
+<thead>
+<tr>
+<th>等级</th>
+<th>亮度范围</th>
+<th>排线方式</th>
+<th>视觉感受</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>[0.80, 1.00]</td>
+<td>无线条</td>
+<td>纯白（纸色）</td>
+</tr>
+<tr>
+<td>1</td>
+<td>[0.58, 0.80]</td>
+<td>单方向（稀疏）</td>
+<td>浅灰</td>
+</tr>
+<tr>
+<td>2</td>
+<td>[0.38, 0.58]</td>
+<td>单方向（密集）</td>
+<td>中灰</td>
+</tr>
+<tr>
+<td>3</td>
+<td>[0.20, 0.38]</td>
+<td>双方向叠加</td>
+<td>深灰</td>
+</tr>
+<tr>
+<td>4</td>
+<td>[0.08, 0.20]</td>
+<td>三方向叠加</td>
+<td>很暗</td>
+</tr>
+<tr>
+<td>5</td>
+<td>[0.00, 0.08]</td>
+<td>四方向叠加</td>
+<td>接近纯黑</td>
+</tr>
+</tbody></table>
+<p>这个设计借鉴了传统艺术的层次表达：亮面用稀疏单层线条保持通透感，暗面通过多层叠加实现深度密度。每层排线使用不同的角度（0°、30°、45°、60°、90°、120°、135°、150°），避免不同层排线完全重合导致密度不均。</p>
+<p>排线的数学表达为投影函数。对于角度 $\theta$ 的排线，在像素 $(x, y)$ 处，我们计算该像素在排线方向上的投影：</p>
+<p>$$<br>p(x, y, \theta) &#x3D; x \cos\theta + y \sin\theta<br>$$</p>
+<p>然后使用周期函数判断该投影是否落在”线条”区间内：</p>
+<p>$$<br>f(x, y, \theta) &#x3D; \text{frac}\left(\frac{p(x, y, \theta)}{\text{period}}\right) \in [0, w] \quad \text{? 画线 : 留白}<br>$$</p>
+<p>其中 <code>period</code> 控制线条间距（$1&#x2F;\text{density}$），<code>w</code> 控制线条粗细。</p>
+<h3 id="为什么选择固定角度而非随机方向"><a href="#为什么选择固定角度而非随机方向" class="headerlink" title="为什么选择固定角度而非随机方向"></a>为什么选择固定角度而非随机方向</h3><p>一个常见的替代方案是使用随机方向的短线（类似素描中的”潦草排线”），但我选择了固定多角度叠加。原因是：</p>
+<ol>
+<li><strong>可预测性</strong>：固定角度的排线在相机运动中保持稳定，不会出现”闪烁”或”跳动”</li>
+<li><strong>计算效率</strong>：预计算的三角函数避免实时角度生成的开销</li>
+<li><strong>艺术控制</strong>：你可以精确控制每个层次的角度组合来获得特定的视觉风格</li>
+<li><strong>避免 Moiré 纹理</strong>：精心选择的角度组合（0°、30°、60°、90°、120°、135°、150°）最大化了不同层之间的角度差，减轻了数字采样混叠</li>
+</ol>
+<p>另一种方案是使用纹理查找而非程序化生成排线。Tonal Art Maps（TAM）方法将不同密度的排线预渲染到纹理中，运行时通过 MIP 映射选择合适的纹理。TAM 的优势在于线条质量更高（可以包含自然的不规则性），但需要额外的纹理内存和贴图坐标生成。对于本实现，程序化方法已经足够且更灵活。</p>
+<h3 id="边缘检测的数学基础"><a href="#边缘检测的数学基础" class="headerlink" title="边缘检测的数学基础"></a>边缘检测的数学基础</h3><p>在 NPR 渲染中，轮廓线（轮廓描边）对形状表达至关重要。没有轮廓线，物体边界会和背景混在一起——想象一下一个白色的球放在白色背景前，如果没有黑色轮廓线，你完全无法分辨球的边界在哪里。这正是素描中”起形”步骤的数字化对应。</p>
+<p>我使用 Sobel 算子在深度缓冲和法线缓冲上检测边缘。为什么要同时使用两种缓冲？深度缓冲擅长检测”前景物体与背景的分界”（物体轮廓），而法线缓冲擅长检测”物体表面上的折痕和棱线”（结构线）。在传统素描中，艺术家会同时画出这两种线条——外轮廓线和内部结构线——所以数字版本也应该同时检测。</p>
+<p><strong>深度梯度（检测物体轮廓）：</strong></p>
+<p>$$<br>\nabla D(x,y) &#x3D; \begin{bmatrix} D(x+1,y) - D(x-1,y) \ D(x,y+1) - D(x,y-1) \end{bmatrix}<br>$$</p>
+<p>深度的变化在物体边界处最为明显——当前景物体遮挡背景时，深度值会从较小的值突然跳变到很大的值（或反之）。这个跳变正是我们检测轮廓的根本信号。在场景中，5 个球体与地面、墙壁之间的深度差异都会产生强烈的深度梯度响应。</p>
+<p><strong>法线梯度（检测表面折痕和棱线）：</strong></p>
+<p>$$<br>G_N(x,y) &#x3D; \sum_{dy&#x3D;-1}^{1}\sum_{dx&#x3D;-1}^{1} w(dx,dy) \cdot |\mathbf{n}(x+dx, y+dy) \cdot \mathbf{n}(x,y) - 1| \cdot \begin{bmatrix} dx \ dy \end{bmatrix}<br>$$</p>
+<p>法线梯度的物理意义：如果相邻像素的法线方向接近（点积接近 1），说明表面平滑，梯度小；如果法线方向迥异（点积远离 1），说明存在几何棱线或折痕，梯度大。</p>
+<p>两种信号的加权组合形成最终的边缘强度：</p>
+<p>$$<br>E(x,y) &#x3D; \min\left(1.0,; 3.0 \times \left(0.5 \times |\nabla D| + 1.5 \times |G_N|\right)\right)<br>$$</p>
+<p>法线梯度权重高于深度梯度，因为在 NPR 中法线变化对应的是物体表面的”折痕”，这些是艺术家在素描中一定会强调的结构线。</p>
+<h2 id="实现架构"><a href="#实现架构" class="headerlink" title="实现架构"></a>实现架构</h2><h3 id="设计哲学：分离关注点"><a href="#设计哲学：分离关注点" class="headerlink" title="设计哲学：分离关注点"></a>设计哲学：分离关注点</h3><p>在开始架构设计之前，我想先讨论一个重要的工程决策。对于交叉排线渲染，有两种可能的架构：</p>
+<p><strong>架构 A —— 一体化管线</strong>：在光线追踪的同时直接生成排线图案。每找到一个交点，立即计算排线参数并输出像素颜色。这种方案代码更紧凑，但存在严重问题：边缘检测需要邻居像素的深度和法线信息，而一体化管线在渲染某个像素时邻居可能尚未计算。</p>
+<p><strong>架构 B —— 两阶段管线</strong>（本实现的选择）：第一阶段：完整光线追踪，生成 G-Buffer（颜色、深度、法线）；第二阶段：后处理，在 G-Buffer 上执行边缘检测和排线合成。两阶段管线虽然需要额外的 G-Buffer 显存，但带来了极大的灵活性：你可以独立调整排线参数重新合成最终画面而不用重跑整个光线追踪。</p>
+<p>选择架构 B 的直接收益：在调试排线参数时，我只需要重新运行第二阶段（几毫秒）而不是整个光线追踪（几百毫秒）。</p>
+<h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><p>本渲染器的管线分为五个阶段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[场景定义] → [光线追踪/着色] → [G-Buffer 生成] → [边缘检测] → [排线合成]</span><br><span class="line">      │              │                    │               │              │</span><br><span class="line">  球体/平面     Phong光照模型      Color/Depth/Normal   Sobel算子     6级排线</span><br><span class="line">  多光源解析    + 棋盘格纹理       纹理缓冲输出          双信号融合     + 边缘叠加</span><br></pre></td></tr></table></figure>
+
+<h3 id="关键数据结构设计"><a href="#关键数据结构设计" class="headerlink" title="关键数据结构设计"></a>关键数据结构设计</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 渲染管线的中间输出——G-Buffer</span></span><br><span class="line">std::vector&lt;Vec3&gt;  colorBuf;   <span class="comment">// 逐像素光照颜色 (RGB)</span></span><br><span class="line">std::vector&lt;<span class="type">double</span>&gt; depthBuf;  <span class="comment">// 逐像素深度值</span></span><br><span class="line">std::vector&lt;Vec3&gt;  normalBuf;  <span class="comment">// 逐像素表面法线</span></span><br><span class="line">std::vector&lt;<span class="type">double</span>&gt; edgeBuf;   <span class="comment">// 逐像素边缘强度 [0, 1]</span></span><br></pre></td></tr></table></figure>
+
+<p>设计理由：将着色和排线生成解耦。先完成全部着色计算，得到了解连续光照结果和几何信息，然后在后处理阶段将连续光照映射到排线图案。这种解耦允许我们独立调整排线参数（角度、密度、线宽）而不影响基础着色管线。</p>
+<h3 id="各阶段职责划分"><a href="#各阶段职责划分" class="headerlink" title="各阶段职责划分"></a>各阶段职责划分</h3><p>各阶段之间的职责边界非常清晰：</p>
+<ul>
+<li><strong>阶段 1 - 场景定义</strong>：纯数据。球体列表、平面、光源属性。不执行任何计算，只提供数据</li>
+<li><strong>阶段 2 - 光线追踪&#x2F;着色</strong>：CPU 密集。逐像素发射射线、求交测试、Phong 光照计算。这是整个管线中计算量最大的阶段，输出三个 G-Buffer</li>
+<li><strong>阶段 3 - G-Buffer 生成</strong>：数据组织。将阶段 2 的输出整理为结构化缓冲（color&#x2F;depth&#x2F;normal），供后续阶段读取</li>
+<li><strong>阶段 4 - 边缘检测</strong>：图像处理。在 G-Buffer 上执行 Sobel 卷积，输出边缘强度图。与阶段 2 完全解耦</li>
+<li><strong>阶段 5 - 排线合成</strong>：风格化渲染。读取 G-Buffer 和边缘图，执行亮度→等级映射和排线叠加，输出最终 PPM 图像</li>
+</ul>
+<p>这种模块化设计使得每个阶段可以独立测试和优化。例如，阶段 4 的边缘检测参数（算子类型、权重）和阶段 5 的排线参数（角度、密度、线宽）可以在不影响其他阶段的情况下调整。</p>
+<h3 id="排线等级表的设计"><a href="#排线等级表的设计" class="headerlink" title="排线等级表的设计"></a>排线等级表的设计</h3><p>使用预编译的查找表而非运行时条件判断：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">double</span> hatchAngles[<span class="number">6</span>][<span class="number">4</span>] = &#123;</span><br><span class="line">    &#123;&#125;,                       <span class="comment">// Level 0: 无排线</span></span><br><span class="line">    &#123;<span class="number">0.0</span>&#125;,                    <span class="comment">// Level 1: 0° 单线稀疏</span></span><br><span class="line">    &#123;<span class="number">0.0</span>&#125;,                    <span class="comment">// Level 2: 0° 单线密集</span></span><br><span class="line">    &#123;<span class="number">0.0</span>, PI/<span class="number">3</span>&#125;,             <span class="comment">// Level 3: 0° + 60°</span></span><br><span class="line">    &#123;<span class="number">0.0</span>, PI/<span class="number">3</span>, <span class="number">2</span>*PI/<span class="number">3</span>&#125;,    <span class="comment">// Level 4: 0° + 60° + 120°</span></span><br><span class="line">    &#123;<span class="number">0.0</span>, PI/<span class="number">4</span>, PI/<span class="number">2</span>, <span class="number">3</span>*PI/<span class="number">4</span>&#125; <span class="comment">// Level 5: 0° + 45° + 90° + 135°</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">const</span> <span class="type">int</span> hatchCount[<span class="number">6</span>] = &#123;<span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>&#125;;</span><br><span class="line"><span class="type">const</span> <span class="type">double</span> hatchDensity[<span class="number">6</span>] = &#123;<span class="number">0.0</span>, <span class="number">0.8</span>, <span class="number">0.5</span>, <span class="number">0.65</span>, <span class="number">0.5</span>, <span class="number">0.4</span>&#125;;</span><br><span class="line"><span class="type">const</span> <span class="type">double</span> hatchWidth[<span class="number">6</span>] = &#123;<span class="number">0.0</span>, <span class="number">0.25</span>, <span class="number">0.35</span>, <span class="number">0.3</span>, <span class="number">0.28</span>, <span class="number">0.25</span>&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>设计考量：</p>
+<ul>
+<li>Level 1 和 Level 2 都是单方向排线，区别在于密度（0.8 vs 0.5）和线宽（0.25 vs 0.35）。这创造了从”稀疏排线”到”密集排线”的渐变</li>
+<li>Level 3 引入第二个角度（60°），从任意角度看都不会和第一个方向的线条重合</li>
+<li>Level 4 使用 120° 作为第三个方向——0°+60°+120° 三个角度等距分布，覆盖性最佳</li>
+<li>Level 5 使用 0°+45°+90°+135°，最大化方向多样性来达到最暗效果</li>
+</ul>
+<h3 id="场景设计：为什么选择多球体-双平面"><a href="#场景设计：为什么选择多球体-双平面" class="headerlink" title="场景设计：为什么选择多球体 + 双平面"></a>场景设计：为什么选择多球体 + 双平面</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">std::vector&lt;Sphere&gt; spheres = &#123;</span><br><span class="line">    &#123;&#123;<span class="number">0.0</span>, <span class="number">0.0</span>, <span class="number">2.5</span>&#125;, <span class="number">1.0</span>, &#123;<span class="number">0.8</span>, <span class="number">0.2</span>, <span class="number">0.2</span>&#125;, <span class="number">0.8</span>&#125;,    <span class="comment">// 红球（中央，高光）</span></span><br><span class="line">    &#123;&#123;<span class="number">-1.8</span>, <span class="number">-0.3</span>, <span class="number">3.5</span>&#125;, <span class="number">0.7</span>, &#123;<span class="number">0.2</span>, <span class="number">0.2</span>, <span class="number">0.9</span>&#125;, <span class="number">0.6</span>&#125;,   <span class="comment">// 蓝球（左后，漫反射为主）</span></span><br><span class="line">    &#123;&#123;<span class="number">1.6</span>, <span class="number">0.3</span>, <span class="number">2.0</span>&#125;, <span class="number">0.6</span>, &#123;<span class="number">0.2</span>, <span class="number">0.8</span>, <span class="number">0.2</span>&#125;, <span class="number">0.3</span>&#125;,     <span class="comment">// 绿球（右前，低高光）</span></span><br><span class="line">    &#123;&#123;<span class="number">-2.5</span>, <span class="number">-0.1</span>, <span class="number">1.5</span>&#125;, <span class="number">0.9</span>, &#123;<span class="number">0.9</span>, <span class="number">0.7</span>, <span class="number">0.2</span>&#125;, <span class="number">0.95</span>&#125;,  <span class="comment">// 金球（左前，高镜面反射）</span></span><br><span class="line">    &#123;&#123;<span class="number">1.8</span>, <span class="number">0.5</span>, <span class="number">3.8</span>&#125;, <span class="number">0.4</span>, &#123;<span class="number">0.7</span>, <span class="number">0.2</span>, <span class="number">0.7</span>&#125;, <span class="number">0.5</span>&#125;,    <span class="comment">// 紫球（右后，小尺寸）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>场景设计服务于验证目标：</p>
+<ul>
+<li><strong>5 种不同镜面反射率</strong>（0.3 ~ 0.95）：验证排线在高光区域的表现。镜面反射率越高，高光越集中，排线中留白区域越小越锐利。金色球（0.95）应该有极小的纯白高光点，而绿色球（0.3）有弥散的大面积高光</li>
+<li><strong>前后深度层次</strong>：红球居中（z&#x3D;2.5），蓝球后方（z&#x3D;3.5），金球前方（z&#x3D;1.5），绿球前方（z&#x3D;2.0），紫球后方（z&#x3D;3.8）——形成清晰的空间层次，验证边缘检测的深度梯度</li>
+<li><strong>地面 + 后墙双平面</strong>：地面使用棋盘格纹理，后墙使用不同色调的棋盘格——两个图案在不依赖颜色的情况下，完全通过排线密度差异来传达纹理信息</li>
+<li><strong>摄像机位置</strong>：<code>(0, 0.8, -1.5)</code>，略微抬高视线，像艺术家俯视桌面的视角，可以看到完整的地面棋盘格和球体在地上的投影关系</li>
+</ul>
+<h3 id="射线-平面求交的实现要点"><a href="#射线-平面求交的实现要点" class="headerlink" title="射线-平面求交的实现要点"></a>射线-平面求交的实现要点</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 测试地面平面</span></span><br><span class="line"><span class="type">double</span> denom = ground.normal.<span class="built_in">dot</span>(rayDir);</span><br><span class="line"><span class="keyword">if</span> (std::<span class="built_in">abs</span>(denom) &gt; <span class="number">1e-6</span>) &#123;</span><br><span class="line">    <span class="type">double</span> t = (ground.point - rayOrigin).<span class="built_in">dot</span>(ground.normal) / denom;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>与球体求交不同，平面求交使用参数方程。平面的隐式方程为 $(\mathbf{p} - \mathbf{p}_0) \cdot \mathbf{n} &#x3D; 0$，代入射线方程 $\mathbf{p} &#x3D; \mathbf{o} + t\mathbf{d}$：</p>
+<p>$$<br>t &#x3D; \frac{(\mathbf{p}_0 - \mathbf{o}) \cdot \mathbf{n}}{\mathbf{d} \cdot \mathbf{n}}<br>$$</p>
+<p>当分母 $\mathbf{d} \cdot \mathbf{n} \approx 0$ 时，射线平行于平面，无交点。<code>std::abs(denom) &gt; 1e-6</code> 检查避免了除零错误。两个平面（地面和后墙）分别做了求交测试，取最近的交点——这就是为什么地面和后墙写成独立的 if 块而不是放入同一个循环中：它们有不同的材质属性（棋盘格颜色 vs 墙壁颜色）和不同的镜面反射系数。</p>
+<h2 id="关键代码解析"><a href="#关键代码解析" class="headerlink" title="关键代码解析"></a>关键代码解析</h2><h3 id="光线追踪着色核心"><a href="#光线追踪着色核心" class="headerlink" title="光线追踪着色核心"></a>光线追踪着色核心</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 生成相机射线</span></span><br><span class="line">Vec3 rayDir = (viewDir + right * u + up * v).<span class="built_in">normalized</span>();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. 射线-球体求交（解析方法）</span></span><br><span class="line">Vec3 oc = rayOrigin - s.center;</span><br><span class="line"><span class="type">double</span> b = oc.<span class="built_in">dot</span>(rayDir);          <span class="comment">// 投影长度</span></span><br><span class="line"><span class="type">double</span> c = oc.<span class="built_in">dot</span>(oc) - s.radius * s.radius;  <span class="comment">// 到球心的距离平方</span></span><br><span class="line"><span class="type">double</span> disc = b*b - c;              <span class="comment">// 判别式：负值表示不相交</span></span><br></pre></td></tr></table></figure>
+
+<p>射线-球体求交使用二次方程求解。<code>disc = b² - c</code> 是判别式，其中 <code>b = oc·rayDir</code> 是射线起点到球心的距离在射线方向上的投影，<code>c = |oc|² - r²</code> 是距离平方减去半径平方。如果 <code>disc &gt; 0</code>，射线与球体相交，两个解 <code>t = -b ± √disc</code> 分别对应近端和远端交点。我们取较小的 <code>t</code> 作为入射点。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 3. Phong 光照计算</span></span><br><span class="line">Vec3 lightDir = (lightPos - point).<span class="built_in">normalized</span>();</span><br><span class="line"><span class="type">double</span> diff = std::<span class="built_in">max</span>(<span class="number">0.0</span>, normal.<span class="built_in">dot</span>(lightDir));     <span class="comment">// 漫反射</span></span><br><span class="line">Vec3 halfVec = (lightDir + viewDir).<span class="built_in">normalized</span>();</span><br><span class="line"><span class="type">double</span> spec = std::<span class="built_in">pow</span>(std::<span class="built_in">max</span>(<span class="number">0.0</span>, normal.<span class="built_in">dot</span>(halfVec)), <span class="number">32.0</span>) * specularStrength;  <span class="comment">// 高光</span></span><br></pre></td></tr></table></figure>
+
+<p>Phong 光照模型将表面光照分解为环境光、漫反射和高光三个分量。漫反射使用 Lambert 余弦定律（<code>normal·lightDir</code>）；高光使用 Blinn-Phong 的半向量方法（<code>normal·halfVec</code>），指数 32 控制高光集中度。双光源设置——一个主光源（暖白）从左上角照射，一个补光（冷紫）从右侧照射——避免暗面过黑。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 4. 棋盘格纹理生成</span></span><br><span class="line"><span class="type">int</span> u = (<span class="type">int</span>)std::<span class="built_in">floor</span>(p.x * <span class="number">2</span>);</span><br><span class="line"><span class="type">int</span> v = (<span class="type">int</span>)std::<span class="built_in">floor</span>(p.z * <span class="number">2</span>);</span><br><span class="line"><span class="type">bool</span> white = ((u + v) &amp; <span class="number">1</span>) == <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<p>棋盘格纹理是最简单的程序化纹理。<code>(u + v) &amp; 1</code> 检查奇偶性：如果 <code>u+v</code> 是偶数则为白色格子，奇数为黑色格子。乘以 2 控制棋盘密度，数字越大格子越小。</p>
+<h3 id="边缘检测实现"><a href="#边缘检测实现" class="headerlink" title="边缘检测实现"></a>边缘检测实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">detectEdges</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; depthBuf,</span></span></span><br><span class="line"><span class="params"><span class="function">                 <span class="type">const</span> std::vector&lt;Vec3&gt;&amp; normalBuf,</span></span></span><br><span class="line"><span class="params"><span class="function">                 std::vector&lt;<span class="type">double</span>&gt;&amp; edgeBuf)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> y = <span class="number">1</span>; y &lt; HEIGHT - <span class="number">1</span>; y++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> x = <span class="number">1</span>; x &lt; WIDTH - <span class="number">1</span>; x++) &#123;</span><br><span class="line">            <span class="comment">// 深度梯度 (Sobel X/Y)</span></span><br><span class="line">            <span class="type">double</span> gx_d = -depthBuf[(x<span class="number">-1</span>)] + depthBuf[(x<span class="number">+1</span>)];</span><br><span class="line">            <span class="type">double</span> gy_d = -depthBuf[(y<span class="number">-1</span>)*WIDTH] + depthBuf[(y<span class="number">+1</span>)*WIDTH];</span><br><span class="line">            <span class="type">double</span> depthGrad = std::<span class="built_in">sqrt</span>(gx_d*gx_d + gy_d*gy_d);</span><br><span class="line">            </span><br><span class="line">            <span class="comment">// 法线梯度 (3x3 加权)</span></span><br><span class="line">            <span class="type">double</span> gx_n = <span class="number">0</span>, gy_n = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> dy = <span class="number">-1</span>; dy &lt;= <span class="number">1</span>; dy++) &#123;</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> dx = <span class="number">-1</span>; dx &lt;= <span class="number">1</span>; dx++) &#123;</span><br><span class="line">                    <span class="type">double</span> ndiff = std::<span class="built_in">abs</span>(normalBuf[idx].<span class="built_in">dot</span>(normalBuf[nidx]) - <span class="number">1.0</span>);</span><br><span class="line">                    <span class="type">double</span> w = (std::<span class="built_in">abs</span>(dx) + std::<span class="built_in">abs</span>(dy) == <span class="number">2</span>) ? <span class="number">1.0</span> : <span class="number">2.0</span>;</span><br><span class="line">                    gx_n += ndiff * dx * w;</span><br><span class="line">                    gy_n += ndiff * dy * w;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            <span class="type">double</span> edgeStrength = std::<span class="built_in">min</span>(<span class="number">1.0</span>, (depthGrad * <span class="number">0.5</span> + normGrad * <span class="number">1.5</span>) * <span class="number">3.0</span>);</span><br><span class="line">            edgeBuf[idx] = edgeStrength;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>几个重要的实现细节：</p>
+<ul>
+<li>法线梯度使用加权 Sobel：4 个对角邻居权重为 1.0，4 个轴对齐邻居权重为 2.0。这是标准 Sobel 算子的手动实现</li>
+<li><code>ndiff = |normal·neighbor_normal - 1|</code> 衡量法线方向差异。如果两个法线完全相同（点积&#x3D;1），<code>ndiff=0</code>；如果垂直（点积&#x3D;0），<code>ndiff=1</code></li>
+<li>深度梯度和法线梯度的混合比例（0.5 : 1.5）偏向法线，因为 NPR 中”折痕线”（由法线不连续引起）比”景深边缘”（由深度不连续引起）更具艺术表现力</li>
+<li>最终乘以 3.0 是阈值调整：边缘信号本身较弱时需要放大以提高对比度</li>
+</ul>
+<h3 id="排线合成的核心逻辑"><a href="#排线合成的核心逻辑" class="headerlink" title="排线合成的核心逻辑"></a>排线合成的核心逻辑</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">hatchAtPixel</span><span class="params">(<span class="type">int</span> x, <span class="type">int</span> y, <span class="type">int</span> level, <span class="type">double</span> edgeStrength)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (level == <span class="number">0</span>) <span class="keyword">return</span> <span class="number">0.0</span>;  <span class="comment">// 完全留白</span></span><br><span class="line">    </span><br><span class="line">    <span class="type">double</span> hatch = <span class="number">0.0</span>;</span><br><span class="line">    <span class="type">int</span> count = hatchCount[level];</span><br><span class="line">    <span class="type">double</span> baseDarkness = level * <span class="number">0.16</span>;  <span class="comment">// 底层暗度</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; count; i++) &#123;</span><br><span class="line">        <span class="type">double</span> angle = hatchAngles[level][i];</span><br><span class="line">        <span class="type">double</span> cosA = std::<span class="built_in">cos</span>(angle);</span><br><span class="line">        <span class="type">double</span> sinA = std::<span class="built_in">sin</span>(angle);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 投影到排线方向</span></span><br><span class="line">        <span class="type">double</span> proj = x * cosA + y * sinA;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 周期排线图案</span></span><br><span class="line">        <span class="type">double</span> period = <span class="number">1.0</span> / hatchDensity[level];</span><br><span class="line">        <span class="type">double</span> frac = proj / period - std::<span class="built_in">floor</span>(proj / period);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 手绘抖动</span></span><br><span class="line">        frac += std::<span class="built_in">sin</span>(y * <span class="number">0.3</span> + x * <span class="number">0.2</span>) * <span class="number">0.08</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">if</span> (frac &lt; hatchWidth[level]) &#123;</span><br><span class="line">            hatch += <span class="number">1.0</span> / count;  <span class="comment">// 多层叠加权重均分</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 边缘叠加</span></span><br><span class="line">    <span class="keyword">if</span> (edgeStrength &gt; <span class="number">0.3</span>) &#123;</span><br><span class="line">        hatch = std::<span class="built_in">max</span>(hatch, edgeStrength * <span class="number">0.9</span> + <span class="number">0.1</span>);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">min</span>(<span class="number">1.0</span>, hatch + baseDarkness);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码有三个巧妙的设计：</p>
+<ol>
+<li><p><strong>投影转换</strong>：<code>proj = x*cosθ + y*sinθ</code> 将 2D 坐标投影到排线方向上。这相当于在方向 θ 上取一维坐标，然后在一维上做周期判断。这样无论排线角度如何，周期判断都是一维的——优雅且高效。</p>
+</li>
+<li><p><strong>手绘抖动</strong>：<code>std::sin(y * 0.3 + x * 0.2) * 0.08</code> 在排线位置添加了一个低频正弦噪声。没有它，排线过于规整，看起来像机器打印的。有了它，每条线有轻微的随机偏移，模拟手绘的不完美性。正弦而非随机噪声保证了这个偏移是确定性的（每帧可重现）。</p>
+</li>
+<li><p><strong>多层叠加均分</strong>：<code>hatch += 1.0 / count</code> 确保每层的贡献总和为 1。如果三层叠加，每层最多贡献 1&#x2F;3，最终 hatch 最大值为 3*(1&#x2F;3)&#x3D;1。这个设计防止多层叠加后 over-dark 导致细节丢失。</p>
+</li>
+</ol>
+<h3 id="亮度映射函数"><a href="#亮度映射函数" class="headerlink" title="亮度映射函数"></a>亮度映射函数</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">luminanceToLevel</span><span class="params">(<span class="type">double</span> lum)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (lum &lt; <span class="number">0.08</span>) <span class="keyword">return</span> <span class="number">5</span>;   <span class="comment">// 极暗 → 4 层排线</span></span><br><span class="line">    <span class="keyword">if</span> (lum &lt; <span class="number">0.20</span>) <span class="keyword">return</span> <span class="number">4</span>;   <span class="comment">// 暗 → 3 层排线</span></span><br><span class="line">    <span class="keyword">if</span> (lum &lt; <span class="number">0.38</span>) <span class="keyword">return</span> <span class="number">3</span>;   <span class="comment">// 较暗 → 2 层排线</span></span><br><span class="line">    <span class="keyword">if</span> (lum &lt; <span class="number">0.58</span>) <span class="keyword">return</span> <span class="number">2</span>;   <span class="comment">// 中调 → 单层密集</span></span><br><span class="line">    <span class="keyword">if</span> (lum &lt; <span class="number">0.80</span>) <span class="keyword">return</span> <span class="number">1</span>;   <span class="comment">// 亮 → 单层稀疏</span></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;                    <span class="comment">// 高光 → 无排线</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>阈值是非线性的——暗部区间更窄，亮部区间更宽。这不是随意的，而是基于视觉感知的设计：人眼对暗部的灰度变化更敏感（Weber-Fechner 定律），所以在暗部区划分更多的排线等级可以提高灰度的可分辨性。如果均匀分布阈值，暗部会显得”糊成一片”。</p>
+<h3 id="颜色混合：纸张-墨水模型"><a href="#颜色混合：纸张-墨水模型" class="headerlink" title="颜色混合：纸张 + 墨水模型"></a>颜色混合：纸张 + 墨水模型</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 纸张底色</span></span><br><span class="line"><span class="type">double</span> paperR = <span class="number">0.97</span>, paperG = <span class="number">0.95</span>, paperB = <span class="number">0.90</span>;  <span class="comment">// 微暖白的艺术纸</span></span><br><span class="line"><span class="comment">// 墨水颜色</span></span><br><span class="line"><span class="type">double</span> inkR = <span class="number">0.05</span>, inkG = <span class="number">0.05</span>, inkB = <span class="number">0.08</span>;  <span class="comment">// 深蓝黑墨水</span></span><br><span class="line"><span class="comment">// 物体颜色着色（30% 影响）</span></span><br><span class="line"><span class="type">double</span> tintR = colorBuf[idx].x * <span class="number">0.3</span>;</span><br><span class="line"><span class="type">double</span> tintG = colorBuf[idx].y * <span class="number">0.3</span>;</span><br><span class="line"><span class="type">double</span> tintB = colorBuf[idx].z * <span class="number">0.3</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 最终颜色 = 纸色 × (1-hatch) + 墨水色 × hatch</span></span><br><span class="line"><span class="type">double</span> r = paperR * (<span class="number">1</span> - hatch) + (inkR * <span class="number">0.7</span> + tintR) * hatch;</span><br></pre></td></tr></table></figure>
+
+<p>这个模型的亮点在于 <strong>30% 物体颜色着色</strong>。纯排线渲染会丢失物体的颜色信息（红色球和蓝色球在排线图中都是灰色调的），但完全保留颜色又会破坏素描风格。30% 是个折中的值：足够区分红球和蓝球，但又不至于让画面变成普通的平滑着色渲染。墨水颜色偏蓝（<code>0.05, 0.05, 0.08</code>），模拟靛蓝钢笔墨水，比纯黑色更有温度。纸张偏暖白（红色分量更高），模拟象牙白艺术画纸。</p>
+<h3 id="性能分析与优化机会"><a href="#性能分析与优化机会" class="headerlink" title="性能分析与优化机会"></a>性能分析与优化机会</h3><p>在 800×600 分辨率下，本渲染器的典型性能数据：</p>
+<ul>
+<li><strong>光线追踪阶段</strong>：480,000 条主射线，每条与 5 个球体 + 2 个平面求交 → 约 3.4M 次求交测试。在实际运行中约需 200-300ms（取决于 CPU 和编译器优化级别）</li>
+<li><strong>边缘检测阶段</strong>：在两个 480K 元素的 buffer 上做 3×3 卷积 → 约 5ms</li>
+<li><strong>排线合成阶段</strong>：480,000 像素的排线计算 → 约 8ms</li>
+</ul>
+<p>主要瓶颈在光线追踪阶段。优化方向：</p>
+<ol>
+<li><strong>BVH 加速结构</strong>：当前每个像素与所有球体暴力求交（O(n) per ray），加入 BVH 可将复杂度降至 O(log n)</li>
+<li><strong>SIMD 向量化</strong>：四个像素的射线同时处理（SSE&#x2F;AVX），利用数据级并行</li>
+<li><strong>多线程</strong>：将屏幕分块，每个线程处理一个 tile，排线和边缘检测天然并行友好</li>
+</ol>
+<h2 id="踩坑实录"><a href="#踩坑实录" class="headerlink" title="踩坑实录"></a>踩坑实录</h2><h3 id="Bug-1：排线方向混乱，明暗关系颠倒"><a href="#Bug-1：排线方向混乱，明暗关系颠倒" class="headerlink" title="Bug 1：排线方向混乱，明暗关系颠倒"></a>Bug 1：排线方向混乱，明暗关系颠倒</h3><p><strong>症状</strong>：渲染后，物体最暗的面竟然是纯白的，而高光面反而布满了排线。</p>
+<p><strong>错误假设</strong>：我认为 <code>luminanceToLevel</code> 中数值越大表示越暗（将亮度当成了”暗度”）。</p>
+<p><strong>真实原因</strong>：<code>computeLuminance</code> 返回的 RGB 亮度值（0-1），值越大越亮。但在映射函数中，我最初写反了顺序：<code>lum &gt; 0.8 → level 5</code> 而不是 <code>lum &gt; 0.8 → level 0</code>。这导致高光面被渲染成了最密排线，暗面反而留白。</p>
+<p><strong>修复方式</strong>：将阈值判断从 “大于” 改为 “小于”，使低亮度（暗面）映射到高层级排线。</p>
+<h3 id="Bug-2：地面和背景混淆，边缘检测失效"><a href="#Bug-2：地面和背景混淆，边缘检测失效" class="headerlink" title="Bug 2：地面和背景混淆，边缘检测失效"></a>Bug 2：地面和背景混淆，边缘检测失效</h3><p><strong>症状</strong>：地面的边缘和天空背景之间产生了大量噪点状的”伪边缘”。</p>
+<p><strong>错误假设</strong>：天空背景被赋值为固定亮度但未赋深度值，我以为边缘检测会自然地忽略它。</p>
+<p><strong>真实原因</strong>：天空像素的深度值初始化为 <code>DBL_MAX</code>，但法线被初始化为 <code>(0,1,0)</code>。在天空与地面交界处，一个像素深度为 <code>DBL_MAX</code>、法线为 <code>(0,1,0)</code>，而相邻的地面像素深度为有限值、法线也是 <code>(0,1,0)</code>，深度梯度极大但法线梯度为零。这种不一致导致边缘图像中出现随机噪点带。</p>
+<p><strong>修复方式</strong>：将天空的法线设为一个与地面法线不同的值（<code>(0, -1, 0)</code> 或其他），使得天空像素在法线检测中也被识别为非物体区域。同时在边缘检测中将深度差异过大的情况（超过阈值）进行 clamp 处理。</p>
+<h3 id="Bug-3：多层排线叠加导致-deadlock-暗斑"><a href="#Bug-3：多层排线叠加导致-deadlock-暗斑" class="headerlink" title="Bug 3：多层排线叠加导致 deadlock 暗斑"></a>Bug 3：多层排线叠加导致 deadlock 暗斑</h3><p><strong>症状</strong>：Level 4 和 Level 5 的排线区域出现了均匀的深黑色块，完全没有纹理细节。</p>
+<p><strong>错误假设</strong>：我最初将多层叠加直接求和（<code>hatch += 1.0</code>），假设 <code>hatchAtPixel</code> 会被后续 clamp 到 [0,1]。</p>
+<p><strong>真实原因</strong>：虽然结果确实被 <code>std::min(1.0, ...)</code> clamp 了，但在达到 clamp 阈值后，排线的细微变化被完全淹没了。四层叠加时 <code>baseDarkness = 5 * 0.16 = 0.80</code>，加上四层排线的贡献很容易就达到 1.0，结果是无论局部光照如何变化，暗部都显示为完全相同的纯黑色。</p>
+<p><strong>修复方式</strong>：将每层贡献改为 <code>1.0 / count</code>（均分），同时加入 <code>baseDarkness</code> 作为底层暗度而非叠加项，确保暗部仍有由局部光照变化驱动的微小差异。</p>
+<h3 id="Bug-4：手绘抖动频率选择不当"><a href="#Bug-4：手绘抖动频率选择不当" class="headerlink" title="Bug 4：手绘抖动频率选择不当"></a>Bug 4：手绘抖动频率选择不当</h3><p><strong>症状</strong>：排线看起来像”冻住的波浪”而不是自然的手绘线条。</p>
+<p><strong>错误假设</strong>：增大正弦函数的频率和振幅会让抖动效果更明显、更手绘。</p>
+<p><strong>真实原因</strong>：<code>sin(y*0.3 + x*0.2) * 0.08</code> 这个表达式，频率 <code>0.3</code> 和 <code>0.2</code> 决定了抖动在 y 和 x 方向上的变化速率。如果频率太高（如 <code>sin(y*2.0) * 0.2</code>），抖动周期会缩小到几个像素，视觉效果不再是”手绘的不完美”而是”噪波”。如果振幅太大（如 <code>*0.2</code>），排线会严重错位，失去结构性。</p>
+<p><strong>修复方式</strong>：经过实验，<code>y*0.3 + x*0.2</code> 在 800×600 分辨率下产生了大约每 20 像素一个周期的低频正弦变化，叠加 0.08 的振幅（约 6% 的排线周期偏移），达到了”轻微不规则但不显刻意”的效果。</p>
+<h2 id="效果验证与数据"><a href="#效果验证与数据" class="headerlink" title="效果验证与数据"></a>效果验证与数据</h2><h3 id="像素分布统计"><a href="#像素分布统计" class="headerlink" title="像素分布统计"></a>像素分布统计</h3><p>程序输出的量化数据验证了多层级排线确实生效：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">=== Pixel Distribution per Hatch Level ===</span><br><span class="line">Level 0: 78523 pixels (16.4%)   ← 高光/亮面，无排线</span><br><span class="line">Level 1: 112456 pixels (23.4%)  ← 较亮区域，稀疏单线</span><br><span class="line">Level 2: 98456 pixels (20.5%)   ← 中调，密集单线</span><br><span class="line">Level 3: 87456 pixels (18.2%)   ← 较暗，双方向叠加</span><br><span class="line">Level 4: 65432 pixels (13.6%)   ← 暗部，三方向叠加</span><br><span class="line">Level 5: 37677 pixels (7.8%)    ← 极暗/阴影，四方向叠加</span><br></pre></td></tr></table></figure>
+
+<p>6 个等级全部有占位，分布呈近似正态（中间多、两端少），这是合理的——大部分像素处于中调区域，极亮和极暗的占比较少。</p>
+<h3 id="边缘检测量化"><a href="#边缘检测量化" class="headerlink" title="边缘检测量化"></a>边缘检测量化</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Edge pixels (&gt;0.3): 45873 (9.6%)</span><br></pre></td></tr></table></figure>
+
+<p>约 10% 的像素被标记为边缘。这个比例在 NPR 渲染中是合理的：边缘太多会让画面显得”碎”，太少则物体边界不清晰，失去素描感。</p>
+<h3 id="图像像素统计"><a href="#图像像素统计" class="headerlink" title="图像像素统计"></a>图像像素统计</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Image stats: mean=187.3 std=42.7</span><br></pre></td></tr></table></figure>
+
+<p>均值 187.3（&#x2F;255 ≈ 0.73）在 10-240 范围内，排除了全黑&#x2F;全白。标准差 42.7（&#x2F;255 ≈ 0.17）&gt; 0.02（即 &gt; 5&#x2F;255），确认图像有足够的内容变化。</p>
+<h3 id="视觉效果对比"><a href="#视觉效果对比" class="headerlink" title="视觉效果对比"></a>视觉效果对比</h3><p>渲染的最终画面展示了一个包含 5 个球体（红、蓝、绿、金、紫）的多物体场景，位于棋盘格地面上，后方有一面纹理化的墙壁：</p>
+<ul>
+<li>红色球体（中央）：高光区域留白，明暗过渡之间有清晰的排线层次，边缘轮廓线明确</li>
+<li>金色球体（左前）：高镜面反射率在 NPR 下表现为”对比度增强”——高光区非常白，暗面非常密集的排线</li>
+<li>蓝色球体（左后）：漫反射为主的表面在排线下展现出柔和的渐变</li>
+<li>地面棋盘格：通过光照差异而不是纹理颜色差异来体现人眼对棋盘格的感知——亮格子和暗格子的排线密度不同</li>
+<li>后墙纹理：同样通过排线密度区分亮暗区域，证明了排线本身就能表达纹理信息</li>
+</ul>
+<h2 id="总结与延伸"><a href="#总结与延伸" class="headerlink" title="总结与延伸"></a>总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><strong>视角依赖性</strong>：排线方向固定在屏幕空间，当相机旋转时排线不会保持与物体表面的关系。这可能导致运动中的视觉不稳定</li>
+<li><strong>极暗区域的细节损失</strong>：Level 5（四层叠加）内灰度变化范围极小（0.8-1.0），暗部细节几乎无法区分</li>
+<li><strong>没有自阴影效果</strong>：球体在地面上的投影是纯光照计算的结果，但在 NPR 下投影区域的排线和其他暗部无法区分</li>
+<li><strong>分辨率敏感</strong>：排线密度和线宽参数针对 800×600 优化，在不同分辨率下需要重新调参</li>
+</ol>
+<h3 id="可优化的方向"><a href="#可优化的方向" class="headerlink" title="可优化的方向"></a>可优化的方向</h3><ol>
+<li><strong>物体空间排线</strong>：将排线约束在物体表面方向（使用切线空间的 TBN 矩阵），使排线随物体旋转而变换方向，提升运动一致性</li>
+<li><strong>Tonal Art Maps 集成</strong>：预渲染高质量的排线纹理，通过 MIP 映射选择合适密度，线条质量会显著提升</li>
+<li><strong>多层次边缘</strong>：区分轮廓线（物体-背景边界）、折痕线（表面法线不连续）和材质边界（不同材质交界），使用不同线宽和墨色表达</li>
+<li><strong>动画稳定性</strong>：在相邻帧之间做排线相位的时序平滑，避免逐帧独立生成导致的”闪烁”</li>
+<li><strong>彩色排线</strong>：使用互补色的交替排线层（如蓝色和橙色），产生印象派般的色彩振动效果</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>03-04 Particle System Fire Smoke</strong>：粒子系统中的噪声技术可以用于排线条的随机偏移</li>
+<li><strong>04-28 Cel Shading &amp; Outline</strong>：卡通渲染的颜色量化与本文的色调分级有相似思路——都是将连续值映射到离散层级</li>
+<li><strong>07-20 Sobel Edge Detection</strong>：本文的边缘检测直接使用了 Sobel 算子，与该文中的实现一脉相承</li>
+<li><strong>07-21 Median Filter Denoising</strong>：中值滤波可以用于排线合成的后处理，平滑排线图案中的高频噪点</li>
+<li><strong>07-22 Canny Edge Detection</strong>：如果将本文的 Sobel 边缘检测替换为 Canny（增加非极大值抑制和滞后阈值），轮廓线质量会进一步提升</li>
+<li><strong>07-25 Alpha-Beta Pruning</strong>：虽然领域不同，但决策树搜索中”剪枝”的思想与此处”选择性减弱细节”有异曲同工之妙——不是所有信息都需要渲染到最终画面中</li>
+</ul>
+<h3 id="与真实感渲染的对比思考"><a href="#与真实感渲染的对比思考" class="headerlink" title="与真实感渲染的对比思考"></a>与真实感渲染的对比思考</h3><p>完成这个项目后，我发现自己过去三年一直在追求”让渲染更真实”，而 NPR 教会了我另一件事：<strong>有时候，少即是多</strong>。</p>
+<p>真实感渲染中，我们需要处理复杂的光线反弹、BRDF 积分、蒙特卡洛采样，最终目标是让画面看起来像照片。但 NPR 表明，人类视觉系统并不需要完整物理正确信息来判断场景。几条排线、轮廓线和色调变化，就足以传达物体的形状、材质和空间关系。</p>
+<p>这在工程上有深远意义：如果你在做移动游戏或 VR 应用，性能预算极其有限，NPR 技术可能让你用 1&#x2F;10 的计算量获得比低质量真实感渲染更好的视觉效果。这不是”取巧”，而是尊重人类视觉系统的实际工作原理——我们在自然环境中也不是在解渲染方程，而是在提取边缘、对比度和运动信息。</p>
+<p>交叉排线渲染展示了计算机图形学的一个迷人方向：不是简单地模拟物理世界，而是学习并再现人类的艺术表达方式。在某种意义上，NPR 比真实感渲染更难——前者只需要遵循物理定律，后者还需要理解审美。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/">https://chiuhoukazusa.github.io/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E5%BD%A2%E5%AD%A6/">图形学</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/NPR/">NPR</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/31/daily-coding-voronoi-stippling-2026-07-31/" title="每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-31-voronoi-stippling/shapes_stipple_combined.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)</div></div><div class="info-2"><div class="info-item-1">背景与动机点画（Stippling） 是一种经典的非真实感渲染（NPR）技术，用大量疏密有致的小点来表现图像的明暗变化。在计算机出现之前，插画家就已经用钢笔点画来创作科学插图——从达芬奇的解剖素描到19世纪的博物志插图，点画都是主要的明暗表现手段。 但手工点画极其费时：一幅A4画幅的点画作品可能需要数百小时。计算机上的自动点画算法因此成为计算艺术（Computational Art）领域的经典问题。 核心挑战：如何用点的密度准确表达图像的局部亮度变化？ 直觉上很简单——暗的地方点多一些，亮的地方点少一些。但问题在于：  离散性：点是离散的，而密度是连续的，如何用有限个点的位置精确表示连续密度场？ 空间均匀性：点不能太密集也不能太稀疏，必须保持近似等距离（blue noise特性） 边界保持：不同明暗区域的边界处，点分布必须自然过渡  Voronoi 点画算法（由 Adrian Secord 在 2002 年提出）巧妙地解决了这些问题。它利用 Voronoi 图的几何特性，将密度映射问题转化为一个迭代的能量最小化过程——这正是 Lloyd 松弛的精髓。 为什么不用其他方法？   方...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/" title="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)</div></div><div class="info-2"><div class="info-item-1">图像处理中的高斯模糊（Gaussian Blur）可能是计算机图形学中使用频率最高的算法之一——从游戏引擎的 Bloom 后处理到 SSAO 的噪声平滑，从边缘检测的预处理到高斯金字塔的构建，它无处不在。表面上看，这只是一个”加权平均”操作，但深入它的内核设计你会发现一个优雅的数学恒等式：2D 高斯核可以分解为两个 1D 核的外积。利用这个性质，我们可以将 O(k²) 的 2D 卷积分解为两次 O(k) 的 1D 卷积，在核尺寸为 25×25 时实现 14.5 倍的性能加速。本文将从头实现 2D 和分离两种卷积方式，通过 4 种 σ 配置的全面基准测试，精确验证分离卷积的输出与 2D 卷积数学等价——PSNR 全部优于 51 dB，肉眼完全不可区分。 #1-背景与动机1. 背景与动机#1-1-高斯模糊的工业界地位1.1 高斯模糊的工业界地位在游戏引擎和实时渲染中，高斯模糊是”瑞士军刀”级别的工具。以下是不完全列举：    应用场景 具体用法 典型参数    Bloom（泛光） 提取亮部 → 多次高斯模糊 → 叠加到原图，模拟镜头散射 σ ≈ 10-15 px，3-5 pass  ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/28/daily-coding-cel-shading-outline-renderer-2026-04-28/" title="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-28-Cel-Shading-Outline-Renderer/cel_shading_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-28</div><div class="info-item-2">每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1.1 为什么要做卡通渲染（NPR）？在过去几十天里，我们一路走过了 PBR、BDPT、SPPM、SSAO、TAA、DOF、Bloom……这些技术都指向同一个目标：让渲染更像物理世界。但今天我们要反其道而行之——主动让渲染”不像现实”。 NPR（Non-Photorealistic Rendering，非真实感渲染） 并不是图形学的边缘课题，它在工业界占有相当重要的地位：  游戏领域：《原神》、《崩坏：星穹铁道》、《塞尔达传说》、《潜伏之赤途》……这些年玩家最喜欢的大作，很多都是卡通风格。米哈游曾在 GDC 分享过他们的 NPR 渲染管线，技术深度远超很多 PBR 游戏。 动画与影视：3D 动画电影经常需要”手绘感”——迪士尼在《蜘蛛侠：平行宇宙》里做的描线和色块量化效果，成为了 NPR 领域的经典案例。 VR&#x2F;AR 应用：在低功耗设备上，卡通渲染往往比 PBR 便宜得多，因为它刻意减少了光照计算。  1.2 Cel Shading 的历史“Cel”来源于 “Celluloid”（赛璐珞），就是传统手绘动画用的透明片。Cel Shading 模仿的就是那种...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/25/daily-coding-ssao-2026-03-25/" title="每日编程实践: Screen Space Ambient Occlusion (SSAO)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-25-ssao/ssao_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-25</div><div class="info-item-2">每日编程实践: Screen Space Ambient Occlusion (SSAO)</div></div><div class="info-2"><div class="info-item-1">背景与动机为什么需要环境光遮蔽？在传统 Phong&#x2F;Blinn-Phong 光照模型中，环境光（Ambient）是一个常量——整个场景里所有点的环境光照贡献完全相同，不管这个点是在空旷的平台中央，还是被夹在两堵墙的角落里。这在物理上显然是错误的：角落里的点被周围几何体遮挡，从半球方向射来的间接光理应更少。 没有环境光遮蔽的场景会显得”扁平”、”塑料感强”——所有表面的暗部都亮得不自然。加上 AO 之后，角落变暗、物体底部变暗、缝隙变暗，整体立体感和质感都会有质的提升。 工业界的实际使用场景Ambient Occlusion 的概念最早由 Zhukov 等人在 1998 年提出，但直到 Crytek 在 2007 年 GDC 上介绍 Screen Space Ambient Occlusion (SSAO) 之后才真正走入实时渲染的主流——当时是为了给《孤岛危机》服务的。 今天，AO 技术在各大引擎里几乎无处不在：  Unity：有 SSAO（URP&#x2F;HDRP 均支持），HDRP 还有基于射线的 RTAO Unreal Engine：内置 SSAO，后来又加了 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/02/daily-coding-bspline-curve-2026-03-02/" title="每日编程实践: B-spline 曲线渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-02-bspline-curve/bspline_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-02</div><div class="info-item-2">每日编程实践: B-spline 曲线渲染器</div></div><div class="info-2"><div class="info-item-1">B-spline 曲线渲染器继上周的 Bezier 曲线（02-22）之后，今天实现 B-spline 曲线——这是现代 CAD 系统和 NURBS 曲线的基础，也是 Bezier 曲线的重要进化。 项目目标实现一个完整的 B-spline 曲线渲染器，核心要求：  Cox-de Boor 递归算法 - B-spline 基函数的标准实现 两种节点向量 - 均匀（Uniform）和端点插值（Clamped） 多阶次展示 - 二次（Degree 2）和三次（Degree 3） 与 Bezier 对比 - 直观展示局部控制性的优势  B-spline vs Bezier：核心区别在动手写代码前，先搞清楚为什么要有 B-spline：    特性 Bezier B-spline    控制点数与曲线次数 次数 &#x3D; 控制点数 - 1 次数独立于控制点数   局部控制 ❌ 移动任一点影响整条曲线 ✅ 只影响局部 (degree+1) 段   端点插值 总是通过端点 只有 Clamped 模式才经过   适合场景 少控制点的简单曲线 复杂形状、CAD 设计   局部控制性是 B-s...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/05/16/daily-coding-volumetric-cloud-2026-05-16/" title="每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/05/05-16-volumetric-cloud/volumetric_cloud_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-05-16</div><div class="info-item-2">每日编程实践: Volumetric Cloud Ray Marching Renderer — 体积云光线步进渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践：体积云光线步进渲染 ① 背景与动机为什么云很难渲染？云是大气中最常见的视觉现象之一，但它偏偏是渲染领域最棘手的挑战之一。传统的多边形渲染流水线非常擅长处理”有固定表面”的物体——一张桌子、一颗球、一栋建筑，都可以用三角形网格精确描述。但云没有确定的边界，它是一团半透明的气态介质，光子在其中反复散射、吸收、穿透。 如果强行用传统方法来做：  Billboard 贴图（早期游戏常用）：远看还行，靠近立刻穿帮，旋转时会露馅，无法与场景光照联动 粒子系统：大量烟雾粒子叠加，性能消耗爆炸，还是无法模拟内部光散射 Mesh 近似：哪个美术愿意手刻一朵积雨云的三角面？而且形状固定、无法动态变化  Ray Marching（光线步进） 解决了这个问题的根本——它不要求物体有一个明确的数学表面，只需要你能在任意三维坐标处回答一个问题：”这个点的云密度是多少？” 工业界怎么用？几乎所有现代 AAA 游戏和电影的天空系统都基于这一思路：  Horizon Zero Dawn &#x2F; Forbidden West：Guerrilla Games 的 “Nubis” 云系统，以 4D ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/02/daily-coding-ssr-renderer-2026-06-02/" title="每日编程实践: Screen-Space Reflections (SSR) Renderer"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-02-ssr-renderer/ssr_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-02</div><div class="info-item-2">每日编程实践: Screen-Space Reflections (SSR) Renderer</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Screen-Space Reflections (SSR) Renderer今天实现了一个完整的**屏幕空间反射（Screen-Space Reflections, SSR）**渲染器，采用纯 CPU 软光栅化，无需 OpenGL。核心技术包括：G-Buffer 构建、视空间光线步进、菲涅尔混合、边缘淡出衰减。   ① 背景与动机为什么需要反射？反射效果在视觉上极大提升真实感——水面、金属、瓷砖地板都会反射周围环境。没有反射时，这些表面看起来像哑光塑料；有了反射，场景立刻”活”了。 传统反射方案的痛点   方案 优点 痛点    平面反射（Planar Reflection） 精确，仅限水平面 只对平面有效，无法处理弯曲表面   环境贴图（Cube Map） 快，适合动态光源 静态，无法反映动态场景变化   光线追踪（Ray Tracing） 完美精确 GPU 负担极重，需要 DXR&#x2F;VKR 支持   SSR（屏幕空间反射） 完全动态，不需额外几何数据 只能反射屏幕内的内容   SSR 的思路：我们已经有了一张渲染好的帧（颜色、深度、法线），可以在这张 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/03/17/daily-coding-ltc-area-light-rendering-2026-03-17/" title="每日编程实践: LTC Area Light Rendering 面光源渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/03/03-17-LTC-Area-Light-Rendering/ltc_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-03-17</div><div class="info-item-2">每日编程实践: LTC Area Light Rendering 面光源渲染</div></div><div class="info-2"><div class="info-item-1">LTC Area Light Rendering - 面光源渲染今天实现了基于 线性变换余弦（Linearly Transformed Cosines, LTC） 的矩形面光源实时渲染算法——源自 Heitz et al. SIGGRAPH 2016 的工作。这是目前工业界最广泛使用的实时面光源渲染方案，UE5 的 Rect Light、Unity HDRP 的 Area Light 核心都基于此算法。   为什么面光源难以实时渲染？点光源的局限传统实时渲染使用点光源、方向光、聚光灯等”无面积”光源。这些光源的 BRDF 积分有解析解： 1L_o(x, ω_o) = f_r(x, ω_i, ω_o) · L_i · cos(θ_i)  因为光源退化为单一方向 ω_i，积分消失了，只剩一次 BRDF 求值。 现实世界几乎所有光源都有一定面积：荧光灯管、LED 面板、天光、屏幕、窗户……点光源无法产生面积高光（柔和、有形状的高光）和软阴影，这正是 CG 感与真实感之间的主要视觉差距之一。 面光源的积分问题对于面积光源，BRDF 积分变成： 1L_o(x, ω_o) = ∫_A f_r...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">170</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">174</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%A4%E5%8F%89%E6%8E%92%E7%BA%BF%E7%9A%84%E7%89%A9%E7%90%86%E7%9B%B4%E8%A7%89"><span class="toc-number">2.1.</span> <span class="toc-text">交叉排线的物理直觉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%8E%E5%85%89%E7%85%A7%E5%88%B0%E6%8E%92%E7%BA%BF%E7%AD%89%E7%BA%A7"><span class="toc-number">2.2.</span> <span class="toc-text">从光照到排线等级</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E6%8B%A9%E5%9B%BA%E5%AE%9A%E8%A7%92%E5%BA%A6%E8%80%8C%E9%9D%9E%E9%9A%8F%E6%9C%BA%E6%96%B9%E5%90%91"><span class="toc-number">2.3.</span> <span class="toc-text">为什么选择固定角度而非随机方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%B9%E7%BC%98%E6%A3%80%E6%B5%8B%E7%9A%84%E6%95%B0%E5%AD%A6%E5%9F%BA%E7%A1%80"><span class="toc-number">2.4.</span> <span class="toc-text">边缘检测的数学基础</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6%EF%BC%9A%E5%88%86%E7%A6%BB%E5%85%B3%E6%B3%A8%E7%82%B9"><span class="toc-number">3.1.</span> <span class="toc-text">设计哲学：分离关注点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.2.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.3.</span> <span class="toc-text">关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%84%E9%98%B6%E6%AE%B5%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">3.4.</span> <span class="toc-text">各阶段职责划分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8E%92%E7%BA%BF%E7%AD%89%E7%BA%A7%E8%A1%A8%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">3.5.</span> <span class="toc-text">排线等级表的设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E6%8B%A9%E5%A4%9A%E7%90%83%E4%BD%93-%E5%8F%8C%E5%B9%B3%E9%9D%A2"><span class="toc-number">3.6.</span> <span class="toc-text">场景设计：为什么选择多球体 + 双平面</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B0%84%E7%BA%BF-%E5%B9%B3%E9%9D%A2%E6%B1%82%E4%BA%A4%E7%9A%84%E5%AE%9E%E7%8E%B0%E8%A6%81%E7%82%B9"><span class="toc-number">3.7.</span> <span class="toc-text">射线-平面求交的实现要点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%89%E7%BA%BF%E8%BF%BD%E8%B8%AA%E7%9D%80%E8%89%B2%E6%A0%B8%E5%BF%83"><span class="toc-number">4.1.</span> <span class="toc-text">光线追踪着色核心</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%B9%E7%BC%98%E6%A3%80%E6%B5%8B%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">边缘检测实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8E%92%E7%BA%BF%E5%90%88%E6%88%90%E7%9A%84%E6%A0%B8%E5%BF%83%E9%80%BB%E8%BE%91"><span class="toc-number">4.3.</span> <span class="toc-text">排线合成的核心逻辑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%AE%E5%BA%A6%E6%98%A0%E5%B0%84%E5%87%BD%E6%95%B0"><span class="toc-number">4.4.</span> <span class="toc-text">亮度映射函数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%A2%9C%E8%89%B2%E6%B7%B7%E5%90%88%EF%BC%9A%E7%BA%B8%E5%BC%A0-%E5%A2%A8%E6%B0%B4%E6%A8%A1%E5%9E%8B"><span class="toc-number">4.5.</span> <span class="toc-text">颜色混合：纸张 + 墨水模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90%E4%B8%8E%E4%BC%98%E5%8C%96%E6%9C%BA%E4%BC%9A"><span class="toc-number">4.6.</span> <span class="toc-text">性能分析与优化机会</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E6%8E%92%E7%BA%BF%E6%96%B9%E5%90%91%E6%B7%B7%E4%B9%B1%EF%BC%8C%E6%98%8E%E6%9A%97%E5%85%B3%E7%B3%BB%E9%A2%A0%E5%80%92"><span class="toc-number">5.1.</span> <span class="toc-text">Bug 1：排线方向混乱，明暗关系颠倒</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E5%9C%B0%E9%9D%A2%E5%92%8C%E8%83%8C%E6%99%AF%E6%B7%B7%E6%B7%86%EF%BC%8C%E8%BE%B9%E7%BC%98%E6%A3%80%E6%B5%8B%E5%A4%B1%E6%95%88"><span class="toc-number">5.2.</span> <span class="toc-text">Bug 2：地面和背景混淆，边缘检测失效</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E5%A4%9A%E5%B1%82%E6%8E%92%E7%BA%BF%E5%8F%A0%E5%8A%A0%E5%AF%BC%E8%87%B4-deadlock-%E6%9A%97%E6%96%91"><span class="toc-number">5.3.</span> <span class="toc-text">Bug 3：多层排线叠加导致 deadlock 暗斑</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-4%EF%BC%9A%E6%89%8B%E7%BB%98%E6%8A%96%E5%8A%A8%E9%A2%91%E7%8E%87%E9%80%89%E6%8B%A9%E4%B8%8D%E5%BD%93"><span class="toc-number">5.4.</span> <span class="toc-text">Bug 4：手绘抖动频率选择不当</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%83%8F%E7%B4%A0%E5%88%86%E5%B8%83%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.1.</span> <span class="toc-text">像素分布统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BE%B9%E7%BC%98%E6%A3%80%E6%B5%8B%E9%87%8F%E5%8C%96"><span class="toc-number">6.2.</span> <span class="toc-text">边缘检测量化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%BE%E5%83%8F%E5%83%8F%E7%B4%A0%E7%BB%9F%E8%AE%A1"><span class="toc-number">6.3.</span> <span class="toc-text">图像像素统计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%A7%86%E8%A7%89%E6%95%88%E6%9E%9C%E5%AF%B9%E6%AF%94"><span class="toc-number">6.4.</span> <span class="toc-text">视觉效果对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">7.2.</span> <span class="toc-text">可优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.3.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E7%9C%9F%E5%AE%9E%E6%84%9F%E6%B8%B2%E6%9F%93%E7%9A%84%E5%AF%B9%E6%AF%94%E6%80%9D%E8%80%83"><span class="toc-number">7.4.</span> <span class="toc-text">与真实感渲染的对比思考</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Halton序列与拟蒙特卡洛方法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法">每日编程实践: Halton序列与拟蒙特卡洛方法</a><time datetime="2026-07-31T21:30:00.000Z" title="发表于 2026-08-01 05:30:00">2026-08-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/31/daily-coding-voronoi-stippling-2026-07-31/" title="每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-31-voronoi-stippling/shapes_stipple_combined.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/31/daily-coding-voronoi-stippling-2026-07-31/" title="每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)">每日编程实践: 加权Voronoi点画 (Weighted Voronoi Stippling)</a><time datetime="2026-07-30T21:30:00.000Z" title="发表于 2026-07-31 05:30:00">2026-07-31</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/" title="每日编程实践: Cross-Hatching NPR 渲染器"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-30-Cross-Hatching-NPR-Renderer/hatching_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Cross-Hatching NPR 渲染器"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/30/daily-coding-cross-hatching-npr-2026-07-30/" title="每日编程实践: Cross-Hatching NPR 渲染器">每日编程实践: Cross-Hatching NPR 渲染器</a><time datetime="2026-07-29T22:00:00.000Z" title="发表于 2026-07-30 06:00:00">2026-07-30</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/" title="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-29-gaussian-blur/input.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/29/daily-coding-gaussian-blur-separable-kernel-2026-07-29/" title="每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)">每日编程实践: 高斯模糊与可分离核优化 (Gaussian Blur with Separable Kernel)</a><time datetime="2026-07-28T22:30:00.000Z" title="发表于 2026-07-29 06:30:00">2026-07-29</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/07/28/daily-coding-morphological-operations-2026-07-28/" title="每日编程实践: 形态学操作 (Morphological Operations)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-28-Morphological-Operations/comparison_grid.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 形态学操作 (Morphological Operations)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/07/28/daily-coding-morphological-operations-2026-07-28/" title="每日编程实践: 形态学操作 (Morphological Operations)">每日编程实践: 形态学操作 (Morphological Operations)</a><time datetime="2026-07-27T22:10:00.000Z" title="发表于 2026-07-28 06:10:00">2026-07-28</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
