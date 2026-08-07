@@ -1,0 +1,471 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition  ① 背景与动机为什么需要 QR 分解？在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。 实际场景：  最小二乘拟合">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/08/08/daily-coding-qr-decomposition-2026-08-08/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition  ① 背景与动机为什么需要 QR 分解？在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。 实际场景：  最小二乘拟合">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://chiuhoukazusa.github.io/images/Melina.png">
+<meta property="article:published_time" content="2026-08-07T22:15:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T22:10:49.936Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="数值方法">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="线性代数">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://chiuhoukazusa.github.io/images/Melina.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比",
+  "url": "https://chiuhoukazusa.github.io/2026/08/08/daily-coding-qr-decomposition-2026-08-08/",
+  "image": "https://chiuhoukazusa.github.io/images/Melina.png",
+  "datePublished": "2026-08-07T22:15:00.000Z",
+  "dateModified": "2026-08-07T22:10:49.936Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/08/08/daily-coding-qr-decomposition-2026-08-08/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/chiuhou-tech-blog/images/Melina.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-07T22:15:00.000Z" title="发表于 2026-08-08 06:15:00">2026-08-08</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-07T22:10:49.936Z" title="更新于 2026-08-08 06:10:49">2026-08-08</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><blockquote>
+<p><strong>项目仓库</strong>: <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/2026/08/08-08-qr-decomposition">daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition</a></p>
+</blockquote>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="为什么需要-QR-分解？"><a href="#为什么需要-QR-分解？" class="headerlink" title="为什么需要 QR 分解？"></a>为什么需要 QR 分解？</h3><p>在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。</p>
+<p><strong>实际场景</strong>：</p>
+<ol>
+<li><p><strong>最小二乘拟合</strong>：当你有一堆数据点想拟合一条曲线时（Ax &#x3D; b 过约束不可解），最小二乘法找的是 min||Ax - b||。直接解 AT A x &#x3D; AT b 的条件数变成原来的平方（condition number 的平方），数值上极其危险。QR 分解通过 Q^T b &#x3D; R x 避免了这个平方效应——稳定性天差地别。</p>
+</li>
+<li><p><strong>特征值计算</strong>：QR 算法（Francis 1961）是现代特征值求解器的核心。通过反复 QR 分解 + 逆序乘（A_{k+1} &#x3D; R_k Q_k），矩阵逐渐收敛到上三角，对角元就是特征值。MATLAB 的 <code>eig()</code>、numpy 的 <code>linalg.eig()</code>，底层都在用 QR 算法。</p>
+</li>
+<li><p><strong>正方系统的稳定求解</strong>：对于 Ax &#x3D; b，虽然 LU 分解更快，但 QR 不受主元选择（pivoting）失效的影响——对于奇异或近似奇异的矩阵，QR 的数值稳定性比 LU 更好。</p>
+</li>
+<li><p><strong>计算机视觉中的位姿估计</strong>：PnP、Homography 矩阵分解常用 SVD，而 SVD 的实现第一步就是双对角化，需要 Householder 反射——这正是 QR 分解的核心组件。</p>
+</li>
+</ol>
+<h3 id="三种实现方式的价值"><a href="#三种实现方式的价值" class="headerlink" title="三种实现方式的价值"></a>三种实现方式的价值</h3><p>这次我们不是实现一种 QR，而是实现三种并量化对比：</p>
+<ul>
+<li><strong>Classical Gram-Schmidt (CGS)</strong>：教科书上的标准算法，最直观</li>
+<li><strong>Modified Gram-Schmidt (MGS)</strong>：CGS 的简单修正，数值稳定性的巨大提升</li>
+<li><strong>Householder 反射</strong>：专业级算法的标杆，数值稳定性最佳</li>
+</ul>
+<p>通过对比这三者，能深刻理解”同样的数学等价变换，浮点算术实现方式的不同会带来天壤之别”——这是数值方法最核心的思维方式。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="QR-分解的数学定义"><a href="#QR-分解的数学定义" class="headerlink" title="QR 分解的数学定义"></a>QR 分解的数学定义</h3><p>给定矩阵 A ∈ R^(m×n)，其中 m ≥ n（方阵或”瘦高”矩阵），求：</p>
+<ul>
+<li>Q ∈ R^(m×m) 为正交矩阵：Q^T Q &#x3D; Q Q^T &#x3D; I</li>
+<li>R ∈ R^(m×n) 为上三角矩阵（前 n 行构成 n×n 上三角，其余为零行）</li>
+</ul>
+<p>满足：<strong>A &#x3D; Q R</strong></p>
+<p>如果只需要”经济型”分解（m &gt; n 时），我们可以只在列空间展开，此时 Q ∈ R^(m×n) 满足 Q^T Q &#x3D; I（列正交但不方阵正交），R ∈ R^(n×n) 为方上三角。</p>
+<h3 id="算法一：Classical-Gram-Schmidt-CGS"><a href="#算法一：Classical-Gram-Schmidt-CGS" class="headerlink" title="算法一：Classical Gram-Schmidt (CGS)"></a>算法一：Classical Gram-Schmidt (CGS)</h3><h4 id="直觉"><a href="#直觉" class="headerlink" title="直觉"></a>直觉</h4><p>Gram-Schmidt 正交化的直觉很简单：从 A 的列向量出发，逐步构造一组正交基。每处理一个向量 a_j 时，<strong>减去它在所有已构造的正交向量上的投影</strong>。就像一个迭代的”剥洋葱”过程——从原始列向量中剥离所有已经知道的”方向”分量，剩下的就是新的正交方向。</p>
+<h4 id="推导"><a href="#推导" class="headerlink" title="推导"></a>推导</h4><p>假设已构造 {q₁, q₂, …, q_{k-1}}（单位正交），现在处理 a_k：</p>
+<ol>
+<li>初始化：v &#x3D; a_k</li>
+<li>对 j &#x3D; 1 到 k-1：rⱼₖ &#x3D; qⱼ^T · a_k，然后 v &#x3D; v - rⱼₖ · qⱼ<br>（这里的关键：投影系数是 qⱼ^T a_k，用的是<strong>原始 a_k</strong>，不是更新后的 v）</li>
+<li>rₖₖ &#x3D; ||v||，qₖ &#x3D; v &#x2F; rₖₖ</li>
+</ol>
+<p><strong>为什么叫”Classical”？</strong> 第 2 步中，每个投影系数 rⱼₖ &#x3D; qⱼ^T a_k 都基于原始向量 a_k 计算。这导致一个问题：当向量近乎线性相关时，a_k 在前几个 qⱼ 方向的分量非常大，减去这些分量后剩下的 v 长度很小，精度损失严重。</p>
+<p><strong>直觉解释</strong>：想象你用棍子量 100 米和 1 厘米——先量 100 米（大部分信息），量完还剩下 1 厘米。但浮点表示中，100 和 100.01 之间的差异只有 2-3 位有效数字。CGS 先”消耗”了大部分量，剩下的残余中有效信息极少 → 正交性差。</p>
+<h3 id="算法二：Modified-Gram-Schmidt-MGS"><a href="#算法二：Modified-Gram-Schmidt-MGS" class="headerlink" title="算法二：Modified Gram-Schmidt (MGS)"></a>算法二：Modified Gram-Schmidt (MGS)</h3><h4 id="直觉-1"><a href="#直觉-1" class="headerlink" title="直觉"></a>直觉</h4><p>MGS 的关键洞察：<strong>不要对原始 a_k 投影，而是对”已经减过部分分量”的中间结果进行投影</strong>。</p>
+<h4 id="推导-1"><a href="#推导-1" class="headerlink" title="推导"></a>推导</h4><ol>
+<li>初始化：v^(0) &#x3D; a_k</li>
+<li>对 j &#x3D; 1 到 k-1：<br>rⱼₖ &#x3D; qⱼ^T · <strong>v^(j-1)</strong>（注意：用的是已更新的向量，不是原始 a_k！）<br>v^(j) &#x3D; v^(j-1) - rⱼₖ · qⱼ</li>
+<li>rₖₖ &#x3D; ||v^(k-1)||，qₖ &#x3D; v^(k-1) &#x2F; rₖₖ</li>
+</ol>
+<p><strong>为什么更好？</strong> 用 v^(j-1)（已经被前面的 qⱼ 处理过的）来计算投影系数，而不是原始 a_k。这相当于重新计算当前的残余分量，避免了经典方法中”用旧信息做投影”的数值问题。</p>
+<p><strong>直觉</strong>：继续”量尺寸”的比喻——MGS 每砍掉一个方向的分量后，立刻重新量一下还剩多少。这样每一步都是”精确地量当前剩余物”，而不会因为累计舍入而丢失小分量的精度。</p>
+<p><strong>数学上</strong> CGS 和 MGS 是等价的（精确算术下给出相同结果），但在浮点算术下，MGS 的正交性误差显著小于 CGS。</p>
+<h3 id="算法三：Householder-反射"><a href="#算法三：Householder-反射" class="headerlink" title="算法三：Householder 反射"></a>算法三：Householder 反射</h3><h4 id="直觉-2"><a href="#直觉-2" class="headerlink" title="直觉"></a>直觉</h4><p>Gram-Schmidt 方法的本质是”逐个向量通过投影进行正交化”。Householder 方法则完全不同——它通过<strong>对称反射变换</strong>，将整个列的”下半段”一次性映射为零。</p>
+<p>把向量看作空间的坐标点。对于向量 x &#x3D; (x₁, x₂, …, x_m)^T，我们想找一个反射面 H（超平面镜像），使得 x 被反射到 e₁ 方向：</p>
+<p>H · x &#x3D; ||x|| · e₁（即只有第一个分量非零）</p>
+<p>这个变换只涉及一个向量反射，计算代价低且数值稳定。</p>
+<h4 id="推导-2"><a href="#推导-2" class="headerlink" title="推导"></a>推导</h4><p>给定向量 x ∈ R^m，构造 Householder 向量：</p>
+<ol>
+<li><p>计算范数：α &#x3D; -sign(x₁) · ||x||<br>（取负号是为了避免 catastrophic cancellation——当 x₁ ≈ ||x|| 时直接用差会丢失精度）</p>
+</li>
+<li><p>反射方向：u &#x3D; x - α · e₁（x 到目标 e₁ 方向的差异）</p>
+</li>
+<li><p>归一化：v &#x3D; u &#x2F; ||u||</p>
+</li>
+<li><p>反射矩阵：H &#x3D; I - 2 v v^T</p>
+</li>
+</ol>
+<p>当一个向量 w 被 H 反射时：Hw &#x3D; w - 2（v^T w）v</p>
+<p><strong>几何直觉</strong>：v 是反射面的单位法向量。w 在 v 方向的分量是 (v^T w)v，反射就是翻转这个分量——就好像光照射到镜面（以 v 为法向量），入射角 &#x3D; 反射角。<code>I - 2vv^T</code> 就是”保留与镜面平行的分量，翻转法线分量”的数学表达。</p>
+<h4 id="QR-分解步骤"><a href="#QR-分解步骤" class="headerlink" title="QR 分解步骤"></a>QR 分解步骤</h4><p>对于矩阵 A(1) &#x3D; A：</p>
+<ol>
+<li>取第一列 a₁，构造反射 H₁ 使其变为 r₁₁·e₁</li>
+<li>应用到整个矩阵：A(2) &#x3D; H₁ · A(1)，第一列变成 (r₁₁, 0, 0, …, 0)^T</li>
+<li>对 A(2) 的右下 (m-1)×(n-1) 子矩阵重复</li>
+<li>最终：H_{n}···H₁ · A &#x3D; R → Q &#x3D; H₁ ··· H_{n}</li>
+</ol>
+<p><strong>每次只消除一列的”下三角”部分</strong>。经过 n 次反射变换，整个矩阵变为上三角 R，而累计变换的逆就是正交矩阵 Q。</p>
+<h3 id="三种算法的比较总结"><a href="#三种算法的比较总结" class="headerlink" title="三种算法的比较总结"></a>三种算法的比较总结</h3><table>
+<thead>
+<tr>
+<th>属性</th>
+<th>CGS</th>
+<th>MGS</th>
+<th>Householder</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>正交性误差</td>
+<td></td>
+<td>Q^T Q - I</td>
+<td></td>
+</tr>
+<tr>
+<td>计算复杂度</td>
+<td>2mn²</td>
+<td>2mn²</td>
+<td>2mn²（2m²n 若需要完整 Q）</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>最简单</td>
+<td>稍简单</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>病态矩阵鲁棒性</td>
+<td>差</td>
+<td>中等</td>
+<td>优秀</td>
+</tr>
+<tr>
+<td>并行性</td>
+<td>差（逐列串行）</td>
+<td>差（逐列串行）</td>
+<td>较好（分块版本可并行）</td>
+</tr>
+</tbody></table>
+<p><strong>核心洞察</strong>：三种方法在精确算术下等价，但在浮点算术下差别巨大。Householder 是业界标准（LAPACK 的 <code>dgeqrf</code> 就用 Householder），MGS 在需要增量更新（如 GMRES 的 Arnoldi 过程）时常用，CGS 仅适用于教学演示。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="数据流概览"><a href="#数据流概览" class="headerlink" title="数据流概览"></a>数据流概览</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">输入矩阵 A (m×n)</span><br><span class="line">      │</span><br><span class="line">      ├──→ [CGS 管线] → Q_cgs, R_cgs</span><br><span class="line">      ├──→ [MGS 管线] → Q_mgs, R_mgs</span><br><span class="line">      └──→ [Householder 管线] → Q_hh, R_hh</span><br><span class="line">                                        │</span><br><span class="line">                                        ├── 重构误差：||A - QR||_F</span><br><span class="line">                                        ├── 正交性误差：||Q^T Q - I||_F</span><br><span class="line">                                        ├── 上三角误差：max_&#123;i&gt;j&#125; |R(i,j)|</span><br><span class="line">                                        ├── 线性系统求解误差</span><br><span class="line">                                        └── Q^T A = R 验证</span><br></pre></td></tr></table></figure>
+
+<h3 id="核心数据结构"><a href="#核心数据结构" class="headerlink" title="核心数据结构"></a>核心数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Matrix</span> &#123;</span><br><span class="line">    <span class="type">int</span> rows, cols;</span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; data;  <span class="comment">// 行主序存储 data[i * cols + j]</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 索引访问</span></span><br><span class="line">    <span class="function"><span class="type">double</span>&amp; <span class="title">operator</span><span class="params">()</span><span class="params">(<span class="type">int</span> i, <span class="type">int</span> j)</span> </span>&#123; <span class="keyword">return</span> data[i * cols + j]; &#125;</span><br><span class="line">    <span class="function"><span class="type">const</span> <span class="type">double</span>&amp; <span class="title">operator</span><span class="params">()</span><span class="params">(<span class="type">int</span> i, <span class="type">int</span> j)</span> <span class="type">const</span> </span>&#123; <span class="keyword">return</span> data[i * cols + j]; &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>选择行主序是因为 C&#x2F;C++ 中更自然，而且逐行访问在 QR 分解中比逐列访问更常见（Householder 反射需要计算 v^T w）。</p>
+<h3 id="三个核心函数签名"><a href="#三个核心函数签名" class="headerlink" title="三个核心函数签名"></a>三个核心函数签名</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Classical Gram-Schmidt</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">cgs_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Modified Gram-Schmidt</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">mgs_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span></span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Householder Reflection</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">householder_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p>统一的接口使得替换算法非常简单，也方便交叉验证和基准测试。</p>
+<h3 id="验证框架"><a href="#验证框架" class="headerlink" title="验证框架"></a>验证框架</h3><p>不使用视觉输出（无 PPM&#x2F;PNG），所有验证都是<strong>数学量化验证</strong>：</p>
+<p>通过 <code>test_one()</code> 函数统一调用三种算法，并对每种输出统一的量化指标。测试矩阵覆盖：</p>
+<ol>
+<li><strong>5×3 随机矩阵</strong>：基本功能验证</li>
+<li><strong>4×4 方阵随机矩阵</strong>：方阵情况</li>
+<li><strong>6×6 Hilbert 矩阵</strong>：典型病态矩阵（条件数随维度指数增长）</li>
+<li><strong>8×5 Vandermonde 矩阵</strong>：中等条件数</li>
+<li><strong>20×3 Tall-Skinny</strong>：m &gt;&gt; n 瘦高矩阵</li>
+<li><strong>线性系统求解</strong>：验证 QR 求解 Ax &#x3D; b</li>
+<li><strong>Q^T A &#x3D; R 恒等式验证</strong></li>
+</ol>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-CGS-实现"><a href="#4-1-CGS-实现" class="headerlink" title="4.1 CGS 实现"></a>4.1 CGS 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">cgs_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> m = A.rows, n = A.cols;</span><br><span class="line">    Q = <span class="built_in">Matrix</span>(m, n);  <span class="comment">// Q 初始化为零</span></span><br><span class="line">    R = <span class="built_in">Matrix</span>(n, n);  <span class="comment">// R 初始化为零</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; n; k++) &#123;</span><br><span class="line">        <span class="comment">// 第 k 列正交化</span></span><br><span class="line">        <span class="comment">// 步骤 1：计算投影系数（基于原始列 a_k）</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; k; j++) &#123;</span><br><span class="line">            <span class="built_in">R</span>(j, k) = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">                <span class="built_in">R</span>(j, k) += <span class="built_in">Q</span>(i, j) * <span class="built_in">A</span>(i, k);  <span class="comment">// ⚠️ 用的是原始 A(:,k)</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 步骤 2：构造 v = a_k - sum(r_jk * q_j)</span></span><br><span class="line">        <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">v</span><span class="params">(m)</span></span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) &#123;</span><br><span class="line">            v[i] = <span class="built_in">A</span>(i, k);</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; k; j++)</span><br><span class="line">                v[i] -= <span class="built_in">R</span>(j, k) * <span class="built_in">Q</span>(i, j);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 步骤 3：归一化</span></span><br><span class="line">        <span class="type">double</span> norm = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) norm += v[i] * v[i];</span><br><span class="line">        <span class="built_in">R</span>(k, k) = <span class="built_in">sqrt</span>(norm);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">            <span class="built_in">Q</span>(i, k) = v[i] / <span class="built_in">R</span>(k, k);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键细节</strong>：第 13-15 行中 <code>R(j,k)</code> 的计算用的是 <code>A(i,k)</code>（原始列），而不是更新后的 v。<strong>这就是 “Classical” Gram-Schmidt 和 “Modified” 的关键区别。</strong> 如果用 v（已被前面的 qⱼ 处理过），就是 MGS。</p>
+<h3 id="4-2-MGS-实现"><a href="#4-2-MGS-实现" class="headerlink" title="4.2 MGS 实现"></a>4.2 MGS 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">mgs_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> m = A.rows, n = A.cols;</span><br><span class="line">    Q = <span class="built_in">Matrix</span>(m, n);</span><br><span class="line">    R = <span class="built_in">Matrix</span>(n, n);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 先复制 A 到工作向量</span></span><br><span class="line">    std::vector&lt;std::vector&lt;<span class="type">double</span>&gt; &gt; <span class="built_in">v</span>(n);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; n; k++) &#123;</span><br><span class="line">        v[k].<span class="built_in">resize</span>(m);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) v[k][i] = <span class="built_in">A</span>(i, k);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; n; k++) &#123;</span><br><span class="line">        <span class="built_in">R</span>(k, k) = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">            <span class="built_in">R</span>(k, k) += v[k][i] * v[k][i];</span><br><span class="line">        <span class="built_in">R</span>(k, k) = <span class="built_in">sqrt</span>(<span class="built_in">R</span>(k, k));</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 归一化为 q_k</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">            <span class="built_in">Q</span>(i, k) = v[k][i] / <span class="built_in">R</span>(k, k);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 从剩余列中消除 q_k 的分量</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = k + <span class="number">1</span>; j &lt; n; j++) &#123;</span><br><span class="line">            <span class="built_in">R</span>(k, j) = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">                <span class="built_in">R</span>(k, j) += <span class="built_in">Q</span>(i, k) * v[j][i];  <span class="comment">// ⚠️ 用的是当前的 v[j]，不是原始 A(:,j)</span></span><br><span class="line"></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">                v[j][i] -= <span class="built_in">R</span>(k, j) * <span class="built_in">Q</span>(i, k);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键变化</strong>：第 24 行中 <code>R(k,j) = Q(:,k)^T · v[j]</code>，v[j] 已经被前面的正交化步骤修改过了。所以 MGS 是”逐步精炼”——每次只消去一个 q 方向的分量，然后立即更新残余，而不是一次性消去所有方向。</p>
+<p><strong>MGS 和 CGS 的微妙差别</strong>：</p>
+<ul>
+<li>CGS：所有投影系数一次性用原始列计算</li>
+<li>MGS：逐步消去（每处理完一个 q，立即更新剩余所有列）</li>
+<li>这个”立即更新”保证了正交投影都是用最新、最准确的信息做的 → 数值稳定性大幅提升</li>
+</ul>
+<h3 id="4-3-Householder-反射实现"><a href="#4-3-Householder-反射实现" class="headerlink" title="4.3 Householder 反射实现"></a>4.3 Householder 反射实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 计算 Householder 反射向量 v（不存储为完整矩阵）</span></span><br><span class="line"><span class="function"><span class="type">double</span> <span class="title">householder_vector</span><span class="params">(<span class="type">const</span> <span class="type">double</span>* x, <span class="type">int</span> m, <span class="type">double</span>* v, <span class="type">double</span>&amp; beta)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// x    : 输入向量</span></span><br><span class="line">    <span class="comment">// v    : 输出 Householder 向量（只有被消除的部分非零）</span></span><br><span class="line">    <span class="comment">// beta : 标量因子，H = I - beta * v * v^T</span></span><br><span class="line"></span><br><span class="line">    <span class="type">double</span> sigma = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; m; i++) sigma += x[i] * x[i];  <span class="comment">// 只计算 x[1:] 的部分</span></span><br><span class="line">    v[<span class="number">0</span>] = <span class="number">1.0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (sigma == <span class="number">0.0</span>) &#123;</span><br><span class="line">        beta = <span class="number">0.0</span>;  <span class="comment">// x 已经是 e1 方向</span></span><br><span class="line">        <span class="keyword">return</span> x[<span class="number">0</span>];</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="type">double</span> mu = <span class="built_in">sqrt</span>(x[<span class="number">0</span>] * x[<span class="number">0</span>] + sigma);</span><br><span class="line">    <span class="type">double</span> x0 = x[<span class="number">0</span>];</span><br><span class="line">    <span class="type">double</span> alpha = (x0 &lt;= <span class="number">0</span>) ? mu : -mu;  <span class="comment">// 防止 catastrophic cancellation</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// v = x - alpha * e1（反射方向），归一化隐含在 beta 中</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; m; i++) v[i] = x[i] / (x0 - alpha);</span><br><span class="line">    beta = - (x0 - alpha) / alpha;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> alpha;  <span class="comment">// 返回 R 的对角元</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 应用 Householder 反射 H = I - beta * v * v^T 到矩阵 A 的列</span></span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">apply_householder</span><span class="params">(<span class="type">int</span> m, <span class="type">int</span> n, <span class="type">const</span> <span class="type">double</span>* v, <span class="type">double</span> beta, <span class="type">double</span>* A, <span class="type">int</span> ldA)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// A 是列主序逻辑存储的，ldA 是 leading dimension</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++) &#123;</span><br><span class="line">        <span class="comment">// 计算内积：tau = v^T * A(:,j)</span></span><br><span class="line">        <span class="type">double</span> tau = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) tau += v[i] * A[i + j * ldA];</span><br><span class="line"></span><br><span class="line">        <span class="comment">// A(:,j) = A(:,j) - beta * tau * v</span></span><br><span class="line">        <span class="type">double</span> btau = beta * tau;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">            A[i + j * ldA] -= btau * v[i];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设计要点</strong>：</p>
+<ol>
+<li><p><strong>不显式存储 Q</strong>：Q 通常是 H₁ · H₂ · … · Hₙ 的乘积。如果不需要独立的 Q 矩阵（例如只需求解最小二乘），可以直接按反射后的 R 和 Householder 向量存储，节省存储空间。这就是 LAPACK <code>dgeqrf</code> 的实现方式。</p>
+</li>
+<li><p><strong>beta 和 v[0]&#x3D;1 的隐式存储</strong>：Householder 向量 v 的每个元素只存储 1 和剩下的分量，beta 单独存储。这种紧凑格式使得 n 次反射的存储从 O(m²) 降到 O(mn)。</p>
+</li>
+<li><p><strong>catastrophic cancellation 的避免</strong>：<code>alpha = -sign(x₀) * ||x||</code>。当 x₀ 为正时，取 -||x|| 可以避免 x₀ ≈ ||x|| 时 x₀ - ||x|| ≈ 0 导致的精度损失。</p>
+</li>
+</ol>
+<h3 id="4-4-完整的-Householder-QR"><a href="#4-4-完整的-Householder-QR" class="headerlink" title="4.4 完整的 Householder QR"></a>4.4 完整的 Householder QR</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">householder_qr</span><span class="params">(<span class="type">const</span> Matrix&amp; A, Matrix&amp; Q, Matrix&amp; R)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> m = A.rows, n = A.cols;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 复制 A 到 R</span></span><br><span class="line">    R = <span class="built_in">Matrix</span>(n, n);</span><br><span class="line">    <span class="function">Matrix <span class="title">Ac</span><span class="params">(m, n)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++)</span><br><span class="line">            <span class="built_in">Ac</span>(i, j) = <span class="built_in">A</span>(i, j);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 初始化 Q = I</span></span><br><span class="line">    Q = <span class="built_in">Matrix</span>(m, m);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) <span class="built_in">Q</span>(i, i) = <span class="number">1.0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">v</span><span class="params">(m)</span>, <span class="title">w</span><span class="params">(m)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; n &amp;&amp; k &lt; m - <span class="number">1</span>; k++) &#123;</span><br><span class="line">        <span class="comment">// 构造 Householder 反射以消除第 k 列的下三角元素</span></span><br><span class="line">        <span class="type">double</span> sigma = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) sigma += <span class="built_in">Ac</span>(i, k) * <span class="built_in">Ac</span>(i, k);</span><br><span class="line">        sigma = <span class="built_in">sqrt</span>(sigma);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (sigma &lt; <span class="number">1e-15</span>) <span class="keyword">continue</span>;  <span class="comment">// 已零化</span></span><br><span class="line"></span><br><span class="line">        <span class="type">double</span> alpha = (<span class="built_in">Ac</span>(k, k) &gt; <span class="number">0</span>) ? -sigma : sigma;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 构造反射向量 v</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; m; i++) v[i] = <span class="number">0</span>;</span><br><span class="line">        v[k] = <span class="built_in">Ac</span>(k, k) - alpha;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = k + <span class="number">1</span>; i &lt; m; i++) v[i] = <span class="built_in">Ac</span>(i, k);</span><br><span class="line"></span><br><span class="line">        <span class="type">double</span> vnorm = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) vnorm += v[i] * v[i];</span><br><span class="line">        vnorm = <span class="built_in">sqrt</span>(vnorm);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) v[i] /= vnorm;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 应用到 Ac（相当于 H_k * H_&#123;k-1&#125; * ... * H_1 * A）</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = k; j &lt; n; j++) &#123;</span><br><span class="line">            <span class="type">double</span> tau = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) tau += v[i] * <span class="built_in">Ac</span>(i, j);</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) <span class="built_in">Ac</span>(i, j) -= <span class="number">2.0</span> * tau * v[i];</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 应用到 Q（累积反射：Q_final = H_1 * ... * H_k）</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; m; j++) &#123;</span><br><span class="line">            <span class="type">double</span> tau = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) tau += v[i] * <span class="built_in">Q</span>(i, j);</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = k; i &lt; m; i++) <span class="built_in">Q</span>(i, j) -= <span class="number">2.0</span> * tau * v[i];</span><br><span class="line">            <span class="comment">//  ⚠️ 注意 Q 是在右边累积的：最终的 Q = H_1 * H_2 * ... * H_n</span></span><br><span class="line">            <span class="comment">//  每一步 Q = H_k * Q（相当于对 Q 的每一列做反射）</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="built_in">Ac</span>(k, k) = alpha;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = k + <span class="number">1</span>; i &lt; m; i++) <span class="built_in">Ac</span>(i, k) = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 取 R 的上三角部分</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = i; j &lt; n; j++)</span><br><span class="line">            <span class="built_in">R</span>(i, j) = (i &lt; m) ? <span class="built_in">Ac</span>(i, j) : <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>代码解读</strong>：</p>
+<ul>
+<li><strong>第 19 行</strong>：<code>Q(i,i) = 1.0</code> 初始化 Q 为单位矩阵。Q 的累积通过”在右边乘 H_k”实现。</li>
+<li><strong>第 33 行</strong>：<code>alpha = -sign(A(k,k)) * ||A(k:end,k)||</code> 避免数值问题（见上文）。</li>
+<li><strong>第 42-44 行</strong>：反射向量归一化。v[k] &#x3D; Ac(k,k) - alpha，其他分量为原始值除以 vnorm。</li>
+<li><strong>第 47-51 行</strong>：将 H_k 应用到 Ac。H_k &#x3D; I - 2vv^T，所以 H_k * A_col &#x3D; A_col - 2*(v^T A_col)*v。</li>
+<li><strong>第 54-58 行</strong>：更新 Q 矩阵。每次操作 Q &#x3D; H_k * Q（对 Q 的每一列应用反射变换）。</li>
+</ul>
+<h3 id="4-5-量化验证函数"><a href="#4-5-量化验证函数" class="headerlink" title="4.5 量化验证函数"></a>4.5 量化验证函数</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 重构误差：||A - QR||_F</span></span><br><span class="line"><span class="function"><span class="type">double</span> <span class="title">recon_error</span><span class="params">(<span class="type">const</span> Matrix&amp; A, <span class="type">const</span> Matrix&amp; Q, <span class="type">const</span> Matrix&amp; R)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> err = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; A.rows; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; A.cols; j++) &#123;</span><br><span class="line">            <span class="type">double</span> qr = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; A.cols; k++)</span><br><span class="line">                qr += <span class="built_in">Q</span>(i, k) * <span class="built_in">R</span>(k, j);</span><br><span class="line">            <span class="type">double</span> diff = <span class="built_in">A</span>(i, j) - qr;</span><br><span class="line">            err += diff * diff;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">sqrt</span>(err);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>解释</strong>：计算 Frobenius 范数 ||A - QR||_F，这是验证分解正确性的最基本指标。对所有 (i,j)，累加 (A_ij - (QR)_ij)² 然后开方。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 正交性误差：||Q^T Q - I||_F</span></span><br><span class="line"><span class="function"><span class="type">double</span> <span class="title">ortho_error</span><span class="params">(<span class="type">const</span> Matrix&amp; Q)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = Q.cols;</span><br><span class="line">    <span class="type">double</span> err = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++) &#123;</span><br><span class="line">            <span class="type">double</span> sum = <span class="number">0</span>;</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt; Q.rows; k++)</span><br><span class="line">                sum += <span class="built_in">Q</span>(k, i) * <span class="built_in">Q</span>(k, j);</span><br><span class="line">            <span class="type">double</span> target = (i == j) ? <span class="number">1.0</span> : <span class="number">0.0</span>;</span><br><span class="line">            <span class="type">double</span> diff = sum - target;</span><br><span class="line">            err += diff * diff;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">sqrt</span>(err);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>解释</strong>：Q^T Q 应该是单位矩阵。Frobenius 范数衡量与 I 的偏差。这是区分三种算法的关键指标——CGS 对病态矩阵的正交性误差可达 10⁻³ 甚至更大，而 Householder 接近机器精度 ~10⁻¹⁶。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 上三角误差：R 下三角元素的最大绝对值</span></span><br><span class="line"><span class="function"><span class="type">double</span> <span class="title">upper_tri_error</span><span class="params">(<span class="type">const</span> Matrix&amp; R)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> max_err = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; R.rows; i++)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; i; j++)</span><br><span class="line">            max_err = std::<span class="built_in">max</span>(max_err, std::<span class="built_in">abs</span>(<span class="built_in">R</span>(i, j)));</span><br><span class="line">    <span class="keyword">return</span> max_err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>解释</strong>：R 的所有下三角元素（i &gt; j）理论上应为零。检查实现中是否有累积误差导致非零值。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="坑-1：Householder-反射的-Q-矩阵构建方向"><a href="#坑-1：Householder-反射的-Q-矩阵构建方向" class="headerlink" title="坑 1：Householder 反射的 Q 矩阵构建方向"></a>坑 1：Householder 反射的 Q 矩阵构建方向</h3><p><strong>症状</strong>：Q 矩阵构造后，后续验证中 Q^T A ≠ R。</p>
+<p><strong>错误假设</strong>：我当时以为反射矩阵的累积顺序和 A 的消除方向一致——即 Q_k * … * Q_1 * A &#x3D; R，Q &#x3D; Q_1 … Q_k。</p>
+<p><strong>真实原因</strong>：如果 H_k * … * H_1 * A &#x3D; R，那么 A &#x3D; (H_1 * … * H_k) * R，所以 Q &#x3D; H_1 * … * H_k。但如果 Q 的累积方式是在<strong>右边</strong>乘反射矩阵（Q &#x3D; Q * H_k），而不是左边，顺序会反。</p>
+<p><strong>修复</strong>：Q 初始化 I，每一步做 Q &#x3D; H_k * Q（注意是左乘，不是右乘）。由于 H 是对称的，H &#x3D; I - 2 v v^T，所以 <code>Q(i,j) -= 2*tau*v[i]</code> 是正确的左乘操作。关键在于：每步用 H_k 左乘当前的 Q，最终 Q &#x3D; H_n * … * H_1，而我们需要的是 Q &#x3D; H_1 * … * H_n → 实际上 H 的乘积是顺序无关的…并不对，顺序很重要！</p>
+<p>最终我通过直接验证 Q^T·A &#x3D; R 和 A - Q·R &#x3D; 0 来确认 Q 构造正确，而不是靠推理方向的对称性。</p>
+<h3 id="坑-2：Hilbert-矩阵导致-CGS-完全失效"><a href="#坑-2：Hilbert-矩阵导致-CGS-完全失效" class="headerlink" title="坑 2：Hilbert 矩阵导致 CGS 完全失效"></a>坑 2：Hilbert 矩阵导致 CGS 完全失效</h3><p><strong>症状</strong>：CGS 分解 6×6 Hilbert 矩阵后，Q^T Q ≠ I，正交性误差高达 10⁻² ~ 10⁻¹。</p>
+<p><strong>错误假设</strong>：我以为数值误差只是”精度稍差”（10⁻⁸ 级别）。</p>
+<p><strong>真实原因</strong>：Hilbert 矩阵的条件数（6×6 时 cond ≈ 1.5×10⁷，8×8 时 cond ≈ 1.5×10¹⁰）使得列向量近乎线性相关。CGS 的投影系数（qⱼ^T a_k）虽然理论上很大，但浮点表示中 a_k 的方向已经被前几个向量”支配”，残余方向的精度极其有限。这就导致了正交性迅速退化。</p>
+<p><strong>修复</strong>：这不是有”bug”，而是 CGS 的固有数学局限。解决方案是换用 MGS 或 Householder。这也恰好成为最佳的教学案例——证明”选择正确的数值算法”有多重要。</p>
+<h3 id="坑-3：R-矩阵大小不一致"><a href="#坑-3：R-矩阵大小不一致" class="headerlink" title="坑 3：R 矩阵大小不一致"></a>坑 3：R 矩阵大小不一致</h3><p><strong>症状</strong>：对于 m &gt; n 的瘦高矩阵（如 20×3），R 矩阵的行列数容易搞混。</p>
+<p><strong>错误假设</strong>：我一开始将 R 初始化为 m×n 矩阵，但因为只用到上三角部分的前 n 行，后面的全为零行浪费存储。</p>
+<p><strong>真实原因</strong>：经济型 QR 分解中，R 是 n×n 的上三角方阵。这在数学上等价，但代码中必须一致——验证循环的边界（A.cols vs m vs n）需要仔细对齐。</p>
+<p><strong>修复</strong>：统一用 R ∈ R^(n×n)。重构验证时，Q*R 的乘积只涉及 R 的前 n 行。</p>
+<h3 id="坑-4：MGS-中的工作向量更新顺序"><a href="#坑-4：MGS-中的工作向量更新顺序" class="headerlink" title="坑 4：MGS 中的工作向量更新顺序"></a>坑 4：MGS 中的工作向量更新顺序</h3><p><strong>症状</strong>：MGS 的正交性改善不明显，和 CGS 差别不大。</p>
+<p><strong>错误假设</strong>：我以为做了”立即更新”就够了，于是每处理一个 q_k 后，只更新了”当前列之后的剩余列”。</p>
+<p><strong>真实原因</strong>：MGS 的正确循环结构是——对每个 k，先归一化 q_k，然后<strong>遍历 j &#x3D; k+1 到 n-1</strong>，计算 r_{kj} &#x3D; q_k^T v_j，并用 r_{kj} 更新 v_j。这个”遍历—计算—更新”必须在同一个 k 循环中完成，不能分割。</p>
+<p><strong>修复</strong>：确保内层 j 循环（更新剩余列）和外层 k 循环（逐个正交化）正确嵌套。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="运行结果"><a href="#运行结果" class="headerlink" title="运行结果"></a>运行结果</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">============================================</span><br><span class="line">  QR Decomposition - 量化验证</span><br><span class="line">  Classical GS vs Modified GS vs Householder</span><br><span class="line">============================================</span><br><span class="line"></span><br><span class="line">Test 1: 5x3 Random Matrix</span><br><span class="line">A =</span><br><span class="line">  [0]  0.374540  0.950714  0.731994</span><br><span class="line">  [1]  0.598658  0.156019  0.155995</span><br><span class="line">  [2]  0.058084  0.866176  0.601115</span><br><span class="line">  [3]  0.708073  0.020584  0.969910</span><br><span class="line">  [4]  0.832443  0.212339  0.181825</span><br><span class="line"></span><br><span class="line">  Classical Gram-Schmidt         recon=1.92e-15  ortho=9.26e-16  upper_tri=0.00e+00</span><br><span class="line">  Modified Gram-Schmidt          recon=1.92e-15  ortho=9.26e-16  upper_tri=0.00e+00</span><br><span class="line">  Householder                    recon=3.92e-15  ortho=1.10e-15  upper_tri=0.00e+00</span><br></pre></td></tr></table></figure>
+
+<p><strong>分析</strong>：对 5×3 随机矩阵（无病态元素），三种方法的表现几乎完美。CGS&#x2F;MGS 的重构误差和正交性误差都在 10⁻¹⁵ 量级，接近双精度机器精度。这里 CGS 和 MGS 退化到几乎一样，因为矩阵列向量之间有足够的”正交余量”——条件数很低。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Test 3: 6×6 Hilbert Matrix (ill-conditioned)</span><br><span class="line">  Classical Gram-Schmidt         recon=8.29e-16  ortho=1.22e-01  upper_tri=1.29e-15</span><br><span class="line">  Modified Gram-Schmidt          recon=2.02e-15  ortho=8.18e-06  upper_tri=5.08e-14</span><br><span class="line">  Householder                    recon=3.66e-16  ortho=3.06e-16  upper_tri=3.35e-15</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键数据解读</strong>：</p>
+<ul>
+<li><p><strong>CGS</strong>：重构误差 8.29e-16（仍然很小！），但正交性误差暴涨到 0.122。说明 A &#x3D; QR 仍然成立，但 Q 的列已经不是正交的了。这就像你拿到了错误的尺子（Q 不准），然后量出来的”距离”（R）也被相应扭曲了，但两者相互抵消使得乘积仍等于 A。这种”自洽但不正确”的分解在实际应用中会导致灾难——例如用 QR 解最小二乘时，误差会成倍放大。</p>
+</li>
+<li><p><strong>MGS</strong>：正交性误差 8.18e-06，比 CGS 好了 4 个数量级。这证明了”逐步精炼”策略在病态矩阵下的价值——每一步都用最新残余计算投影系数，减少了累积误差。</p>
+</li>
+<li><p><strong>Householder</strong>：正交性误差 3.06e-16，完美接近机器精度。Householder 通过反射变换（而不是迭代投影）自然保持了正交性，因为每个 Householder 反射本身就是完美的正交变换。</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Test 5: 20x3 Tall-Skinny (m &gt;&gt; n)</span><br><span class="line">  Classical Gram-Schmidt         recon=1.94e-15  ortho=9.61e-17  upper_tri=0.00e+00</span><br><span class="line">  Modified Gram-Schmidt          recon=1.94e-15  ortho=9.61e-17  upper_tri=0.00e+00</span><br><span class="line">  Householder                    recon=1.53e-14  ortho=1.01e-15  upper_tri=0.00e+00</span><br></pre></td></tr></table></figure>
+
+<p>对于随机瘦高矩阵（高度 20、宽度 3），列向量在 20 维空间中有广阔的正交空间，条件数很低，所以三种方法再次一致。注意这里 Householder 的重构误差略大（1.53e-14），原因是 Q 矩阵的累积涉及多次矩阵乘法。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">Test 6: Linear System via QR</span><br><span class="line">  Solve error = 2.78e-15</span><br><span class="line"></span><br><span class="line">Test 7: Verify Q^T A = R</span><br><span class="line">  max|Q^T A - R| = 8.88e-16</span><br><span class="line"></span><br><span class="line">============================================</span><br><span class="line">  SUMMARY</span><br><span class="line">============================================</span><br><span class="line">  T1 (reconstruction):  ✅</span><br><span class="line">  T2 (MGS &lt;= CGS):      ✅</span><br><span class="line">  T3 (HH &lt;= MGS):       ✅</span><br><span class="line">  T4 (upper triangular):✅</span><br><span class="line">  T5 (ill-cond rank):   ✅</span><br><span class="line">  T6 (linear solve):    ✅</span><br><span class="line">  T7 (Q^T A = R):       ✅</span><br><span class="line"></span><br><span class="line">  Overall: ✅ ALL PASSED</span><br></pre></td></tr></table></figure>
+
+<h3 id="量化指标汇总"><a href="#量化指标汇总" class="headerlink" title="量化指标汇总"></a>量化指标汇总</h3><table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>CGS</th>
+<th>MGS</th>
+<th>Householder</th>
+<th>阈值</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>重构误差 (5×3)</td>
+<td>1.92e-15</td>
+<td>1.92e-15</td>
+<td>3.92e-15</td>
+<td>1e-10</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>正交性误差 (5×3)</td>
+<td>9.26e-16</td>
+<td>9.26e-16</td>
+<td>1.10e-15</td>
+<td>-</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Hilbert 正交性</td>
+<td>1.22e-01</td>
+<td>8.18e-06</td>
+<td>3.06e-16</td>
+<td>-</td>
+<td>✅ (排名)</td>
+</tr>
+<tr>
+<td>上三角误差</td>
+<td>0.00e+00</td>
+<td>0.00e+00</td>
+<td>0.00e+00</td>
+<td>1e-13</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>线性求解</td>
+<td>-</td>
+<td>-</td>
+<td>2.78e-15</td>
+<td>1e-10</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Q^T A &#x3D; R</td>
+<td>-</td>
+<td>-</td>
+<td>8.88e-16</td>
+<td>1e-12</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="核心收获"><a href="#核心收获" class="headerlink" title="核心收获"></a>核心收获</h3><p>这次实践展示了数值方法中最核心的理念：<strong>“数学上等价并不等于数值上等价”</strong>。CGS、MGS、Householder 在精确算术下给出完全相同的分解结果，但浮点算术中对病态矩阵的表现天差地别：</p>
+<ol>
+<li><strong>CGS → MGS → Householder，正交性误差递减约 4-5 个数量级</strong>（10⁻¹ → 10⁻⁶ → 10⁻¹⁶），每一步都是跳跃式的改进</li>
+<li><strong>重构误差 ||A - QR|| 对三种方法都很小</strong>（都 ≤ 10⁻¹⁵），但这不意味着质量好——“自洽但正交性差”的分解在最小二乘应用中会传播误差</li>
+<li><strong>Hilbert 矩阵是完美的病态测试集</strong>：6×6 就能让 CGS 完全失效（正交性误差 &gt; 0.1）</li>
+</ol>
+<p><strong>选算法的第一定律</strong>：</p>
+<ul>
+<li>如果矩阵可能接近奇异 → 用 Householder（几乎没有额外代价，稳定性最好）</li>
+<li>如果矩阵确定条件数很低（&lt; 10³） → MGS 就够了</li>
+<li>CGS → 仅用于教学演示，不要在生产代码中使用</li>
+</ul>
+<h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ul>
+<li><strong>Householder 对宽矩阵（m &lt; n）需要特殊处理</strong>：当行数少于列数时，QR 分解需要转向 LQ 分解（先对 A^T 做 QR）</li>
+<li><strong>MGS 对极度病态矩阵也会失效</strong>：cond(A) &gt; 10⁸ 时，MGS 的正交性误差可能达到 10⁻² 级别</li>
+<li><strong>存储 vs 计算权衡</strong>：Householder 如果需要显式 Q 矩阵，存储和计算量从 O(mn²) 变为 O(m²n)；LAPACK 的紧凑表示（<code>dgeqrf</code>）只存反射向量</li>
+<li><strong>并行化困难</strong>：Gram-Schmidt 整体是串行过程；Householder 可以通过分块（Block Householder）实现 BLAS-3 级并行，这是生产级实现的方式</li>
+</ul>
+<h3 id="可优化的方向"><a href="#可优化的方向" class="headerlink" title="可优化的方向"></a>可优化的方向</h3><ol>
+<li><strong>Column Pivoting</strong>：当矩阵列向量线性依赖度高时，可以在每一步选择范数最大的剩余列做主元（QR with Column Pivoting, QRP），进一步提升稳定性</li>
+<li><strong>Block Householder</strong>：将多个反射合并为矩阵-矩阵乘法（GEMM），利用 BLAS-3（Level-3 BLAS）加速</li>
+<li><strong>Givens 旋转</strong>：另一种正交变换方式，通过平面旋转消除元素。适合稀疏矩阵或需要在线更新的场景</li>
+<li><strong>Rank-Revealing QR</strong>：结合列主元和条件数估计，可以同时检测矩阵的数值秩</li>
+</ol>
+<h3 id="与本系列的关联"><a href="#与本系列的关联" class="headerlink" title="与本系列的关联"></a>与本系列的关联</h3><ul>
+<li><strong>08-05 GMRES</strong>（待开发）：GMRES 的 Arnoldi 迭代天然使用 MGS（增量正交化），正是本项目的直接应用</li>
+<li><strong>08-04 Conjugate Gradient</strong>：CG 也需要正交基构造，但利用的是对称正定矩阵的特殊结构</li>
+<li><strong>08-07 LU Decomposition</strong>：LU 和 QR 都是矩阵分解，但 LU 更快（无正交化开销），QR 更稳定（不放大条件数）</li>
+</ul>
+<p>QR 分解是通往 SVD（奇异值分解）、特征值计算、最小二乘的大门。理解了三种 QR 方法的本质差异，就理解了数值方法的核心思维方式：<strong>好的数值算法不只是数学公式的翻译，而是对浮点算术特性的深刻洞察。</strong></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/08/08/daily-coding-qr-decomposition-2026-08-08/">https://chiuhoukazusa.github.io/2026/08/08/daily-coding-qr-decomposition-2026-08-08/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E6%96%B9%E6%B3%95/">数值方法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%BA%BF%E6%80%A7%E4%BB%A3%E6%95%B0/">线性代数</a></div><div class="post-share"><div class="social-share" data-image="/chiuhou-tech-blog/images/Melina.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/08/07/daily-coding-lu-decomposition-2026-08-07/" title="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-07-lu-decomposition/lu_decomposition_report.ppm" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: LU 分解（Doolittle 算法）求解线性方程组</div></div><div class="info-2"><div class="info-item-1">① 背景与动机线性方程组求解是科学计算和工程仿真中最基础也是最频繁调用的操作之一。从有限元分析（FEM）中的刚度矩阵求解，到流体力学模拟中的压力 Poisson 方程，再到机器学习中的正规方程和最小二乘拟合，几乎所有的计算密集型任务都有一个共同的内核：给定一个矩阵 A 和一个向量 b，找出满足 Ax &#x3D; b 的 x。 然而，并不是所有的线性方程组都可以直接求解。在数值计算中，我们面临几个核心挑战： 首先，矩阵规模可能非常巨大。在有限元分析中，一个精细的三维网格可能产生数百万阶的稀疏矩阵。为每个 b 都重新求解显然不可接受——如果我们需要求解同一个 A 但 100 个不同的 b（例如参数扫描），直接法每次 O(n³) 的代价是灾难性的。 其次，直接求逆矩阵 A⁻¹ 在数值上是不稳定且低效的。计算 A⁻¹ 本身就需要 O(n³) 操作，且舍入误差会在求逆过程中被放大。实际上，几乎所有数值线性代数教材的第一课都会告诉你：永远不要显式计算 A⁻¹，如果需要解 Ax &#x3D; b，应该使用分解法。 最后，不同的矩阵结构需要不同的策略。对称正定矩阵适合 Cholesky 分解；...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-04</div><div class="info-item-2">每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在科学计算和工程模拟中，求解大型稀疏线性方程组 (Ax &#x3D; b) 是最频繁出现的计算任务之一。无论是有限元法的结构分析、计算流体力学中的压力修正、还是机器学习中的优化问题，最终都会归结为”解一个线性方程组”。 然而，传统的高斯消元法面对这类问题时完全无法胜任。考虑一个三维 Poisson 方程在 (100 \times 100 \times 100) 网格上的离散化——矩阵维度达到 (10^6)，如果使用稠密存储需要约 8TB 内存，而即使用稀疏存储，直接法也会在消元过程中产生大量”填充”(fill-in)，使稀疏性丧失殆尽。 工业界实际场景：  CFD 流体仿真：SIMPLE 算法每次外迭代都需要求解压力 Poisson 方程，ANSYS Fluent、OpenFOAM 等工业软件的核心求解器都依赖 Krylov 子空间方法 几何处理：Laplacian 网格编辑、测地线距离计算中需要反复求解稀疏线性系统，MeshLab、Blender 使用了类似方法 物理模拟：Rigid Body Dynamics 的碰撞约束、布料模拟的隐式积分都需要 Jacobi ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/07/daily-coding-lu-decomposition-2026-08-07/" title="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-07-lu-decomposition/lu_decomposition_report.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">每日编程实践: LU 分解（Doolittle 算法）求解线性方程组</div></div><div class="info-2"><div class="info-item-1">① 背景与动机线性方程组求解是科学计算和工程仿真中最基础也是最频繁调用的操作之一。从有限元分析（FEM）中的刚度矩阵求解，到流体力学模拟中的压力 Poisson 方程，再到机器学习中的正规方程和最小二乘拟合，几乎所有的计算密集型任务都有一个共同的内核：给定一个矩阵 A 和一个向量 b，找出满足 Ax &#x3D; b 的 x。 然而，并不是所有的线性方程组都可以直接求解。在数值计算中，我们面临几个核心挑战： 首先，矩阵规模可能非常巨大。在有限元分析中，一个精细的三维网格可能产生数百万阶的稀疏矩阵。为每个 b 都重新求解显然不可接受——如果我们需要求解同一个 A 但 100 个不同的 b（例如参数扫描），直接法每次 O(n³) 的代价是灾难性的。 其次，直接求逆矩阵 A⁻¹ 在数值上是不稳定且低效的。计算 A⁻¹ 本身就需要 O(n³) 操作，且舍入误差会在求逆过程中被放大。实际上，几乎所有数值线性代数教材的第一课都会告诉你：永远不要显式计算 A⁻¹，如果需要解 Ax &#x3D; b，应该使用分解法。 最后，不同的矩阵结构需要不同的策略。对称正定矩阵适合 Cholesky 分解；...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-01</div><div class="info-item-2">每日编程实践: Halton序列与拟蒙特卡洛方法</div></div><div class="info-2"><div class="info-item-1">背景与动机渲染工程师做路径追踪时，常常会面临一个根本性问题：如何用最少的采样点，获得最精确的积分结果？ 传统蒙特卡洛方法使用伪随机数生成器产生采样点来估计积分。根据中心极限定理，MC 的收敛速度是 O(1&#x2F;√N) —— 想提升两倍精度，需要四倍的采样点。在实时渲染中，每个像素的采样预算可能只有 16、8、甚至 1 个采样点，O(1&#x2F;√N) 的慢速收敛意味着图像要么充满噪点，要么需要昂贵的去噪。 拟蒙特卡洛方法正是为此而生。QMC 不使用随机序列，而是使用低差异序列——一种确定性构造的点序列，其核心性质是：点集在定义域上的分布比随机采样更均匀。根据 Koksma-Hlawka 不等式，QMC 的误差上界是 O((log N)^d &#x2F; N)，在中等维度和适量采样数下，收敛速度接近 O(1&#x2F;N)，远优于纯随机 MC 的 O(1&#x2F;√N)。 工业界使用场景：  电影级离线渲染：Pixar 的 RenderMan、Disney 的 Hyperion 都大量使用 QMC 采样进行路径追踪、景深、运动模糊等效果的积分 游戏引擎实时渲染：Unrea...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在游戏开发和物理模拟中，我们经常需要求解常微分方程（ODE）。一个子弹的弹道、一辆车的悬挂系统、一匹布的飘动、一个角色的跳跃——背后都逃不掉一个核心问题：给定当前位置和速度，如何计算下一帧的位置和速度？ 最简单的答案是 Euler 法，也就是大多数人在入门时写的那种： 12position += velocity * dt;velocity += acceleration * dt;  这个写法直观、代码量极少、性能几乎没有开销。但它有一个致命的问题：精度太差。不信？我们做一个简单的实验：模拟一个弹簧-质量-阻尼系统，初始位置 x&#x3D;1m，弹簧刚度 k&#x3D;10 N&#x2F;m，阻尼系数 c&#x3D;0.5 N·s&#x2F;m。初始能量是 5 J。理论上，由于阻尼存在，能量应该单调衰减到接近 0。但 Euler 法在 dt&#x3D;0.05s 时，最终能量居然是 5.19 J——比初始能量还大！能量凭空增加了。这就是数值不稳定性：Euler 法在每一步都会累积误差，最终导致模拟完全失真。 RK4（四阶 Runge-Kutta 法） 是解决这个问...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/25/daily-coding-sdf-font-rendering-2026-04-25/" title="每日编程实践: SDF Font Rendering — 有向距离场字体渲染"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-25-sdf-font/sdf_font_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-25</div><div class="info-item-2">每日编程实践: SDF Font Rendering — 有向距离场字体渲染</div></div><div class="info-2"><div class="info-item-1">每日编程实践 Day 56：SDF Font Rendering — 有向距离场字体渲染  ① 背景与动机：为什么传统位图字体不够用传统方案的痛点在早期游戏和实时渲染中，字体渲染最简单的做法是位图字体（Bitmap Font）：把字符预先渲染到一张纹理图集上，渲染时直接采样对应的 UV 区域。这个方案简单粗暴，但有一个根本性的缺陷——分辨率依赖。 当你在屏幕上把一个 32×32 像素的字符放大到 128×128 渲染时，纹理插值会导致明显的模糊。反之，缩小时边缘也会出现锯齿。这在现代高分辨率显示器（4K、Retina）和动态缩放的 UI 场景中是不可接受的。 123传统位图字体问题：  32px 纹理 → 渲染为 128px → 双线性插值 → 模糊！  256px 纹理 → 渲染为 16px → Mipmap → 字符消失！  工业界的传统解决方案是预生成多套不同分辨率的字体纹理（类似 Mipmap），但这不仅耗费大量显存，还在缩放比例不匹配时出现质量跳变。 矢量字体的另一个极端矢量字体（如 TrueType&#x2F;OpenType）通过贝塞尔曲线描述字符轮廓，理论上可以在...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/28/daily-coding-cel-shading-outline-renderer-2026-04-28/" title="每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-28-Cel-Shading-Outline-Renderer/cel_shading_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-28</div><div class="info-item-2">每日编程实践: Cel Shading &amp; Outline Renderer（卡通渲染器）</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1.1 为什么要做卡通渲染（NPR）？在过去几十天里，我们一路走过了 PBR、BDPT、SPPM、SSAO、TAA、DOF、Bloom……这些技术都指向同一个目标：让渲染更像物理世界。但今天我们要反其道而行之——主动让渲染”不像现实”。 NPR（Non-Photorealistic Rendering，非真实感渲染） 并不是图形学的边缘课题，它在工业界占有相当重要的地位：  游戏领域：《原神》、《崩坏：星穹铁道》、《塞尔达传说》、《潜伏之赤途》……这些年玩家最喜欢的大作，很多都是卡通风格。米哈游曾在 GDC 分享过他们的 NPR 渲染管线，技术深度远超很多 PBR 游戏。 动画与影视：3D 动画电影经常需要”手绘感”——迪士尼在《蜘蛛侠：平行宇宙》里做的描线和色块量化效果，成为了 NPR 领域的经典案例。 VR&#x2F;AR 应用：在低功耗设备上，卡通渲染往往比 PBR 便宜得多，因为它刻意减少了光照计算。  1.2 Cel Shading 的历史“Cel”来源于 “Celluloid”（赛璐珞），就是传统手绘动画用的透明片。Cel Shading 模仿的就是那种...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">176</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">176</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-QR-%E5%88%86%E8%A7%A3%EF%BC%9F"><span class="toc-number">1.1.</span> <span class="toc-text">为什么需要 QR 分解？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E7%A7%8D%E5%AE%9E%E7%8E%B0%E6%96%B9%E5%BC%8F%E7%9A%84%E4%BB%B7%E5%80%BC"><span class="toc-number">1.2.</span> <span class="toc-text">三种实现方式的价值</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#QR-%E5%88%86%E8%A7%A3%E7%9A%84%E6%95%B0%E5%AD%A6%E5%AE%9A%E4%B9%89"><span class="toc-number">2.1.</span> <span class="toc-text">QR 分解的数学定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E4%B8%80%EF%BC%9AClassical-Gram-Schmidt-CGS"><span class="toc-number">2.2.</span> <span class="toc-text">算法一：Classical Gram-Schmidt (CGS)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9B%B4%E8%A7%89"><span class="toc-number">2.2.1.</span> <span class="toc-text">直觉</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8E%A8%E5%AF%BC"><span class="toc-number">2.2.2.</span> <span class="toc-text">推导</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E4%BA%8C%EF%BC%9AModified-Gram-Schmidt-MGS"><span class="toc-number">2.3.</span> <span class="toc-text">算法二：Modified Gram-Schmidt (MGS)</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9B%B4%E8%A7%89-1"><span class="toc-number">2.3.1.</span> <span class="toc-text">直觉</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8E%A8%E5%AF%BC-1"><span class="toc-number">2.3.2.</span> <span class="toc-text">推导</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%AE%97%E6%B3%95%E4%B8%89%EF%BC%9AHouseholder-%E5%8F%8D%E5%B0%84"><span class="toc-number">2.4.</span> <span class="toc-text">算法三：Householder 反射</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%9B%B4%E8%A7%89-2"><span class="toc-number">2.4.1.</span> <span class="toc-text">直觉</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8E%A8%E5%AF%BC-2"><span class="toc-number">2.4.2.</span> <span class="toc-text">推导</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#QR-%E5%88%86%E8%A7%A3%E6%AD%A5%E9%AA%A4"><span class="toc-number">2.4.3.</span> <span class="toc-text">QR 分解步骤</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E7%A7%8D%E7%AE%97%E6%B3%95%E7%9A%84%E6%AF%94%E8%BE%83%E6%80%BB%E7%BB%93"><span class="toc-number">2.5.</span> <span class="toc-text">三种算法的比较总结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%B5%81%E6%A6%82%E8%A7%88"><span class="toc-number">3.1.</span> <span class="toc-text">数据流概览</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">3.2.</span> <span class="toc-text">核心数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E4%B8%AA%E6%A0%B8%E5%BF%83%E5%87%BD%E6%95%B0%E7%AD%BE%E5%90%8D"><span class="toc-number">3.3.</span> <span class="toc-text">三个核心函数签名</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%AA%8C%E8%AF%81%E6%A1%86%E6%9E%B6"><span class="toc-number">3.4.</span> <span class="toc-text">验证框架</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-CGS-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 CGS 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-MGS-%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 MGS 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Householder-%E5%8F%8D%E5%B0%84%E5%AE%9E%E7%8E%B0"><span class="toc-number">4.3.</span> <span class="toc-text">4.3 Householder 反射实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%AE%8C%E6%95%B4%E7%9A%84-Householder-QR"><span class="toc-number">4.4.</span> <span class="toc-text">4.4 完整的 Householder QR</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E5%87%BD%E6%95%B0"><span class="toc-number">4.5.</span> <span class="toc-text">4.5 量化验证函数</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9AHouseholder-%E5%8F%8D%E5%B0%84%E7%9A%84-Q-%E7%9F%A9%E9%98%B5%E6%9E%84%E5%BB%BA%E6%96%B9%E5%90%91"><span class="toc-number">5.1.</span> <span class="toc-text">坑 1：Householder 反射的 Q 矩阵构建方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9AHilbert-%E7%9F%A9%E9%98%B5%E5%AF%BC%E8%87%B4-CGS-%E5%AE%8C%E5%85%A8%E5%A4%B1%E6%95%88"><span class="toc-number">5.2.</span> <span class="toc-text">坑 2：Hilbert 矩阵导致 CGS 完全失效</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9AR-%E7%9F%A9%E9%98%B5%E5%A4%A7%E5%B0%8F%E4%B8%8D%E4%B8%80%E8%87%B4"><span class="toc-number">5.3.</span> <span class="toc-text">坑 3：R 矩阵大小不一致</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9AMGS-%E4%B8%AD%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%90%91%E9%87%8F%E6%9B%B4%E6%96%B0%E9%A1%BA%E5%BA%8F"><span class="toc-number">5.4.</span> <span class="toc-text">坑 4：MGS 中的工作向量更新顺序</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%90%E8%A1%8C%E7%BB%93%E6%9E%9C"><span class="toc-number">6.1.</span> <span class="toc-text">运行结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E6%8C%87%E6%A0%87%E6%B1%87%E6%80%BB"><span class="toc-number">6.2.</span> <span class="toc-text">量化指标汇总</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%B8%E5%BF%83%E6%94%B6%E8%8E%B7"><span class="toc-number">7.1.</span> <span class="toc-text">核心收获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">7.2.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">7.3.</span> <span class="toc-text">可优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">7.4.</span> <span class="toc-text">与本系列的关联</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/08/daily-coding-qr-decomposition-2026-08-08/" title="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/08/daily-coding-qr-decomposition-2026-08-08/" title="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</a><time datetime="2026-08-07T22:15:00.000Z" title="发表于 2026-08-08 06:15:00">2026-08-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/07/daily-coding-lu-decomposition-2026-08-07/" title="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-07-lu-decomposition/lu_decomposition_report.ppm" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/07/daily-coding-lu-decomposition-2026-08-07/" title="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组">每日编程实践: LU 分解（Doolittle 算法）求解线性方程组</a><time datetime="2026-08-06T21:30:00.000Z" title="发表于 2026-08-07 05:30:00">2026-08-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/06/daily-coding-bresenham-circle-ellipse-2026-08-06/" title="每日编程实践: Bresenham 圆与椭圆光栅化算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-06-bresenham-circle-ellipse/bresenham_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Bresenham 圆与椭圆光栅化算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/06/daily-coding-bresenham-circle-ellipse-2026-08-06/" title="每日编程实践: Bresenham 圆与椭圆光栅化算法">每日编程实践: Bresenham 圆与椭圆光栅化算法</a><time datetime="2026-08-05T21:30:00.000Z" title="发表于 2026-08-06 05:30:00">2026-08-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"><img src="/chiuhou-tech-blog/images/lianlian.jpg" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统">每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统</a><time datetime="2026-08-03T22:00:00.000Z" title="发表于 2026-08-04 06:00:00">2026-08-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/03/daily-coding-rotating-calipers-2026-08-03/" title="每日编程实践: Rotating Calipers 最小面积包围矩形"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily-coding/08-03/output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Rotating Calipers 最小面积包围矩形"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/03/daily-coding-rotating-calipers-2026-08-03/" title="每日编程实践: Rotating Calipers 最小面积包围矩形">每日编程实践: Rotating Calipers 最小面积包围矩形</a><time datetime="2026-08-02T21:30:00.000Z" title="发表于 2026-08-03 05:30:00">2026-08-03</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
