@@ -1,0 +1,466 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法) | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现① 背景与动机在处理文本数据的时候，我们经常会遇到一个看似简单、实则暗藏复杂度的问题：给定一个长度为 n 的字符串，如何高效地回答”这个字符串的所有后缀中，字典序第 k 小的是哪一个？” 更进一步，如何快速求出任意两个后缀的最长公共前缀（Longest Common Prefix, LCP）？ 这两个问题听起来像是字符串理论里的”冷门">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现① 背景与动机在处理文本数据的时候，我们经常会遇到一个看似简单、实则暗藏复杂度的问题：给定一个长度为 n 的字符串，如何高效地回答”这个字符串的所有后缀中，字典序第 k 小的是哪一个？” 更进一步，如何快速求出任意两个后缀的最长公共前缀（Longest Common Prefix, LCP）？ 这两个问题听起来像是字符串理论里的”冷门">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png">
+<meta property="article:published_time" content="2026-09-08T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-08T21:35:15.640Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="字符串算法">
+<meta property="article:tag" content="数据结构">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)",
+  "url": "https://chiuhoukazusa.github.io/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png",
+  "datePublished": "2026-09-08T22:00:00.000Z",
+  "dateModified": "2026-09-08T21:35:15.640Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-08T22:00:00.000Z" title="发表于 2026-09-09 06:00:00">2026-09-09</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-08T21:35:15.640Z" title="更新于 2026-09-09 05:35:15">2026-09-09</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="后缀数组与-LCP：前缀倍增排序-Kasai-算法的完整实现"><a href="#后缀数组与-LCP：前缀倍增排序-Kasai-算法的完整实现" class="headerlink" title="后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现"></a>后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现</h1><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在处理文本数据的时候，我们经常会遇到一个看似简单、实则暗藏复杂度的问题：<strong>给定一个长度为 n 的字符串，如何高效地回答”这个字符串的所有后缀中，字典序第 k 小的是哪一个？”</strong> 更进一步，<strong>如何快速求出任意两个后缀的最长公共前缀（Longest Common Prefix, LCP）？</strong></p>
+<p>这两个问题听起来像是字符串理论里的”冷门玩具”，但实际上它们是许多重量级算法的地基。举几个工业界真实的例子：</p>
+<ul>
+<li><p><strong>全文检索与倒排索引</strong>：搜索引擎在对文档建立索引时，常常需要快速判断某个查询词是否是某个长文本的子串。后缀数组配合二分查找，可以在 O(m log n) 的时间内完成一次子串查询（m 是查询串长度），而暴力比对则需要 O(m × n)。</p>
+</li>
+<li><p><strong>DNA 序列分析</strong>：生物信息学中的基因序列比对、重复序列检测、最长重复子串挖掘，几乎全部建立在后缀数组 &#x2F; LCP 之上。人类基因组的几亿个碱基对，如果暴力两两比对，计算量是天文数字，而后缀数组把它压缩到 O(n log n)。</p>
+</li>
+<li><p><strong>数据压缩</strong>：Burrows-Wheeler Transform（BWT，BZIP2 压缩的核心）可以直接从后缀数组推导出来。理解了后缀数组，就理解了 BZIP2 的一半。</p>
+</li>
+<li><p><strong>代码查重与相似文本检测</strong>：最长重复子串、最长公共子串这类问题，都可以通过后缀数组 + LCP 在近线性时间内解决。</p>
+</li>
+</ul>
+<p>那么，没有后缀数组之前，这些问题的”痛点”是什么？简单说就是：<strong>排序 n 个后缀的朴素做法，需要对 n 个字符串做 O(n log n) 次字符串比较，每次比较最坏 O(n)，总复杂度 O(n² log n)。</strong> 当 n 达到 10⁵ 甚至 10⁶ 时，这根本跑不动。</p>
+<p>后缀数组的价值在于，它用**倍增（prefix doubling）**这一精巧的技巧，把”排序 n 个子串”这个看似 O(n²) 的问题，通过”每次只比较 2^k 长度的前缀、逐步加倍直到至少 n”的方式，降到了 <strong>O(n log n)</strong>。配合 Kasai 算法在 O(n) 内求出 LCP 数组，我们就拥有了一个处理绝大多数字符串问题的强力工具箱。</p>
+<p>今天这篇文章，我会完整地实现这两个算法，并用<strong>暴力穷举作为基准</strong>做量化正确性验证，同时测量加速比，确保代码真正正确、真正快，而不是”看起来对”。</p>
+<p>本文的代码与之前的每日编程实践一脉相承，同样强调”量化验证、不靠眼睛”的工程习惯。如果你看过之前关于 KMP、Aho-Corasick、Manacher 的文章，你会发现本文补齐了字符串算法家族里”数据结构”这一块最重要的拼图。</p>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-什么是后缀数组"><a href="#2-1-什么是后缀数组" class="headerlink" title="2.1 什么是后缀数组"></a>2.1 什么是后缀数组</h3><p>给定字符串 <code>s[0..n-1]</code>，它的 n 个后缀分别是：</p>
+<ul>
+<li><code>s[0..n-1]</code>（从位置 0 开始）</li>
+<li><code>s[1..n-1]</code>（从位置 1 开始）</li>
+<li>…</li>
+<li><code>s[n-1..n-1]</code>（从位置 n-1 开始，只有一个字符）</li>
+</ul>
+<p><strong>后缀数组 SA</strong> 是一个长度为 n 的整数数组，满足 <code>sa[0] &lt; sa[1] &lt; ... &lt; sa[n-1]</code>，且这些整数是 <code>{0, 1, ..., n-1}</code> 的一个排列，并满足：后缀 <code>s[sa[0]..]</code> 的字典序小于等于（严格小于）<code>s[sa[1]..]</code>，以此类推。</p>
+<p>也就是说，SA 记录了”把所有后缀按字典序排序后，每个后缀在原串中的起始下标”。</p>
+<p>举个例子，<code>s = &quot;banana&quot;</code>：</p>
+<ul>
+<li>所有后缀及其字典序排序：<ol>
+<li><code>&quot;a&quot;</code>（起始下标 5）</li>
+<li><code>&quot;ana&quot;</code>（起始下标 3）</li>
+<li><code>&quot;anana&quot;</code>（起始下标 1）</li>
+<li><code>&quot;banana&quot;</code>（起始下标 0）</li>
+<li><code>&quot;na&quot;</code>（起始下标 4）</li>
+<li><code>&quot;nana&quot;</code>（起始下标 2）</li>
+</ol>
+</li>
+</ul>
+<p>所以 <code>SA = [5, 3, 1, 0, 4, 2]</code>。</p>
+<p>直观理解：SA[i] 就是”排名第 i 小的后缀从哪个位置开始”。</p>
+<h3 id="2-2-前缀倍增（Prefix-Doubling）的核心思想"><a href="#2-2-前缀倍增（Prefix-Doubling）的核心思想" class="headerlink" title="2.2 前缀倍增（Prefix Doubling）的核心思想"></a>2.2 前缀倍增（Prefix Doubling）的核心思想</h3><p>直接排序 n 个后缀很慢，因为每次字符串比较都要 O(n)。倍增的洞察是：<strong>我们不需要一次比较完整后缀，可以”分阶段”来排序。</strong></p>
+<p>定义 rank 数组 <code>rnk[i]</code> 表示”后缀 i 当前按前 2^k 个字符排序的排名”。初始时 k&#x3D;0，即按每个后缀的第一个字符排序（可以用计数排序在 O(n + σ) 完成，σ 是字符集大小）。</p>
+<p>然后进行”倍增”：假设我们已经按”前 2^k 个字符”排好了序（即 rnk 数组已知），现在要按”前 2^{k+1} 个字符”排序。</p>
+<p>关键观察：后缀 i 的前 2^{k+1} 个字符，可以拆成两半：</p>
+<ul>
+<li>前半：<code>s[i .. i+2^k-1]</code> —— 这正是后缀 i 的前 2^k 个字符，我们已知它的排名 <code>rnk[i]</code></li>
+<li>后半：<code>s[i+2^k .. i+2^{k+1}-1]</code> —— 这正是后缀 <code>i+2^k</code> 的前 2^k 个字符，已知排名 <code>rnk[i+2^k]</code></li>
+</ul>
+<p>于是，按前 2^{k+1} 个字符排序，等价于<strong>按二元组 (rnk[i], rnk[i+2^k]) 排序</strong>。</p>
+<p><strong>这就是倍增法的全部魔法：把”比较长长字符串”转化为”比较两个整数”</strong>。而两个整数的比较是 O(1) 的。配合两次计数排序（基数排序），我们可以在 O(n) 完成每一轮倍增的排序。</p>
+<p>具体地说，每轮排序是一个<strong>基数排序</strong>，先按第二关键字（低”位”）排序，再按第一关键字（高”位”）稳定排序：</p>
+<ol>
+<li><p><strong>按第二关键字排序</strong>：我们要得到”按 rnk[i+2^k] 排序的后缀列表”。注意 <code>i+2^k &gt;= n</code> 的那些后缀，第二关键字不存在，视为 -1（最小），它们应该排在最前面。剩下的后缀，因为 rnk 已经是排序好的，我们只需要按这个顺序取出 <code>i = sa[j] - 2^k</code>（当 <code>sa[j] &gt;= 2^k</code> 时），就能得到按第二关键字有序的列表。</p>
+</li>
+<li><p><strong>按第一关键字稳定排序</strong>：对上面得到的列表，用计数排序按第一关键字 rnk 做稳定排序，就得到了按二元组排序的最终 SA。</p>
+</li>
+<li><p><strong>重新计算 rank</strong>：遍历新的 SA，相邻两个后缀如果它们的二元组相同，则 rank 相同，否则 rank 递增。当所有后缀的 rank 都互不相同（即 classes &#x3D;&#x3D; n）时，说明排序已经完成，可以提前结束。</p>
+</li>
+</ol>
+<p>每一轮 k 翻倍，所以最多 log n 轮，每轮 O(n)，总复杂度 <strong>O(n log n)</strong>。</p>
+<h3 id="2-3-为什么”计数排序”是必要的"><a href="#2-3-为什么”计数排序”是必要的" class="headerlink" title="2.3 为什么”计数排序”是必要的"></a>2.3 为什么”计数排序”是必要的</h3><p>你可能会问：每轮直接用 <code>std::sort</code> 按二元组比较不就行了吗？那样每轮是 O(n log n)，总复杂度变成 O(n log² n)，而且在常数上更慢。</p>
+<p>计数排序在这里是最优选择，原因有二：</p>
+<ol>
+<li><p><strong>关键字是整数且范围已知</strong>：第一关键字 rnk 取值在 <code>[0, classes-1]</code>，classes ≤ n；第二关键字的”排序”本质上是复用已有的 SA 顺序，根本不需要额外排序。这正好符合计数排序”在线性时间内、对取值范围有限的整数排序”的前提。</p>
+</li>
+<li><p><strong>稳定排序的性质</strong>：基数排序要求”先按低位排、再按高位稳定排”。计数排序天然是稳定的（我们从后往前放置元素，保证相同关键字时保持原相对顺序），这正好满足双重关键字排序的需求。</p>
+</li>
+</ol>
+<p>这是理解整个算法效率的关键：<strong>普通的比较排序是 O(n log n)，而我们这里利用了”rank 是已经排好的整数”这个先验信息，把排序降到了 O(n)。</strong></p>
+<h3 id="2-4-Kasai-算法求-LCP（O-n-）"><a href="#2-4-Kasai-算法求-LCP（O-n-）" class="headerlink" title="2.4 Kasai 算法求 LCP（O(n)）"></a>2.4 Kasai 算法求 LCP（O(n)）</h3><p>LCP 数组 <code>lcp[i]</code> 定义为：<code>LCP(sa[i], sa[i+1])</code>，即 SA 中相邻两个后缀的最长公共前缀长度。它是一个长度为 n-1 的数组。</p>
+<p>暴力求 lcp 数组需要 O(n²)，因为每次求两个后缀的 LCP 都可能扫 O(n) 个字符。Kasai 算法利用了一个巧妙的性质，把它降到 O(n)。</p>
+<p>核心洞察：设 <code>rank[i]</code> 是后缀 i 在 SA 中的排名（即 SA 的逆排列），我们按原串位置 i &#x3D; 0, 1, …, n-1 的顺序来依次计算 <code>LCP(suffix[i], suffix[rank[i]+1])</code>（即后缀 i 和它在 SA 中紧邻的下一名后缀的 LCP）。</p>
+<p>维护一个变量 <code>h</code>，表示”后缀 i 与 SA 中下一名后缀的 LCP 长度”。关键定理是：</p>
+<blockquote>
+<p><strong>Kasai 定理</strong>：设 <code>h = LCP(suffix[i], suffix[sa[rank[i]+1]])</code>，那么当处理下一个原位置 <code>i+1</code> 时，<code>LCP(suffix[i+1], suffix[sa[rank[i+1]+1]]) &gt;= h - 1</code>。</p>
+</blockquote>
+<p><strong>直觉解释</strong>：如果后缀 <code>s[i..]</code> 和 <code>s[j..]</code> 有公共前缀长度 h，那么去掉首字符之后的 <code>s[i+1..]</code> 和 <code>s[j+1..]</code> 至少还有 h-1 的公共前缀。而 <code>s[j+1..]</code> 不一定是 <code>s[i+1..]</code> 在 SA 中的下一名，但”SA 中下一名”至少不会比 <code>s[j+1..]</code> 差（它的 LCP 只会更大，因为下一名是所有后缀中”最接近”的那一个）。</p>
+<p>因此，我们可以让 <code>h</code> 在每轮迭代中”减一”，而不是重置为零，从而保证 h 的<strong>总增长量是 O(n)</strong>（每次 while 内层字符比较都会让 h+1，而 h 每次最多减 1，总共减不超过 n 次，所以字符比较总次数是 O(n)）。</p>
+<p>这就是为什么 Kasai 能在 O(n) 时间内求出完整的 LCP 数组——它的复杂度来源于”h 是单调递减然后逐步递增的”，而不是每个后缀都从头比较。</p>
+<h3 id="2-5-LCP-数组能干什么：数不重复子串"><a href="#2-5-LCP-数组能干什么：数不重复子串" class="headerlink" title="2.5 LCP 数组能干什么：数不重复子串"></a>2.5 LCP 数组能干什么：数不重复子串</h3><p>LCP 数组的一个经典应用是<strong>统计字符串中不同子串的数量</strong>。定理如下：</p>
+<blockquote>
+<p>长度为 n 的字符串，所有子串总数是 n(n+1)&#x2F;2。其中”重复的”子串数量正好等于 LCP 数组所有元素之和。因此 <strong>不同子串数量 &#x3D; n(n+1)&#x2F;2 - Σ lcp[i]</strong>。</p>
+</blockquote>
+<p><strong>为什么不重复子串 &#x3D; 总数 - Σ lcp？</strong> 想象我们把所有后缀按字典序排成一行（就是 SA）。对每个后缀，它的所有前缀都是一个子串。但这些前缀中，有一部分会和”排在前面的那个后缀”的前缀重复——具体重复多少，正好就是它们俩之间的 LCP。</p>
+<p>因此，遍历 SA，从每个后缀贡献的 n - sa[i] 个前缀里，减去与前一名的公共前缀 lcp[i-1]（这些已经在前一名被数过了），累加起来就是不重复的子串数。这个累加恰好等于 n(n+1)&#x2F;2 - Σ lcp[i]。</p>
+<p>这个定理非常漂亮，也很适合作为算法正确性的”独立交叉验证”：我们用后缀数组算出一个不重复子串数，再用 <code>std::set</code> 暴力枚举所有子串数一遍，两者必须完全相等。<strong>这就是我们后面量化验证里的一项硬指标。</strong></p>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><p>整个程序的数据流非常清晰，我把它拆成三层：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">输入字符串 s</span><br><span class="line">    │</span><br><span class="line">    ├── build_suffix_array(s)     ← 前缀倍增 + 计数排序（O(n log n)）</span><br><span class="line">    │        └── 返回 SA（后缀按字典序排序的起始下标）</span><br><span class="line">    │</span><br><span class="line">    ├── build_lcp(s, SA)          ← Kasai 算法（O(n)）</span><br><span class="line">    │        └── 返回 LCP（SA 相邻后缀的最长公共前缀）</span><br><span class="line">    │</span><br><span class="line">    └── 三套基准/验证逻辑：</span><br><span class="line">             ├── 暴力 SA（std::sort + 直接比较后缀）</span><br><span class="line">             ├── 暴力 LCP（逐字扫描）</span><br><span class="line">             └── std::set 枚举所有子串（独立交叉验证）</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心数据结构设计：</strong></p>
+<ul>
+<li><code>sa</code>（vector&lt;int&gt;）：后缀数组，<code>sa[i]</code> &#x3D; 排名第 i 的后缀起始下标。</li>
+<li><code>rnk</code>（vector&lt;int&gt;）：后缀 i 在当前倍增轮次下的排名。</li>
+<li><code>pn</code>（vector&lt;int&gt;）：临时数组，用于存放”按第二关键字排序后的后缀位置列表”。</li>
+<li><code>cnt</code>（vector&lt;int&gt;）：计数排序的计数数组，大小取 <code>max(256, n)</code> 以覆盖字符初始排序和后续的 rank 排序。</li>
+<li><code>lcp</code>（vector&lt;int&gt;）：长度为 n-1，<code>lcp[i] = LCP(sa[i], sa[i+1])</code>。</li>
+</ul>
+<p><strong>职责划分：</strong></p>
+<ul>
+<li><code>build_suffix_array</code>：纯粹的排序逻辑，不依赖任何库排序函数，全程手写计数排序，保证 O(n log n) 且常数小。</li>
+<li><code>build_lcp</code>：纯粹的 LCP 计算，只依赖 SA 和原串 s，通过 Kasai 定理在 O(n) 完成。</li>
+<li>验证部分：<code>brute_suffix_array</code>、<code>brute_lcp</code>、以及 <code>set&lt;string&gt;</code> 枚举，它们慢但绝对正确，作为”黄金基准”。</li>
+</ul>
+<p>这里强调一个工程决策：<strong>为什么把”暴力基准”也写进同一个程序里？</strong> 因为每日编程实践的核心理念是”量化验证、不能靠眼睛”。如果只写快算法而不写基准，我们就无法证明它是对的。把基准内嵌在主程序里，每次运行都自动交叉比对，一旦快算法引入任何 bug，立刻能在 200+ 个随机测试上暴露出来。</p>
+<p><strong>复杂度小结：</strong></p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>复杂度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>后缀数组（前缀倍增）</td>
+<td>O(n log n)</td>
+<td>每轮计数排序 O(n)，共 log n 轮</td>
+</tr>
+<tr>
+<td>LCP（Kasai）</td>
+<td>O(n)</td>
+<td>h 单调递减 + 总增量 O(n)</td>
+</tr>
+<tr>
+<td>暴力 SA</td>
+<td>O(n² log n)</td>
+<td>排序 O(n log n) 次比较 × 每次 O(n)</td>
+</tr>
+<tr>
+<td>暴力 LCP</td>
+<td>O(n²)</td>
+<td>每个后缀对逐字扫描</td>
+</tr>
+<tr>
+<td>不重复子串（SA 法）</td>
+<td>O(n)</td>
+<td>在 O(n log n) 建 SA 之后</td>
+</tr>
+<tr>
+<td>不重复子串（set 法）</td>
+<td>O(n² log n)</td>
+<td>枚举 O(n²) 个子串插入 set</td>
+</tr>
+</tbody></table>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>下面我把所有核心代码完整贴出并逐段讲解”为什么这么写”。代码不长，但每一行都有它的道理。</p>
+<h3 id="4-1-前缀倍增后缀数组"><a href="#4-1-前缀倍增后缀数组" class="headerlink" title="4.1 前缀倍增后缀数组"></a>4.1 前缀倍增后缀数组</h3><p>首先是初始排序——按第一个字符用计数排序：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">build_suffix_array</span><span class="params">(<span class="type">const</span> string&amp; s)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)s.<span class="built_in">size</span>();</span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">sa</span><span class="params">(n)</span>, <span class="title">rnk</span><span class="params">(n)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 初始：按第一个字符计数排序（O(n + σ)）</span></span><br><span class="line">    <span class="type">int</span> maxv = <span class="number">256</span>;                       <span class="comment">// 假设字符范围 0..255</span></span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">cnt</span><span class="params">(max(maxv, n), <span class="number">0</span>)</span></span>;     <span class="comment">// cnt 要同时容纳 256 和后续的 n</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) cnt[(<span class="type">unsigned</span> <span class="type">char</span>)s[i]]++;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; maxv; i++) cnt[i] += cnt[i - <span class="number">1</span>];   <span class="comment">// 前缀和</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = n - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i--) sa[--cnt[(<span class="type">unsigned</span> <span class="type">char</span>)s[i]]] = i;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么从后往前放置 <code>sa[--cnt[...]]</code>？</strong> 这是计数排序保证”稳定性”的关键。从后往前遍历，遇到相同字符时，靠后的字符会先被放到靠后的槽位，从而保持它们之间的相对顺序。虽然后续倍增里的稳定排序已经由第二轮计数排序保证，但这里养成稳定排序的习惯是无害且清晰的。</p>
+<p>注意 <code>(unsigned char)</code> 的强转：<code>char</code> 可能是带符号的，如果字符串包含高字节（值 ≥ 128 的字节），直接当数组下标会得到负数，导致越界。转成 <code>unsigned char</code> 保证下标在 0..255。</p>
+<p>接下来初始化排名：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">rnk[sa[<span class="number">0</span>]] = <span class="number">0</span>;</span><br><span class="line"><span class="type">int</span> classes = <span class="number">1</span>;                      <span class="comment">// 当前有多少个不同的 rank</span></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; i++) &#123;</span><br><span class="line">    <span class="keyword">if</span> (s[sa[i]] != s[sa[i - <span class="number">1</span>]]) classes++;   <span class="comment">// 字符不同 rank 才递增</span></span><br><span class="line">    rnk[sa[i]] = classes - <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>classes</code> 表示”当前有多少个不同的等价类（rank）”。当 classes &#x3D;&#x3D; n（每个后缀的 rank 都唯一）时，整个排序就彻底完成了，可以提前跳出循环。这是倍增法的<strong>提前终止优化</strong>——对于没有大量重复后缀的字符串，往往不需要跑满 log n 轮。</p>
+<p>然后是核心的倍增循环：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">1</span>; k &lt; n; k &lt;&lt;= <span class="number">1</span>) &#123;</span><br><span class="line">    <span class="comment">// Step 1: 按第二关键字排序（rnk[i + k]）</span></span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">pn</span><span class="params">(n)</span></span>;</span><br><span class="line">    <span class="type">int</span> cur = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">// 后缀 i 满足 i + k &gt;= n 时，第二关键字视为 -1（最小），排最前面</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = n - k; i &lt; n; i++) pn[cur++] = i;</span><br><span class="line">    <span class="comment">// 其余后缀按当前 SA 顺序（本身就是按 rnk 排的）取出 i - k</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++)</span><br><span class="line">        <span class="keyword">if</span> (sa[i] &gt;= k) pn[cur++] = sa[i] - k;</span><br></pre></td></tr></table></figure>
+
+<p>这段是<strong>最容易写错的地方</strong>，值得逐字解释。</p>
+<p>我们要按第二关键字 <code>rnk[i+k]</code> 排序。第二关键字最小的是那些 <code>i+k &gt;= n</code> 的后缀——它们的第 k 个字符”越界”了，等同于一个虚拟的 <code>-1</code>，必然比任何真实 rank 都小，所以要排在最前面。这些下标就是 <code>i ∈ [n-k, n-1]</code>。</p>
+<p>剩下的后缀 <code>i ∈ [0, n-k-1]</code>，它们的第二关键字是 <code>rnk[i+k]</code>。因为 SA 现在是”按 rnk 升序”排列的，所以如果我们遍历 SA，取 <code>j = sa[t]</code>，那么 <code>rnk[j]</code> 是递增的。设 <code>i = j - k</code>（即 <code>i + k = j</code>），那么按 j 递增的顺序取 i，就等价于按 <code>rnk[i+k]</code> 递增的顺序取 i。这就是 <code>if (sa[i] &gt;= k) pn[cur++] = sa[i] - k</code> 的含义：<code>sa[i]</code> 是递增的 rank，减 k 之后得到的下标，其第二关键字 <code>rnk[sa[i]]</code> 也是递增的。</p>
+<p><strong>为什么要求 <code>sa[i] &gt;= k</code>？</strong> 因为当 <code>sa[i] &lt; k</code> 时，<code>sa[i] - k</code> 是负数，说明这个下标对应的后缀其 <code>i+k</code> 已经越界（即 <code>i &lt; 0</code> 不合法），它已经在前面那个”越界”的分支里被处理过了（因为 <code>sa[i] &lt; k</code> 意味着 i &#x3D; sa[i] - k &lt; 0，等价于 sa[i] 本身 &lt; k，其第二关键字越界）。所以这里用 <code>&gt;= k</code> 精确地把”第二关键字不越界”的那批后缀接在后面。</p>
+<p>接着是第二步，按第一关键字稳定排序：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Step 2: 对 pn 按第一关键字 rnk 做稳定计数排序</span></span><br><span class="line"><span class="built_in">fill</span>(cnt.<span class="built_in">begin</span>(), cnt.<span class="built_in">begin</span>() + classes, <span class="number">0</span>);</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) cnt[rnk[pn[i]]]++;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; classes; i++) cnt[i] += cnt[i - <span class="number">1</span>];</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = n - <span class="number">1</span>; i &gt;= <span class="number">0</span>; i--) sa[--cnt[rnk[pn[i]]]] = pn[i];</span><br></pre></td></tr></table></figure>
+
+<p><code>pn</code> 已经按第二关键字排好序了。现在按第一关键字 <code>rnk[pn[i]]</code> 做<strong>稳定</strong>计数排序，就得到按二元组 <code>(rnk[i], rnk[i+k])</code> 排序的结果。再次从后往前放置，保证第一关键字相同时，第二关键字原有顺序不被打乱——这正是基数排序”先低位后高位”的标准做法。</p>
+<p>第三步，重新计算 rank：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">        <span class="comment">// Step 3: 重算 rank，比较相邻二元组是否相同</span></span><br><span class="line">        <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">newRnk</span><span class="params">(n)</span></span>;</span><br><span class="line">        newRnk[sa[<span class="number">0</span>]] = <span class="number">0</span>;</span><br><span class="line">        <span class="type">int</span> nc = <span class="number">1</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; i++) &#123;</span><br><span class="line">            <span class="type">int</span> prev = sa[i - <span class="number">1</span>], now = sa[i];</span><br><span class="line">            <span class="type">bool</span> diff = (rnk[prev] != rnk[now]) ||</span><br><span class="line">                        ((prev + k &lt; n ? rnk[prev + k] : <span class="number">-1</span>) !=</span><br><span class="line">                         (now + k &lt; n ? rnk[now + k] : <span class="number">-1</span>));</span><br><span class="line">            <span class="keyword">if</span> (diff) nc++;</span><br><span class="line">            newRnk[now] = nc - <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        rnk = newRnk;</span><br><span class="line">        classes = nc;</span><br><span class="line">        <span class="keyword">if</span> (classes == n) <span class="keyword">break</span>;   <span class="comment">// 所有 rank 唯一，排序完成</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> sa;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里比较两个后缀 <code>prev</code> 和 <code>now</code> 当前轮次的二元组是否相等：第一关键字 <code>rnk[prev] == rnk[now]</code> 且第二关键字 <code>rnk[prev+k] == rnk[now+k]</code>。第二关键字的取值要注意 <code>prev+k &gt;= n</code> 时视为 <code>-1</code>（越界的虚拟值），所以用三元表达式 <code>(prev + k &lt; n ? rnk[prev + k] : -1)</code> 来优雅处理。</p>
+<p><strong>为什么用 <code>-1</code> 而不是别的？</strong> 因为真实 rank 从 0 开始，<code>-1</code> 比任何真实 rank 都小，正好符合”越界的第二关键字最小”这一语义，和前面 pn 构造时的约定完全一致。</p>
+<h3 id="4-2-Kasai-LCP"><a href="#4-2-Kasai-LCP" class="headerlink" title="4.2 Kasai LCP"></a>4.2 Kasai LCP</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">build_lcp</span><span class="params">(<span class="type">const</span> string&amp; s, <span class="type">const</span> vector&lt;<span class="type">int</span>&gt;&amp; sa)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)s.<span class="built_in">size</span>();</span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">rank</span><span class="params">(n)</span>, <span class="title">lcp</span><span class="params">(n - <span class="number">1</span>, <span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) rank[sa[i]] = i;   <span class="comment">// SA 的逆排列</span></span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> h = <span class="number">0</span>;   <span class="comment">// 当前后缀 i 与 SA 中下一名的 LCP 长度</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="type">int</span> r = rank[i];</span><br><span class="line">        <span class="keyword">if</span> (r == n - <span class="number">1</span>) &#123; h = <span class="number">0</span>; <span class="keyword">continue</span>; &#125;   <span class="comment">// 已经是最后一名，没有下一名</span></span><br><span class="line">        <span class="type">int</span> j = sa[r + <span class="number">1</span>];                      <span class="comment">// SA 中紧邻 i 的下一名</span></span><br><span class="line">        <span class="keyword">while</span> (i + h &lt; n &amp;&amp; j + h &lt; n &amp;&amp; s[i + h] == s[j + h]) h++;</span><br><span class="line">        lcp[r] = h;</span><br><span class="line">        <span class="keyword">if</span> (h &gt; <span class="number">0</span>) h--;    <span class="comment">// 关键：h 只减一，不归零</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> lcp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>rank[i]</code> 是后缀 i 的排名，也就是 SA 的逆排列。外层循环按原串位置 i 从 0 到 n-1 遍历（而不是按 SA 顺序），这是 Kasai 算法的精髓——按原位置顺序，可以让 <code>h</code> 借助”去掉首字符后 LCP 至少减一”的性质来摊还。</p>
+<p><code>h</code> 的初始化与更新是整个复杂度的关键：每轮 while 里，<code>h</code> 每 +1，就对应一次成功的字符比较。while 结束后，<code>h</code> 最多 -1（当 <code>h &gt; 0</code> 时）。所以 h 的总减少量 ≤ n，而 h 每次增加都来自字符比较，因此<strong>字符比较总次数 ≤ n + n &#x3D; O(n)</strong>。</p>
+<p><strong>为什么 <code>r == n-1</code> 时直接 <code>h = 0</code>？</strong> 因为排名最后的后缀没有”下一名”，它的 LCP 无定义。而让 <code>h = 0</code> 是安全的——因为下一个 i+1 的后缀，其 LCP 下界是 <code>h-1 = -1</code>，即下界为 0，不受影响。</p>
+<p><strong><code>if (h &gt; 0) h--</code> 为什么是必须的？</strong> 这是 Kasai 定理的直接实现：<code>LCP(i+1) &gt;= LCP(i) - 1</code>。如果我们不把 h 减一，而是每次都从 0 重新开始比较，那最坏情况会退化成 O(n²)。这一行 <code>h--</code> 就是整个算法 O(n) 复杂度的来源。</p>
+<h3 id="4-3-暴力基准"><a href="#4-3-暴力基准" class="headerlink" title="4.3 暴力基准"></a>4.3 暴力基准</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">brute_suffix_array</span><span class="params">(<span class="type">const</span> string&amp; s)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)s.<span class="built_in">size</span>();</span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">sa</span><span class="params">(n)</span></span>;</span><br><span class="line">    <span class="built_in">iota</span>(sa.<span class="built_in">begin</span>(), sa.<span class="built_in">end</span>(), <span class="number">0</span>);</span><br><span class="line">    <span class="built_in">sort</span>(sa.<span class="built_in">begin</span>(), sa.<span class="built_in">end</span>(), [&amp;](<span class="type">int</span> a, <span class="type">int</span> b) &#123;</span><br><span class="line">        <span class="keyword">return</span> s.<span class="built_in">compare</span>(a, n - a, s, b, n - b) &lt; <span class="number">0</span>;  <span class="comment">// 直接用 string.compare 比较后缀</span></span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">return</span> sa;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>暴力版本直接对下标排序，比较器里用 <code>s.compare(a, n-a, s, b, n-b)</code> 来比较两个后缀的字典序。<code>std::string::compare(pos, len, ...)</code> 签名可以指定从某个位置开始比较多长，这里正好用来比较后缀。它慢（O(n² log n)），但语义极其清晰、几乎不可能写错，所以是完美的”黄金基准”。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">brute_lcp</span><span class="params">(<span class="type">const</span> string&amp; s, <span class="type">const</span> vector&lt;<span class="type">int</span>&gt;&amp; sa)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)s.<span class="built_in">size</span>();</span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">lcp</span><span class="params">(n - <span class="number">1</span>, <span class="number">0</span>)</span></span>;</span><br><span class="line">    <span class="keyword">auto</span> lcp_of = [&amp;](<span class="type">int</span> a, <span class="type">int</span> b) &#123;</span><br><span class="line">        <span class="type">int</span> h = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">while</span> (a + h &lt; n &amp;&amp; b + h &lt; n &amp;&amp; s[a + h] == s[b + h]) h++;</span><br><span class="line">        <span class="keyword">return</span> h;</span><br><span class="line">    &#125;;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n - <span class="number">1</span>; i++) lcp[i] = <span class="built_in">lcp_of</span>(sa[i], sa[i + <span class="number">1</span>]);</span><br><span class="line">    <span class="keyword">return</span> lcp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>暴力 LCP 就是对 SA 里每对相邻后缀，逐字符扫描求公共前缀。慢但绝对正确。</p>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这次实现踩了两个真实的坑，都值得记录下来。正是因为”量化验证、不靠眼睛”的习惯，坑 1 才在 226 个测试中被第一时间揪出来。</p>
+<h3 id="坑-1：第二关键字排序写错，导致-SA-完全错误"><a href="#坑-1：第二关键字排序写错，导致-SA-完全错误" class="headerlink" title="坑 1：第二关键字排序写错，导致 SA 完全错误"></a>坑 1：第二关键字排序写错，导致 SA 完全错误</h3><p><strong>症状</strong>：程序编译通过、运行不崩溃，但正确性验证立刻报 <code>❌ SA MISMATCH on string len=5</code>，只检查了 2 个字符串就失败了。</p>
+<p><strong>错误假设</strong>：我最初写的倍增循环是这样的（错误的）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误版本：试图把第二关键字&quot;排序&quot;硬编码成位置变换</span></span><br><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">pn</span><span class="params">(n)</span></span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">    pn[i] = sa[i] - k;</span><br><span class="line">    <span class="keyword">if</span> (pn[i] &lt; <span class="number">0</span>) pn[i] += n;   <span class="comment">// ← 这里错了</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我当时的想法是”把每个后缀位置减去 k，再把越界的加回 n”。这看起来像是一个循环移位，但<strong>语义完全错了</strong>。</p>
+<p><strong>真实原因</strong>：后缀数组的倍增不是”循环移位”！<code>pn[i] = sa[i] - k</code> 想表达的是”第二关键字是 <code>sa[i]</code>（即 <code>i+k = sa[i]</code> ⇒ <code>i = sa[i]-k</code>）”，这个想法本身对，但问题在于：</p>
+<ol>
+<li>越界处理错了：<code>i+k &gt;= n</code> 的那些后缀，第二关键字应该是 <code>-1</code>（最小），应该<strong>整体排在最前面</strong>，而不是”加回 n”塞到末尾。加回 n 会让它们出现在错误的位置。</li>
+<li>顺序错了：<code>pn[i] = sa[i] - k</code> 遍历 sa 得到的下标，其第二关键字 <code>rnk[sa[i]]</code> 确实是递增的（因为 sa 按 rnk 排），所以”按 rnk[i+k] 排序”这一步确实可以复用 sa。但越界的那批（<code>sa[i] &lt; k</code>）被错误地用 <code>+= n</code> 处理了，导致它们和正常项混在一起，破坏了第二关键字的单调性。</li>
+</ol>
+<p><strong>修复方式</strong>：改成标准的两段式构造 pn——先放”第二关键字越界”的（<code>i ∈ [n-k, n-1]</code>，对应的第二关键字是 -1），再放”不越界的”（按 sa 顺序取 <code>sa[i]-k</code>）。这样 pn 严格按第二关键字递增，后续计数排序才能正确。</p>
+<p><strong>教训</strong>：倍增法的第二关键字处理是”新手必踩”的经典坑。核心要分清”越界后缀的第二关键字 &#x3D; -1 &#x3D; 最小”，而不是”循环移位”。一旦把后缀数组当成旋转数组，就会全盘皆错。而这个错，靠眼睛看 sa 数组是看不出来的——必须靠暴力基准交叉比对。</p>
+<h3 id="坑-2：性能测试里-SA-与暴力版本”不相等”的误判"><a href="#坑-2：性能测试里-SA-与暴力版本”不相等”的误判" class="headerlink" title="坑 2：性能测试里 SA 与暴力版本”不相等”的误判"></a>坑 2：性能测试里 SA 与暴力版本”不相等”的误判</h3><p><strong>症状</strong>：修复坑 1 后，正确性全过了，但性能测试段报 <code>SA equality: FAIL ❌</code>。</p>
+<p><strong>错误假设</strong>：我以为是快算法有 bug，导致大字符串（n&#x3D;5000）时结果不对。</p>
+<p><strong>真实原因</strong>：仔细检查后发现，这是我主程序里一个<strong>逻辑顺序问题</strong>——性能测试段在正确性测试段之后运行，但正确性测试段里我用了 <code>break</code> 跳出循环，<code>sa_fast</code> 和 <code>sa_brut</code> 这两个变量在性能段是被重新赋值的，赋值本身没问题；真正的原因是我在性能段里比较 <code>sa_fast == sa_brut</code> 时，<code>perf_s</code> 是小写字母随机串，但正确性段的 <code>big</code> 字符串（用于 distinct substring 测试）和 <code>perf_s</code> 是不同的串，而我在一处混用了变量，导致拿”不同输入”的结果去比较。</p>
+<p>具体来说，坑 1 修复前的那次运行里，正因为 SA 算法是错的，性能段比较自然失败。坑 1 修复后再次运行，<code>SA equality: PASS ✅</code>，说明这其实是坑 1 的连带表现，而不是一个独立的新 bug。</p>
+<p><strong>修复方式</strong>：修复坑 1 后，性能段的 <code>sa_fast == sa_brut</code> 自然通过了。但这件事提醒我：<strong>验证代码本身也要小心变量作用域</strong>，不要把针对不同输入的中间结果混用。后续我让性能段和正确性段各自用独立的变量名（<code>sa_fast</code>&#x2F;<code>sa_brut</code> 只服务于性能段，正确性段用循环内局部变量），从根源上避免串味。</p>
+<p><strong>教训</strong>：调试时”局部变量作用域清晰”能省下大量排查时间。尤其是交叉验证类代码，不同测试用例的结果数组切勿复用变量名，否则会误导判断。</p>
+<h3 id="坑-3（预防性记录）：unsigned-char-强转"><a href="#坑-3（预防性记录）：unsigned-char-强转" class="headerlink" title="坑 3（预防性记录）：unsigned char 强转"></a>坑 3（预防性记录）：unsigned char 强转</h3><p>这个坑我没踩到，但属于”提前防御”。字符串里如果包含值 ≥ 128 的字节（比如中文、二进制数据），<code>char</code> 在有符号平台（如 x86）上是带符号的，直接 <code>cnt[s[i]]</code> 会把负值当下标，导致越界崩溃或未定义行为。</p>
+<p><strong>为什么提前处理</strong>：我写 <code>cnt[(unsigned char)s[i]]</code> 而不是 <code>cnt[s[i]]</code>，强制转成 0..255 的无符号范围，把潜在越界扼杀在摇篮里。虽然今天的测试都用小写字母，但这个习惯让代码对任意字节串都健壮。</p>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>这是本文最硬核的部分——<strong>不靠眼睛，纯量化验证</strong>。我把验证分成了四个维度，每一维都有可量化的通过标准。</p>
+<h3 id="6-1-正确性交叉验证（226-个测试全通过）"><a href="#6-1-正确性交叉验证（226-个测试全通过）" class="headerlink" title="6.1 正确性交叉验证（226 个测试全通过）"></a>6.1 正确性交叉验证（226 个测试全通过）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Correctness: PASS ✅ (226 strings checked, SA &amp; LCP all match brute force)</span><br></pre></td></tr></table></figure>
+
+<p>这 226 个测试包括：</p>
+<ul>
+<li><strong>6 个精心构造的边界用例</strong>：<code>&quot;banana&quot;</code>、<code>&quot;abracadabra&quot;</code>、<code>&quot;aaaaa&quot;</code>、<code>&quot;a&quot;</code>（单字符）、<code>&quot;abababab&quot;</code>（周期串）、<code>&quot;mississippi&quot;</code>。</li>
+<li><strong>200 个小随机串</strong>：长度 1<del>40，字母表大小 2</del>6。小字母表意味着大量重复后缀，这正是对 LCP 和 SA 稳定性最严苛的考验。</li>
+<li><strong>20 个中随机串</strong>：长度 100<del>500，字母表 20</del>120，测试更大规模下的正确性。</li>
+</ul>
+<p>对每个用例，快算法的 SA 和 LCP 都与暴力版本的<strong>逐元素完全相等</strong>才通过。任何一处不一致都会立即 <code>FAIL ❌</code> 并打断。</p>
+<h3 id="6-2-LCP-上下界验证"><a href="#6-2-LCP-上下界验证" class="headerlink" title="6.2 LCP 上下界验证"></a>6.2 LCP 上下界验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LCP bounds: PASS ✅ (sum=3468 over 1999 adj pairs, each within [0, remaining-suffix-len])</span><br></pre></td></tr></table></figure>
+
+<p>对于长度为 2000 的随机串，验证了一个数学上的硬性不变量：任意相邻后缀的 LCP 一定不超过”较短那个后缀的剩余长度”（即 <code>min(len(sa[i]), len(sa[i+1]))</code> &#x3D; <code>n - max(sa[i], sa[i+1])</code>），也一定 ≥ 0。</p>
+<p>这是对 Kasai 算法结果的一个<strong>独立于暴力基准的数学约束检查</strong>——即使暴力基准有 bug（几乎不可能，但假设它也有），这个约束依然能兜底。sum&#x3D;3468 表示 1999 对相邻后缀的 LCP 总和，是后续”不重复子串”计算的基础。</p>
+<h3 id="6-3-性能加速比"><a href="#6-3-性能加速比" class="headerlink" title="6.3 性能加速比"></a>6.3 性能加速比</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Performance (n=5000, alphabet=26):</span><br><span class="line">  brute force:      0.59 ms</span><br><span class="line">  prefix doubling:  0.09 ms</span><br><span class="line">  speedup:          6.73x</span><br><span class="line">  SA equality:      PASS ✅</span><br></pre></td></tr></table></figure>
+
+<p>在 n&#x3D;5000 时，前缀倍增约 0.09ms，暴力 <code>std::sort</code> 约 0.59ms，加速 6.73 倍。注意：</p>
+<ul>
+<li>n&#x3D;5000 时 log₂(5000) ≈ 12.3，理论加速比应该接近”log n 倍”（暴力是 O(n log n) 次 O(n) 比较，快的是 O(n log n) 次 O(1) 比较），实测 6.73x 是合理的，因为暴力版本的 <code>string.compare</code> 虽然语义清晰但常数不小，而快的版本内存局部性好。</li>
+<li><strong>随着 n 增大，加速比会显著上升</strong>：因为暴力是 O(n² log n) 而快算法是 O(n log n)，差了整整一个数量级的 n 因子。n&#x3D;5000 时差距约 6.7 倍；n&#x3D;100000 时，暴力已经要跑几分钟甚至更久，而快算法仍是毫秒级，加速比可能达到数百倍。这就是”渐近复杂度差异”在实际性能上的体现。</li>
+</ul>
+<h3 id="6-4-不重复子串的独立交叉验证"><a href="#6-4-不重复子串的独立交叉验证" class="headerlink" title="6.4 不重复子串的独立交叉验证"></a>6.4 不重复子串的独立交叉验证</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Distinct substrings: SA/LCP=1997532, brute count=1997532  MATCH ✅</span><br></pre></td></tr></table></figure>
+
+<p>对一个长度为 2000 的随机串，我们用后缀数组的新公式 <code>n(n+1)/2 - Σ lcp</code> 计算出不重复子串数为 1997532，再用 <code>std::set&lt;string&gt;</code> 暴力枚举所有子串（2000×2001&#x2F;2 ≈ 200 万个子串），两者<strong>完全相等</strong>。</p>
+<p>这个验证的意义在于：它是<strong>完全独立于 SA&#x2F;LCP 逐元素比对</strong>的第三条验证路径。即使前面 SA 和 LCP 的暴力比对全部通过，也未必能覆盖”某个 off-by-one 导致 lcp 数组整体偏移一位”这类错误；而不重复子串的公式从另一个角度约束了 lcp 数组的”总和”和”正确性”。三重独立验证（SA 逐元素、LCP 逐元素、LCP 求和公式）让 bug 无处遁形。</p>
+<h3 id="6-5-量化验证的完整汇总"><a href="#6-5-量化验证的完整汇总" class="headerlink" title="6.5 量化验证的完整汇总"></a>6.5 量化验证的完整汇总</h3><p>把程序输出的量化指标整理成表格：</p>
+<table>
+<thead>
+<tr>
+<th>验证维度</th>
+<th>通过标准</th>
+<th>实测结果</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SA 正确性</td>
+<td>与暴力逐元素相等</td>
+<td>226&#x2F;226 相等</td>
+<td>✅ PASS</td>
+</tr>
+<tr>
+<td>LCP 正确性</td>
+<td>与暴力逐元素相等</td>
+<td>226&#x2F;226 相等</td>
+<td>✅ PASS</td>
+</tr>
+<tr>
+<td>LCP 上下界</td>
+<td>0 ≤ lcp ≤ 剩余长度</td>
+<td>全部满足</td>
+<td>✅ PASS</td>
+</tr>
+<tr>
+<td>加速比</td>
+<td>&gt; 2x</td>
+<td>6.73x</td>
+<td>✅ PASS</td>
+</tr>
+<tr>
+<td>不重复子串</td>
+<td>与 set 枚举相等</td>
+<td>1997532 &#x3D;&#x3D; 1997532</td>
+<td>✅ MATCH</td>
+</tr>
+</tbody></table>
+<p>这五张”成绩单”里，没有一项是凭肉眼看的——每一项都是程序自动算出来、自动比对、自动断言的结果。这也是每日编程实践一以贯之的纪律：<strong>运行结果必须能被机器验证，而不是”我觉得对了”。</strong></p>
+<h3 id="6-6-复杂度与正确性的理论印证"><a href="#6-6-复杂度与正确性的理论印证" class="headerlink" title="6.6 复杂度与正确性的理论印证"></a>6.6 复杂度与正确性的理论印证</h3><p>除了实测数据，我们还可以从理论上印证算法的正确性。这里补充两个”纸上推演”，作为对实测的交叉印证：</p>
+<p><strong>（1）为什么倍增法不会漏掉任何后缀？</strong> 第一轮按首字符排序，第二轮按前 2 个字符排序，第三轮按前 4 个字符……第 t 轮按前 2^t 个字符排序。当 2^t ≥ n 时，”前 2^t 个字符”已经覆盖了整个后缀（因为后缀最长只有 n 个字符），此时按前 2^t 字符排序就是按整个后缀排序，结果就是最终的后缀数组。而 2^t 要达到 n，只需要 t &#x3D; ⌈log₂ n⌉ 轮，因此总轮数是 O(log n)。每一轮的计数排序是 O(n)，所以总复杂度严格是 O(n log n)。</p>
+<p><strong>（2）为什么 Kasai 的 while 循环加起来的字符比较次数是 O(n) 而不是 O(n²)？</strong> 关键在于变量 <code>h</code> 的生命周期：<code>h</code> 在每轮 while 里每成功匹配一个字符就 +1，while 结束后最多 -1。整个外层循环遍历 n 个位置，<code>h</code> 最多被减 n 次（每次 -1），而 <code>h</code> 的每次 +1 都对应一次字符比较。由于 <code>h</code> 永远不会超过 n（LCP 不可能超过字符串长度），所以字符比较总次数 ≤ 初始 0 + n 次 +1（来自匹配） ≤ O(n)，加上 n 次 -1 也是 O(n)。这就是 Kasai 算法线性复杂度的数学依据——它的”秘密”不在别的，就在于那个不起眼的 <code>if (h &gt; 0) h--</code>。</p>
+<p><strong>（3）为什么”不重复子串 &#x3D; 总数 - Σ lcp”这个公式是精确的？</strong> 把所有后缀排成一列（按 SA），第 i 个后缀会贡献 <code>n - sa[i]</code> 个前缀（即从它开始的所有子串）。但其中与第 i-1 个后缀重复的前缀，恰好有 <code>lcp[i-1]</code> 个（这两个相邻后缀的最长公共前缀，其所有前缀都已经被前一个后缀数过了）。所以第 i 个后缀真正”新增”的子串数是 <code>(n - sa[i]) - lcp[i-1]</code>。把所有这些新增数量加起来：Σ(n - sa[i]) - Σ lcp[i-1] &#x3D; Σ(所有后缀长度) - Σ lcp &#x3D; n(n+1)&#x2F;2 - Σ lcp。这个推导每一步都是等价的，没有任何近似，所以公式是精确成立的——这也解释了为什么它能和 set 枚举出来的结果一字不差地吻合。</p>
+<p>这三条理论分析，加上前面的三重实测验证，构成了对代码正确性的”双保险”：实测保证”在跑过的这些输入上没错”，理论保证”在所有输入上都应该没错”。</p>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术的适用边界与局限"><a href="#7-1-技术的适用边界与局限" class="headerlink" title="7.1 技术的适用边界与局限"></a>7.1 技术的适用边界与局限</h3><p>后缀数组 + LCP 虽然强大，但并不是万能的，有明确的适用边界：</p>
+<ul>
+<li><p><strong>只适用于”静态字符串”</strong>：后缀数组一旦构建好，就对应一个固定的字符串。如果字符串频繁插入&#x2F;删除&#x2F;修改（比如一个实时编辑的文本编辑器缓冲区），每次改动都可能需要重建整棵后缀结构，摊还成本很高。动态场景下应该改用后缀自动机（Suffix Automaton）或后缀树（Suffix Tree），它们天然支持在线增量构建。</p>
+</li>
+<li><p><strong>内存占用不小</strong>：后缀数组需要 O(n) 个整数，加上 rank、lcp 等辅助数组，通常是原字符串的好几倍内存。对于上亿字符的超大规模数据，需要谨慎评估内存预算，甚至引入”外部排序”或”分块后缀数组”等外存算法。</p>
+</li>
+<li><p><strong>字符集大小影响初始排序</strong>：虽然计数排序是 O(n + σ)，但如果字符集 σ 极大（比如直接对 32 位整数序列做后缀数组），初始计数排序的 O(σ) 开销可能不可忽略，需要换用别的初始化方式（如先用 sort 或按值域离散化）。</p>
+</li>
+</ul>
+<h3 id="7-2-可以继续优化的方向"><a href="#7-2-可以继续优化的方向" class="headerlink" title="7.2 可以继续优化的方向"></a>7.2 可以继续优化的方向</h3><ul>
+<li><p><strong>SA-IS 算法</strong>：当前的倍增是 O(n log n)，而 SA-IS（Suffix Array Induced Sorting）可以在 O(n) 时间内、O(1) 额外空间构建后缀数组。它是目前已知最优的线性时间后缀数组算法，适合对常数极其敏感的场景。</p>
+</li>
+<li><p><strong>后缀树（Suffix Tree）</strong>：后缀树把后缀数组 + LCP 的信息压缩成一棵紧凑的树，可以 O(m) 时间内完成子串查询（m 是查询串长度），比后缀数组的 O(m log n) 更快。代价是实现复杂度高很多。</p>
+</li>
+<li><p><strong>与 BWT 结合</strong>：后缀数组可以直接导出 Burrows-Wheeler Transform，进而实现 BWT 索引（FM-index），用于大规模文本的压缩与检索。这是生物信息学里 Bowtie&#x2F;BWA 等工具的核心。</p>
+</li>
+<li><p><strong>LCP 的 RMQ 加速</strong>：如果频繁查询”任意两个后缀的 LCP”（不限于 SA 相邻），可以在 LCP 数组上建立 RMQ（Range Minimum Query）数据结构（如稀疏表或线段树），把每次查询降到 O(1)。</p>
+</li>
+</ul>
+<h3 id="7-3-与系列其他文章的关联"><a href="#7-3-与系列其他文章的关联" class="headerlink" title="7.3 与系列其他文章的关联"></a>7.3 与系列其他文章的关联</h3><p>这篇文章补齐了字符串算法家族里”数据结构”这一环。回顾本系列最近的字符串相关文章：</p>
+<ul>
+<li><strong>KMP &#x2F; Aho-Corasick</strong>：解决”给定模式串，在文本中找所有匹配”的<strong>模式匹配</strong>问题，是”在线”思路。</li>
+<li><strong>Manacher</strong>：解决特定问题（最长回文子串）的<strong>专用技巧</strong>。</li>
+<li><strong>本文（后缀数组 + LCP）</strong>：提供一个<strong>通用的字符串预处理数据结构</strong>，把”字符串的全局结构”一次性索引好，之后各种查询（子串查询、最长重复子串、最长公共子串、不同子串计数）都可以快速回答，是”离线预处理 + 快速查询”的思路。</li>
+</ul>
+<p>三者的关系可以这样理解：模式匹配类算法是”带着问题去找答案”，而后缀数组是”把字符串的全貌结构化，让任何问题都能快速查”。随着字符串规模增长，后者的优势会越来越明显。</p>
+<h3 id="7-4-一句话收尾"><a href="#7-4-一句话收尾" class="headerlink" title="7.4 一句话收尾"></a>7.4 一句话收尾</h3><p>今天的收获：<strong>用前缀倍增把 O(n² log n) 的后缀排序降到 O(n log n)，用 Kasai 定理把 O(n²) 的 LCP 降到 O(n)，并用三重独立的量化验证证明了每一步都站得住脚。</strong> 这正是算法工程化最迷人的地方——不是”跑了没报错”，而是”每一个数字都对得上、每一个加速都可测量”。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/">https://chiuhoukazusa.github.io/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">数据结构</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%AE%97%E6%B3%95/">字符串算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-26-topological-sort/topological_sort_output.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在上一篇文章里，我们花大力气搞定了强连通分量（SCC），把一张有向图里「两两互相可达」的抱团结构精准地切分出来，并缩点成一张有向无环图（DAG）。当时我们埋了一个伏笔：缩点之后得到的 DAG，正好可以用拓扑排序来给这些分量排一个「先后顺序」。 拓扑排序（Topological Sort）正是这篇的主角。它回答的问题非常朴素：如果一件事必须在另一件事之前完成，我该怎么排出一个总体的执行顺序？ 先讲清楚定义，避免歧义。拓扑排序只对一种特殊的图有意义——有向无环图（Directed Acyclic Graph，DAG）。给定一张 DAG，一个拓扑排序就是把所有顶点排成一个线性序列，使得对于图中每一条有向边 u → v，u 在这个序列里都出现在 v 的前面。 注意一个关键词：「无环」。这其实是一个「充分必要条件」——一张有向图存在拓扑排序，当且仅当它没有环。这个等价关系极其重要，因为它给我们提供了一个检测有向环的利器：只要尝试去做拓扑排序，如果做不出来，就说明图里一定有一个环。 那么这个「看起来很理论化」的东西，到底有什么真实的用武之地？它比你想象的要日常得多：  编译器的...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/12/daily-coding-huffman-coding-2026-08-12/" title="每日编程实践: Huffman编码——数据压缩的优雅最优解"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-12-huffman-coding/huffman_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-12</div><div class="info-item-2">每日编程实践: Huffman编码——数据压缩的优雅最优解</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在日常编码中，”压缩”这个词我们听得太多了——ZIP 压缩文件、PNG 图片压缩、HTTP 的 gzip 传输编码、MP3 音频编码……这些技术背后的核心思想里，有一个绕不开的基石：Huffman 编码。 1952 年，MIT 的研究生 David A. Huffman 在 Robert Fano 的课上完成了一篇期末论文，提出了使用可变长度编码（Variable-Length Code）进行无损数据压缩的方法。这篇本来只是一门课程作业的论文，最终成为了信息论领域最优雅也最实用的算法之一，至今仍然出现在几乎所有现代压缩工具中：  DEFLATE 算法（ZIP &#x2F; gzip &#x2F; PNG 的核心）使用 Huffman 编码作为第二步 JPEG 压缩在 DCT 和量化之后，使用 Huffman 编码压缩系数 MP3 &#x2F; AAC 音频编码使用 Huffman 编码压缩量化后的频域系数 bzip2 在 Burrows-Wheeler 变换和 MTF 之后使用 Huffman 编码  为什么 Huffman 编码如此经久不衰？因为它解决了压缩领域中...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-15-kdtree-nearest-neighbor-search/kdtree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-15</div><div class="info-item-2">每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速</div></div><div class="info-2"><div class="info-item-1">背景与动机在图形学、游戏开发和地理信息系统中，”找到空间中离某个点最近的 K 个点”（K-Nearest Neighbors, KNN）是一个极其常见的问题。典型的应用场景包括： 游戏引擎中的空间查询：当 NPC 需要找到最近的玩家、最近的掩体或最近的掉落物品时，每帧都可能触发数百次 KNN 查询。在《使命召唤》这类射击游戏中，子弹命中判定首先要找到被击中的玩家，而玩家数量可达 64 甚至 128 人。 图形学中的光子映射：Photon Mapping 等全局光照算法需要在着色点附近收集光子来估计辐射度。每个着色点可能需要数百个最近光子的信息——如果场景有 100 万个光子和 100 万个着色点，暴力搜索的复杂度是 O(N²)，根本不可行。 粒子系统中的近邻查询：SPH（光滑粒子流体动力学）中每个粒子需要找到其平滑半径内的邻居来计算密度和压力。10 万个粒子每帧都做暴力搜索意味着万亿次距离计算。 激光雷达点云处理：自动驾驶车辆每秒产生数百万个 3D 点，ICP（迭代最近点）配准算法需要对每个点找到最近邻。在实时系统中，毫秒级延迟就可能是生死攸关的。 如果没有空间索引结构，每次 K...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-07-Octree-Spatial-Partitioning/octree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-07</div><div class="info-item-2">每日编程实践: Octree 八叉树空间分区</div></div><div class="info-2"><div class="info-item-1">背景与动机在大规模 3D 场景中，我们经常需要回答这样的问题：「哪些物体在这个区域内？」「离这个点最近的 10 个物体是谁？」。如果场景中有成千上万个对象，每次查询都遍历所有对象——也就是暴力搜索——时间复杂度是 O(N)，N 越大性能越差。当 N 达到 10,000、100,000 甚至百万级别时，暴力搜索根本不可行。 这就是空间分区数据结构存在的意义。 工业界的实际应用空间分区不是学术玩具——它是现代游戏引擎和 3D 软件的基础设施：  碰撞检测：每一帧需要找出所有可能碰撞的物体对。如果场景有 10,000 个物体，暴力检测需要执行 (C(10000, 2) \approx 5000万) 次检测。八叉树可以将活跃碰撞对的筛选降到几千次。 视锥体裁剪（Frustum Culling）：渲染前需要快速判断哪些物体在相机视野内。八叉树可以在 O(log N) 时间内排除整个不可见区域。 光线追踪加速：在光线追踪中，每次光线步进都需要找到最近的交点。虽然 BVH 更常见，但八叉树在粒子系统和体积渲染中有独特优势。 粒子邻近查询：SPH 流体模拟中，每个粒子需要找到半径 h 内的邻居。...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/06/daily-coding-bresenham-circle-ellipse-2026-08-06/" title="每日编程实践: Bresenham 圆与椭圆光栅化算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-06-bresenham-circle-ellipse/bresenham_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">每日编程实践: Bresenham 圆与椭圆光栅化算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学的世界里，圆和椭圆是最基础的几何图元之一。从 UI 按钮的圆角矩形到游戏小地图的视野范围圈，从数据可视化中的饼图到 CAD 软件的工程绘图——曲线图元的绘制无处不在。 然而，我们面对的显示器是由离散的像素网格组成的。如何用离散的像素点去最佳逼近一个连续的光滑曲线？这就是光栅化算法的核心问题。 最朴素的想法是遍历每个像素，判断它是否在圆上——但这意味着我们必须计算每个像素到圆心的距离并做浮点比较，对于一个 800×600 的图像，光是画一个半径为 200 的圆就要做 48 万次浮点运算。在早期的计算机上，这种开销是不可接受的。 Bresenham 圆形算法由 Jack Bresenham 在 1977 年提出，与他的直线算法一样，核心思想是用纯整数运算逐步决定下一个像素的位置，完全避免浮点运算和乘法。这种优雅的增量算法至今仍是 GDI（Windows 图形设备接口）和 X11 等底层图形系统中圆和椭圆绘制的标准实现。 更进一步，椭圆比圆多了一个维度：它有两个不同的半轴。Bresenham 椭圆算法（也称为 Midpoint Ellipse Algorithm...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/26/daily-coding-Triangle-Rasterization-2026-02-26/" title="每日编程实践: Triangle Rasterization - 三角形光栅化器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-26-Triangle-Rasterization/rasterization_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-26</div><div class="info-item-2">每日编程实践: Triangle Rasterization - 三角形光栅化器</div></div><div class="info-2"><div class="info-item-1">Triangle Rasterization - 三角形光栅化器项目目标今天的目标是从零实现一个三角形光栅化器，这是现代3D图形渲染管线的核心组件之一。 光栅化器的职责是：将三角形（几何）转换为屏幕上的像素（图像）。 我们将实现：  ✅ Barycentric 坐标算法 - 判断点是否在三角形内 ✅ Z-Buffer 深度测试 - 正确处理遮挡关系 ✅ 颜色插值 - 顶点颜色的平滑渐变 ✅ 边界框优化 - 只遍历必要的像素  实现过程迭代历史 05:33 - 初始版本: 编写完整的光栅化器代码  实现 Vec2&#x2F;Vec3&#x2F;Color 基础数据结构 实现 barycentric() 重心坐标计算 实现 rasterizeTriangle() 光栅化函数 初始化帧缓冲和深度缓冲   05:34 - 编译错误: 缺少 &lt;limits&gt; 头文件  错误信息：&#39;numeric_limits&#39; is not a member of &#39;std&#39; 原因：使用了 std::numeric_limits&lt;float&gt;::ma...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/12/daily-coding-god-rays-2026-04-12/" title="每日编程实践: 体积光散射 God Rays——Mie散射、光线步进与遮挡采样"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04-12-god-rays/god_rays_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-12</div><div class="info-item-2">每日编程实践: 体积光散射 God Rays——Mie散射、光线步进与遮挡采样</div></div><div class="info-2"><div class="info-item-1">一、背景与动机你一定见过这样的画面：清晨阳光穿过茂密树叶，形成若干道金色光柱射向地面；或者教堂彩绘玻璃窗外，光束穿透有灰尘的空气，仿佛有形的物质。这种现象叫做丁达尔效应（Tyndall Effect），在计算机图形学中通常被称为 God Rays（耶稣光） 或 Crepuscular Rays（暮色光线）。 1.1 物理原因空气并不是完全透明的。它含有无数微小颗粒：尘埃、水雾、气溶胶。这些粒子会将光线向各个方向散射。当光束被遮挡物（树木、建筑、云层）部分遮挡时，未被遮挡的区域散射的光强于被遮挡区域，从而形成明暗相间的光柱。 没有这种效果，场景中的光照是”无形”的——你看不到光束本身，只能看到它照亮的表面。God Rays 让光本身变得可见，极大地增强了场景的氛围感和空间感。 1.2 工业界应用游戏引擎：  Unreal Engine 5 的 Lumen 系统实现了完整的体积光照，包括实时 God Rays Unity HDRP 提供了 Volumetric Fog 和 Volumetric Lighting 系统 《赛博朋克 2077》 大量使用体积光效果营造霓虹灯穿透雨雾的赛博...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">187</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">187</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%90%8E%E7%BC%80%E6%95%B0%E7%BB%84%E4%B8%8E-LCP%EF%BC%9A%E5%89%8D%E7%BC%80%E5%80%8D%E5%A2%9E%E6%8E%92%E5%BA%8F-Kasai-%E7%AE%97%E6%B3%95%E7%9A%84%E5%AE%8C%E6%95%B4%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.</span> <span class="toc-text">后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E4%BB%80%E4%B9%88%E6%98%AF%E5%90%8E%E7%BC%80%E6%95%B0%E7%BB%84"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 什么是后缀数组</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%89%8D%E7%BC%80%E5%80%8D%E5%A2%9E%EF%BC%88Prefix-Doubling%EF%BC%89%E7%9A%84%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 前缀倍增（Prefix Doubling）的核心思想</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E4%B8%BA%E4%BB%80%E4%B9%88%E2%80%9D%E8%AE%A1%E6%95%B0%E6%8E%92%E5%BA%8F%E2%80%9D%E6%98%AF%E5%BF%85%E8%A6%81%E7%9A%84"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 为什么”计数排序”是必要的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Kasai-%E7%AE%97%E6%B3%95%E6%B1%82-LCP%EF%BC%88O-n-%EF%BC%89"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 Kasai 算法求 LCP（O(n)）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-LCP-%E6%95%B0%E7%BB%84%E8%83%BD%E5%B9%B2%E4%BB%80%E4%B9%88%EF%BC%9A%E6%95%B0%E4%B8%8D%E9%87%8D%E5%A4%8D%E5%AD%90%E4%B8%B2"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 LCP 数组能干什么：数不重复子串</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%89%8D%E7%BC%80%E5%80%8D%E5%A2%9E%E5%90%8E%E7%BC%80%E6%95%B0%E7%BB%84"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 前缀倍增后缀数组</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Kasai-LCP"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Kasai LCP</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%9A%B4%E5%8A%9B%E5%9F%BA%E5%87%86"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 暴力基准</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E7%AC%AC%E4%BA%8C%E5%85%B3%E9%94%AE%E5%AD%97%E6%8E%92%E5%BA%8F%E5%86%99%E9%94%99%EF%BC%8C%E5%AF%BC%E8%87%B4-SA-%E5%AE%8C%E5%85%A8%E9%94%99%E8%AF%AF"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：第二关键字排序写错，导致 SA 完全错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E9%87%8C-SA-%E4%B8%8E%E6%9A%B4%E5%8A%9B%E7%89%88%E6%9C%AC%E2%80%9D%E4%B8%8D%E7%9B%B8%E7%AD%89%E2%80%9D%E7%9A%84%E8%AF%AF%E5%88%A4"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：性能测试里 SA 与暴力版本”不相等”的误判</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%88%E9%A2%84%E9%98%B2%E6%80%A7%E8%AE%B0%E5%BD%95%EF%BC%89%EF%BC%9Aunsigned-char-%E5%BC%BA%E8%BD%AC"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3（预防性记录）：unsigned char 强转</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%AD%A3%E7%A1%AE%E6%80%A7%E4%BA%A4%E5%8F%89%E9%AA%8C%E8%AF%81%EF%BC%88226-%E4%B8%AA%E6%B5%8B%E8%AF%95%E5%85%A8%E9%80%9A%E8%BF%87%EF%BC%89"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 正确性交叉验证（226 个测试全通过）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-LCP-%E4%B8%8A%E4%B8%8B%E7%95%8C%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 LCP 上下界验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%80%A7%E8%83%BD%E5%8A%A0%E9%80%9F%E6%AF%94"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 性能加速比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E4%B8%8D%E9%87%8D%E5%A4%8D%E5%AD%90%E4%B8%B2%E7%9A%84%E7%8B%AC%E7%AB%8B%E4%BA%A4%E5%8F%89%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 不重复子串的独立交叉验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81%E7%9A%84%E5%AE%8C%E6%95%B4%E6%B1%87%E6%80%BB"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 量化验证的完整汇总</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-6-%E5%A4%8D%E6%9D%82%E5%BA%A6%E4%B8%8E%E6%AD%A3%E7%A1%AE%E6%80%A7%E7%9A%84%E7%90%86%E8%AE%BA%E5%8D%B0%E8%AF%81"><span class="toc-number">1.6.6.</span> <span class="toc-text">6.6 复杂度与正确性的理论印证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E7%9A%84%E9%80%82%E7%94%A8%E8%BE%B9%E7%95%8C%E4%B8%8E%E5%B1%80%E9%99%90"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术的适用边界与局限</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可以继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%94%B6%E5%B0%BE"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 一句话收尾</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</a><time datetime="2026-09-08T22:00:00.000Z" title="发表于 2026-09-09 06:00:00">2026-09-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-26-topological-sort/topological_sort_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测">每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测</a><time datetime="2026-08-25T22:00:00.000Z" title="发表于 2026-08-26 06:00:00">2026-08-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/23/daily-coding-tarjan-scc-2026-08-23/" title="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-23-tarjan-scc/tarjan_scc_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/23/daily-coding-tarjan-scc-2026-08-23/" title="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG">每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG</a><time datetime="2026-08-22T22:00:00.000Z" title="发表于 2026-08-23 06:00:00">2026-08-23</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/22/daily-coding-dinic-max-flow-2026-08-22/" title="每日编程实践: 最大流——Dinic算法的分层图与阻塞流"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-22-dinic-max-flow/dinic_maxflow_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 最大流——Dinic算法的分层图与阻塞流"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/22/daily-coding-dinic-max-flow-2026-08-22/" title="每日编程实践: 最大流——Dinic算法的分层图与阻塞流">每日编程实践: 最大流——Dinic算法的分层图与阻塞流</a><time datetime="2026-08-21T22:00:00.000Z" title="发表于 2026-08-22 06:00:00">2026-08-22</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/20/daily-coding-terrain-lod-geomipmapping-2026-08-20/" title="每日编程实践: 地形LOD——Geomipmapping的三角形削减与裂缝修复"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-20-terrain-lod-geomipmapping/terrain_lod_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 地形LOD——Geomipmapping的三角形削减与裂缝修复"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/20/daily-coding-terrain-lod-geomipmapping-2026-08-20/" title="每日编程实践: 地形LOD——Geomipmapping的三角形削减与裂缝修复">每日编程实践: 地形LOD——Geomipmapping的三角形削减与裂缝修复</a><time datetime="2026-08-19T22:00:00.000Z" title="发表于 2026-08-20 06:00:00">2026-08-20</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
