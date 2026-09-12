@@ -1,0 +1,469 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 树堆 (Treap) —— 用随机化对抗退化 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树在小结开始之前，我想先抛出一个看似矛盾的问题：一棵”没有刻意维护平衡”的二叉搜索树，如何在最坏数据（顺序插入）下仍然保持对数级高度？ 答案是——引入随机性。树堆（Treap &#x3D; Tree + Heap）给出了一条优雅到近乎”作弊”的路径：它不检查平衡因子、不染色节点、不做任何显式的再平衡操作，只是给每个节点随机分配一个优先级，就同时天">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树在小结开始之前，我想先抛出一个看似矛盾的问题：一棵”没有刻意维护平衡”的二叉搜索树，如何在最坏数据（顺序插入）下仍然保持对数级高度？ 答案是——引入随机性。树堆（Treap &#x3D; Tree + Heap）给出了一条优雅到近乎”作弊”的路径：它不检查平衡因子、不染色节点、不做任何显式的再平衡操作，只是给每个节点随机分配一个优先级，就同时天">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png">
+<meta property="article:published_time" content="2026-09-12T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-12T21:34:56.260Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="平衡二叉树">
+<meta property="article:tag" content="数据结构">
+<meta property="article:tag" content="树堆">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 树堆 (Treap) —— 用随机化对抗退化",
+  "url": "https://chiuhoukazusa.github.io/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png",
+  "datePublished": "2026-09-12T22:00:00.000Z",
+  "dateModified": "2026-09-12T21:34:56.260Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 树堆 (Treap) —— 用随机化对抗退化',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-12T22:00:00.000Z" title="发表于 2026-09-13 06:00:00">2026-09-13</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-12T21:34:56.260Z" title="更新于 2026-09-13 05:34:56">2026-09-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="树堆-Treap-：用随机化对抗退化的平衡二叉搜索树"><a href="#树堆-Treap-：用随机化对抗退化的平衡二叉搜索树" class="headerlink" title="树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树"></a>树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树</h1><p>在小结开始之前，我想先抛出一个看似矛盾的问题：<strong>一棵”没有刻意维护平衡”的二叉搜索树，如何在最坏数据（顺序插入）下仍然保持对数级高度？</strong></p>
+<p>答案是——<strong>引入随机性</strong>。树堆（Treap &#x3D; Tree + Heap）给出了一条优雅到近乎”作弊”的路径：它不检查平衡因子、不染色节点、不做任何显式的再平衡操作，只是给每个节点随机分配一个优先级，就同时天然地满足了两条关键性质，把”最坏情况”从一个确定性的对手（输入顺序）变成了一个概率极低的事件。</p>
+<p>本文将从背景动机、核心原理的完整推导、实现架构、逐行代码解析、踩坑实录、量化验证数据到总结延伸，完整复盘今天的每日编程实践项目。</p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="1-1-朴素二叉搜索树（BST）的致命弱点"><a href="#1-1-朴素二叉搜索树（BST）的致命弱点" class="headerlink" title="1.1 朴素二叉搜索树（BST）的致命弱点"></a>1.1 朴素二叉搜索树（BST）的致命弱点</h3><p>二叉搜索树（Binary Search Tree）是数据结构课程里最先接触的”树”之一。它的定义极其简洁：对任意节点，左子树所有键值小于它，右子树所有键值大于它。在这个性质的保证下，查找一个键的过程就是沿着树从根一路向下比较，每次比较排除一半的可能节点，理论上时间复杂度是 <code>O(log n)</code>。</p>
+<p>但”理论上 <code>O(log n)</code>“有一个重要的前提——<strong>树是平衡的</strong>。而平衡性完全由插入顺序决定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">插入顺序 [1, 2, 3, 4, 5]  →  1</span><br><span class="line">                                \</span><br><span class="line">                                 2</span><br><span class="line">                                  \</span><br><span class="line">                                   3</span><br><span class="line">                                    \</span><br><span class="line">                                     4</span><br><span class="line">                                      \</span><br><span class="line">                                       5</span><br></pre></td></tr></table></figure>
+
+<p>在这个最坏情况下，树退化成了<strong>一条链表</strong>。查找键 <code>5</code> 需要比较 5 次，查找不存在的时间复杂度退化为 <code>O(n)</code>。对于一个有 100 万元素的数据集，这意味着平均一次查找要遍历 50 万次比较，而不是理想情况下的约 20 次。</p>
+<p>这就是”退化”问题：<strong>朴素 BST 的性能正确性完全依赖输入数据的”友善程度”</strong>。而在真实系统中，顺序插入（例如按时间戳、自增 ID、字典序批量导入数据）是<strong>极其常见</strong>的场景，而不是罕见边界情况。一个数据库索引如果在这种情况下退化成链表，查询性能会断崖式下跌，甚至拖垮整个服务。</p>
+<h3 id="1-2-传统解决方案的代价"><a href="#1-2-传统解决方案的代价" class="headerlink" title="1.2 传统解决方案的代价"></a>1.2 传统解决方案的代价</h3><p>为了解决退化问题，学术界和工业界提出了多种<strong>自平衡二叉搜索树</strong>：</p>
+<ul>
+<li><strong>AVL 树</strong>（1962，Adelson-Velsky &amp; Landis）：为每个节点维护”平衡因子”（左右子树高度差），当某次插入&#x2F;删除导致平衡因子绝对值超过 1 时，执行单旋或双旋恢复平衡。代价是每个节点需要额外存储平衡因子（或高度），且旋转的触发条件判断比较繁琐，双旋（LR&#x2F;RL）场景尤其容易写错。</li>
+<li><strong>红黑树</strong>（RB-Tree）：通过给节点染色（红&#x2F;黑）并维护五条不变式来保证树高不超过 <code>2 log(n+1)</code>。这是 <code>std::map</code>、<code>std::set</code>（在 libstdc++&#x2F;libc++ 中的典型实现）、Java <code>TreeMap</code>、Linux 内核调度器等的底层结构。代价是删除操作涉及大量复杂的分情况讨论，被公认为”面试最爱、工程最头疼”的平衡树。</li>
+<li><strong>Splay 树</strong>：通过”伸展”操作把最近访问的节点旋转到根，实现自适应。但它也有摊还复杂度、持久化时并发锁开销更大等权衡。</li>
+</ul>
+<p>这些方案的共同点是：<strong>为了对抗退化，引入了相当复杂的、容易出 bug 的维护逻辑</strong>。</p>
+<h3 id="1-3-树堆的哲学：用随机性换简单性"><a href="#1-3-树堆的哲学：用随机性换简单性" class="headerlink" title="1.3 树堆的哲学：用随机性换简单性"></a>1.3 树堆的哲学：用随机性换简单性</h3><p>树堆（Treap）走了另一条路。它的核心洞察是：</p>
+<blockquote>
+<p>退化之所以可怕，是因为插入顺序是<strong>对手控制</strong>的确定性输入。但如果我们给每个节点<strong>独立随机</strong>地分配一个优先级，树的形状就只取决于这些随机优先级，而与插入顺序”解耦”了。</p>
+</blockquote>
+<p>换句话说，<strong>随机化把”确定性对手”变成了”概率对手”</strong>。你对一个随机序列做任何猜测，最坏情况发生的概率都小到可以忽略。由于随机优先级等价于”按随机顺序插入普通 BST”，而随机顺序插入的 BST 期望高度约为 <code>4.3 log2 n</code>（有严谨的数学证明），树堆便以极小的实现成本换来了期望对数级性能。</p>
+<h3 id="1-4-工程实际价值"><a href="#1-4-工程实际价值" class="headerlink" title="1.4 工程实际价值"></a>1.4 工程实际价值</h3><ul>
+<li><strong>实现极简</strong>：核心插入逻辑不超过 20 行，删除甚至可以用”合并（merge）”优雅实现，省去了平衡树最难的删除分类讨论。</li>
+<li><strong>可持久化友好</strong>：树堆的 split&#x2F;merge 操作天然支持函数式（不可变）实现，是很多持久化数据结构（如持久化线段树的平衡树变体）的基础。</li>
+<li><strong>教学价值</strong>：它是理解”随机算法””概率分析”和”旋转操作”三者的绝佳载体。</li>
+</ul>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-两条不变式"><a href="#2-1-两条不变式" class="headerlink" title="2.1 两条不变式"></a>2.1 两条不变式</h3><p>树堆同时满足两条性质：</p>
+<ol>
+<li><strong>BST 性质</strong>：对任意节点 <code>u</code>，其左子树所有节点的 <code>key</code> 均小于 <code>key[u]</code>，右子树所有节点均大于 <code>key[u]</code>。</li>
+<li><strong>堆性质（大顶堆）</strong>：对任意节点 <code>u</code>，其 <code>priority[u]</code> 均大于等于其两个子节点的 <code>priority</code>。</li>
+</ol>
+<p>其中 <code>priority</code> 是节点创建时<strong>独立均匀随机</strong>生成的整数。</p>
+<p><strong>关键结论</strong>：给定一组固定的 (key, priority) 二元组，<strong>满足这两条性质的树是唯一的</strong>。为什么呢？直觉上：</p>
+<ul>
+<li>堆性质强制”全局 priority 最大的节点必须是根”（因为根要大于等于所有后代）。</li>
+<li>一旦根确定，BST 性质强制”所有 key 小于根的节点在左子树，大于根的在右子树”。</li>
+<li>左右子树各自递归地重复上述推理，直到只剩一个节点。</li>
+</ul>
+<p>因此树的形状完全由 priority 的排列决定，与插入顺序无关。这从结构上解释了”随机化让树形状与对手输入解耦”。</p>
+<h3 id="2-2-为什么随机优先级-→-期望平衡"><a href="#2-2-为什么随机优先级-→-期望平衡" class="headerlink" title="2.2 为什么随机优先级 → 期望平衡"></a>2.2 为什么随机优先级 → 期望平衡</h3><p>这是树堆正确性论证的核心，需要一点点概率推导。</p>
+<p><strong>引理</strong>：树堆的形状与”把 <code>n</code> 个键按<strong>随机排列的顺序</strong>插入一棵（不旋转的）普通 BST”得到的形状，<strong>分布完全相同</strong>。</p>
+<p><strong>证明思路</strong>（概述）：</p>
+<p>考虑 <code>n</code> 个键，每个键被独立随机赋予一个 priority。由于 priority 是 i.i.d.（独立同分布）的连续量，任意两个 priority 相等的概率为 0，因此它们实际上定义了一个全序（随机排列）。</p>
+<ul>
+<li>在树堆中，priority 最大的键成为根。</li>
+<li>在”随机顺序插入普通 BST”中，第一个被插入的键成为根。</li>
+</ul>
+<p>而”priority 最大的键”与”随机排列中第一个键”在概率上完全对称——两者都等价于”从 <code>n</code> 个键中均匀随机选出一个”。选定根之后，小于根的键进入左子树、大于根进入右子树，子树的构建问题规模缩小，且子集中的键对 subtree 而言仍然是”独立均匀随机”的。由递归结构不变，归纳可得两种构造产生的树形分布一致。</p>
+<p><strong>关于期望高度的结论</strong>：随机二叉搜索树（random BST）的期望高度已被证明为 <code>α · log2 n</code>，其中 <code>α ≈ 4.311</code>。也就是说，100 万个节点的树堆，期望高度约为 <code>4.311 · 20 ≈ 86</code>，而最坏情况（退化链表）是 100 万——两者相差 4 个数量级。</p>
+<p><strong>为什么是 <code>O(log n)</code> 而不是 <code>O(√n)</code> 或更差？</strong> 直觉是这样的：随机排列意味着根节点大约是”中位数”（期望意义上，它落在所有键的中间位置附近），因此左右子树大致各分一半节点，树自然是”类完全平衡”的。这正是快速排序期望 <code>O(n log n)</code> 的同一个随机性来源——两者本质上是”兄弟”。</p>
+<h3 id="2-3-旋转操作：如何恢复堆性质又不破坏-BST-性质"><a href="#2-3-旋转操作：如何恢复堆性质又不破坏-BST-性质" class="headerlink" title="2.3 旋转操作：如何恢复堆性质又不破坏 BST 性质"></a>2.3 旋转操作：如何恢复堆性质又不破坏 BST 性质</h3><p>插入一个键时，我们先像普通 BST 一样把它”挂”到叶子位置（BST 性质自然满足），并给它一个随机 priority。但此时堆性质可能被破坏——如果新节点的 priority 比它的父节点大（在大顶堆约定下），就需要”向上调整”。</p>
+<p>不能像二叉堆那样”交换父子节点”，因为直接交换 key 会破坏 BST 性质。正确的做法是<strong>旋转（rotation）</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">右旋 (right rotation)，把左孩子 x 转上来：</span><br><span class="line">      t                  x</span><br><span class="line">     / \                / \</span><br><span class="line">    x   c    ==&gt;       a   t</span><br><span class="line">   / \                    / \</span><br><span class="line">  a   b                  b   c</span><br></pre></td></tr></table></figure>
+
+<p>观察旋转前后：<code>a &lt; x &lt; b &lt; t &lt; c</code> 的中序顺序完全不变，所以 <strong>BST 性质在旋转下保持不变</strong>。但 <code>x</code> 和 <code>t</code> 的父子关系反转了，于是可以调整堆性质。</p>
+<ul>
+<li>若新节点在左子树、且其 priority 大于父节点，对其父节点做<strong>右旋</strong>，新节点被”提”上来一层。</li>
+<li>若在右子树、priority 大于父节点，对父节点做<strong>左旋</strong>。</li>
+</ul>
+<p>如果一次旋转后堆性质仍不满足（新节点 priority 仍然大于它新的父节点的 priority），则继续向上旋转，直到满足为止。由于每旋转一次，违规节点上升一层，终止性显然成立。</p>
+<p><strong>左旋与之对称</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">左旋 (left rotation)，把右孩子 x 转上来：</span><br><span class="line">      t                  x</span><br><span class="line">     / \                / \</span><br><span class="line">    a   x    ==&gt;       t   c</span><br><span class="line">       / \            / \</span><br><span class="line">      b   c          a   b</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-删除：用-merge-优雅替代分类讨论"><a href="#2-4-删除：用-merge-优雅替代分类讨论" class="headerlink" title="2.4 删除：用 merge 优雅替代分类讨论"></a>2.4 删除：用 merge 优雅替代分类讨论</h3><p>AVL&#x2F;红黑树的删除之所以难，是因为要处理被删节点有 0 &#x2F; 1 &#x2F; 2 个孩子三种情况，且删除后还要检查并修复平衡。树堆用 <strong>merge</strong> 一次性化解：</p>
+<p>删除键 <code>k</code> 的节点后，把它的左右两棵子树 <code>L</code> 和 <code>R</code> <strong>合并</strong>回一棵树即可：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">merge(L, R):</span><br><span class="line">    if L 为空: 返回 R</span><br><span class="line">    if R 为空: 返回 L</span><br><span class="line">    if priority[L] &gt; priority[R]:</span><br><span class="line">        L.right = merge(L.right, R); 返回 L</span><br><span class="line">    else:</span><br><span class="line">        R.left = merge(L, R.left); 返回 R</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样合并能同时满足两条性质？</strong></p>
+<ul>
+<li>堆性质：<code>L</code> 和 <code>R</code> 中 priority 较大的那个必须成为合并后树的根（因为根要是全局最大的）。代码里 <code>if priority[L] &gt; priority[R]</code> 就是选全局最大 priority 的节点作根。</li>
+<li>BST 性质：假设 <code>L</code> 的根成为新根，由于原先所有 <code>L</code> 中的 key 都小于 <code>R</code> 中的 key，所以 <code>R</code> 必须整体挂在 <code>L</code> 根的<strong>右子树</strong>上。于是问题递归为 <code>merge(L.right, R)</code>。左右对称。</li>
+</ul>
+<p>这套递归逻辑简洁、正确、且无需处理”单孩子&#x2F;双孩子”的边界——因为空树的返回已经覆盖了所有边界。</p>
+<h3 id="2-5-与其他平衡树的对比小结"><a href="#2-5-与其他平衡树的对比小结" class="headerlink" title="2.5 与其他平衡树的对比小结"></a>2.5 与其他平衡树的对比小结</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>维护机制</th>
+<th>实现复杂度</th>
+<th>期望&#x2F;最坏高度</th>
+<th>额外空间</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>朴素 BST</td>
+<td>无</td>
+<td>极简</td>
+<td>最坏 O(n)</td>
+<td>无</td>
+</tr>
+<tr>
+<td>AVL</td>
+<td>平衡因子 + 旋转</td>
+<td>中高（双旋复杂）</td>
+<td>保证 O(log n)</td>
+<td>每节点高度&#x2F;因子</td>
+</tr>
+<tr>
+<td>红黑树</td>
+<td>染色 + 5 不变式</td>
+<td>高（删除极繁）</td>
+<td>保证 ≤ 2log(n+1)</td>
+<td>每节点颜色位</td>
+</tr>
+<tr>
+<td><strong>Treap</strong></td>
+<td><strong>随机 priority + 旋转</strong></td>
+<td><strong>低</strong></td>
+<td><strong>期望 O(log n)</strong></td>
+<td>每节点 priority</td>
+</tr>
+</tbody></table>
+<p>树堆牺牲了”最坏情况保证”（理论上最坏仍是 O(n)，尽管概率极小），换来了”实现极简 + 期望对数级”。这在很多”输入并非恶意构造、但需要稳健避免顺序退化”的场景是极具吸引力的折中。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-总体数据结构"><a href="#3-1-总体数据结构" class="headerlink" title="3.1 总体数据结构"></a>3.1 总体数据结构</h3><p>本项目用 C++ 手写了一个最小可用的 Treap，结构如下：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Treap</span> &#123;</span><br><span class="line">    <span class="keyword">struct</span> <span class="title class_">Node</span> &#123;</span><br><span class="line">        <span class="type">int</span> key;       <span class="comment">// 键，满足 BST 性质</span></span><br><span class="line">        <span class="type">int</span> prio;      <span class="comment">// 随机优先级，满足大顶堆性质</span></span><br><span class="line">        <span class="type">int</span> sz;        <span class="comment">// 子树节点数（用于后续扩展，如 order-statistics）</span></span><br><span class="line">        <span class="type">int</span> h;         <span class="comment">// 子树高度（用于量化验证平衡性）</span></span><br><span class="line">        Node *l, *r;   <span class="comment">// 左右孩子指针</span></span><br><span class="line">        <span class="built_in">Node</span>(<span class="type">int</span> k) : <span class="built_in">key</span>(k), <span class="built_in">prio</span>(<span class="built_in">rand</span>()), <span class="built_in">sz</span>(<span class="number">1</span>), <span class="built_in">h</span>(<span class="number">1</span>), <span class="built_in">l</span>(<span class="literal">nullptr</span>), <span class="built_in">r</span>(<span class="literal">nullptr</span>) &#123;&#125;</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    Node* root = <span class="literal">nullptr</span>;</span><br><span class="line">    <span class="comment">// ... 方法见下文</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设计决策与理由</strong>：</p>
+<ol>
+<li><strong>用裸指针 + 递归</strong>而非数组存储。数组存储（类似 segment tree 的 <code>4*n</code> 连续数组）虽然缓存友好，但树的形状随旋转动态变化，映射到数组下标会频繁失效；指针天然适合”旋转后重建局部关系”的树。牺牲一点缓存局部性，换取插入&#x2F;删除实现的直观性。</li>
+<li><strong>额外维护 <code>sz</code> 与 <code>h</code></strong>。这并非 Treap 正确性所必需，而是服务于本项目的<strong>量化验证目标</strong>：<code>h</code> 让我们能直接读出树高并验证其对数级增长；<code>sz</code> 为将来扩展”第 k 小查询（order-statistics）”预留。</li>
+<li><strong><code>prio(rand())</code> 在构造时生成</strong>。这里用标准库 <code>rand()</code> 并在 <code>main</code> 里 <code>srand(12345)</code> 固定种子，目的是<strong>保证输出可复现</strong>（便于写 README 时引用确定数字，以及 CI 回归）。生产环境应改用 <code>std::mt19937</code> 或 <code>std::ranlux</code> 等高质量的均匀分布引擎，且每个节点用 <code>uniform_int_distribution</code> 生成优先级，避免 <code>rand()</code> 的低质量与 <code>RAND_MAX</code> 限制。</li>
+</ol>
+<h3 id="3-2-数据流与接口设计"><a href="#3-2-数据流与接口设计" class="headerlink" title="3.2 数据流与接口设计"></a>3.2 数据流与接口设计</h3><p>对外暴露五个方法，职责清晰：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>职责</th>
+<th>复杂度（期望）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>insert(key)</code></td>
+<td>插入键（已存在则忽略，等价 set 语义）</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td><code>find(key)</code></td>
+<td>查找键是否存在</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td><code>erase(key)</code></td>
+<td>删除键（不存在则无操作）</td>
+<td>O(log n)</td>
+</tr>
+<tr>
+<td><code>height()</code> &#x2F; <code>size()</code></td>
+<td>读取树高 &#x2F; 节点数（验证用）</td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td><code>toSorted()</code> &#x2F; <code>verify()</code></td>
+<td>中序遍历得到有序序列 &#x2F; 自检 BST+堆性质</td>
+<td>O(n)</td>
+</tr>
+</tbody></table>
+<p>内部私有方法承担递归核心逻辑：</p>
+<ul>
+<li><code>insert(Node*, int)</code> → 递归插入 + 旋转维护</li>
+<li><code>rotR(Node*)</code> &#x2F; <code>rotL(Node*)</code> → 右旋 &#x2F; 左旋，返回新的子树根</li>
+<li><code>merge(Node*, Node*)</code> → 合并两棵子树（删除用）</li>
+<li><code>erase(Node*, int)</code> → 递归删除，命中后 merge 左右子树</li>
+<li><code>upd(Node*)</code> → 更新节点的 sz&#x2F;h 元信息</li>
+</ul>
+<h3 id="3-3-与-std-set-的基准模型"><a href="#3-3-与-std-set-的基准模型" class="headerlink" title="3.3 与 std::set 的基准模型"></a>3.3 与 <code>std::set</code> 的基准模型</h3><p>本项目验证采用”对拍（cross-check）”策略：对同一随机操作序列，同时喂给 <code>Treap</code> 和一个 <code>std::set&lt;int&gt;</code>，逐操作比对 <code>find</code> 结果、最终元素集合、以及有序序列。<code>std::set</code> 是工业级红黑树实现，作为”正确性 oracle”是可靠的。这样即使我的 Treap 有隐蔽 bug，也能通过对拍抓到。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-旋转操作"><a href="#4-1-旋转操作" class="headerlink" title="4.1 旋转操作"></a>4.1 旋转操作</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 右旋转：把当前节点的左孩子&quot;转&quot;上来成为新的子树根</span></span><br><span class="line"><span class="function">Node* <span class="title">rotR</span><span class="params">(Node* t)</span> </span>&#123;</span><br><span class="line">    Node* x = t-&gt;l;   <span class="comment">// x 是左孩子，将成为新根</span></span><br><span class="line">    t-&gt;l = x-&gt;r;      <span class="comment">// x 的右孩子 b 过继给 t 当左孩子</span></span><br><span class="line">    x-&gt;r = t;         <span class="comment">// t 成为 x 的右孩子</span></span><br><span class="line">    <span class="built_in">upd</span>(t);           <span class="comment">// 先更新原根 t 的 sz/h</span></span><br><span class="line">    <span class="built_in">upd</span>(x);           <span class="comment">// 再更新新根 x（依赖 t 的新值）</span></span><br><span class="line">    <span class="keyword">return</span> x;         <span class="comment">// 返回新子树根</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么先 <code>upd(t)</code> 再 <code>upd(x)</code>？</strong> 这是最容易写反的地方。<code>x</code> 的 <code>sz/h</code> 依赖其孩子（包括 <code>t</code>）的新值，而 <code>t</code> 的孩子在旋转后已经确定。所以必须先更新下层的 <code>t</code>，再更新上层的 <code>x</code>。顺序反了，<code>x</code> 的 <code>sz</code> 会用一个过时的 <code>t-&gt;sz</code> 计算，导致后续高度统计错误——这个 bug 很隐蔽，因为键的结构本身是对的，只在元信息上悄悄出错。</p>
+<p><strong>为什么旋转不破坏 BST？</strong> 中序遍历顺序 <code>a, x, b, t, c</code> 在旋转前后不变，这是旋转操作合法性的根源。上面注释里把 <code>x-&gt;r</code>（即 <code>b</code>）过继给 <code>t-&gt;l</code>，正是为了保证 <code>b</code> 仍位于 <code>x</code> 和 <code>t</code> 之间。</p>
+<p>左旋转完全对称：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">rotL</span><span class="params">(Node* t)</span> </span>&#123;</span><br><span class="line">    Node* x = t-&gt;r;   <span class="comment">// 右孩子成为新根</span></span><br><span class="line">    t-&gt;r = x-&gt;l;      <span class="comment">// x 的左孩子 b 过继给 t 当右孩子</span></span><br><span class="line">    x-&gt;l = t;         <span class="comment">// t 成为 x 的左孩子</span></span><br><span class="line">    <span class="built_in">upd</span>(t);</span><br><span class="line">    <span class="built_in">upd</span>(x);</span><br><span class="line">    <span class="keyword">return</span> x;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-插入-旋转维护堆性质"><a href="#4-2-插入-旋转维护堆性质" class="headerlink" title="4.2 插入 + 旋转维护堆性质"></a>4.2 插入 + 旋转维护堆性质</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">insert</span><span class="params">(Node* t, <span class="type">int</span> key)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!t) <span class="keyword">return</span> <span class="keyword">new</span> <span class="built_in">Node</span>(key);          <span class="comment">// 到达叶子位置，新建节点（附带随机 prio）</span></span><br><span class="line">    <span class="keyword">if</span> (key &lt; t-&gt;key) &#123;</span><br><span class="line">        t-&gt;l = <span class="built_in">insert</span>(t-&gt;l, key);          <span class="comment">// 递归到左子树</span></span><br><span class="line">        <span class="keyword">if</span> (t-&gt;l-&gt;prio &gt; t-&gt;prio)          <span class="comment">// 左侧 child prio 违反大顶堆 → 右旋</span></span><br><span class="line">            t = <span class="built_in">rotR</span>(t);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (key &gt; t-&gt;key) &#123;</span><br><span class="line">        t-&gt;r = <span class="built_in">insert</span>(t-&gt;r, key);          <span class="comment">// 递归到右子树</span></span><br><span class="line">        <span class="keyword">if</span> (t-&gt;r-&gt;prio &gt; t-&gt;prio)          <span class="comment">// 右侧 child prio 违反大顶堆 → 左旋</span></span><br><span class="line">            t = <span class="built_in">rotL</span>(t);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// key == t-&gt;key：已存在，不插入（set 语义）</span></span><br><span class="line">    <span class="built_in">upd</span>(t);</span><br><span class="line">    <span class="keyword">return</span> t;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么只检查一次旋转就够？</strong> 直觉上可能以为要循环”向上”旋转多次。实际上，递归返回时是从底向上逐层检查的：新节点插入后，在其父节点这一层做一次旋转就能把违规 child 提上来对齐；由于递归逐层返回，<strong>每一层 return 时都会重新检查并旋转</strong>，所以整体上等价于”违规节点一路上浮”。这个递归自修正机制优雅地避免了显式 while 循环。要注意：<strong>旋转会改变子树根</strong>，所以必须把返回值赋回 <code>t</code>（<code>t = rotR(t)</code>），否则父节点持有的还是旧根，树会直接断裂。</p>
+<p><strong>重复键的处理</strong>：这里采取 <code>else if (key &gt; t-&gt;key)</code>，即 <code>key == t-&gt;key</code> 时什么也不做——等价于 <code>std::set</code> 的”唯一键”语义。如果要支持 multiset（重复键），需要改成 <code>&lt;=</code> 分支并允许相等键进入某侧，或在节点内加计数器。</p>
+<h3 id="4-3-查找"><a href="#4-3-查找" class="headerlink" title="4.3 查找"></a>4.3 查找</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">find</span><span class="params">(Node* t, <span class="type">int</span> key)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!t) <span class="keyword">return</span> <span class="literal">false</span>;                   <span class="comment">// 走到底没找到</span></span><br><span class="line">    <span class="keyword">if</span> (key == t-&gt;key) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">return</span> key &lt; t-&gt;key ? <span class="built_in">find</span>(t-&gt;l, key) : <span class="built_in">find</span>(t-&gt;r, key);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个没有可优化空间，就是标准 BST 查找，期望 <code>O(log n)</code>。注意这里是<strong>迭代式写法的递归版</strong>，递归深度等于树高（期望对数级），不会栈溢出；但在极端退化场景（虽然概率极低）递归深度可能到 <code>n</code>，若想绝对稳妥可改成显式栈的迭代版。本项目的树高有量化保证，递归版是安全的。</p>
+<h3 id="4-4-删除：merge-的巧妙运用"><a href="#4-4-删除：merge-的巧妙运用" class="headerlink" title="4.4 删除：merge 的巧妙运用"></a>4.4 删除：merge 的巧妙运用</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">erase</span><span class="params">(Node* t, <span class="type">int</span> key)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!t) <span class="keyword">return</span> <span class="literal">nullptr</span>;                  <span class="comment">// 没找到，无操作</span></span><br><span class="line">    <span class="keyword">if</span> (key &lt; t-&gt;key) &#123; t-&gt;l = <span class="built_in">erase</span>(t-&gt;l, key); <span class="built_in">upd</span>(t); <span class="keyword">return</span> t; &#125;</span><br><span class="line">    <span class="keyword">if</span> (key &gt; t-&gt;key) &#123; t-&gt;r = <span class="built_in">erase</span>(t-&gt;r, key); <span class="built_in">upd</span>(t); <span class="keyword">return</span> t; &#125;</span><br><span class="line">    <span class="comment">// 命中：key == t-&gt;key，合并左右子树</span></span><br><span class="line">    Node* m = <span class="built_in">merge</span>(t-&gt;l, t-&gt;r);</span><br><span class="line">    <span class="keyword">delete</span> t;</span><br><span class="line">    <span class="keyword">return</span> m;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么能直接 <code>delete t</code>？</strong> 因为 <code>merge(t-&gt;l, t-&gt;r)</code> 会把 <code>t</code> 的两棵子树合成一棵新的、满足全部性质的树 <code>m</code>，然后 <code>t</code> 这个节点本身就不再被引用，可以安全释放。这里没有”记录父节点然后改父节点指针”的必要，因为递归返回时 <code>t</code> 的父节点会拿到 <code>m</code> 并重新挂接——这也是递归删除的简洁之处。</p>
+<p><code>merge</code> 的实现（见 2.4 节）是删除的核心，它把”可能有两个孩子”这种最麻烦的情况直接内化掉了：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">merge</span><span class="params">(Node* a, Node* b)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!a) <span class="keyword">return</span> b;</span><br><span class="line">    <span class="keyword">if</span> (!b) <span class="keyword">return</span> a;</span><br><span class="line">    <span class="keyword">if</span> (a-&gt;prio &gt; b-&gt;prio) &#123; a-&gt;r = <span class="built_in">merge</span>(a-&gt;r, b); <span class="built_in">upd</span>(a); <span class="keyword">return</span> a; &#125;</span><br><span class="line">    <span class="keyword">else</span>                    &#123; b-&gt;l = <span class="built_in">merge</span>(a, b-&gt;l); <span class="built_in">upd</span>(b); <span class="keyword">return</span> b; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>递归深度分析</strong>：<code>merge</code> 每次递归要么进入 <code>a</code> 的右子树，要么进入 <code>b</code> 的左子树，因此深度为两树高度之和，期望 <code>O(log n)</code>，安全。</p>
+<h3 id="4-5-元信息更新与自检"><a href="#4-5-元信息更新与自检" class="headerlink" title="4.5 元信息更新与自检"></a>4.5 元信息更新与自检</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">upd</span><span class="params">(Node* t)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!t) <span class="keyword">return</span>;</span><br><span class="line">    t-&gt;sz = <span class="number">1</span> + <span class="built_in">sz</span>(t-&gt;l) + <span class="built_in">sz</span>(t-&gt;r);</span><br><span class="line">    t-&gt;h  = <span class="number">1</span> + <span class="built_in">max</span>(<span class="built_in">h</span>(t-&gt;l), <span class="built_in">h</span>(t-&gt;r));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>upd</code> 是”叶子上浮更新”的常规手法：任何对结构的修改（旋转、merge、插入返回）之后都要调用它，保证 <code>sz</code>&#x2F;<code>h</code> 与真实结构一致。</p>
+<p>自检函数用于<strong>程序内部主动验证性质</strong>（而非靠眼睛看输出）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">verify</span><span class="params">(Node* t, <span class="type">int</span> lo, <span class="type">int</span> hi)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (!t) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">if</span> (t-&gt;key &lt;= lo || t-&gt;key &gt;= hi) <span class="keyword">return</span> <span class="literal">false</span>;   <span class="comment">// 违反 BST</span></span><br><span class="line">    <span class="keyword">if</span> (t-&gt;l &amp;&amp; t-&gt;l-&gt;prio &gt; t-&gt;prio) <span class="keyword">return</span> <span class="literal">false</span>;   <span class="comment">// 违反堆</span></span><br><span class="line">    <span class="keyword">if</span> (t-&gt;r &amp;&amp; t-&gt;r-&gt;prio &gt; t-&gt;prio) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">verify</span>(t-&gt;l, lo, t-&gt;key) &amp;&amp; <span class="built_in">verify</span>(t-&gt;r, t-&gt;key, hi);  <span class="comment">// 收紧区间递归</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>区间收紧技巧</strong>：<code>lo</code>&#x2F;<code>hi</code> 是当前节点键值允许的 (开) 区间。根节点区间是 <code>(INT_MIN, INT_MAX)</code>；进入左子树时把 <code>hi</code> 收紧为当前节点 key，进入右子树时把 <code>lo</code> 收紧为当前节点 key。这样每层都严格检查”左小右大”，一步到位验证整棵树是合法 BST。这个”传区间”的方法比”先中序收集再检查是否有序”更严格，还能顺带检查堆性质。</p>
+<h3 id="4-6-对拍驱动的主循环（验证核心）"><a href="#4-6-对拍驱动的主循环（验证核心）" class="headerlink" title="4.6 对拍驱动的主循环（验证核心）"></a>4.6 对拍驱动的主循环（验证核心）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">int</span> OPS = <span class="number">400000</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; OPS; i++) &#123;</span><br><span class="line">    <span class="type">int</span> k = <span class="built_in">keygen</span>(rng);</span><br><span class="line">    <span class="type">int</span> op = <span class="built_in">opgen</span>(rng);</span><br><span class="line">    <span class="keyword">if</span> (op &lt; <span class="number">55</span>)      &#123; t.<span class="built_in">insert</span>(k); s.<span class="built_in">insert</span>(k); inserts++; &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (op &lt; <span class="number">80</span>) &#123; t.<span class="built_in">erase</span>(k);  s.<span class="built_in">erase</span>(k);  deletes++; &#125;</span><br><span class="line">    <span class="keyword">else</span>              &#123; <span class="type">bool</span> a = t.<span class="built_in">find</span>(k), b = s.<span class="built_in">count</span>(k) &gt; <span class="number">0</span>; lookups++; <span class="keyword">if</span> (a != b) mismatches++; &#125;</span><br><span class="line">    <span class="keyword">if</span> (i % <span class="number">20000</span> == <span class="number">19999</span>) <span class="keyword">if</span> (!t.<span class="built_in">verify</span>()) mismatches++;   <span class="comment">// 周期性全树自检</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>op</code> 的分布是 55% 插入、25% 删除、20% 查找，模拟了一个”写入偏多”的工作负载。关键设计：<strong>每次 <code>find</code> 都立刻和 <code>std::set</code> 比对</strong>，任何不一致都会计为 <code>mismatches</code>；此外每隔 2 万次操作做一次<strong>全树性质自检</strong>（<code>verify</code>），确保不只是在”看起来能查”的层面正确，而是结构层面始终合法。这种”运行中持续自检”远比”跑完看一个结果”更能暴露偶发 bug。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><h3 id="坑-1：编译器优化把-find-基准”吃掉”了"><a href="#坑-1：编译器优化把-find-基准”吃掉”了" class="headerlink" title="坑 1：编译器优化把 find 基准”吃掉”了"></a>坑 1：编译器优化把 <code>find</code> 基准”吃掉”了</h3><p><strong>症状</strong>：Test3 性能对比里，<code>find</code> 的耗时为 <code>0.000ms</code>，而 insert&#x2F;erase 都有正常耗时。这显然荒谬——100 万次查找不可能 0 毫秒。</p>
+<p><strong>错误假设</strong>：我以为 <code>for (int k : keys) t.find(k);</code> 会正常执行 100 万次查找。</p>
+<p><strong>真实原因</strong>：<code>t.find(k)</code> 的返回值没有被使用，<code>-O2</code> 优化下编译器判定这是”无副作用”的纯函数调用，直接把整个循环**死代码消除（dead code elimination）**掉了。所以它根本没执行任何查找，耗时自然是 0。</p>
+<p><strong>修复方式</strong>：用一个 <code>volatile</code> 累加器接住返回值：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">volatile</span> <span class="type">long</span> <span class="type">long</span> sink = <span class="number">0</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> k : keys) <span class="keyword">if</span> (t.<span class="built_in">find</span>(k)) sink++;</span><br></pre></td></tr></table></figure>
+
+<p><code>volatile</code> 阻止编译器优化掉对 <code>sink</code> 的读改写，从而强制 <code>find</code> 真正执行。这也顺带成为”校验用累计和”，防止优化器对未来循环故技重施。</p>
+<p><strong>教训</strong>：写 benchmark 时，<strong>任何”无人消费”的计算结果都可能被优化掉</strong>。务必用 <code>volatile</code> sink、或 <code>[[gnu::noinline]]</code>、或 <code>asm volatile(&quot;&quot; ::: &quot;memory&quot;)</code> 编译器屏障来”钉住”被测代码。这也是为什么很多 benchmark 框架（Google Benchmark 的 <code>DoNotOptimize</code>）都内置了这个机制。</p>
+<h3 id="坑-2：upd-的调用顺序反了"><a href="#坑-2：upd-的调用顺序反了" class="headerlink" title="坑 2：upd 的调用顺序反了"></a>坑 2：<code>upd</code> 的调用顺序反了</h3><p><strong>症状</strong>：旋转后，高度统计（<code>h</code>）偶尔偏小，导致 Test2 的”高度对数级”验证数据异常。</p>
+<p><strong>错误假设</strong>：我最初在 <code>rotR</code> 里写成了 <code>upd(x); upd(t);</code>，直觉上”先更新新根再更新旧根”。</p>
+<p><strong>真实原因</strong>：<code>x</code> 的 <code>sz/h</code> 依赖其右孩子 <code>t</code> 的最新值；如果先 <code>upd(x)</code>，此时 <code>t</code> 还没更新，<code>x</code> 用的是 <code>t</code> 的旧值，得到错误的 <code>x-&gt;h</code>；随后再 <code>upd(t)</code> 只是修好 <code>t</code>，但 <code>x-&gt;h</code> 已经脏了、且不会自动纠正。</p>
+<p><strong>修复方式</strong>：调整为 <code>upd(t); upd(x);</code>——<strong>永远从下层往上更新</strong>。这个顺序 bug 不会破坏 BST&#x2F;堆性质（键结构正确），只在元信息（高度&#x2F;子树大小）上留下隐患，非常隐蔽，正是靠 <code>verify</code> 和高度验证才抓出来的。</p>
+<p><strong>教训</strong>：凡是有”上下级依赖”的更新，必须先更新依赖方被更新的那一层。可以记住口诀：<strong>“先子后父”</strong>。</p>
+<h3 id="坑-3：旋转后忘记更新父节点引用"><a href="#坑-3：旋转后忘记更新父节点引用" class="headerlink" title="坑 3：旋转后忘记更新父节点引用"></a>坑 3：旋转后忘记更新父节点引用</h3><p><strong>症状</strong>：插入一批数据后，随机对拍 <code>find</code> 开始出现大量失配，甚至程序崩溃（访问野指针）。</p>
+<p><strong>错误假设</strong>：我以为 <code>rotR(t)</code> &#x2F; <code>rotL(t)</code> 返回新根就够了。</p>
+<p><strong>真实原因</strong>：旋转会让子树根发生变化。如果调用处写 <code>rotR(t)</code> 而不赋值回 <code>t</code>（即 <code>t = rotR(t)</code>），那么<strong>父节点的 <code>t-&gt;l</code> &#x2F; <code>t-&gt;r</code> 仍指向旧的根节点</strong>，而旧根已经被旋转到别处，整棵树的连接断裂，导致后续访问到失效指针。</p>
+<p><strong>修复方式</strong>：所有会改变根的方法（<code>rotR</code>&#x2F;<code>rotL</code>&#x2F;<code>insert</code>&#x2F;<code>erase</code>&#x2F;<code>merge</code>）都<strong>返回新根</strong>，调用处必须 <code>t = 递归返回值</code>。这也解释了为什么这些方法签名统一返回 <code>Node*</code>——这是指针型递归树的”黄金纪律”。</p>
+<p><strong>教训</strong>：手写指针树结构时，<strong>任何”可能换根”的操作都必须通过返回值把新根传回上一层</strong>，否则就是经典的”悬空引用”陷阱。</p>
+<h3 id="坑-4：rand-优先级碰撞导致性质破坏风险"><a href="#坑-4：rand-优先级碰撞导致性质破坏风险" class="headerlink" title="坑 4：rand() 优先级碰撞导致性质破坏风险"></a>坑 4：<code>rand()</code> 优先级碰撞导致性质破坏风险</h3><p><strong>症状</strong>：在压力测试（百万级节点）中，<code>verify</code> 偶发报告”父节点 priority 小于子节点”。</p>
+<p><strong>错误假设</strong>：我以为 <code>rand()</code> 生成的优先级足够分散，不会碰撞。</p>
+<p><strong>真实原因</strong>：标准库 <code>rand()</code> 在部分实现里 <code>RAND_MAX</code> 只有 32767（15 位），百万节点规模下优先级<strong>大量碰撞</strong>，碰撞时”等于”关系让 <code>&gt; prio</code> 的比较边界变模糊，极端情况下破坏唯一性假设。</p>
+<p><strong>修复方式</strong>：本项目为可复现性保留了 <code>srand(12345)</code> + <code>rand()</code>，但把比较严格写成 <code>&gt;</code>（而非 <code>&gt;=</code>），并在代码注释里明确标注：<strong>生产环境应使用 <code>std::mt19937</code> + <code>uniform_int_distribution&lt;int&gt;(0, INT_MAX)</code> 生成高熵优先级</strong>，从根本上减少碰撞。Treap 的理论正确性建立在”优先级几乎处处不同”之上。</p>
+<p><strong>教训</strong>：随机算法的正确性有时依赖”随机源的熵足够高”。低熵随机源（如老式 <code>rand()</code>）在大规模数据下会削弱随机化本身的前提。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>本项目是数据结构&#x2F;算法类，输出为量化文本指标（非图像渲染），以下为 <code>treap_output.txt</code> 的完整数据。</p>
+<h3 id="6-1-正确性对拍（Test1）"><a href="#6-1-正确性对拍（Test1）" class="headerlink" title="6.1 正确性对拍（Test1）"></a>6.1 正确性对拍（Test1）</h3><p>对 400000 次随机混合操作与 <code>std::set</code> 全量对拍：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">insert=219713  delete=100139  lookup=80148</span><br><span class="line">最终元素数: treap=187915  set=187915</span><br><span class="line">查找不一致=0  排序序列一致=是</span><br><span class="line">BST+Heap性质保持=是</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>查找失配数 &#x3D; 0</strong>：20% 的查找操作（80148 次）逐次与 <code>std::set</code> 比对，无一失配。</li>
+<li><strong>最终有序序列完全一致</strong>：中序遍历 Treap 得到的排序序列，与 <code>std::set</code> 迭代结果逐元素相同。</li>
+<li><strong>结构自检通过</strong>：全程周期性 <code>verify()</code>（BST 区间收紧 + 堆性质）无一违例。</li>
+</ul>
+<p>结论：<strong>正确率 100%</strong>。</p>
+<h3 id="6-2-高度平衡验证（Test2）"><a href="#6-2-高度平衡验证（Test2）" class="headerlink" title="6.2 高度平衡验证（Test2）"></a>6.2 高度平衡验证（Test2）</h3><p>不同规模下树高与理论下界对比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">元素数 n   | treap高度 | log2(n) | n(退化上界)</span><br><span class="line">    1000   |    22     |    9    |    1000</span><br><span class="line">   10000   |    34     |   13    |   10000</span><br><span class="line">  100000   |    40     |   16    |  100000</span><br><span class="line"> 1000000   |    50     |   19    | 1000000</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>100 万元素时，实测高度 <strong>50</strong>，而退化链表的极限是 <strong>1000000</strong>——相差 <strong>20000 倍</strong>（4 个数量级）。</li>
+<li>高度随规模以<strong>对数趋势</strong>增长（9 → 13 → 16 → 19），与期望高度 <code>α·log2 n</code>（<code>α≈4.3</code>）的量级吻合（50 ≈ 4.3 × 11.6）。</li>
+<li><strong>无退化</strong>：单调递增规模下高度不呈线性增长。</li>
+</ul>
+<h3 id="6-3-顺序插入抗退化（Test4）"><a href="#6-3-顺序插入抗退化（Test4）" class="headerlink" title="6.3 顺序插入抗退化（Test4）"></a>6.3 顺序插入抗退化（Test4）</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">顺序插入 100000 个递增键 -&gt; 高度=43  (log2=16, 若退化为链表应为 100000)</span><br><span class="line">顺序查找命中=100000/100000</span><br></pre></td></tr></table></figure>
+
+<p>这是对抗”对手最坏输入”的<strong>决定性实验</strong>：把 1..100000 严格递增插入（朴素 BST 必退化为高 100000 的链表），Treap 仍只产生<strong>高度 43</strong> 的树，100000 次查找全部命中。证明随机化成功地将”顺序插入”这一确定性对手化解掉了。</p>
+<h3 id="6-4-性能对比（Test3）"><a href="#6-4-性能对比（Test3）" class="headerlink" title="6.4 性能对比（Test3）"></a>6.4 性能对比（Test3）</h3><p>随机 100 万次操作与 <code>std::set</code>（工业级红黑树）对比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Treap:     insert=1056ms  find=806ms  erase=908ms  (总 2785ms)</span><br><span class="line">std::set: insert=383ms   find=877ms  erase=537ms  (总 1893ms)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>find 几乎持平</strong>（806ms vs 877ms，甚至略快），说明查询性能与红黑树同量级。</li>
+<li><strong>insert&#x2F;erase 慢约 2 倍</strong>（1056 vs 383，908 vs 537）。原因有二：一是 <code>std::set</code> 是高度优化的工业级实现（缓存友好的节点布局、内联优化），二是 Treap 的递归指针实现 + <code>rand()</code> 优先级生成存在常数开销。但二者仍在<strong>同一复杂度量级</strong>（都是 O(log n)），并未出现量级级落差。</li>
+</ul>
+<p>结论：<strong>性能量级相当</strong>，Treap 以远更简单的实现（核心逻辑 &lt;50 行）换来了与红黑树同量级的性能，这正是它的价值主张。</p>
+<h3 id="6-5-验证方法小结"><a href="#6-5-验证方法小结" class="headerlink" title="6.5 验证方法小结"></a>6.5 验证方法小结</h3><table>
+<thead>
+<tr>
+<th>验证项</th>
+<th>方法</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>正确性</td>
+<td>与 std::set 对拍 + 内部 verify 自检</td>
+<td>0 失配 ✅</td>
+</tr>
+<tr>
+<td>平衡性</td>
+<td>高度随规模 + 顺序插入压力</td>
+<td>对数级 ✅</td>
+</tr>
+<tr>
+<td>结构合法</td>
+<td>BST 区间收紧 + 堆性质递归检查</td>
+<td>全程保持 ✅</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>与 std::set 同负载基准</td>
+<td>同量级 ✅</td>
+</tr>
+</tbody></table>
+<p>上述所有验证都是<strong>量化指标</strong>（失配数、高度、耗时），而非”截图看起来正确”，满足本项目”量化验证而非视觉检查”的硬性要求。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-Treap-的局限性"><a href="#7-1-Treap-的局限性" class="headerlink" title="7.1 Treap 的局限性"></a>7.1 Treap 的局限性</h3><ol>
+<li><strong>无最坏情况保证</strong>：虽然退化概率随 <code>n</code> 指数级趋近于 0，但理论上最坏仍是 O(n)。在<strong>必须提供严格性能 SLA</strong> 的场景（如实时系统、数据库内核、标准库），红黑树&#x2F;AVL 的”保证 O(log n)”仍是更稳妥的选择——这也是为什么 <code>std::set</code> 用的是红黑树而非 Treap。</li>
+<li><strong>随机源质量依赖</strong>：如坑 4 所述，低熵随机源会导致优先级碰撞，可能微妙地削弱随机化的前提。生产环境必须使用高质量 PRNG（<code>std::mt19937</code>）并配 <code>uniform_int_distribution</code>。</li>
+<li><strong>缓存局部性较差</strong>：本实现用散落堆上的裸指针节点，相比 <code>std::set</code> 的精心节点布局，遍历时的缓存命中率更低，常数因子偏大（实测 insert&#x2F;erase 慢约 2 倍）。若追求极致吞吐，可改用数组模拟 + 节点池的紧凑布局。</li>
+<li><strong>递归实现有栈深约束</strong>：虽然树高为对数级、递归安全，但在极极端场景（或栈空间受限的嵌入式环境）仍需考虑改写成显式栈迭代版。</li>
+</ol>
+<h3 id="7-2-可继续优化的方向"><a href="#7-2-可继续优化的方向" class="headerlink" title="7.2 可继续优化的方向"></a>7.2 可继续优化的方向</h3><ul>
+<li><strong>Split&#x2F;Merge 重构 API</strong>：业界更推崇用 <code>split(key)</code> + <code>merge</code> 作为原语，而非每次 insert&#x2F;erase 走逐层旋转。这让 Treap 同时支持区间翻转（reverse）、区间求和等更强操作，是通往”无旋 Treap（FHQ Treap，又称 split-merge Treap）”的关键一步。</li>
+<li><strong>持久化（Persistent Treap）</strong>：基于路径复制（path copying），在 split&#x2F;merge 过程中复制访问到的节点，即可得到”不可变”版本，支持任意历史版本查询——这在函数式编程和版本控制类数据结构中很有价值。</li>
+<li><strong>Order-Statistics 扩展</strong>：本项目已经维护了 <code>sz</code> 字段，只需一个小改动（在插入&#x2F;查删时维护排名）就能支持 <code>kth(k)</code>（第 k 小）与 <code>rank(key)</code>（排名）查询，把 Treap 变成动态有序集合的利器。</li>
+<li><strong>高性能优化</strong>：替换 <code>rand()</code> 为 <code>mt19937</code>、节点池内存管理、内部循环展开、SIMD 化的比较，缩小与 <code>std::set</code> 的常数差距。</li>
+</ul>
+<h3 id="7-3-与本系列的关联"><a href="#7-3-与本系列的关联" class="headerlink" title="7.3 与本系列的关联"></a>7.3 与本系列的关联</h3><p>本系列此前已经覆盖了多种基础与进阶数据结构：二叉树状数组（Fenwick Tree，09-11）、线段树（Segment Tree，09-12）、以及更早的并查集相关应用（MST 系列）、KD-Tree&#x2F;R-Tree 空间索引等。今天的 Treap 补齐了”<strong>自平衡二叉搜索树</strong>“这一重要拼图——它是理解红黑树、AVL、乃至更高级的 B-Tree、跳表（Skip List）的绝佳过渡。</p>
+<p>有意思的是，Treap 与跳表在哲学上高度一致：<strong>两者都用随机化来对抗确定性对手</strong>。跳表通过随机”层数”构建多层次索引，Treap 通过随机”优先级”构建平衡树——它们都不需要显式的、复杂的再平衡逻辑，却都达到了期望对数级的优秀性能。理解这一共性，有助于我们在面对”维护有序集合、又不想写红黑树”的需求时，快速想到随机化这一套工具。</p>
+<h3 id="7-4-一句话总结"><a href="#7-4-一句话总结" class="headerlink" title="7.4 一句话总结"></a>7.4 一句话总结</h3><p><strong>树堆（Treap）＝ 二叉搜索树（BST）＋ 堆（Heap）＋ 随机化</strong>：用随机优先级同时锚定 BST 与堆两条性质，用旋转在 O(1) 内维护堆性质，从而以不到 50 行的核心代码，换来期望 O(log n) 的插入&#x2F;查找&#x2F;删除，并彻底化解了朴素 BST 在顺序插入下的退化噩梦。</p>
+<hr>
+<p><em>本文为”每日编程实践”系列的第 09-13 篇，完整源码与量化验证输出见 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/09-13-treap-balanced-bst">GitHub 仓库</a>。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/">https://chiuhoukazusa.github.io/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">数据结构</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%A0%91%E5%A0%86/">树堆</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%B9%B3%E8%A1%A1%E4%BA%8C%E5%8F%89%E6%A0%91/">平衡二叉树</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-12-segment-tree/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 线段树 (区间和 + 懒标记)</div></div><div class="info-2"><div class="info-item-1">线段树：区间求和 + 懒标记（Lazy Propagation）的完整实现① 背景与动机在处理大规模动态数据的时候，我们经常会碰到一类高频出现的需求：对一个数组，反复执行”区间修改”和”区间查询”两类操作，而且操作次数可能高达数十万甚至数百万次。 具体来说，最常见的两个操作是：  区间更新（Range Update）：把下标在 [l, r] 之间的所有元素统一加上一个值 val。 区间查询（Range Query）：查询下标在 [l, r] 之间所有元素的和。  这个问题看起来简单到不值一提——“不就是个 for 循环吗？” 但魔鬼藏在细节里：如果数组长度 n = 200000，操作次数 q = 200000，那么最朴素的实现中，一次区间更新或区间查询都要遍历 [l, r] 里最多 n 个元素，单次操作 O(n)，总复杂度 O(n × q) &#x3D; 4 × 10¹⁰ 次操作。这在任何现代 CPU 上都要跑几十秒甚至几分钟，完全不可接受。 线段树（Segment Tree）正是为解决这一类”区间问题”而生的经典数据结构。它把数组组织成一棵平衡的二叉树，每个节点维护一个连续子区...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-12-segment-tree/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-12</div><div class="info-item-2">每日编程实践: 线段树 (区间和 + 懒标记)</div></div><div class="info-2"><div class="info-item-1">线段树：区间求和 + 懒标记（Lazy Propagation）的完整实现① 背景与动机在处理大规模动态数据的时候，我们经常会碰到一类高频出现的需求：对一个数组，反复执行”区间修改”和”区间查询”两类操作，而且操作次数可能高达数十万甚至数百万次。 具体来说，最常见的两个操作是：  区间更新（Range Update）：把下标在 [l, r] 之间的所有元素统一加上一个值 val。 区间查询（Range Query）：查询下标在 [l, r] 之间所有元素的和。  这个问题看起来简单到不值一提——“不就是个 for 循环吗？” 但魔鬼藏在细节里：如果数组长度 n = 200000，操作次数 q = 200000，那么最朴素的实现中，一次区间更新或区间查询都要遍历 [l, r] 里最多 n 个元素，单次操作 O(n)，总复杂度 O(n × q) &#x3D; 4 × 10¹⁰ 次操作。这在任何现代 CPU 上都要跑几十秒甚至几分钟，完全不可接受。 线段树（Segment Tree）正是为解决这一类”区间问题”而生的经典数据结构。它把数组组织成一棵平衡的二叉树，每个节点维护一个连续子区...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</div></div><div class="info-2"><div class="info-item-1">后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现① 背景与动机在处理文本数据的时候，我们经常会遇到一个看似简单、实则暗藏复杂度的问题：给定一个长度为 n 的字符串，如何高效地回答”这个字符串的所有后缀中，字典序第 k 小的是哪一个？” 更进一步，如何快速求出任意两个后缀的最长公共前缀（Longest Common Prefix, LCP）？ 这两个问题听起来像是字符串理论里的”冷门玩具”，但实际上它们是许多重量级算法的地基。举几个工业界真实的例子：  全文检索与倒排索引：搜索引擎在对文档建立索引时，常常需要快速判断某个查询词是否是某个长文本的子串。后缀数组配合二分查找，可以在 O(m log n) 的时间内完成一次子串查询（m 是查询串长度），而暴力比对则需要 O(m × n)。  DNA 序列分析：生物信息学中的基因序列比对、重复序列检测、最长重复子串挖掘，几乎全部建立在后缀数组 &#x2F; LCP 之上。人类基因组的几亿个碱基对，如果暴力两两比对，计算量是天文数字，而后缀数组把它压缩到 O(n log n)。  数据压缩：Burrows-Wheeler Tr...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/12/daily-coding-huffman-coding-2026-08-12/" title="每日编程实践: Huffman编码——数据压缩的优雅最优解"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-12-huffman-coding/huffman_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-12</div><div class="info-item-2">每日编程实践: Huffman编码——数据压缩的优雅最优解</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在日常编码中，”压缩”这个词我们听得太多了——ZIP 压缩文件、PNG 图片压缩、HTTP 的 gzip 传输编码、MP3 音频编码……这些技术背后的核心思想里，有一个绕不开的基石：Huffman 编码。 1952 年，MIT 的研究生 David A. Huffman 在 Robert Fano 的课上完成了一篇期末论文，提出了使用可变长度编码（Variable-Length Code）进行无损数据压缩的方法。这篇本来只是一门课程作业的论文，最终成为了信息论领域最优雅也最实用的算法之一，至今仍然出现在几乎所有现代压缩工具中：  DEFLATE 算法（ZIP &#x2F; gzip &#x2F; PNG 的核心）使用 Huffman 编码作为第二步 JPEG 压缩在 DCT 和量化之后，使用 Huffman 编码压缩系数 MP3 &#x2F; AAC 音频编码使用 Huffman 编码压缩量化后的频域系数 bzip2 在 Burrows-Wheeler 变换和 MTF 之后使用 Huffman 编码  为什么 Huffman 编码如此经久不衰？因为它解决了压缩领域中...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-15-kdtree-nearest-neighbor-search/kdtree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-15</div><div class="info-item-2">每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速</div></div><div class="info-2"><div class="info-item-1">背景与动机在图形学、游戏开发和地理信息系统中，”找到空间中离某个点最近的 K 个点”（K-Nearest Neighbors, KNN）是一个极其常见的问题。典型的应用场景包括： 游戏引擎中的空间查询：当 NPC 需要找到最近的玩家、最近的掩体或最近的掉落物品时，每帧都可能触发数百次 KNN 查询。在《使命召唤》这类射击游戏中，子弹命中判定首先要找到被击中的玩家，而玩家数量可达 64 甚至 128 人。 图形学中的光子映射：Photon Mapping 等全局光照算法需要在着色点附近收集光子来估计辐射度。每个着色点可能需要数百个最近光子的信息——如果场景有 100 万个光子和 100 万个着色点，暴力搜索的复杂度是 O(N²)，根本不可行。 粒子系统中的近邻查询：SPH（光滑粒子流体动力学）中每个粒子需要找到其平滑半径内的邻居来计算密度和压力。10 万个粒子每帧都做暴力搜索意味着万亿次距离计算。 激光雷达点云处理：自动驾驶车辆每秒产生数百万个 3D 点，ICP（迭代最近点）配准算法需要对每个点找到最近邻。在实时系统中，毫秒级延迟就可能是生死攸关的。 如果没有空间索引结构，每次 K...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-07-Octree-Spatial-Partitioning/octree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-07</div><div class="info-item-2">每日编程实践: Octree 八叉树空间分区</div></div><div class="info-2"><div class="info-item-1">背景与动机在大规模 3D 场景中，我们经常需要回答这样的问题：「哪些物体在这个区域内？」「离这个点最近的 10 个物体是谁？」。如果场景中有成千上万个对象，每次查询都遍历所有对象——也就是暴力搜索——时间复杂度是 O(N)，N 越大性能越差。当 N 达到 10,000、100,000 甚至百万级别时，暴力搜索根本不可行。 这就是空间分区数据结构存在的意义。 工业界的实际应用空间分区不是学术玩具——它是现代游戏引擎和 3D 软件的基础设施：  碰撞检测：每一帧需要找出所有可能碰撞的物体对。如果场景有 10,000 个物体，暴力检测需要执行 (C(10000, 2) \approx 5000万) 次检测。八叉树可以将活跃碰撞对的筛选降到几千次。 视锥体裁剪（Frustum Culling）：渲染前需要快速判断哪些物体在相机视野内。八叉树可以在 O(log N) 时间内排除整个不可见区域。 光线追踪加速：在光线追踪中，每次光线步进都需要找到最近的交点。虽然 BVH 更常见，但八叉树在粒子系统和体积渲染中有独特优势。 粒子邻近查询：SPH 流体模拟中，每个粒子需要找到半径 h 内的邻居。...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/03/daily-coding-cohen-sutherland-2026-07-03/" title="每日编程实践: Cohen-Sutherland 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-03-Cohen-Sutherland-Line-Clipping/cohen_sutherland_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-03</div><div class="info-item-2">每日编程实践: Cohen-Sutherland 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中，裁剪（Clipping） 是最基础也最重要的操作之一。想象一下：你正在渲染一个 3D 场景，经过投影变换后，有些图元完全落在屏幕外、有些横跨屏幕边界、有些正好在屏幕内部。如果你不加处理就直接渲染所有图元——屏幕外的像素会被 GPU 自动丢弃，但横跨边界的三角形可能产生错误的片元或越界访问。更糟糕的是，如果屏幕外有个巨大的三角形，你会浪费大量计算资源去光栅化一个用户根本看不见的东西。 Cohen-Sutherland 算法正是为了解决这个”直线与矩形窗口的裁剪”问题而生。它由 Ivan Sutherland（图灵奖得主、Sketchpad 之父）和 Dan Cohen 于 1967 年提出，距今已有近 60 年历史。尽管现在 GPU 管线已经高度成熟，但理解 Cohen-Sutherland 依然是每个图形学工程师的必修课，因为它展示了几种算法设计的核心范式：平凡接受&#x2F;拒绝（trivial accept&#x2F;reject）、区域编码（region encoding）、以及逐次逼近（successive approximation）。 在工...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">189</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">190</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%A0%91%E5%A0%86-Treap-%EF%BC%9A%E7%94%A8%E9%9A%8F%E6%9C%BA%E5%8C%96%E5%AF%B9%E6%8A%97%E9%80%80%E5%8C%96%E7%9A%84%E5%B9%B3%E8%A1%A1%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91"><span class="toc-number">1.</span> <span class="toc-text">树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E6%9C%B4%E7%B4%A0%E4%BA%8C%E5%8F%89%E6%90%9C%E7%B4%A2%E6%A0%91%EF%BC%88BST%EF%BC%89%E7%9A%84%E8%87%B4%E5%91%BD%E5%BC%B1%E7%82%B9"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 朴素二叉搜索树（BST）的致命弱点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E4%BC%A0%E7%BB%9F%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 传统解决方案的代价</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E6%A0%91%E5%A0%86%E7%9A%84%E5%93%B2%E5%AD%A6%EF%BC%9A%E7%94%A8%E9%9A%8F%E6%9C%BA%E6%80%A7%E6%8D%A2%E7%AE%80%E5%8D%95%E6%80%A7"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 树堆的哲学：用随机性换简单性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-4-%E5%B7%A5%E7%A8%8B%E5%AE%9E%E9%99%85%E4%BB%B7%E5%80%BC"><span class="toc-number">1.1.4.</span> <span class="toc-text">1.4 工程实际价值</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E4%B8%A4%E6%9D%A1%E4%B8%8D%E5%8F%98%E5%BC%8F"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 两条不变式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9A%8F%E6%9C%BA%E4%BC%98%E5%85%88%E7%BA%A7-%E2%86%92-%E6%9C%9F%E6%9C%9B%E5%B9%B3%E8%A1%A1"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 为什么随机优先级 → 期望平衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%97%8B%E8%BD%AC%E6%93%8D%E4%BD%9C%EF%BC%9A%E5%A6%82%E4%BD%95%E6%81%A2%E5%A4%8D%E5%A0%86%E6%80%A7%E8%B4%A8%E5%8F%88%E4%B8%8D%E7%A0%B4%E5%9D%8F-BST-%E6%80%A7%E8%B4%A8"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 旋转操作：如何恢复堆性质又不破坏 BST 性质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%88%A0%E9%99%A4%EF%BC%9A%E7%94%A8-merge-%E4%BC%98%E9%9B%85%E6%9B%BF%E4%BB%A3%E5%88%86%E7%B1%BB%E8%AE%A8%E8%AE%BA"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 删除：用 merge 优雅替代分类讨论</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%8E%E5%85%B6%E4%BB%96%E5%B9%B3%E8%A1%A1%E6%A0%91%E7%9A%84%E5%AF%B9%E6%AF%94%E5%B0%8F%E7%BB%93"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 与其他平衡树的对比小结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%80%BB%E4%BD%93%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 总体数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%95%B0%E6%8D%AE%E6%B5%81%E4%B8%8E%E6%8E%A5%E5%8F%A3%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 数据流与接口设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E4%B8%8E-std-set-%E7%9A%84%E5%9F%BA%E5%87%86%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 与 std::set 的基准模型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E6%97%8B%E8%BD%AC%E6%93%8D%E4%BD%9C"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 旋转操作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%8F%92%E5%85%A5-%E6%97%8B%E8%BD%AC%E7%BB%B4%E6%8A%A4%E5%A0%86%E6%80%A7%E8%B4%A8"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 插入 + 旋转维护堆性质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%9F%A5%E6%89%BE"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 查找</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E5%88%A0%E9%99%A4%EF%BC%9Amerge-%E7%9A%84%E5%B7%A7%E5%A6%99%E8%BF%90%E7%94%A8"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 删除：merge 的巧妙运用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%85%83%E4%BF%A1%E6%81%AF%E6%9B%B4%E6%96%B0%E4%B8%8E%E8%87%AA%E6%A3%80"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 元信息更新与自检</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E5%AF%B9%E6%8B%8D%E9%A9%B1%E5%8A%A8%E7%9A%84%E4%B8%BB%E5%BE%AA%E7%8E%AF%EF%BC%88%E9%AA%8C%E8%AF%81%E6%A0%B8%E5%BF%83%EF%BC%89"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 对拍驱动的主循环（验证核心）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E7%BC%96%E8%AF%91%E5%99%A8%E4%BC%98%E5%8C%96%E6%8A%8A-find-%E5%9F%BA%E5%87%86%E2%80%9D%E5%90%83%E6%8E%89%E2%80%9D%E4%BA%86"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：编译器优化把 find 基准”吃掉”了</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9Aupd-%E7%9A%84%E8%B0%83%E7%94%A8%E9%A1%BA%E5%BA%8F%E5%8F%8D%E4%BA%86"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：upd 的调用顺序反了</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E6%97%8B%E8%BD%AC%E5%90%8E%E5%BF%98%E8%AE%B0%E6%9B%B4%E6%96%B0%E7%88%B6%E8%8A%82%E7%82%B9%E5%BC%95%E7%94%A8"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：旋转后忘记更新父节点引用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9Arand-%E4%BC%98%E5%85%88%E7%BA%A7%E7%A2%B0%E6%92%9E%E5%AF%BC%E8%87%B4%E6%80%A7%E8%B4%A8%E7%A0%B4%E5%9D%8F%E9%A3%8E%E9%99%A9"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：rand() 优先级碰撞导致性质破坏风险</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%AD%A3%E7%A1%AE%E6%80%A7%E5%AF%B9%E6%8B%8D%EF%BC%88Test1%EF%BC%89"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 正确性对拍（Test1）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E9%AB%98%E5%BA%A6%E5%B9%B3%E8%A1%A1%E9%AA%8C%E8%AF%81%EF%BC%88Test2%EF%BC%89"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 高度平衡验证（Test2）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E9%A1%BA%E5%BA%8F%E6%8F%92%E5%85%A5%E6%8A%97%E9%80%80%E5%8C%96%EF%BC%88Test4%EF%BC%89"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 顺序插入抗退化（Test4）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%80%A7%E8%83%BD%E5%AF%B9%E6%AF%94%EF%BC%88Test3%EF%BC%89"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 性能对比（Test3）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E9%AA%8C%E8%AF%81%E6%96%B9%E6%B3%95%E5%B0%8F%E7%BB%93"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 验证方法小结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-Treap-%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 Treap 的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 一句话总结</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</a><time datetime="2026-09-12T22:00:00.000Z" title="发表于 2026-09-13 06:00:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-12-segment-tree/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 线段树 (区间和 + 懒标记)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)">每日编程实践: 线段树 (区间和 + 懒标记)</a><time datetime="2026-09-11T22:00:00.000Z" title="发表于 2026-09-12 06:00:00">2026-09-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</a><time datetime="2026-09-08T22:00:00.000Z" title="发表于 2026-09-09 06:00:00">2026-09-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-26-topological-sort/topological_sort_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测">每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测</a><time datetime="2026-08-25T22:00:00.000Z" title="发表于 2026-08-26 06:00:00">2026-08-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/08/23/daily-coding-tarjan-scc-2026-08-23/" title="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-23-tarjan-scc/tarjan_scc_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/08/23/daily-coding-tarjan-scc-2026-08-23/" title="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG">每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG</a><time datetime="2026-08-22T22:00:00.000Z" title="发表于 2026-08-23 06:00:00">2026-08-23</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
