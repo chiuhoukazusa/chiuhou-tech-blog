@@ -1,0 +1,433 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="布隆过滤器 (Bloom Filter)：用 256KB 替代 7.6MB 的概率型集合在上一篇关于并查集（Union-Find DSU）的博客里，我探讨了如何用接近 O(α(n)) 的摊还复杂度维护动态连通性。并查集解决的是「两个元素是否在同一集合」的判定问题，它的答案永远是精确的——要么连通要么不连通，不存在灰色地带。 但现实世界里有大量场景，我们其实并不需要一个精确的答案。想象一下这样的需求">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/09/19/daily-coding-bloom-filter-2026-09-19/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="布隆过滤器 (Bloom Filter)：用 256KB 替代 7.6MB 的概率型集合在上一篇关于并查集（Union-Find DSU）的博客里，我探讨了如何用接近 O(α(n)) 的摊还复杂度维护动态连通性。并查集解决的是「两个元素是否在同一集合」的判定问题，它的答案永远是精确的——要么连通要么不连通，不存在灰色地带。 但现实世界里有大量场景，我们其实并不需要一个精确的答案。想象一下这样的需求">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png">
+<meta property="article:published_time" content="2026-09-18T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-18T22:06:25.114Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="布隆过滤器">
+<meta property="article:tag" content="数据结构">
+<meta property="article:tag" content="概率算法">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合",
+  "url": "https://chiuhoukazusa.github.io/2026/09/19/daily-coding-bloom-filter-2026-09-19/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png",
+  "datePublished": "2026-09-18T22:00:00.000Z",
+  "dateModified": "2026-09-18T22:06:25.114Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/09/19/daily-coding-bloom-filter-2026-09-19/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-18T22:00:00.000Z" title="发表于 2026-09-19 06:00:00">2026-09-19</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-18T22:06:25.114Z" title="更新于 2026-09-19 06:06:25">2026-09-19</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="布隆过滤器-Bloom-Filter-：用-256KB-替代-7-6MB-的概率型集合"><a href="#布隆过滤器-Bloom-Filter-：用-256KB-替代-7-6MB-的概率型集合" class="headerlink" title="布隆过滤器 (Bloom Filter)：用 256KB 替代 7.6MB 的概率型集合"></a>布隆过滤器 (Bloom Filter)：用 256KB 替代 7.6MB 的概率型集合</h1><p>在上一篇关于并查集（Union-Find DSU）的博客里，我探讨了如何用<strong>接近 O(α(n))</strong> 的摊还复杂度维护动态连通性。并查集解决的是「两个元素是否在同一集合」的判定问题，它的答案永远是<strong>精确的</strong>——要么连通要么不连通，不存在灰色地带。</p>
+<p>但现实世界里有大量场景，我们其实<strong>并不需要一个精确的答案</strong>。想象一下这样的需求：你要为 20 亿个 URL 做一个「是否访问过」的标记，用于爬虫去重；或者为 5000 万用户做一个「用户名是否已被注册」的快速预判；又或者在一个只有 256MB 内存的嵌入式路由器上，要过滤掉一个包含 10 万个恶意域名黑名单的请求。如果每个元素都要存储完整的值（比如平均 8 字节的哈希 + 指针开销），内存很快就会爆炸。</p>
+<p>这时候，<strong>布隆过滤器（Bloom Filter）</strong> 登场了。它由一个叫 Burton Howard Bloom 的人在 1970 年提出，核心思想十分朴素却极其深刻：<strong>用一小块位数组 + 若干个哈希函数，以允许「假阳性」为代价，换取数量级的内存节省</strong>。它是「概率数据结构」的鼻祖，至今仍然是工程界对付「海量元素存在性查询」最趁手的工具之一。</p>
+<p>本文将带你从零实现一个布隆过滤器，用 <strong>200000 个元素、2M 位的位数组（256KB）</strong> 做一次严格的量化验证：证明它<strong>零假阴性</strong>、假阳性率符合理论公式、内存压缩比高达 <strong>30.5 倍</strong>。</p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="为什么「存在性查询」会成为瓶颈？"><a href="#为什么「存在性查询」会成为瓶颈？" class="headerlink" title="为什么「存在性查询」会成为瓶颈？"></a>为什么「存在性查询」会成为瓶颈？</h3><p>我们先退一步，明确一下「存在性查询」到底在问什么。给定一个元素 <code>x</code>，我们想知道 <code>x</code> 是否属于某个已知的集合 <code>S</code>。这是计算机科学里最基础、出现频率最高的操作之一。它的朴素解法有两类，分别对应两个极端：</p>
+<ol>
+<li><strong>精确但费内存</strong>：用 <code>std::unordered_set</code>、哈希表、或者数据库的唯一索引。每个元素都要完整存放，附带桶、指针、负载因子带来的额外开销。内存随元素数量<strong>线性</strong>增长，且常数很大。</li>
+<li><strong>精确但费时间</strong>：用排序数组 + 二分查找（O(log n)），或者平衡树（红黑树 &#x2F; AVL，O(log n)）。时间上有对数开销，但内存仍然要完整存储每个元素。</li>
+</ol>
+<p>无论是哪一种，<strong>关键瓶颈都在于「必须把元素本身存下来」</strong>。一旦元素数量达到「十亿」这个量级，比如：</p>
+<ul>
+<li>搜索引擎的 URL 去重集合（Google 每日新增网页数以亿计）</li>
+<li>广告系统的「已曝光用户」去重（防止同一广告反复轰炸同一用户）</li>
+<li>分布式数据库的 SSTable 读取优化（LevelDB &#x2F; RocksDB &#x2F; Cassandra 的布隆过滤器）</li>
+<li>比特币节点的轻量钱包（SPV）用它来判断某笔交易是否在区块里</li>
+<li>CDN 的缓存击穿防护（用布隆过滤器拦截不存在的 key，避免穿透到后端数据库）</li>
+</ul>
+<p>在这些场景里，「几百万甚至几十亿元素 × 每个元素几十字节」的内存开销是<strong>不可接受</strong>的。而更关键的一点是：<strong>很多场景其实能容忍「假阳性」</strong>。</p>
+<h3 id="「假阳性」为什么是可以被容忍的？"><a href="#「假阳性」为什么是可以被容忍的？" class="headerlink" title="「假阳性」为什么是可以被容忍的？"></a>「假阳性」为什么是可以被容忍的？</h3><p>「假阳性（false positive）」的含义是：布隆过滤器可能告诉我们「元素 <code>x</code> 在集合里」，但实际上 <code>x</code> 并不在。这个「误报」在工程上通常是无害的，因为<strong>它只会导致「多一次多余的确认」</strong>，而不会「漏掉一个真实存在」。</p>
+<p>以上面的几个场景为例：</p>
+<ul>
+<li><strong>爬虫去重</strong>：布隆过滤器误报了某个从没访问过的 URL 为「已访问」，后果只是少爬了这一个页面，第二天补爬即可，不会造成数据错误。</li>
+<li><strong>用户名预判</strong>：误报「用户名已存在」，后果是用户换一个用户名，多一点摩擦，但不会产生「两个用户撞了同一个名字」的脏数据。</li>
+<li><strong>缓存穿透防护</strong>：误报「key 存在」，后端多查一次数据库，因为数据库里肯定有权威答案，最终结果依然是正确的。</li>
+</ul>
+<p><strong>核心洞察</strong>：布隆过滤器永远<strong>不会漏报真存在的元素（零假阴性）</strong>，它只可能「多报一些不存在的东西」。而「多报」的代价，往往只是「多问一次权威数据源」这种极其廉价的兜底操作。因此，用「一个可接受概率的假阳性」去换「一个数量级的内存压缩」，是一笔稳赚不赔的买卖。</p>
+<h3 id="本文要回答的问题"><a href="#本文要回答的问题" class="headerlink" title="本文要回答的问题"></a>本文要回答的问题</h3><ol>
+<li>布隆过滤器的<strong>数据结构</strong>长什么样？为什么它能省内存？</li>
+<li><code>k</code> 个哈希函数是怎么「廉价」地得到的？为什么要用 double hashing？</li>
+<li>假阳性率的<strong>理论公式</strong>是怎么推导出来的？它跟 <code>n</code>（元素数）、<code>m</code>（位数）、<code>k</code>（哈希数）有怎样的关系？</li>
+<li><code>k</code> 取多少才是最优的？为什么 <code>k</code> 太大或太小都会让 FPR 变差？</li>
+<li>实测数据能否<strong>贴合理论</strong>？内存压缩比到底能到多少？</li>
+</ol>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="位数组：不存元素，只存「指纹的足迹」"><a href="#位数组：不存元素，只存「指纹的足迹」" class="headerlink" title="位数组：不存元素，只存「指纹的足迹」"></a>位数组：不存元素，只存「指纹的足迹」</h3><p>布隆过滤器的第一个关键设计是：<strong>它根本不存储元素本身，只存储一个 <code>m</code> 位的位数组</strong>。</p>
+<p>当我们向集合插入元素 <code>x</code> 时，我们并不把 <code>x</code> 的原始字节写进内存。取而代之的是：用 <code>k</code> 个不同的哈希函数，把 <code>x</code> 映射到 <code>[0, m)</code> 这个区间内的 <code>k</code> 个位置，然后把位数组里这 <code>k</code> 个位置全部置为 1。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">插入操作 insert(x):</span><br><span class="line">    对 i = 0, 1, ..., k-1:</span><br><span class="line">        h_i(x) = 第 i 个哈希函数，返回 [0, m) 的一个下标</span><br><span class="line">        位数组[ h_i(x) ] = 1</span><br></pre></td></tr></table></figure>
+
+<p>直观地说，元素 <code>x</code> 在布隆过滤器里的「存在」，不是以 <code>x</code> 本身的形式记录，而是以「位数组上 <code>k</code> 个被点亮的位置」的形式记录的。位数组就像一块黑板，每个插入的元素都往上「涂了 <code>k</code> 个点」。</p>
+<h3 id="查询：k-个位全为-1-才算命中"><a href="#查询：k-个位全为-1-才算命中" class="headerlink" title="查询：k 个位全为 1 才算命中"></a>查询：k 个位全为 1 才算命中</h3><p>查询操作是插入的「镜像」：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">查询操作 query(x):</span><br><span class="line">    对 i = 0, 1, ..., k-1:</span><br><span class="line">        h_i(x) = 第 i 个哈希函数</span><br><span class="line">        如果 位数组[ h_i(x) ] == 0:</span><br><span class="line">            return false   # 只要有一位是 0，x 必然不在集合中</span><br><span class="line">    return true            # k 位全为 1，判定「可能存在」</span><br></pre></td></tr></table></figure>
+
+<p>这里立刻能推出布隆过滤器最重要的两个性质：</p>
+<p><strong>性质一：零假阴性（Zero False Negative）。</strong> 如果元素 <code>x</code> 真的被插入过，那么插入时它已经把 <code>k</code> 个位置全部置为 1 了。查询时，只要哈希函数是<strong>确定性的</strong>（同一个 <code>x</code> 永远算出相同的位置），那这 <code>k</code> 个位置就依然是 1，查询必然返回真。因此**「在集合中的元素绝不会被漏判为不在」**——这是布隆过滤器能安全使用的根基。</p>
+<p><strong>性质二：允许假阳性（False Positive）。</strong> 如果 <code>x</code> <strong>没有</strong>被插入过，那么它的 <code>k</code> 个位置有可能「恰好」都已经被其他元素（在插入时）置为 1 了。这时候查询会误判为「存在」。这就是假阳性的来源，它的概率就是我们要精确量化和控制的量。</p>
+<h3 id="假阳性率的推导：一个概率的故事"><a href="#假阳性率的推导：一个概率的故事" class="headerlink" title="假阳性率的推导：一个概率的故事"></a>假阳性率的推导：一个概率的故事</h3><p>现在我们来推导假阳性率 FPR。这是理解布隆过滤器数学本质的核心，我会一步步来，每一步都解释直觉。</p>
+<p><strong>第一步：单个位在「插入 <code>n</code> 个元素后」仍然是 0 的概率。</strong></p>
+<p>考虑位数组里的某一个固定位置（比如下标 <code>j</code>）。当我们插入<strong>一个</strong>元素时，它会做 <code>k</code> 次哈希，把 <code>k</code> 个位置置 1。对于位置 <code>j</code> 来说，这次插入「没有碰到它」的概率是多少？</p>
+<p>由于哈希函数（在理想情况下）把元素均匀、独立地散布到 <code>[0, m)</code> 的每一位上，那么单次哈希「恰好命中位置 <code>j</code>」的概率是 <code>1/m</code>，因此「没命中位置 <code>j</code>」的概率是 <code>1 - 1/m</code>。</p>
+<p>而插入<strong>一个元素要做 <code>k</code> 次哈希</strong>，这 <code>k</code> 次哈希要<strong>全部都没有命中位置 <code>j</code></strong>，这个元素才算「没点亮位置 <code>j</code>」。所以插入一个元素后，位置 <code>j</code> 仍然是 0 的概率是 <code>(1 - 1/m)^k</code>。</p>
+<p>接下来，我们插入 <strong><code>n</code> 个</strong>元素，一共做了 <code>n · k</code> 次哈希。这 <code>n·k</code> 次哈希要全部都不命中位置 <code>j</code>，位置 <code>j</code> 才能保持为 0。由于各次哈希相互独立，这个概率是 <code>(1 - 1/m)^(n·k)</code>。</p>
+<p><strong>直觉</strong>：<code>n·k</code> 是总的「哈希次数」，<code>1/m</code> 是每次哈希「点到特定格子」的概率。随着 <code>n·k</code> 增大，某个格子「一直没被点到」的概率就指数地衰减。</p>
+<p><strong>第二步：用指数极限化简。</strong></p>
+<p>当 <code>m</code> 很大时（本文 <code>m = 2^21 ≈ 200 万</code>），有一个经典的极限 <code>(1 - 1/m)^m ≈ e^(-1)</code>（<code>m → ∞</code> 时）。因此：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(1 - 1/m)^(n·k) = [ (1 - 1/m)^m ]^(n·k/m) ≈ e^(-n·k/m)</span><br></pre></td></tr></table></figure>
+
+<p>我们把这个「单个位仍为 0 的概率」记为 <code>p</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">p = P(单个位 = 0) ≈ e^(-n·k/m)</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉</strong>：<code>n·k/m</code> 是「整个位数组的填充密度」——它衡量平均每个格子被点亮了「多少层」。因为总共有 <code>n·k</code> 个「点」要撒到 <code>m</code> 个格子里，平均每个格子被撒中 <code>n·k/m</code> 次。当格子被撒中 <code>λ = n·k/m</code> 次时，一个格子「一次都没被撒中」的概率，恰好就是泊松分布的零项 <code>e^(-λ)</code>。这就是 <code>p = e^(-n·k/m)</code> 的泊松直觉。</p>
+<p><strong>第三步：假阳性 &#x3D; k 个位「全都是 1」。</strong></p>
+<p>现在考虑一个<strong>从未插入过的查询元素</strong> <code>x</code>。它会被映射到 <code>k</code> 个位置。查询返回「存在」当且仅当这 <code>k</code> 个位置<strong>全部都是 1</strong>。</p>
+<p>单个位置是 1 的概率 &#x3D; 1 - 单个位置是 0 的概率 &#x3D; <code>1 - p</code>。</p>
+<p>假设这 <code>k</code> 个位置相互独立（理想哈希下近似成立），那么 <code>k</code> 个位置全为 1 的概率就是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FPR = (1 - p)^k = ( 1 - e^(-n·k/m) )^k</span><br></pre></td></tr></table></figure>
+
+<p>这就是布隆过滤器假阳性率的<strong>经典理论公式</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FPR ≈ ( 1 - e^(-n·k/m) )^k</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉拆解</strong>，这个公式里藏着两个彼此对抗的力：</p>
+<ul>
+<li><strong><code>(1 - e^(-n·k/m))</code> 这一项</strong>：它是「单个位已经是 1」的概率。当 <code>k</code> 增大时，元素变多（总哈希次数 <code>n·k</code> 增多），位数组被填得更满，<code>p = e^(-n·k/m)</code> 变小，于是 <code>(1-p)</code> 变大——<strong>位数组越满，假阳性越容易发生</strong>。</li>
+<li><strong><code>k</code> 这个指数</strong>：查询时要检查 <code>k</code> 个位。<code>k</code> 越大，需要「恰好全部命中」的位数越多，<strong>假阳性越难发生</strong>。</li>
+</ul>
+<p>所以 <code>k</code> 的作用是<strong>双刃剑</strong>：增加 <code>k</code> 一方面让查询更「严格」，但另一方面又把位数组填得更满。这两股力量的平衡点，就决定了最优的 <code>k</code>。</p>
+<h3 id="最优-k-的推导"><a href="#最优-k-的推导" class="headerlink" title="最优 k 的推导"></a>最优 k 的推导</h3><p>我们要最小化 <code>FPR(k) = (1 - e^(-n·k/m))^k</code>。对 <code>ln FPR</code> 求导并令其为零，可以得到一个非常漂亮的结果。设 <code>r = m/n</code>（每个元素的「人均位数」），最优的 <code>k</code> 满足：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">k_opt = (m/n) · ln 2 = r · ln 2 ≈ 0.693 · r</span><br></pre></td></tr></table></figure>
+
+<p>代入本文的参数：<code>n = 200000</code>，<code>m = 2^21 = 2097152</code>，所以 <code>r = m/n = 10.48576</code>，于是 <code>k_opt ≈ 10.48576 × 0.693 ≈ 7.27</code>。</p>
+<p>这就是为什么我在实验里测了 <code>k = 3, 5, 7, 10</code> 这几个值——因为理论最优解在 <code>k ≈ 7</code> 附近。我们马上会看到，<code>k = 7</code> 的实测 FPR（<code>0.6875%</code>）确实是所有取值里最低的，完美印证了理论。</p>
+<p>在最优 <code>k</code> 下，假阳性率可以进一步简化为一个只依赖 <code>r = m/n</code> 的式子：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FPR_opt = 2^(-k_opt) = 2^(-r · ln 2) = (1/2)^(r · ln 2) ≈ 0.6185^r</span><br></pre></td></tr></table></figure>
+
+<p>也就是说，<strong>每给每个元素多分配 1 位（<code>r</code> 增加 1），假阳性率就大约乘以 0.6185</strong>。这是布隆过滤器「内存换精度」的量化表达：你想要更低的误报率，就按这个指数规律去增加位数组的大小。</p>
+<h3 id="为什么用-double-hashing-而不是真的造-k-个独立哈希？"><a href="#为什么用-double-hashing-而不是真的造-k-个独立哈希？" class="headerlink" title="为什么用 double hashing 而不是真的造 k 个独立哈希？"></a>为什么用 double hashing 而不是真的造 k 个独立哈希？</h3><p>理论假设「k 个哈希函数相互独立」。但工程上，真正实现 <code>k</code> 个高质量、相互独立的哈希函数既麻烦又昂贵。一个经典的技巧是 <strong>double hashing（双重哈希）</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">h_i(x) = ( h1(x) + i · h2(x) ) mod m</span><br></pre></td></tr></table></figure>
+
+<p>用两个基础哈希 <code>h1</code> 和 <code>h2</code>，通过线性组合「派生」出任意数量的哈希函数。</p>
+<p>这背后的直觉是：<code>h2(x)</code> 作为一个「步长」，让 <code>h1(x), h1(x)+h2(x), h1(x)+2·h2(x), ...</code> 这串下标在 <code>[0, m)</code> 上「走」出一条等差数列。只要 <code>h2(x)</code> 与 <code>m</code> <strong>互素</strong>（即 <code>gcd(h2(x), m) = 1</code>），这条数列就能遍历整个区间而不提前重复——这正是我们想要的「<code>k</code> 个位置尽量分散」的效果。</p>
+<p><strong>为什么强制 <code>h2</code> 为奇数？</strong> 如果 <code>m</code> 是 2 的幂（本文 <code>m = 2^21</code>），那么任何偶数 <code>h2</code> 都会与 <code>m</code> 有公因子 2，导致 <code>h_i(x)</code> 永远只能落在「同为奇数 &#x2F; 同为偶数」的那一半下标上，散布质量大打折扣。把 <code>h2</code> 强制设为奇数（<code>| 1</code>），就保证了它与 <code>m = 2^21</code> 互素，从而让双哈希序列覆盖尽可能多的不同位。这是 <code>h2 = mkhash(x, seed) | 1ULL</code> 这行代码背后的数学动机。</p>
+<p>至于 <code>h1</code>、<code>h2</code> 本身，我用的是 splitmix64 风格的位混合函数，它把 64 位输入充分「搅拌」，得到雪崩效应良好的输出。细节在代码解析章节展开。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="整体数据流"><a href="#整体数据流" class="headerlink" title="整体数据流"></a>整体数据流</h3><p>整个程序是一个「<strong>量化验证</strong>」程序——它不是为了渲染图像，而是为了用<strong>数据</strong>证明布隆过滤器的正确性和效率。数据流如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">main()</span><br><span class="line"> |</span><br><span class="line"> | 1. 生成插入集合 inserted[n]（mt19937_64 随机数）</span><br><span class="line"> | 2. 生成查询集合 query[n]（保证与 inserted 不重叠）</span><br><span class="line"> |</span><br><span class="line"> | 对每个 k ∈ &#123;3,5,7,10&#125;:</span><br><span class="line"> |     BloomFilter bf(m, k)</span><br><span class="line"> |     ├─ 插入 n 个元素</span><br><span class="line"> |     ├─ 测假阴性（必须为 0）</span><br><span class="line"> |     └─ 测假阳性（对比理论 FPR）</span><br><span class="line"> |</span><br><span class="line"> | 内存对比: bloom bytes vs unordered_set</span><br><span class="line"> v</span><br></pre></td></tr></table></figure>
+
+<p>程序由三个逻辑块构成：</p>
+<ol>
+<li><strong>数据准备</strong>：用 <code>mt19937_64</code>（种子 <code>20260919</code>，可复现）生成 <code>n = 200000</code> 个随机 <code>uint64_t</code> 作为插入集合；再生成同样数量的「肯定不在集合里」的查询元素，用于精确测量假阳性率。</li>
+<li><strong>核心实验</strong>：对 <code>k = 3, 5, 7, 10</code> 四个取值，分别构造一个 <code>BloomFilter(m=2^21, k)</code>，跑一遍「插入 → 测假阴性 → 测假阳性」，打印理论 FPR 与实测 FPR 的对比表。</li>
+<li><strong>内存对比</strong>：把布隆过滤器的位数组大小，与一个等价 <code>unordered_set</code> 的预估内存做对比，算出压缩比。</li>
+</ol>
+<h3 id="关键数据结构"><a href="#关键数据结构" class="headerlink" title="关键数据结构"></a>关键数据结构</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">BloomFilter</span> &#123;</span><br><span class="line">    <span class="type">size_t</span> m;                  <span class="comment">// 位数组长度（比特数）</span></span><br><span class="line">    <span class="type">int</span>    k;                  <span class="comment">// 哈希函数个数</span></span><br><span class="line">    vector&lt;<span class="type">uint64_t</span>&gt; bits;     <span class="comment">// 位数组（每元素 64 bit）</span></span><br><span class="line">    <span class="type">uint64_t</span> n;                <span class="comment">// 已插入元素数量</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这个结构体只有一个核心存储：<code>vector&lt;uint64_t&gt; bits</code>。注意它是 <strong>64 位整数数组</strong>，而不是 <code>vector&lt;bool&gt;</code> 或 <code>bitset</code>。这是有意的：</p>
+<ul>
+<li><strong><code>vector&lt;bool&gt;</code> 是陷阱</strong>：C++ 标准里 <code>vector&lt;bool&gt;</code> 是做了「位压缩」的特化版本，它把每个 bool 压成 1 bit，导致拿不到普通的 <code>bool&amp;</code> 引用，也无法 <code>&amp;v[i]</code>。它图省内存，但接口诡异，行为与其他 <code>vector&lt;T&gt;</code> 不一致，很多工程团队明确禁用。</li>
+<li><strong><code>uint64_t</code> 数组可控</strong>：用 <code>bits[(m + 63) / 64]</code> 个 <code>uint64_t</code> 容纳 <code>m</code> 个比特，每个 <code>uint64_t</code> 管 64 个位。置位用 <code>bits[idx &gt;&gt; 6] |= (1ULL &lt;&lt; (idx &amp; 63))</code>，读取用 <code>(bits[idx &gt;&gt; 6] &gt;&gt; (idx &amp; 63)) &amp; 1ULL</code>。<code>idx &gt;&gt; 6</code> 是「第几个 uint64_t」，<code>idx &amp; 63</code> 是「这个 uint64_t 里的第几位」。位操作完全透明、可预测。</li>
+</ul>
+<h3 id="哈希的职责划分"><a href="#哈希的职责划分" class="headerlink" title="哈希的职责划分"></a>哈希的职责划分</h3><p>哈希部分是布隆过滤器的「灵魂」，它决定了位散布是否均匀、假阳性是否贴合理论。我的设计分两层：</p>
+<ul>
+<li><strong>底层 <code>mkhash(x, seed)</code></strong>：一个 splitmix64 风格的 64 位混合函数，输入一个 64 位值和种子，输出一个「搅拌充分」的 64 位哈希。反复做「异或 + 右移 + 乘法」，把输入的每一位信息扩散到输出的每一位——这就是「雪崩效应」。</li>
+<li><strong>上层 double hashing</strong>：<code>insert</code> 和 <code>query</code> 里先算 <code>h1 = mkhash(x, seed1)</code> 和 <code>h2 = mkhash(x, seed2) | 1</code>，再用 <code>h = (h1 + i*h2) % m</code> 依次得到 <code>k</code> 个下标。</li>
+</ul>
+<p><strong>职责清晰</strong>：<code>mkhash</code> 只负责「把一个值搅匀」，不关心 m、k；double hashing 只负责「用两个搅匀的值铺开 k 个下标」。这种分层让每一部分都容易理解和测试。</p>
+<h3 id="为什么这个架构能保证「零假阴性」？"><a href="#为什么这个架构能保证「零假阴性」？" class="headerlink" title="为什么这个架构能保证「零假阴性」？"></a>为什么这个架构能保证「零假阴性」？</h3><p>这里我想再强调一次架构上的一个<strong>不变量</strong>：<code>insert</code> 和 <code>query</code> 用<strong>完全相同的哈希函数</strong>。插入时把 <code>k</code> 个位置都置 1，查询时检查的是<strong>同样的</strong> <code>k</code> 个位置。因此，只要哈希函数是确定性的（没有随机性、没有时间戳、没有内存地址依赖），「插入过」就必然意味着「查询时这 k 个位还是 1」。任何「假阴性」的发生，都只能来自哈希函数的不确定性——而我的 <code>mkhash</code> 是纯函数，double hashing 也是纯函数，所以假阴性在数学上被<strong>彻底排除</strong>。这个不变量，是布隆过滤器设计里最容易被新手忽略、却最关键的一点。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>这一章我会把<strong>所有核心代码</strong>完整贴出来，并逐段解释「为什么这样写」。读者完全可以照着复制，自己复现出完全相同的结果。</p>
+<h3 id="4-1-位混合函数：splitmix64-风格"><a href="#4-1-位混合函数：splitmix64-风格" class="headerlink" title="4.1 位混合函数：splitmix64 风格"></a>4.1 位混合函数：splitmix64 风格</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">uint64_t</span> <span class="title">mkhash</span><span class="params">(<span class="type">uint64_t</span> x, <span class="type">uint64_t</span> seed)</span> </span>&#123;</span><br><span class="line">    x += seed * <span class="number">0x9E3779B97F4A7C15ULL</span>;              <span class="comment">// 黄金比扰动</span></span><br><span class="line">    x = (x ^ (x &gt;&gt; <span class="number">30</span>)) * <span class="number">0xBF58476D1CE4E5B9ULL</span>;    <span class="comment">// 折叠 + 奇数乘法</span></span><br><span class="line">    x = (x ^ (x &gt;&gt; <span class="number">27</span>)) * <span class="number">0x94D049BB133111EBULL</span>;    <span class="comment">// 继续搅拌</span></span><br><span class="line">    x = x ^ (x &gt;&gt; <span class="number">31</span>);                              <span class="comment">// 最终折叠</span></span><br><span class="line">    <span class="keyword">return</span> x;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 布隆过滤器对哈希函数的要求不是「加密安全」，而是两点：<strong>快</strong> 和 <strong>均匀</strong>。<code>mkhash</code> 只用 4 次乘法 + 若干次移位异或，非常快；而它采用的「乘法 + 异或 + 移位」组合是著名的 splitmix64 算法，能产生良好的雪崩效应——输入的微小变化会引发输出的巨大差异。</p>
+<p><strong>逐行解释</strong>：</p>
+<ul>
+<li>第一行：<code>0x9E3779B97F4A7C15</code> 是黄金比例 <code>φ = (√5-1)/2</code> 乘以 <code>2^64</code> 的整数表示。把种子乘以黄金比再加到 <code>x</code> 上，给不同种子提供「良好散布」的初始扰动。</li>
+<li>第二行 <code>(x ^ (x &gt;&gt; 30)) * 0xBF58476D1CE4E5B9</code>：先把自己的高 34 位「折回来」和低 30 位异或，让高位信息渗透到低位；再乘以一个大奇数（奇数乘法在模 <code>2^64</code> 下是<strong>双射</strong>，不丢信息）。</li>
+<li>第三行：继续用不同移位量（27）和不同奇数乘法搅拌。</li>
+<li>第四行：最后再次折叠高位到低位，作为输出。</li>
+</ul>
+<p><strong>容易写错的地方</strong>：这里的移位量（30、27、31）是 splitmix64 精心选择的，不能随意改。如果你随手改成 <code>x &gt;&gt; 16</code>，雪崩效应质量会显著下降，位散布不均匀，假阳性率会<strong>明显偏离</strong>理论值。这几个魔数不是「随便挑的」，而是保证哈希质量的「配方」。</p>
+<h3 id="4-2-构造函数：分配位数组"><a href="#4-2-构造函数：分配位数组" class="headerlink" title="4.2 构造函数：分配位数组"></a>4.2 构造函数：分配位数组</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">BloomFilter</span>(<span class="type">size_t</span> m_, <span class="type">int</span> k_) : <span class="built_in">m</span>(m_), <span class="built_in">k</span>(k_), <span class="built_in">n</span>(<span class="number">0</span>) &#123;</span><br><span class="line">    bits.<span class="built_in">assign</span>((m + <span class="number">63</span>) / <span class="number">64</span>, <span class="number">0ULL</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>(m + 63) / 64</code>？</strong> 这是向上取整的除 64：<code>m</code> 个比特需要 <code>ceil(m / 64)</code> 个 <code>uint64_t</code> 来装。<code>(m + 63) / 64</code> 用「加 63 再除 64」实现向上取整。比如 <code>m = 2^21 = 2097152</code>，<code>(2^21 + 63) / 64 = 32768</code>，正好 <code>32768 × 64 = 2097152</code> 位，没有浪费。</p>
+<p><strong>为什么用 <code>assign</code> 而不是 <code>resize</code>？</strong> <code>assign(count, value)</code> 一次性把数组大小设为 <code>count</code> 并全填 0，对「初始全 0 的位数组」最直接清晰。</p>
+<h3 id="4-3-插入操作：置-k-个位"><a href="#4-3-插入操作：置-k-个位" class="headerlink" title="4.3 插入操作：置 k 个位"></a>4.3 插入操作：置 k 个位</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">insert</span><span class="params">(<span class="type">uint64_t</span> x)</span> </span>&#123;</span><br><span class="line">    <span class="type">uint64_t</span> h1 = <span class="built_in">mkhash</span>(x, <span class="number">0x12345678ULL</span>);</span><br><span class="line">    <span class="type">uint64_t</span> h2 = <span class="built_in">mkhash</span>(x, <span class="number">0x87654321ULL</span>) | <span class="number">1ULL</span>; <span class="comment">// h2 强制奇数</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; k; ++i) &#123;</span><br><span class="line">        <span class="type">uint64_t</span> h = (h1 + (<span class="type">uint64_t</span>)i * h2) % m;</span><br><span class="line">        bits[h &gt;&gt; <span class="number">6</span>] |= (<span class="number">1ULL</span> &lt;&lt; (h &amp; <span class="number">63</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    ++n;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐行解释</strong>：</p>
+<ul>
+<li>先算两个基础哈希 <code>h1</code>、<code>h2</code>。种子任意，但必须固定以保证确定性。关键在 <code>h2</code> 末尾的 <code>| 1ULL</code>：<strong>强制 <code>h2</code> 为奇数</strong>，保证 double hashing 的步长与 <code>m = 2^21</code> 互素，让 <code>k</code> 个下标尽可能分散。</li>
+<li><code>h = (h1 + i * h2) % m</code> 是 double hashing 的核心：第 <code>i</code> 个下标 &#x3D; 起点 <code>h1</code> + <code>i</code> 个步长 <code>h2</code>，再取模 <code>m</code>。</li>
+<li>置位 <code>bits[h &gt;&gt; 6] |= (1ULL &lt;&lt; (h &amp; 63))</code>：<ul>
+<li><code>h &gt;&gt; 6</code>：<code>h</code> 除以 64，得到「第几个 uint64_t」。</li>
+<li><code>h &amp; 63</code>：<code>h</code> 模 64（<code>63 = 0b111111</code>），得到「这个 uint64_t 里的第几位」。</li>
+<li><code>1ULL &lt;&lt; (h &amp; 63)</code>：把 1 左移到对应位，得到「只有那一位是 1」的掩码。</li>
+<li><code>|=</code>：把掩码「或」进目标 uint64_t，把那一位从 0 变 1（幂等）。</li>
+</ul>
+</li>
+</ul>
+<p><strong>为什么用 <code>|=</code> 而不是 <code>=</code>？</strong> 一个位可能被多个元素反复置位（这正是「共享位」的来源）。如果写 <code>=</code>（赋值），后插入的元素可能把之前元素的位「抹掉」，导致假阴性——这是布隆过滤器里<strong>绝对致命</strong>的 bug。<code>|=</code> 保证置位幂等、只增不减。</p>
+<h3 id="4-4-查询操作：检查-k-个位"><a href="#4-4-查询操作：检查-k-个位" class="headerlink" title="4.4 查询操作：检查 k 个位"></a>4.4 查询操作：检查 k 个位</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">query</span><span class="params">(<span class="type">uint64_t</span> x)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="type">uint64_t</span> h1 = <span class="built_in">mkhash</span>(x, <span class="number">0x12345678ULL</span>);</span><br><span class="line">    <span class="type">uint64_t</span> h2 = <span class="built_in">mkhash</span>(x, <span class="number">0x87654321ULL</span>) | <span class="number">1ULL</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; k; ++i) &#123;</span><br><span class="line">        <span class="type">uint64_t</span> h = (h1 + (<span class="type">uint64_t</span>)i * h2) % m;</span><br><span class="line">        <span class="keyword">if</span> (((bits[h &gt;&gt; <span class="number">6</span>] &gt;&gt; (h &amp; <span class="number">63</span>)) &amp; <span class="number">1ULL</span>) == <span class="number">0</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐行解释</strong>：</p>
+<ul>
+<li>哈希计算与 <code>insert</code> <strong>完全一致</strong>，这是「零假阴性」的根本保证。</li>
+<li>读位 <code>(bits[h &gt;&gt; 6] &gt;&gt; (h &amp; 63)) &amp; 1ULL</code>：先把目标 uint64_t 右移 <code>(h &amp; 63)</code> 位，让目标位落到最低位，再 <code>&amp; 1ULL</code> 提取出 0 或 1。</li>
+<li><strong>短路返回</strong>：只要<strong>任何一个</strong>位是 0，立刻 <code>return false</code>（元素必然不在），不用检查剩下的位。这是查询快的原因——「不在集合」的元素往往前几个位就撞到 0，提前返回。</li>
+<li>只有 <code>k</code> 个位<strong>全部是 1</strong>，才 <code>return true</code>（此时是「可能存在」）。</li>
+</ul>
+<p><strong><code>const</code> 的意义</strong>：查询不改动状态，声明为 <code>const</code> 成员函数，保证不意外修改位数组，也让 <code>query</code> 可被并发安全地调用（读操作天然线程安全）。</p>
+<h3 id="4-5-主实验循环：k-取不同值对比"><a href="#4-5-主实验循环：k-取不同值对比" class="headerlink" title="4.5 主实验循环：k 取不同值对比"></a>4.5 主实验循环：k 取不同值对比</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">const</span> <span class="type">uint64_t</span> n = <span class="number">200000</span>;       <span class="comment">// 插入 20 万元素</span></span><br><span class="line"><span class="type">const</span> <span class="type">size_t</span>   m = <span class="number">1</span> &lt;&lt; <span class="number">21</span>;      <span class="comment">// 2M 位 = 256 KB 位数组</span></span><br><span class="line"></span><br><span class="line">vector&lt;<span class="type">int</span>&gt; ks = &#123;<span class="number">3</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">10</span>&#125;;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> k : ks) &#123;</span><br><span class="line">    <span class="function">BloomFilter <span class="title">bf</span><span class="params">(m, k)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> v : inserted) bf.<span class="built_in">insert</span>(v);</span><br><span class="line"></span><br><span class="line">    <span class="type">uint64_t</span> fn_count = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> v : inserted) <span class="keyword">if</span> (!bf.<span class="built_in">query</span>(v)) ++fn_count;   <span class="comment">// 假阴性</span></span><br><span class="line"></span><br><span class="line">    <span class="type">uint64_t</span> fp_count = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> v : query)    <span class="keyword">if</span> (bf.<span class="built_in">query</span>(v))  ++fp_count;    <span class="comment">// 假阳性</span></span><br><span class="line">    <span class="type">double</span> fpr = (<span class="type">double</span>)fp_count / (<span class="type">double</span>)n_query;</span><br><span class="line">    <span class="comment">// ... 打印理论 vs 实测 ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>m = 1 &lt;&lt; 21</code>？</strong> 用 2 的幂（2097152 位 &#x3D; 256KB）：<code>/64</code> 和 <code>%64</code> 可用位移和掩码优化；更重要的是让「人均位数」<code>r = m/n = 10.48576</code> 是清爽的数值，方便对应理论最优 <code>k ≈ 7</code>。</p>
+<p><strong>两套完全不同的查询集</strong>：</p>
+<ul>
+<li><strong>假阴性测量</strong>：遍历所有<strong>已插入</strong>元素，全都要 <code>query == true</code>。只要有一个返回 <code>false</code>，<code>fn_count &gt; 0</code>，程序立即报错退出。这是「正确性」的硬性门禁。</li>
+<li><strong>假阳性测量</strong>：遍历所有<strong>确定没插入过</strong>的元素，统计被误判的数量。这些查询元素与插入集合<strong>不重叠</strong>（<code>inserted_set.count(v) == 0</code> 显式过滤），保证测到「纯假阳性」。</li>
+</ul>
+<p><strong>理论 FPR 的计算</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> theory_fpr = [&amp;](<span class="type">int</span> k) &#123;</span><br><span class="line">    <span class="type">double</span> p = <span class="number">1.0</span> - <span class="built_in">exp</span>(-(<span class="type">double</span>)(n * k) / (<span class="type">double</span>)m);</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">pow</span>(p, (<span class="type">double</span>)k);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这是 <code>FPR = (1 - e^(-nk/m))^k</code> 的直接翻译。注意要把整数 <code>n、k、m</code> <strong>显式转成 <code>double</code></strong> 再除法，否则 <code>n*k/m</code> 先做整数除法，结果被截断成 0，<code>exp(0)=1</code>，<code>1-1=0</code>，整个公式就崩了。这是数值计算里经典的「整数除法陷阱」。</p>
+<h3 id="4-6-数据准备：保证查询集合「干净」"><a href="#4-6-数据准备：保证查询集合「干净」" class="headerlink" title="4.6 数据准备：保证查询集合「干净」"></a>4.6 数据准备：保证查询集合「干净」</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">mt19937_64 <span class="title">rng</span><span class="params">(<span class="number">20260919ULL</span>)</span></span>;</span><br><span class="line"><span class="function">vector&lt;<span class="type">uint64_t</span>&gt; <span class="title">inserted</span><span class="params">(n)</span></span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">auto</span> &amp;v : inserted) v = <span class="built_in">rng</span>();</span><br><span class="line"></span><br><span class="line"><span class="function">unordered_set&lt;<span class="type">uint64_t</span>&gt; <span class="title">inserted_set</span><span class="params">(inserted.begin(), inserted.end())</span></span>;</span><br><span class="line"><span class="type">const</span> <span class="type">uint64_t</span> n_query = n;</span><br><span class="line"><span class="function">vector&lt;<span class="type">uint64_t</span>&gt; <span class="title">query</span><span class="params">(n_query)</span></span>;</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">size_t</span> cnt = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">while</span> (cnt &lt; n_query) &#123;</span><br><span class="line">        <span class="type">uint64_t</span> v = <span class="built_in">rng</span>();</span><br><span class="line">        <span class="keyword">if</span> (inserted_set.<span class="built_in">count</span>(v) == <span class="number">0</span>) &#123; query[cnt++] = v; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这么麻烦？</strong> 假阳性率测量要求查询元素「百分百不在集合里」。<code>rng()</code> 生成的随机数理论上可能和 <code>inserted</code> 里某个值重复，不能靠「概率上不会重复」来侥幸。</p>
+<p>因此先把 <code>inserted</code> 全部塞进 <code>unordered_set</code>，再继续用同一个 <code>rng()</code> 生成候选值，<strong>只有 <code>inserted_set.count(v) == 0</code>（确认不在集合）才收入 <code>query</code></strong>。这个 <code>while</code> 循环保证 <code>query</code> 每个元素都「干净」、确定未被插入，测出的假阳性率才纯粹、可复现。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>实现布隆过滤器看起来只有几十行，但这一路我踩了几个典型「看起来对、实则错」的坑，每一个都值得单独记录。</p>
+<h3 id="坑-1：vector-的「位压缩」陷阱"><a href="#坑-1：vector-的「位压缩」陷阱" class="headerlink" title="坑 1：vector&lt;bool&gt; 的「位压缩」陷阱"></a>坑 1：<code>vector&lt;bool&gt;</code> 的「位压缩」陷阱</h3><p><strong>症状</strong>：一开始我想当然地用 <code>vector&lt;bool&gt; bits(m, false)</code> 来表示位数组，觉得「它本身就做了位压缩，正好符合我的需求」。结果编译报错——<code>vector&lt;bool&gt;</code> 的 <code>operator[]</code> 返回的是一个代理对象而不是 <code>bool&amp;</code>，无法直接 <code>bits[i] |= something</code> 这类操作，而且取地址 <code>&amp;bits[i]</code> 也会失败。</p>
+<p><strong>错误假设</strong>：我假设 <code>vector&lt;bool&gt;</code> 和 <code>vector&lt;int&gt;</code> 一样，<code>bits[i]</code> 就是一个可读写的 <code>bool</code> 引用。</p>
+<p><strong>真实原因</strong>：C++ 标准对 <code>vector&lt;bool&gt;</code> 做了特化，把每个 bool 压成 1 bit，因此它无法提供真正的 <code>bool&amp;</code> 引用，只能用代理对象来模拟读写。这个设计为了省内存牺牲了接口一致性，是 C++ 里著名的「反面教材」。</p>
+<p><strong>修复方式</strong>：改用 <code>vector&lt;uint64_t&gt; bits</code>，一个 <code>uint64_t</code> 管 64 个位，位操作全部显式写（<code>&gt;&gt; 6</code>、<code>&amp; 63</code>、<code>|=</code>、<code>&gt;&gt; (h &amp; 63)</code>）。这样既高效（每个字节都利用到位），又语法透明、行为可预测。</p>
+<h3 id="坑-2：-写成-导致假阴性"><a href="#坑-2：-写成-导致假阴性" class="headerlink" title="坑 2：|= 写成 = 导致假阴性"></a>坑 2：<code>|=</code> 写成 <code>=</code> 导致假阴性</h3><p><strong>症状</strong>：最早的一版代码里，我用 <code>bits[h &gt;&gt; 6] = (1ULL &lt;&lt; (h &amp; 63))</code> 来置位（赋值而非或运算）。跑出来的结果里，<code>fn_count</code> <strong>不为 0</strong>——出现了假阴性！</p>
+<p><strong>错误假设</strong>：我潜意识里觉得「每个元素插入时算出的位都不太会重叠」，用一个位就够了，赋值也没关系。</p>
+<p><strong>真实原因</strong>：位数组里<strong>不同元素完全可能映射到同一个位</strong>（这正是布隆过滤器「共享位」的机制，而且 <code>k</code> 越大越常见）。如果用赋值，后插入的元素会把前一个元素在同一个位上「点亮」的记录覆盖掉，导致前面元素的那个位变成 0，查询时就可能因为「某一位是 0」而误判为「不存在」——这就是假阴性，是布隆过滤器绝对禁止的。</p>
+<p><strong>修复方式</strong>：把赋值改成 <code>|=</code>（按位或），保证置位是<strong>幂等</strong>的——无论这个位之前是 0 还是 1，置位后都是 1，永不「抹掉」别人的记录。这也是一开始就应该刻进脑子的铁律：<strong>布隆过滤器置位只能「或」，不能「赋」</strong>。</p>
+<h3 id="坑-3：整数除法让理论-FPR-变成-0"><a href="#坑-3：整数除法让理论-FPR-变成-0" class="headerlink" title="坑 3：整数除法让理论 FPR 变成 0"></a>坑 3：整数除法让理论 FPR 变成 0</h3><p><strong>症状</strong>：算理论假阳性率时，我的第一版代码写的是 <code>exp(-(n * k) / m)</code>，结果 <code>theory_fpr</code> 全是 0，实测 FPR 却正常，两者差了几个数量级，看起来像是「理论完全不对」。</p>
+<p><strong>错误假设</strong>：我以为 C++ 里 <code>(n * k) / m</code> 会像数学表达式那样先算出浮点结果。</p>
+<p><strong>真实原因</strong>：<code>n</code>、<code>k</code>、<code>m</code> 都是整数（<code>uint64_t</code> &#x2F; <code>size_t</code>），所以 <code>(n * k) / m</code> 做的是<strong>整数除法</strong>，小数部分被直接截断。而 <code>n * k / m</code> 的<strong>真实值小于 1</strong>（比如 <code>200000 * 7 / 2097152 ≈ 0.667</code>），整数除法把它截断成了 <code>0</code>。于是 <code>exp(-0) = 1</code>，<code>1 - 1 = 0</code>，<code>pow(0, k) = 0</code>——理论 FPR 就恒等于 0 了。</p>
+<p><strong>修复方式</strong>：把里面的整数显式转成 <code>double</code> 再做除法：<code>exp(-(double)(n * k) / (double)m)</code>。只要任一操作数是浮点，整个表达式就会按浮点运算，<code>0.667</code> 的精度就保留了。这是 C&#x2F;C++ 里最经典、最高频的「整数除法陷阱」，几乎每个新手做数值计算时都会踩一次。</p>
+<h3 id="坑-4：假阳性查询集「不干净」导致-FPR-失真"><a href="#坑-4：假阳性查询集「不干净」导致-FPR-失真" class="headerlink" title="坑 4：假阳性查询集「不干净」导致 FPR 失真"></a>坑 4：假阳性查询集「不干净」导致 FPR 失真</h3><p><strong>症状</strong>：测量假阳性率时，如果查询集合混入了「其实已经在集合里」的元素，那么这些元素查询必然返回 <code>true</code>（真阳性），会被错误地计进假阳性，让实测 FPR <strong>虚高</strong>。</p>
+<p><strong>错误假设</strong>：我一度觉得「用随机数生成查询集，撞上已插入元素的概率只有 200000&#x2F;2^64≈0，根本不值得处理」。</p>
+<p><strong>真实原因</strong>：虽然单次碰撞概率低到可忽略，但程序用的是<strong>固定种子的 <code>mt19937_64</code></strong>——它的输出序列是<strong>完全确定</strong>的。我不能靠「概率上不会重复」这种说辞来保证正确性，而应该用逻辑上的「确定性过滤」来保证。而且「查询集不干净」这个坑一旦踩中，很难从结果上直接看出来（FPR 只偏差零点几个百分点），会让验证结论失去可信度。</p>
+<p><strong>修复方式</strong>：把 <code>inserted</code> 全部塞进 <code>unordered_set</code>，生成查询元素时用 <code>inserted_set.count(v) == 0</code> 做<strong>显式过滤</strong>，只有确认不在集合的值才收入 <code>query</code>。这样 <code>query</code> 里每一个元素都「百分百未被插入」，FPR 测量才是纯粹、可复现的。</p>
+<h3 id="坑-5：h2-忘记「或-1」导致位散布不均匀"><a href="#坑-5：h2-忘记「或-1」导致位散布不均匀" class="headerlink" title="坑 5：h2 忘记「或 1」导致位散布不均匀"></a>坑 5：h2 忘记「或 1」导致位散布不均匀</h3><p><strong>症状</strong>：有一版代码里 <code>h2 = mkhash(x, seed2)</code> 没有 <code>| 1ULL</code>，结果实测 FPR 系统性地<strong>高于</strong>理论值，而且 <code>k</code> 越大偏差越明显。</p>
+<p><strong>错误假设</strong>：我以为 double hashing 的 <code>h2</code> 只要是「随机值」就够了，奇偶性无所谓。</p>
+<p><strong>真实原因</strong>：当 <code>m = 2^21</code>（2 的幂）时，如果 <code>h2</code> 是偶数，那么 <code>gcd(h2, m) ≥ 2</code>，<code>h_i(x) = (h1 + i·h2) mod m</code> 这串下标会<strong>永远落在同一奇偶性的那一半格子上</strong>（因为偶数的倍数的奇偶性不变）。这样「k 个位」实际上只覆盖了位数组的一半，等效于把 <code>m</code> 缩减了一倍，填充密度翻倍，FPR 自然就飙高了。</p>
+<p><strong>修复方式</strong>：<code>h2 = mkhash(x, seed2) | 1ULL</code>，强制 <code>h2</code> 为奇数。奇数与 2 的幂 <code>m</code> 互素，保证双哈希序列能在 <code>[0, m)</code> 上充分铺开。这是一个「一行代码的修复」，但背后是「互素性决定遍历范围」的数论直觉。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>这一章是本文的「硬核部分」——不靠任何截图「看起来对」，只用数据说话。下面是 <code>bloom_filter_output.txt</code> 的完整输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">=== Bloom Filter 量化验证 (n=200000, m=2097152 bits) ===</span><br><span class="line"></span><br><span class="line">--- 假阳性率对比（理论 vs 实测）---</span><br><span class="line">  k  | 理论FPR(%) | 实测FPR(%) | 零假阴性</span><br><span class="line">   3 |     1.5404 |      1.5585 | ✅ 0 假阴性</span><br><span class="line">   5 |     0.7846 |      0.7770 | ✅ 0 假阴性</span><br><span class="line">   7 |     0.6501 |      0.6875 | ✅ 0 假阴性</span><br><span class="line">  10 |     0.7700 |      0.8020 | ✅ 0 假阴性</span><br><span class="line"></span><br><span class="line">--- 内存占用对比 (n=200000) ---</span><br><span class="line">Bloom Filter 位数组: 262144 bytes (256.0000 KB)</span><br><span class="line">unordered_set 估算: 8000000 bytes (7812.5000 KB)</span><br><span class="line">内存压缩比: 30.5176x</span><br><span class="line"></span><br><span class="line">✅ 全部量化验证通过：零假阴性、FPR 符合理论、内存显著压缩</span><br></pre></td></tr></table></figure>
+
+<h3 id="数据解读一：FPR-的「U-型曲线」完美印证最优-k"><a href="#数据解读一：FPR-的「U-型曲线」完美印证最优-k" class="headerlink" title="数据解读一：FPR 的「U 型曲线」完美印证最优 k"></a>数据解读一：FPR 的「U 型曲线」完美印证最优 k</h3><p>把上面这组数据画成曲线，你会看到一条清晰的 <strong>U 型</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>k</th>
+<th>理论 FPR</th>
+<th>实测 FPR</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3</td>
+<td>1.5404%</td>
+<td>1.5585%</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.7846%</td>
+<td>0.7770%</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0.6501%</td>
+<td>0.6875%</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.7700%</td>
+<td>0.8020%</td>
+</tr>
+</tbody></table>
+<p>FPR 从 k&#x3D;3 的 1.54% 一路降到 k&#x3D;7 的 0.65%，然后又回升到 k&#x3D;10 的 0.77%。这个「先降后升」的 U 型，正是我在原理章节推导的「<code>k</code> 双刃剑」的直接体现：</p>
+<ul>
+<li><code>k</code> 太小（3）：位数组填不满，但查询只检查 3 个位，太「宽松」，容易被撞到 3 个全 1。</li>
+<li><code>k</code> 太大（10）：查询检查 10 个位确实严格，但位数组被填得太满（<code>n·k/m = 200000·10/2097152 ≈ 0.95</code>，接近满负荷），单个位几乎全是 1，反而更容易假阳性。</li>
+<li><code>k = 7</code>：恰好落在理论最优 <code>k_opt = 7.27</code> 附近，两股力量达到平衡，FPR 最低。</li>
+</ul>
+<p><strong>实测值与理论值的相对误差</strong>：k&#x3D;3 时 <code>(1.5585-1.5404)/1.5404 ≈ 1.2%</code>，k&#x3D;7 时 <code>(0.6875-0.6501)/0.6501 ≈ 5.7%</code>，全部远小于程序里设定的 10% 容差。这说明我的 double hashing + splitmix64 方案非常接近「理想独立哈希」的假设，位散布足够均匀。</p>
+<h3 id="数据解读二：零假阴性是「硬保证」，不是「大概」"><a href="#数据解读二：零假阴性是「硬保证」，不是「大概」" class="headerlink" title="数据解读二：零假阴性是「硬保证」，不是「大概」"></a>数据解读二：零假阴性是「硬保证」，不是「大概」</h3><p>四组实验（k&#x3D;3&#x2F;5&#x2F;7&#x2F;10）里，<code>fn_count</code> 全部为 0。也就是说，<strong>插入的 20 万个元素，查询时没有一个被漏判</strong>。这不是「概率上不太会漏」，而是「逻辑上不可能漏」——因为 <code>insert</code> 和 <code>query</code> 用完全相同的确定性哈希，插入时点的位，查询时必然还在。</p>
+<p>这一点是布隆过滤器能用于生产的根本前提。如果假阴性存在，那它就不是「可容忍的误报」，而是「致命的数据丢失」——爬虫会永远跳过某些真实存在的 URL，用户名系统会允许两个用户注册同名。<strong>零假阴性是布隆过滤器的底线，任何实现都必须先用这组「遍历所有已插入元素」的测试验证它</strong>。</p>
+<h3 id="数据解读三：30-5-倍的内存压缩比"><a href="#数据解读三：30-5-倍的内存压缩比" class="headerlink" title="数据解读三：30.5 倍的内存压缩比"></a>数据解读三：30.5 倍的内存压缩比</h3><p>内存对比如下：</p>
+<ul>
+<li>布隆过滤器位数组：<code>262144 bytes = 256 KB</code>。这是 <code>m/8 = 2097152/8 = 262144</code> 字节，是<strong>绝对下界</strong>——它只存位，不存任何元素值。</li>
+<li><code>unordered_set</code> 估算：<code>8000000 bytes ≈ 7.6 MB</code>。这个估算包含两部分：桶数组（<code>sizeof(void*) × 2n</code>，假设负载因子 0.5）+ 节点开销（每个节点 <code>sizeof(uint64_t) + sizeof(void*) + 8</code> 字节的链表&#x2F;对齐开销）。</li>
+<li>压缩比：<code>8000000 / 262144 ≈ 30.5x</code>。</li>
+</ul>
+<p><strong>关键点</strong>：这 30.5 倍的压缩比，是用「0.65%～1.56% 的假阳性率」换来的。换句话说，布隆过滤器把「精确集合」的 7.6MB 压成了 256KB，代价仅仅是每查询一个<strong>不在集合</strong>的元素时，有不到 1% 的概率需要「再问一次权威数据源」来兜底。对绝大多数场景来说，这是极其划算的交易。</p>
+<p>而且这个压缩比还会随 <code>n</code> 的增大而<strong>越来越夸张</strong>：因为布隆过滤器的内存只取决于「你要的误报率」和「总元素数」，不取决于「元素本身的大小」。如果集合元素不是 8 字节的 <code>uint64_t</code>，而是 50 字节的 URL、200 字节的字符串，那 <code>unordered_set</code> 的内存会翻好几倍，而布隆过滤器的位数组<strong>完全不变</strong>（它根本不看元素长度）。这就是为什么在「超大元素」或「海量元素」的场景里，布隆过滤器的优势是碾压性的。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="布隆过滤器的本质"><a href="#布隆过滤器的本质" class="headerlink" title="布隆过滤器的本质"></a>布隆过滤器的本质</h3><p>布隆过滤器给我的最大启发，是它是一种「<strong>用精度换空间</strong>」的思维方式。它没有试图去「更紧凑地存储元素」，而是从根上<strong>放弃存储元素</strong>，转而存储「元素存在过的痕迹」（k 个被点亮的位），并且坦然地接受由此带来的「可量化、可控制的假阳性」。这种「主动放弃不必要的信息、换取核心诉求的极致优化」的工程哲学，比布隆过滤器这个具体算法本身更值得学习。</p>
+<h3 id="技术局限性：什么情况下不适用？"><a href="#技术局限性：什么情况下不适用？" class="headerlink" title="技术局限性：什么情况下不适用？"></a>技术局限性：什么情况下不适用？</h3><p>布隆过滤器有三大硬伤，决定了它不能替代真正的集合：</p>
+<ol>
+<li><strong>不支持删除</strong>。因为一个位可能是多个元素共享的，你无法安全地把某个位「清零」——那会让其他共享该位的元素一起消失。要支持删除，就得用它的变体 <strong>Counting Bloom Filter</strong>（把每个位换成计数器，插入 +1、删除 -1），但代价是内存翻若干倍。</li>
+<li><strong>不支持枚举</strong>。布隆过滤器存的是「痕迹」，不是元素，你无法从中还原出「集合里到底有哪些元素」。要枚举就必须另存一份真实集合。</li>
+<li><strong>有假阳性</strong>。在对精确性有硬性要求的场景（比如金融对账、权限判断），布隆过滤器的误报是不可接受的，必须用布隆过滤器做「预筛」、再用精确结构（哈希表&#x2F;数据库）做「终审」。</li>
+</ol>
+<h3 id="可以继续优化的方向"><a href="#可以继续优化的方向" class="headerlink" title="可以继续优化的方向"></a>可以继续优化的方向</h3><ol>
+<li><strong>最优参数自动求解</strong>：本文手工选了 k&#x3D;7 来讨好理论。工程上应该给定「期望 FPR」和「预估元素数 n」，自动反解出最优的 <code>m</code> 和 <code>k</code>：<code>m = -n·ln(FPR)/(ln2)²</code>，<code>k = (m/n)·ln2</code>，然后向上取整到 2 的幂（方便位操作）。</li>
+<li><strong>分区布隆过滤器（Blocked Bloom Filter）</strong>：把大位数组切成多个小块，让 <code>k</code> 个哈希落在不同 CPU 缓存行，显著提升缓存命中率（这是 Google 的 Guava 和 RocksDB 里实际采用的优化）。</li>
+<li><strong>可扩展布隆过滤器（Scalable Bloom Filter）</strong>：当元素数量预估不准、单个过滤器快填满时，动态追加新的过滤器，保证 FPR 不随元素增长而失控。</li>
+<li><strong>布谷鸟过滤器（Cuckoo Filter）</strong>：支持删除、且在小规模下空间效率更高的同类竞争者，值得作为下一篇的主题对比研究。</li>
+</ol>
+<h3 id="与本系列其他文章的关联"><a href="#与本系列其他文章的关联" class="headerlink" title="与本系列其他文章的关联"></a>与本系列其他文章的关联</h3><ul>
+<li><strong>哈希函数</strong>：本文的 splitmix64 是「非加密哈希」的代表，它追求「快 + 均匀」而非「抗碰撞」。如果读者有兴趣，可以对比我在其他文章里用过的哈希策略，理解「不同场景对哈希的要求截然不同」。</li>
+<li><strong>空间换时间 &#x2F; 精度换空间</strong>：本文与之前实现的「并查集」「线段树」「树状数组」共同构成一个主题——<strong>如何为「存在性 &#x2F; 计数 &#x2F; 聚合」这类基础操作，设计出内存和时间上更极致的数据结构</strong>。布隆过滤器是其中「最激进地用精度换空间」的一位。</li>
+<li><strong>概率算法</strong>：布隆过滤器是「蒙特卡洛式」概率数据结构的入门，它与「拉斯维加斯式」算法（如快排的随机化、Treap 的随机优先级）形成对比：前者可能给出「错误但可检测&#x2F;可容忍」的结果，后者保证结果正确、只是运行时间随机。理解这两者的区别，是深入算法设计的基石。</li>
+</ul>
+<p>（完）</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/09/19/daily-coding-bloom-filter-2026-09-19/">https://chiuhoukazusa.github.io/2026/09/19/daily-coding-bloom-filter-2026-09-19/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/">数据结构</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8/">布隆过滤器</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%A6%82%E7%8E%87%E7%AE%97%E6%B3%95/">概率算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-15-red-black-tree/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)</div></div><div class="info-2"><div class="info-item-1">红黑树 (Red-Black Tree)：用旋转与染色换取确定性的 O(log n)在上一篇博客里，我实现了树堆（Treap）—— 一种通过随机优先级让二叉搜索树在期望意义上保持平衡的数据结构。它的优雅之处在于”不检查平衡因子、不做显式再平衡”，只靠随机性就化解了顺序插入退化为链表的困境。 但随机化有一个天生的软肋：它是概率保证，不是绝对保证。虽然”随机优先级恰好排成有序序列”的概率低到可以忽略，但理论上它仍然会发生。在数据库索引、操作系统调度器、以及 Linux 内核 的红黑树实现（管理虚拟内存区域 VMA、CFS 调度器的红黑树）这类内核级 &#x2F; 持久化存储场景里，人们需要的是：无论输入多么恶意，操作开销都严格有上界。 这就是红黑树（Red-Black Tree）登场的舞台。它放弃随机化，转而用一套确定性的染色与旋转规则，硬生生把”最坏情况高度”锁死在 2·log₂(n+1) 这个精确上界内。 本文是我「每日编程实践」系列的第 09-15 篇。我会从原理推导、实现架构、逐段代码、踩坑实录到量化验证，完整复盘一次红黑树的实现。本文所有代码都可在 GitHub 的 09-...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/07/daily-coding-octree-spatial-partitioning-2026-07-07/" title="每日编程实践: Octree 八叉树空间分区"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-07-Octree-Spatial-Partitioning/octree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-07</div><div class="info-item-2">每日编程实践: Octree 八叉树空间分区</div></div><div class="info-2"><div class="info-item-1">背景与动机在大规模 3D 场景中，我们经常需要回答这样的问题：「哪些物体在这个区域内？」「离这个点最近的 10 个物体是谁？」。如果场景中有成千上万个对象，每次查询都遍历所有对象——也就是暴力搜索——时间复杂度是 O(N)，N 越大性能越差。当 N 达到 10,000、100,000 甚至百万级别时，暴力搜索根本不可行。 这就是空间分区数据结构存在的意义。 工业界的实际应用空间分区不是学术玩具——它是现代游戏引擎和 3D 软件的基础设施：  碰撞检测：每一帧需要找出所有可能碰撞的物体对。如果场景有 10,000 个物体，暴力检测需要执行 (C(10000, 2) \approx 5000万) 次检测。八叉树可以将活跃碰撞对的筛选降到几千次。 视锥体裁剪（Frustum Culling）：渲染前需要快速判断哪些物体在相机视野内。八叉树可以在 O(log N) 时间内排除整个不可见区域。 光线追踪加速：在光线追踪中，每次光线步进都需要找到最近的交点。虽然 BVH 更常见，但八叉树在粒子系统和体积渲染中有独特优势。 粒子邻近查询：SPH 流体模拟中，每个粒子需要找到半径 h 内的邻居。...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-13</div><div class="info-item-2">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</div></div><div class="info-2"><div class="info-item-1">树堆 (Treap)：用随机化对抗退化的平衡二叉搜索树在小结开始之前，我想先抛出一个看似矛盾的问题：一棵”没有刻意维护平衡”的二叉搜索树，如何在最坏数据（顺序插入）下仍然保持对数级高度？ 答案是——引入随机性。树堆（Treap &#x3D; Tree + Heap）给出了一条优雅到近乎”作弊”的路径：它不检查平衡因子、不染色节点、不做任何显式的再平衡操作，只是给每个节点随机分配一个优先级，就同时天然地满足了两条关键性质，把”最坏情况”从一个确定性的对手（输入顺序）变成了一个概率极低的事件。 本文将从背景动机、核心原理的完整推导、实现架构、逐行代码解析、踩坑实录、量化验证数据到总结延伸，完整复盘今天的每日编程实践项目。  ① 背景与动机1.1 朴素二叉搜索树（BST）的致命弱点二叉搜索树（Binary Search Tree）是数据结构课程里最先接触的”树”之一。它的定义极其简洁：对任意节点，左子树所有键值小于它，右子树所有键值大于它。在这个性质的保证下，查找一个键的过程就是沿着树从根一路向下比较，每次比较排除一半的可能节点，理论上时间复杂度是 O(log n)。 但”理论上 O(...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/15/daily-coding-kdtree-2026-06-15/" title="每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-15-kdtree-nearest-neighbor-search/kdtree_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-15</div><div class="info-item-2">每日编程实践: KD-Tree 最近邻搜索 —— 从暴力查找到百倍加速</div></div><div class="info-2"><div class="info-item-1">背景与动机在图形学、游戏开发和地理信息系统中，”找到空间中离某个点最近的 K 个点”（K-Nearest Neighbors, KNN）是一个极其常见的问题。典型的应用场景包括： 游戏引擎中的空间查询：当 NPC 需要找到最近的玩家、最近的掩体或最近的掉落物品时，每帧都可能触发数百次 KNN 查询。在《使命召唤》这类射击游戏中，子弹命中判定首先要找到被击中的玩家，而玩家数量可达 64 甚至 128 人。 图形学中的光子映射：Photon Mapping 等全局光照算法需要在着色点附近收集光子来估计辐射度。每个着色点可能需要数百个最近光子的信息——如果场景有 100 万个光子和 100 万个着色点，暴力搜索的复杂度是 O(N²)，根本不可行。 粒子系统中的近邻查询：SPH（光滑粒子流体动力学）中每个粒子需要找到其平滑半径内的邻居来计算密度和压力。10 万个粒子每帧都做暴力搜索意味着万亿次距离计算。 激光雷达点云处理：自动驾驶车辆每秒产生数百万个 3D 点，ICP（迭代最近点）配准算法需要对每个点找到最近邻。在实时系统中，毫秒级延迟就可能是生死攸关的。 如果没有空间索引结构，每次 K...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-15-red-black-tree/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-15</div><div class="info-item-2">每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)</div></div><div class="info-2"><div class="info-item-1">红黑树 (Red-Black Tree)：用旋转与染色换取确定性的 O(log n)在上一篇博客里，我实现了树堆（Treap）—— 一种通过随机优先级让二叉搜索树在期望意义上保持平衡的数据结构。它的优雅之处在于”不检查平衡因子、不做显式再平衡”，只靠随机性就化解了顺序插入退化为链表的困境。 但随机化有一个天生的软肋：它是概率保证，不是绝对保证。虽然”随机优先级恰好排成有序序列”的概率低到可以忽略，但理论上它仍然会发生。在数据库索引、操作系统调度器、以及 Linux 内核 的红黑树实现（管理虚拟内存区域 VMA、CFS 调度器的红黑树）这类内核级 &#x2F; 持久化存储场景里，人们需要的是：无论输入多么恶意，操作开销都严格有上界。 这就是红黑树（Red-Black Tree）登场的舞台。它放弃随机化，转而用一套确定性的染色与旋转规则，硬生生把”最坏情况高度”锁死在 2·log₂(n+1) 这个精确上界内。 本文是我「每日编程实践」系列的第 09-15 篇。我会从原理推导、实现架构、逐段代码、踩坑实录到量化验证，完整复盘一次红黑树的实现。本文所有代码都可在 GitHub 的 09-...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/12/daily-coding-huffman-coding-2026-08-12/" title="每日编程实践: Huffman编码——数据压缩的优雅最优解"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-12-huffman-coding/huffman_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-12</div><div class="info-item-2">每日编程实践: Huffman编码——数据压缩的优雅最优解</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在日常编码中，”压缩”这个词我们听得太多了——ZIP 压缩文件、PNG 图片压缩、HTTP 的 gzip 传输编码、MP3 音频编码……这些技术背后的核心思想里，有一个绕不开的基石：Huffman 编码。 1952 年，MIT 的研究生 David A. Huffman 在 Robert Fano 的课上完成了一篇期末论文，提出了使用可变长度编码（Variable-Length Code）进行无损数据压缩的方法。这篇本来只是一门课程作业的论文，最终成为了信息论领域最优雅也最实用的算法之一，至今仍然出现在几乎所有现代压缩工具中：  DEFLATE 算法（ZIP &#x2F; gzip &#x2F; PNG 的核心）使用 Huffman 编码作为第二步 JPEG 压缩在 DCT 和量化之后，使用 Huffman 编码压缩系数 MP3 &#x2F; AAC 音频编码使用 Huffman 编码压缩量化后的频域系数 bzip2 在 Burrows-Wheeler 变换和 MTF 之后使用 Huffman 编码  为什么 Huffman 编码如此经久不衰？因为它解决了压缩领域中...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-09</div><div class="info-item-2">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</div></div><div class="info-2"><div class="info-item-1">后缀数组与 LCP：前缀倍增排序 + Kasai 算法的完整实现① 背景与动机在处理文本数据的时候，我们经常会遇到一个看似简单、实则暗藏复杂度的问题：给定一个长度为 n 的字符串，如何高效地回答”这个字符串的所有后缀中，字典序第 k 小的是哪一个？” 更进一步，如何快速求出任意两个后缀的最长公共前缀（Longest Common Prefix, LCP）？ 这两个问题听起来像是字符串理论里的”冷门玩具”，但实际上它们是许多重量级算法的地基。举几个工业界真实的例子：  全文检索与倒排索引：搜索引擎在对文档建立索引时，常常需要快速判断某个查询词是否是某个长文本的子串。后缀数组配合二分查找，可以在 O(m log n) 的时间内完成一次子串查询（m 是查询串长度），而暴力比对则需要 O(m × n)。  DNA 序列分析：生物信息学中的基因序列比对、重复序列检测、最长重复子串挖掘，几乎全部建立在后缀数组 &#x2F; LCP 之上。人类基因组的几亿个碱基对，如果暴力两两比对，计算量是天文数字，而后缀数组把它压缩到 O(n log n)。  数据压缩：Burrows-Wheeler Tr...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">191</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">193</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8-Bloom-Filter-%EF%BC%9A%E7%94%A8-256KB-%E6%9B%BF%E4%BB%A3-7-6MB-%E7%9A%84%E6%A6%82%E7%8E%87%E5%9E%8B%E9%9B%86%E5%90%88"><span class="toc-number">1.</span> <span class="toc-text">布隆过滤器 (Bloom Filter)：用 256KB 替代 7.6MB 的概率型集合</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E3%80%8C%E5%AD%98%E5%9C%A8%E6%80%A7%E6%9F%A5%E8%AF%A2%E3%80%8D%E4%BC%9A%E6%88%90%E4%B8%BA%E7%93%B6%E9%A2%88%EF%BC%9F"><span class="toc-number">1.1.1.</span> <span class="toc-text">为什么「存在性查询」会成为瓶颈？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E3%80%8C%E5%81%87%E9%98%B3%E6%80%A7%E3%80%8D%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF%E5%8F%AF%E4%BB%A5%E8%A2%AB%E5%AE%B9%E5%BF%8D%E7%9A%84%EF%BC%9F"><span class="toc-number">1.1.2.</span> <span class="toc-text">「假阳性」为什么是可以被容忍的？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%96%87%E8%A6%81%E5%9B%9E%E7%AD%94%E7%9A%84%E9%97%AE%E9%A2%98"><span class="toc-number">1.1.3.</span> <span class="toc-text">本文要回答的问题</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BD%8D%E6%95%B0%E7%BB%84%EF%BC%9A%E4%B8%8D%E5%AD%98%E5%85%83%E7%B4%A0%EF%BC%8C%E5%8F%AA%E5%AD%98%E3%80%8C%E6%8C%87%E7%BA%B9%E7%9A%84%E8%B6%B3%E8%BF%B9%E3%80%8D"><span class="toc-number">1.2.1.</span> <span class="toc-text">位数组：不存元素，只存「指纹的足迹」</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%EF%BC%9Ak-%E4%B8%AA%E4%BD%8D%E5%85%A8%E4%B8%BA-1-%E6%89%8D%E7%AE%97%E5%91%BD%E4%B8%AD"><span class="toc-number">1.2.2.</span> <span class="toc-text">查询：k 个位全为 1 才算命中</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%81%87%E9%98%B3%E6%80%A7%E7%8E%87%E7%9A%84%E6%8E%A8%E5%AF%BC%EF%BC%9A%E4%B8%80%E4%B8%AA%E6%A6%82%E7%8E%87%E7%9A%84%E6%95%85%E4%BA%8B"><span class="toc-number">1.2.3.</span> <span class="toc-text">假阳性率的推导：一个概率的故事</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%80%E4%BC%98-k-%E7%9A%84%E6%8E%A8%E5%AF%BC"><span class="toc-number">1.2.4.</span> <span class="toc-text">最优 k 的推导</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E7%94%A8-double-hashing-%E8%80%8C%E4%B8%8D%E6%98%AF%E7%9C%9F%E7%9A%84%E9%80%A0-k-%E4%B8%AA%E7%8B%AC%E7%AB%8B%E5%93%88%E5%B8%8C%EF%BC%9F"><span class="toc-number">1.2.5.</span> <span class="toc-text">为什么用 double hashing 而不是真的造 k 个独立哈希？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%93%88%E5%B8%8C%E7%9A%84%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.3.</span> <span class="toc-text">哈希的职责划分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E4%B8%AA%E6%9E%B6%E6%9E%84%E8%83%BD%E4%BF%9D%E8%AF%81%E3%80%8C%E9%9B%B6%E5%81%87%E9%98%B4%E6%80%A7%E3%80%8D%EF%BC%9F"><span class="toc-number">1.3.4.</span> <span class="toc-text">为什么这个架构能保证「零假阴性」？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E4%BD%8D%E6%B7%B7%E5%90%88%E5%87%BD%E6%95%B0%EF%BC%9Asplitmix64-%E9%A3%8E%E6%A0%BC"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 位混合函数：splitmix64 风格</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0%EF%BC%9A%E5%88%86%E9%85%8D%E4%BD%8D%E6%95%B0%E7%BB%84"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 构造函数：分配位数组</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%8F%92%E5%85%A5%E6%93%8D%E4%BD%9C%EF%BC%9A%E7%BD%AE-k-%E4%B8%AA%E4%BD%8D"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 插入操作：置 k 个位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%9F%A5%E8%AF%A2%E6%93%8D%E4%BD%9C%EF%BC%9A%E6%A3%80%E6%9F%A5-k-%E4%B8%AA%E4%BD%8D"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 查询操作：检查 k 个位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E4%B8%BB%E5%AE%9E%E9%AA%8C%E5%BE%AA%E7%8E%AF%EF%BC%9Ak-%E5%8F%96%E4%B8%8D%E5%90%8C%E5%80%BC%E5%AF%B9%E6%AF%94"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 主实验循环：k 取不同值对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E6%95%B0%E6%8D%AE%E5%87%86%E5%A4%87%EF%BC%9A%E4%BF%9D%E8%AF%81%E6%9F%A5%E8%AF%A2%E9%9B%86%E5%90%88%E3%80%8C%E5%B9%B2%E5%87%80%E3%80%8D"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 数据准备：保证查询集合「干净」</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9Avector-%E7%9A%84%E3%80%8C%E4%BD%8D%E5%8E%8B%E7%BC%A9%E3%80%8D%E9%99%B7%E9%98%B1"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：vector&lt;bool&gt; 的「位压缩」陷阱</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A-%E5%86%99%E6%88%90-%E5%AF%BC%E8%87%B4%E5%81%87%E9%98%B4%E6%80%A7"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：|&#x3D; 写成 &#x3D; 导致假阴性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E6%95%B4%E6%95%B0%E9%99%A4%E6%B3%95%E8%AE%A9%E7%90%86%E8%AE%BA-FPR-%E5%8F%98%E6%88%90-0"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：整数除法让理论 FPR 变成 0</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E5%81%87%E9%98%B3%E6%80%A7%E6%9F%A5%E8%AF%A2%E9%9B%86%E3%80%8C%E4%B8%8D%E5%B9%B2%E5%87%80%E3%80%8D%E5%AF%BC%E8%87%B4-FPR-%E5%A4%B1%E7%9C%9F"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：假阳性查询集「不干净」导致 FPR 失真</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-5%EF%BC%9Ah2-%E5%BF%98%E8%AE%B0%E3%80%8C%E6%88%96-1%E3%80%8D%E5%AF%BC%E8%87%B4%E4%BD%8D%E6%95%A3%E5%B8%83%E4%B8%8D%E5%9D%87%E5%8C%80"><span class="toc-number">1.5.5.</span> <span class="toc-text">坑 5：h2 忘记「或 1」导致位散布不均匀</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E8%A7%A3%E8%AF%BB%E4%B8%80%EF%BC%9AFPR-%E7%9A%84%E3%80%8CU-%E5%9E%8B%E6%9B%B2%E7%BA%BF%E3%80%8D%E5%AE%8C%E7%BE%8E%E5%8D%B0%E8%AF%81%E6%9C%80%E4%BC%98-k"><span class="toc-number">1.6.1.</span> <span class="toc-text">数据解读一：FPR 的「U 型曲线」完美印证最优 k</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E8%A7%A3%E8%AF%BB%E4%BA%8C%EF%BC%9A%E9%9B%B6%E5%81%87%E9%98%B4%E6%80%A7%E6%98%AF%E3%80%8C%E7%A1%AC%E4%BF%9D%E8%AF%81%E3%80%8D%EF%BC%8C%E4%B8%8D%E6%98%AF%E3%80%8C%E5%A4%A7%E6%A6%82%E3%80%8D"><span class="toc-number">1.6.2.</span> <span class="toc-text">数据解读二：零假阴性是「硬保证」，不是「大概」</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E8%A7%A3%E8%AF%BB%E4%B8%89%EF%BC%9A30-5-%E5%80%8D%E7%9A%84%E5%86%85%E5%AD%98%E5%8E%8B%E7%BC%A9%E6%AF%94"><span class="toc-number">1.6.3.</span> <span class="toc-text">数据解读三：30.5 倍的内存压缩比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B8%83%E9%9A%86%E8%BF%87%E6%BB%A4%E5%99%A8%E7%9A%84%E6%9C%AC%E8%B4%A8"><span class="toc-number">1.7.1.</span> <span class="toc-text">布隆过滤器的本质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7%EF%BC%9A%E4%BB%80%E4%B9%88%E6%83%85%E5%86%B5%E4%B8%8B%E4%B8%8D%E9%80%82%E7%94%A8%EF%BC%9F"><span class="toc-number">1.7.2.</span> <span class="toc-text">技术局限性：什么情况下不适用？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.3.</span> <span class="toc-text">可以继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.4.</span> <span class="toc-text">与本系列其他文章的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/19/daily-coding-bloom-filter-2026-09-19/" title="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/19/daily-coding-bloom-filter-2026-09-19/" title="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合">每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合</a><time datetime="2026-09-18T22:00:00.000Z" title="发表于 2026-09-19 06:00:00">2026-09-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-15-red-black-tree/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)">每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)</a><time datetime="2026-09-14T22:00:00.000Z" title="发表于 2026-09-15 06:00:00">2026-09-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</a><time datetime="2026-09-12T22:00:00.000Z" title="发表于 2026-09-13 06:00:00">2026-09-13</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-12-segment-tree/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 线段树 (区间和 + 懒标记)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/12/daily-coding-segment-tree-2026-09-12/" title="每日编程实践: 线段树 (区间和 + 懒标记)">每日编程实践: 线段树 (区间和 + 懒标记)</a><time datetime="2026-09-11T22:00:00.000Z" title="发表于 2026-09-12 06:00:00">2026-09-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-suffix-array-lcp/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/09/daily-coding-suffix-array-lcp-2026-09-09/" title="每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)">每日编程实践: 后缀数组与LCP (前缀倍增 + Kasai算法)</a><time datetime="2026-09-08T22:00:00.000Z" title="发表于 2026-09-09 06:00:00">2026-09-09</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
