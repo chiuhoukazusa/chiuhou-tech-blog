@@ -1,0 +1,509 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程在上一篇文章里，我处理的是”求一个数”的问题。今天我们要面对的是完全不同量级的问题：求解偏微分方程（PDE）。具体来说，是数值方法领域最经典、最基础、也是被教学到”烂大街”却又无处不在的——二维 Poisson 方程 ∇²u &#x3D; f。它不再是求一个数，而是求整个二维网格上每一个格点的函数值，即一个未知向量。 这篇文章">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程在上一篇文章里，我处理的是”求一个数”的问题。今天我们要面对的是完全不同量级的问题：求解偏微分方程（PDE）。具体来说，是数值方法领域最经典、最基础、也是被教学到”烂大街”却又无处不在的——二维 Poisson 方程 ∇²u &#x3D; f。它不再是求一个数，而是求整个二维网格上每一个格点的函数值，即一个未知向量。 这篇文章">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png">
+<meta property="article:published_time" content="2026-09-30T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-30T21:33:42.484Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="偏微分方程">
+<meta property="article:tag" content="数值方法">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="线性代数">
+<meta property="article:tag" content="迭代法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Gauss-Seidel & Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛",
+  "url": "https://chiuhoukazusa.github.io/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png",
+  "datePublished": "2026-09-30T22:00:00.000Z",
+  "dateModified": "2026-09-30T21:33:42.484Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Gauss-Seidel & Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-30T22:00:00.000Z" title="发表于 2026-10-01 06:00:00">2026-10-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-30T21:33:42.484Z" title="更新于 2026-10-01 05:33:42">2026-10-01</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Gauss-Seidel-Jacobi-迭代求解-Poisson-方程"><a href="#Gauss-Seidel-Jacobi-迭代求解-Poisson-方程" class="headerlink" title="Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程"></a>Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程</h1><p>在上一篇文章里，我处理的是”求一个数”的问题。今天我们要面对的是完全不同量级的问题：<strong>求解偏微分方程（PDE）</strong>。具体来说，是数值方法领域最经典、最基础、也是被教学到”烂大街”却又无处不在的——<strong>二维 Poisson 方程</strong> <code>∇²u = f</code>。它不再是求一个数，而是求<strong>整个二维网格上每一个格点的函数值</strong>，即一个未知向量。</p>
+<p>这篇文章我会完整实现三种迭代法——<strong>Jacobi 迭代、Gauss-Seidel 迭代、带 SOR 松弛的 Gauss-Seidel</strong>，并从**谱半径（spectral radius）**的角度，量化解释”为什么 Gauss-Seidel 比 Jacobi 快 2 倍、为什么 SOR 能再快 8 倍”。所有结论都用数值实验 + 解析解对比来验证，绝不靠”看起来收敛了”这种感性的判断。</p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>先回答一个最基本的问题：<strong>为什么需要迭代法？直接高斯消元不行吗？</strong></p>
+<p>答案是：<strong>可以，但会爆炸</strong>。</p>
+<p>考虑一个 <code>n × n</code> 的二维网格，内部共有 <code>(n-1)²</code> 个未知格点。用五点差分格式离散 <code>∇²u</code> 后，得到一个线性系统：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">A u = b</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>A</code> 是一个规模为 <code>(n-1)² × (n-1)²</code> 的巨大稀疏矩阵。以 <code>n = 100</code> 为例，未知数有 <code>99² = 9801</code> 个。如果直接用<strong>高斯消元</strong>（LU 分解）求解，时间复杂度是 <code>O(N³)</code>，其中 <code>N = (n-1)²</code>，也就是 <code>O(n⁶)</code>。<code>100⁶ = 10¹²</code>，一秒做十亿次浮点运算也要 1000 秒。更糟的是，高斯消元过程中会产生大量 <strong>fill-in（填充）</strong>——原本稀疏的矩阵在消元后变得稠密，内存从 <code>O(n²)</code> 膨胀到 <code>O(n⁴)</code>，直接爆掉。</p>
+<p>而<strong>迭代法</strong>（Jacobi、Gauss-Seidel 等）的时间复杂度是 <code>O(k × n²)</code>，其中 <code>k</code> 是迭代次数；内存在 <code>O(n²)</code> 内稳定不增长。对于大规模稀疏问题，迭代法是唯一可扩展的选择。</p>
+<p><strong>但这个问题的真正价值，远不止”解方程”本身。</strong></p>
+<p>Poisson 方程是几乎所有<strong>物理模拟</strong>和<strong>图形学</strong>的底层基石：</p>
+<ol>
+<li><p><strong>流体模拟</strong>：不可压缩 Navier-Stokes 方程中，压强场 <code>p</code> 满足 <code>∇²p = ∇·(源项)</code>。这就是为什么实时流体模拟（如游戏里的烟雾、水面）每帧都要解一个 Poisson 方程。GPU Gems 里经典的 “Stable Fluids” 方法，核心就是投影步骤里的一次 Poisson 求解。</p>
+</li>
+<li><p><strong>图像处理</strong>：Photoshop 里的”内容感知填充”（泊松图像编辑，Poisson Image Editing）——保持目标区域的梯度场不变，通过解 Poisson 方程无缝克隆图像。这是 2003 年 Pérez 等人的著名工作，广泛用于人像修复、物体移除。</p>
+</li>
+<li><p><strong>热传导 &#x2F; 扩散</strong>：稳态热方程 <code>∇²T = 0</code> 就是 Poisson 方程的特例（<code>f=0</code>），用于 GPU 散热设计、芯片温度仿真。</p>
+</li>
+<li><p><strong>电磁场</strong>：静电势满足 <code>∇²φ = -ρ/ε₀</code>，Poisson 方程直接给出静电场分布。</p>
+</li>
+<li><p><strong>曲面重建 &#x2F; 几何处理</strong>：从点云重建隐式曲面时，指示函数满足 Poisson 方程。</p>
+</li>
+</ol>
+<p>如果把 CG 等更高级的 Krylov 方法也算作”解 Poisson 的加速手段”，那几乎所有现代数值模拟都绕不开它。<strong>理解 Jacobi 和 Gauss-Seidel 的收敛原理，是理解所有迭代法（包括共轭梯度、多重网格）的第一步。</strong></p>
+<p>另一方面，从<strong>教学</strong>角度看，Jacobi 和 Gauss-Seidel 是一对绝佳的对照物：它们用几乎一模一样的代码，但因为”更新顺序”这一个微小的差别，导致收敛速度差了一倍。这个微小的差别背后，隐藏着<strong>谱半径</strong>这个深刻而优美的线性代数概念——理解它，就理解了迭代法的本质。</p>
+<p>这就是我今天选择做这个题目的动机：<strong>用一个 100 行不到的 C++ 程序，把”差分 → 迭代 → 谱半径 → 收敛率”这条数值计算的完整链路走一遍，并且每一步都用解析解量化验证。</strong></p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-问题设定"><a href="#2-1-问题设定" class="headerlink" title="2.1 问题设定"></a>2.1 问题设定</h3><p>我们求解边界值问题。在单位正方形 <code>Ω = [0,1] × [0,1]</code> 上：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">∇²u = ∂²u/∂x² + ∂²u/∂y² = f(x, y)</span><br><span class="line">u(x, y) = 0  （在边界 ∂Ω 上）</span><br></pre></td></tr></table></figure>
+
+<p>为了能精确验证，我们<strong>人为构造</strong>一个有解析解的特例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">u_exact(x, y) = sin(πx) · sin(πy)</span><br></pre></td></tr></table></figure>
+
+<p>对它求二阶偏导：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">∂²u/∂x² = -π² · sin(πx)·sin(πy)</span><br><span class="line">∂²u/∂y² = -π² · sin(πx)·sin(πy)</span><br><span class="line">∇²u     = -2π² · sin(πx)·sin(πy)</span><br></pre></td></tr></table></figure>
+
+<p>所以取源项 <code>f = -2π²·sin(πx)·sin(πy)</code>。边界上 <code>u_exact = 0</code>（因为 <code>sin(0) = sin(π) = 0</code>），恰好满足 Dirichlet 边界条件。</p>
+<p><strong>为什么这样做？</strong> 因为只有拿到解析解，我们才能算出数值解的<strong>真实误差</strong>，进而验证收敛阶。如果随便挑一个 <code>f</code>，我们就只能看”残差”（迭代是否稳定），而无法判断”解对不对”。<strong>有解析解，是量化验证的根基。</strong></p>
+<h3 id="2-2-五点差分格式离散化"><a href="#2-2-五点差分格式离散化" class="headerlink" title="2.2 五点差分格式离散化"></a>2.2 五点差分格式离散化</h3><p>把 <code>[0,1]²</code> 均匀划分成 <code>n × n</code> 的网格，步长 <code>h = 1/n</code>。格点记为 <code>(i, j)</code>，其中 <code>0 ≤ i, j ≤ n</code>，对应坐标 <code>(x_i, y_j) = (ih, jh)</code>。未知量 <code>u_{i,j}</code> 存储在 <code>(n+1) × (n+1)</code> 的数组里。</p>
+<p>用<strong>中心差分</strong>近似二阶导数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">∂²u/∂x² ≈ (u_&#123;i+1,j&#125; - 2u_&#123;i,j&#125; + u_&#123;i-1,j&#125;) / h²</span><br><span class="line">∂²u/∂y² ≈ (u_&#123;i,j+1&#125; - 2u_&#123;i,j&#125; + u_&#123;i,j-1&#125;) / h²</span><br></pre></td></tr></table></figure>
+
+<p>两者相加，得到<strong>五点差分公式</strong>（字面意思：中心点 + 上下左右四个邻居，共五点）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(u_&#123;i+1,j&#125; + u_&#123;i-1,j&#125; + u_&#123;i,j+1&#125; + u_&#123;i,j-1&#125; - 4u_&#123;i,j&#125;) / h² = f_&#123;i,j&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是 Poisson 方程离散化的<strong>黄金标准</strong>。它的局部截断误差是 <code>O(h²)</code>（泰勒展开后偶数阶项抵消），这决定了最终解的收敛阶也是 <code>O(h²)</code>——这一点在后面会用量化实验验证。</p>
+<p><strong>直觉解释</strong>：<code>u</code> 的拉普拉斯算子衡量的是”这个点比周围邻居平均高多少”。五点公式天然刻画了这个含义：<code>4u_{i,j}</code> 是”假设邻居都等于自己的话，上+下+左+右的和”，如果实际邻居之和小于它，说明 <code>u</code> 在该点是”凸”的（局部极大），<code>∇²u &lt; 0</code>。反过来，<code>∇²u &gt; 0</code> 表示局部极小。Poisson 方程 <code>∇²u = f</code> 就是在说：”在每个点，解的凸度必须等于给定的源项 <code>f</code>“。</p>
+<h3 id="2-3-把差分方程改写成迭代形式"><a href="#2-3-把差分方程改写成迭代形式" class="headerlink" title="2.3 把差分方程改写成迭代形式"></a>2.3 把差分方程改写成迭代形式</h3><p>把五点公式整理，解出中心点 <code>u_{i,j}</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">u_&#123;i,j&#125; = (u_&#123;i+1,j&#125; + u_&#123;i-1,j&#125; + u_&#123;i,j+1&#125; + u_&#123;i,j-1&#125; - h²·f_&#123;i,j&#125;) / 4</span><br></pre></td></tr></table></figure>
+
+<p>这是一个”点迭代”式子：<strong>新值 &#x3D; 四个邻居的平均值（减去源项修正）</strong>。</p>
+<p>直觉上这非常合理：对于 <code>f = 0</code> 的调和函数，每一点的值应当等于其邻居的平均值（这是调和函数的均值性质，mean value property）。迭代法本质上就是<strong>反复用均值性质”抹平”这个场</strong>，直到满足方程。</p>
+<p>现在问题来了：<strong>迭代时，右边的邻居值用”旧值”还是”刚算出来的新值”？</strong> 这个看似微不足道的选择，正是 Jacobi 和 Gauss-Seidel 的分水岭。</p>
+<h3 id="2-4-Jacobi-迭代：全部用旧值"><a href="#2-4-Jacobi-迭代：全部用旧值" class="headerlink" title="2.4 Jacobi 迭代：全部用旧值"></a>2.4 Jacobi 迭代：全部用旧值</h3><p>Jacobi 方法的规则是：<strong>这一步迭代中，所有邻居都用上一轮迭代得到的旧值</strong>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">u^&#123;k+1&#125;_&#123;i,j&#125; = (u^k_&#123;i+1,j&#125; + u^k_&#123;i-1,j&#125; + u^k_&#123;i,j+1&#125; + u^k_&#123;i,j-1&#125; - h²·f_&#123;i,j&#125;) / 4</span><br></pre></td></tr></table></figure>
+
+<p>因为所有格点都用第 <code>k</code> 轮的旧值，所以<strong>更新顺序无关紧要</strong>，甚至可以用两个数组交替（一个存旧值、一个写新值），天然支持 GPU&#x2F;SIMD 大规模并行化。这正是 Jacobi 最大的优点：<strong>完全并行</strong>。</p>
+<h3 id="2-5-Gauss-Seidel-迭代：边算边用新值"><a href="#2-5-Gauss-Seidel-迭代：边算边用新值" class="headerlink" title="2.5 Gauss-Seidel 迭代：边算边用新值"></a>2.5 Gauss-Seidel 迭代：边算边用新值</h3><p>Gauss-Seidel 的规则是：<strong>一旦算出了某个点的新值，立刻用它来更新后续邻居的计算</strong>。</p>
+<p>在实际代码里，这体现为<strong>单个数组、原地更新、按 (i, j) 字典序扫描</strong>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">1</span>; j &lt; n; ++j)</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; ++i) &#123;</span><br><span class="line">        <span class="type">int</span> idx = j * N + i;</span><br><span class="line">        u[idx] = <span class="number">0.25</span> * (u[(j<span class="number">+1</span>)*N+i] + u[(j<span class="number">-1</span>)*N+i]   <span class="comment">// 下、上</span></span><br><span class="line">                        + u[j*N+i<span class="number">+1</span>] + u[j*N+i<span class="number">-1</span>]      <span class="comment">// 右、左</span></span><br><span class="line">                        - h2 * <span class="built_in">f_source</span>(i*h, j*h));</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意这里 <code>u[(j-1)*N+i]</code>（上）和 <code>u[j*N+i-1]</code>（左）在下标上比 <code>(i,j)</code> <strong>更早被访问</strong>，因此在同一次扫描中它们已经被更新成了”新值”；而 <code>u[(j+1)*N+i]</code>（下）和 <code>u[j*N+i+1]</code>（右）还是”旧值”。所以 Gauss-Seidel 实际上是”半新半旧”的混合。</p>
+<p><strong>代价</strong>：这种”边算边用”破坏了并行性——更新依赖扫描顺序，不能像 Jacobi 那样随意并行。<strong>收益</strong>：信息传播更快，收敛得更快（下面会从矩阵角度严格分析）。</p>
+<h3 id="2-6-SOR-松弛：Gauss-Seidel-的”过冲”加速"><a href="#2-6-SOR-松弛：Gauss-Seidel-的”过冲”加速" class="headerlink" title="2.6 SOR 松弛：Gauss-Seidel 的”过冲”加速"></a>2.6 SOR 松弛：Gauss-Seidel 的”过冲”加速</h3><p>观察 Gauss-Seidel 的更新：<code>u_new = 0.25·(邻居和 - h²f)</code>。我们可以引入一个<strong>松弛因子 ω</strong>，在”旧值”和”Gauss-Seidel 新值”之间做一个线性外推：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">u_new = u_old + ω · (u_GS - u_old)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>ω = 1</code>：退化为普通 Gauss-Seidel。</li>
+<li><code>0 &lt; ω &lt; 1</code>：欠松弛（under-relaxation），收敛更慢但更稳，用于改善振荡。</li>
+<li><code>ω &gt; 1</code>：超松弛（over-relaxation），”过冲”——走得更远，通常收敛更快。</li>
+</ul>
+<p>这就是 <strong>SOR（Successive Over-Relaxation，逐次超松弛）</strong>。它本质上是”Gauss-Seidel 的加速版”，通过”多迈一步”来更快逼近真解。</p>
+<p><strong>最优 ω 是多少？</strong> 对 Poisson 方程（五点差分），理论给出最优松弛因子：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ω_opt = 2 / (1 + sqrt(1 - ρ(GS)²))</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>ρ(GS)</code> 是 Gauss-Seidel 迭代矩阵的谱半径。当 <code>ρ(GS) ≈ 1</code>（网格很细时），<code>ω_opt → 2</code>。我实验里取 <code>ω = 1.8</code> 是一个接近最优的常见经验值，效果立竿见影（后面有数据）。</p>
+<h3 id="2-7-谱半径：为什么收敛速度会差这么多？"><a href="#2-7-谱半径：为什么收敛速度会差这么多？" class="headerlink" title="2.7 谱半径：为什么收敛速度会差这么多？"></a>2.7 谱半径：为什么收敛速度会差这么多？</h3><p>这是全篇<strong>最重要、也最容易被忽视</strong>的理论核心。让我从矩阵角度把迭代法统一起来。</p>
+<p>五点差分得到的线性系统可以写成 <code>A u = b</code>。把 A 拆成三部分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">A = D - L - U</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>D</code>：对角矩阵（每个点自身的系数，对角线元素为 4）</li>
+<li><code>-L</code>：严格下三角（邻居中”更早被更新”的部分）</li>
+<li><code>-U</code>：严格上三角（邻居中”更晚被更新”的部分）</li>
+</ul>
+<p>那么 Jacobi 迭代等价于：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">u^&#123;k+1&#125; = D⁻¹(L + U) u^k + D⁻¹ b</span><br><span class="line">        = R_Jac · u^k + D⁻¹ b</span><br></pre></td></tr></table></figure>
+
+<p>其中 <strong><code>R_Jac = D⁻¹(L+U)</code> 就是 Jacobi 迭代矩阵</strong>。Gauss-Seidel 则是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">u^&#123;k+1&#125; = (D - L)⁻¹ · U · u^k + (D - L)⁻¹ b</span><br><span class="line">        = R_GS · u^k + (D - L)⁻¹b</span><br></pre></td></tr></table></figure>
+
+<p><strong>迭代法收敛的充要条件</strong>：迭代矩阵 <code>R</code> 的<strong>谱半径</strong> <code>ρ(R) &lt; 1</code>（谱半径 &#x3D; 特征值模的最大值）。</p>
+<p><strong>收敛速度</strong>：误差向量每迭代一次大约乘以 <code>ρ(R)</code>。所以迭代 <code>k</code> 步后，误差缩小为 <code>ρ(R)^k</code>。要让误差从初始水平 <code>ε₀</code> 降到目标 <code>ε</code>，需要的迭代次数是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">k ≈ ln(ε/ε₀) / ln(ρ)</span><br></pre></td></tr></table></figure>
+
+<p>注意：<code>ρ</code> 越是接近 1，<code>ln(ρ)</code> 越接近 0，迭代次数 <code>k</code> 就急剧增大。这就是为什么网格越细，迭代法收敛越慢。</p>
+<p><strong>关键定理</strong>：对 Poisson 方程（五点差分、矩形区域、n×n 均匀网格），迭代矩阵的谱半径可以<strong>解析求出</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Jacobi:       ρ_Jac = cos(πh)       = cos(π/n)</span><br><span class="line">Gauss-Seidel: ρ_GS  = [cos(πh)]²    = cos²(π/n)</span><br></pre></td></tr></table></figure>
+
+<p>这就是那个著名的关系式：<strong>Gauss-Seidel 的谱半径是 Jacobi 谱半径的平方</strong>。</p>
+<p>现在算一笔账。当 <code>h</code> 很小时，<code>cos(πh) ≈ 1 - (πh)²/2</code>，所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ρ_Jac ≈ 1 - (πh)²/2</span><br><span class="line">ρ_GS  ≈ 1 - (πh)²</span><br></pre></td></tr></table></figure>
+
+<p>用 <code>ln(ρ) ≈ ρ - 1</code>（对 ρ 接近 1 时的高精度近似）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ln(ρ_Jac) ≈ -(πh)²/2</span><br><span class="line">ln(ρ_GS)  ≈ -(πh)²</span><br></pre></td></tr></table></figure>
+
+<p>代入迭代次数公式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">k_Jac ≈ ln(ε/ε₀) / [-(πh)²/2] = 2·|ln(ε/ε₀)| / (πh)²</span><br><span class="line">k_GS  ≈ |ln(ε/ε₀)| / (πh)²</span><br></pre></td></tr></table></figure>
+
+<p><strong>结论：Gauss-Seidel 的迭代次数恰好是 Jacobi 的一半，即”快 2 倍”。</strong> 这不是经验结论，而是从 <code>ρ_GS = ρ_Jac²</code> 严格推导出来的。我会在实验结果里用实际测得的 <code>ρ</code> 和迭代次数双重印证这一点。</p>
+<p><strong>SOR 为什么更快？</strong> SOR 的最优谱半径是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ρ_SOR(ω_opt) = (1 - sqrt(1 - ρ_GS²)) / (1 + sqrt(1 - ρ_GS²))</span><br></pre></td></tr></table></figure>
+
+<p>当 <code>ρ_GS → 1</code> 时，<code>ρ_SOR(ω_opt) ≈ 1 - 2πh</code>，而 <code>ρ_GS ≈ 1 - π²h²</code>。也就是说：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">1 - ρ_SOR ≈ O(h)   （一次方）</span><br><span class="line">1 - ρ_GS  ≈ O(h²)  （二次方）</span><br></pre></td></tr></table></figure>
+
+<p>在网格很细时，<code>1 - ρ_SOR</code> 的量级比 <code>1 - ρ_GS</code> 大得多（<code>h</code> 远大于 <code>h²</code>），所以 SOR 的迭代次数远小于 GS——这也是为什么 SOR 能再快好几倍。这就是”松弛因子”的精髓：<strong>它把谱半径从 <code>1 - O(h²)</code> 推到了 <code>1 - O(h)</code>。</strong></p>
+<h3 id="2-8-为什么选这些方法而不是别的？"><a href="#2-8-为什么选这些方法而不是别的？" class="headerlink" title="2.8 为什么选这些方法而不是别的？"></a>2.8 为什么选这些方法而不是别的？</h3><p>除了 Jacobi 和 Gauss-Seidel，还有一个更现代的家族：<strong>Krylov 子空间方法（如 CG &#x2F; 共轭梯度）</strong>。我在之前的文章里已经做过共轭梯度（CG）求解器。为什么今天”回头”做更朴素的 Jacobi 和 GS？</p>
+<ul>
+<li><p><strong>CG 要求矩阵对称正定</strong>，Poisson 的五点差分矩阵恰好满足，所以 CG 也适用，且收敛更快。但 CG 是”黑盒”——它把 A 当作一个整体算子处理，不容易看到”每个格点如何交换信息”的物理图景。</p>
+</li>
+<li><p><strong>Jacobi 和 GS 是”教学&#x2F;认知”层面不可绕过的起点</strong>。它们的更新规则直接对应”空间局部信息传播”的过程，这个直觉对理解后续所有方法（多重网格、粒子法、扩散）都至关重要。而且 Jacobi 的<strong>完全并行性</strong>让它至今仍在 GPU 求解器（如 Jacobi 预处理的 PCG）里被广泛使用。</p>
+</li>
+</ul>
+<p>所以选择这组方法，不是因为它们最强大，而是因为<strong>它们最能讲清楚”迭代法为什么会收敛、为什么这个比那个快”这个底层原理</strong>。技术点之间的”为什么”，才是有学习价值的。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>程序是一个<strong>单文件、无外部依赖</strong>的 C++17 程序，数据流非常简洁：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">构造解析解 u_exact 与源项 f</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">初始化网格 u（全 0，边界固定为 0）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">┌───────────────────────────────┐</span><br><span class="line">│ 依次运行三种迭代求解器：        │</span><br><span class="line">│   ① Jacobi (双缓冲)            │</span><br><span class="line">│   ② Gauss-Seidel (原地更新)     │</span><br><span class="line">│   ③ GS-SOR(ω=1.8)              │</span><br><span class="line">└───────────────────────────────┘</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">对每种结果计算量化指标：</span><br><span class="line">  ① 最大误差 vs 解析解</span><br><span class="line">  ② 最大残差</span><br><span class="line">  ③ 实测收敛率（残差比值）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">三重验证断言（误差阈值 / 谱半径吻合 / O(h²) 收敛阶）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">输出 &quot;ALL CHECKS PASSED&quot; 或 &quot;FAIL&quot;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构"><a href="#3-2-关键数据结构" class="headerlink" title="3.2 关键数据结构"></a>3.2 关键数据结构</h3><p>用<strong>一维 <code>std::vector&lt;double&gt;</code> + 手动下标</strong>存储 <code>(n+1)²</code> 个格点，而不是二维 <code>vector&lt;vector&lt;double&gt;&gt;</code>：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> N = n + <span class="number">1</span>;</span><br><span class="line"><span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">u</span><span class="params">(N * N, <span class="number">0.0</span>)</span></span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么不用二维数组？</strong> 两个原因：一是<strong>缓存局部性</strong>——二维 <code>vector&lt;vector&gt;</code> 的行是分散堆分配，跨行访问时缓存未命中严重；一维向量连续存放，逐行扫描时内存访问完全顺序化。二是<strong>方便边界索引</strong>——<code>idx = j*N + i</code> 这一行即可映射二维坐标，且所有求解器的内层循环都只用加减 <code>N</code> 或 <code>1</code> 就能访问上下左右邻居，编译器能很好地向量化。</p>
+<p>网格上 <code>N = n+1</code> 个点（含边界），内部待求解的是 <code>(n-1)²</code> 个点（<code>1 ≤ i,j ≤ n-1</code>）。边界点固定为 0，不参与迭代，也不计入误差（它们本来就精确等于解析解的边界值 0）。</p>
+<h3 id="3-3-Jacobi-的双缓冲-vs-GS-的单缓冲"><a href="#3-3-Jacobi-的双缓冲-vs-GS-的单缓冲" class="headerlink" title="3.3 Jacobi 的双缓冲 vs GS 的单缓冲"></a>3.3 Jacobi 的双缓冲 vs GS 的单缓冲</h3><p>这两种方法最直观的”架构差异”体现在缓冲策略上：</p>
+<ul>
+<li><strong>Jacobi</strong> 用 <code>u</code> 和 <code>unew</code> 两个数组交替：</li>
+</ul>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">u</span><span class="params">(N*N, <span class="number">0.0</span>)</span>, <span class="title">unew</span><span class="params">(N*N, <span class="number">0.0</span>)</span></span>;</span><br><span class="line"><span class="comment">// 每轮：从 u 读旧值，写到 unew</span></span><br><span class="line"><span class="keyword">for</span> (...) unew[idx] = <span class="number">0.25</span> * (... 全部来自 u ...);</span><br><span class="line">std::<span class="built_in">swap</span>(u, unew);  <span class="comment">// 下一轮反过来</span></span><br></pre></td></tr></table></figure>
+
+<p>  这是<strong>必须</strong>的：Jacobi 要求”本轮使用的所有邻居都是旧值”，所以不能原地覆盖。</p>
+<ul>
+<li><strong>Gauss-Seidel</strong> 用单个 <code>u</code> 原地更新，天然实现了”边算边用”：</li>
+</ul>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 只有一个数组 u</span></span><br><span class="line"><span class="keyword">for</span> (...) &#123;</span><br><span class="line">    <span class="type">double</span> gs = <span class="number">0.25</span> * (... 上/左已更新，下/右未更新 ...);</span><br><span class="line">    u[idx] = u[idx] + omega * (gs - u[idx]);  <span class="comment">// 原地覆盖</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>职责划分</strong>：程序没有 CPU&#x2F;GPU 分工（纯 CPU 教学程序），但代码按”求解器”和”验证”两个模块在函数层清晰分离：</p>
+<ul>
+<li><code>solve_jacobi()</code> &#x2F; <code>solve_gs()</code>：负责迭代，返回一个 <code>Result</code> 结构体（含迭代次数、最大误差、残差、收敛率）。</li>
+<li><code>max_error()</code> &#x2F; <code>max_residual()</code>：负责量化度量，独立于求解器。</li>
+<li><code>main()</code>：负责编排 + 断言验证。</li>
+</ul>
+<p>这种”求解器只产数据、验证器只判对错”的职责分离，让量化验证逻辑可以复用、不侵入求解代码。</p>
+<h3 id="3-4-Result-结构体与收敛判定"><a href="#3-4-Result-结构体与收敛判定" class="headerlink" title="3.4 Result 结构体与收敛判定"></a>3.4 Result 结构体与收敛判定</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Result</span> &#123;</span><br><span class="line">    std::string name;</span><br><span class="line">    <span class="type">int</span> iterations;</span><br><span class="line">    <span class="type">double</span> max_err;      <span class="comment">// max |u - u_exact|</span></span><br><span class="line">    <span class="type">double</span> final_resid;  <span class="comment">// max 残差</span></span><br><span class="line">    <span class="type">double</span> rate;         <span class="comment">// 每轮收缩因子（实测谱半径）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>收敛判据</strong>：我用的是”最大更新量”而非”残差”作为停机标准：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">maxdelta = max |u_new - u_old|</span><br><span class="line"><span class="keyword">if</span> (maxdelta &lt; tol) <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用更新量而非残差？</strong> 二者在数学上等价（都趋向 0），但更新量在迭代主体循环里就能顺手计算，不必每轮额外扫一遍网格算残差，省一次 O(n²) 的遍历。而残差我只在<strong>停机后</strong>算一次，用于报告和验证。这是一个小的工程性能权衡：把”高频的判断”做得廉价（更新量），把”低频的报告”做得准确（残差）。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-解析解与源项"><a href="#4-1-解析解与源项" class="headerlink" title="4.1 解析解与源项"></a>4.1 解析解与源项</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">constexpr</span> <span class="type">double</span> PI = <span class="number">3.14159265358979323846</span>;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">double</span> <span class="title">u_exact</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">sin</span>(PI * x) * std::<span class="built_in">sin</span>(PI * y);</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="type">static</span> <span class="type">double</span> <span class="title">f_source</span><span class="params">(<span class="type">double</span> x, <span class="type">double</span> y)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">-2.0</span> * PI * PI * std::<span class="built_in">sin</span>(PI * x) * std::<span class="built_in">sin</span>(PI * y);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>f_source</code> 是 <code>u_exact</code> 的拉普拉斯，即 <code>-2π²·sin(πx)·sin(πy)</code>。<strong>为什么系数是 <code>-2π²</code>？</strong> 因为两个方向各贡献一个 <code>-π²</code>。这里有个极易写错的地方：<strong>符号和系数 2 不要漏</strong>。如果写成 <code>-π²</code>（漏了 2）或者 <code>+2π²</code>（符号错），解会整体缩放或符号反转，误差会立刻暴露在验证断言里。这也正是”有解析解”的价值——<strong>任何系数错误都会被 max_error 断言抓住</strong>。</p>
+<h3 id="4-2-Jacobi-迭代"><a href="#4-2-Jacobi-迭代" class="headerlink" title="4.2 Jacobi 迭代"></a>4.2 Jacobi 迭代</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> Result <span class="title">solve_jacobi</span><span class="params">(<span class="type">int</span> n, <span class="type">double</span> tol, <span class="type">int</span> max_iter)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> h = <span class="number">1.0</span> / n;</span><br><span class="line">    <span class="type">double</span> h2 = h * h;</span><br><span class="line">    <span class="type">int</span> N = n + <span class="number">1</span>;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">u</span><span class="params">(N * N, <span class="number">0.0</span>)</span>, <span class="title">unew</span><span class="params">(N * N, <span class="number">0.0</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> it = <span class="number">0</span>;</span><br><span class="line">    <span class="type">double</span> prev_resid = <span class="number">-1.0</span>, rate = <span class="number">0.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (; it &lt; max_iter; ++it) &#123;</span><br><span class="line">        <span class="type">double</span> maxdelta = <span class="number">0.0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">1</span>; j &lt; n; ++j)</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; ++i) &#123;</span><br><span class="line">                <span class="type">int</span> idx = j * N + i;</span><br><span class="line">                unew[idx] = <span class="number">0.25</span> * (u[(j<span class="number">+1</span>)*N+i] + u[(j<span class="number">-1</span>)*N+i]</span><br><span class="line">                                  + u[j*N+i<span class="number">+1</span>]   + u[j*N+i<span class="number">-1</span>]</span><br><span class="line">                                  - h2 * <span class="built_in">f_source</span>(i*h, j*h));</span><br><span class="line">                maxdelta = std::<span class="built_in">max</span>(maxdelta, std::<span class="built_in">fabs</span>(unew[idx] - u[idx]));</span><br><span class="line">            &#125;</span><br><span class="line">        std::<span class="built_in">swap</span>(u, unew);  <span class="comment">// 关键：交换旧/新缓冲</span></span><br><span class="line">        <span class="comment">// ... 计算残差、更新 rate ...</span></span><br><span class="line">        <span class="keyword">if</span> (maxdelta &lt; tol) <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> &#123; <span class="string">&quot;Jacobi&quot;</span>, it + <span class="number">1</span>, <span class="built_in">max_error</span>(u, n, h), prev_resid, rate &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>几个关键设计点</strong>：</p>
+<ol>
+<li><p><strong><code>0.25 * (四邻居和 - h²f)</code></strong>：这就是五点格式解出 <code>u_{i,j}</code> 的公式。注意 <code>- h²f</code> 这一项——源项修正，别漏了它，否则解到的是 <code>∇²u=0</code> 而不是 <code>∇²u=f</code>。</p>
+</li>
+<li><p><strong><code>std::swap(u, unew)</code> 而不是拷贝</strong>：交换两个 vector 只是交换内部指针（O(1)），比逐元素拷贝快得多。而且下一轮自动”角色反转”——旧的 <code>u</code>（上一轮的新解）变成读源，旧的 <code>unew</code>（上一轮的旧解）变成写目标。这个技巧避免了每轮的内存分配。</p>
+</li>
+<li><p><strong><code>maxdelta</code> 用 <code>unew[idx] - u[idx]</code></strong>：因为 Jacobi 的”旧值”就在 <code>u</code> 里，”新值”在 <code>unew</code> 里，二者的差就是更新量。</p>
+</li>
+<li><p><strong>收敛率 <code>rate</code> 的估计</strong>：我不用谱半径的解析公式（那是”理论值”），而是<strong>实测</strong>——每轮记录最大残差 <code>resid</code>，用 <code>rate = resid(本轮) / resid(上轮)</code> 来估计收缩因子。当迭代进入渐近阶段（误差模态收敛到主导特征向量），这个比值会收敛到真实的 <code>ρ</code>。这就是”用实测数据验证理论”的思路。</p>
+</li>
+</ol>
+<h3 id="4-3-Gauss-Seidel-与-SOR（合二为一）"><a href="#4-3-Gauss-Seidel-与-SOR（合二为一）" class="headerlink" title="4.3 Gauss-Seidel 与 SOR（合二为一）"></a>4.3 Gauss-Seidel 与 SOR（合二为一）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> Result <span class="title">solve_gs</span><span class="params">(<span class="type">int</span> n, <span class="type">double</span> tol, <span class="type">int</span> max_iter, <span class="type">double</span> omega = <span class="number">1.0</span>)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> h = <span class="number">1.0</span> / n;</span><br><span class="line">    <span class="type">double</span> h2 = h * h;</span><br><span class="line">    <span class="type">int</span> N = n + <span class="number">1</span>;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">u</span><span class="params">(N * N, <span class="number">0.0</span>)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">int</span> it = <span class="number">0</span>;</span><br><span class="line">    <span class="type">double</span> prev_resid = <span class="number">-1.0</span>, rate = <span class="number">0.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (; it &lt; max_iter; ++it) &#123;</span><br><span class="line">        <span class="type">double</span> maxdelta = <span class="number">0.0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">1</span>; j &lt; n; ++j)</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; ++i) &#123;</span><br><span class="line">                <span class="type">int</span> idx = j * N + i;</span><br><span class="line">                <span class="type">double</span> gs = <span class="number">0.25</span> * (u[(j<span class="number">+1</span>)*N+i] + u[(j<span class="number">-1</span>)*N+i]</span><br><span class="line">                                  + u[j*N+i<span class="number">+1</span>]   + u[j*N+i<span class="number">-1</span>]</span><br><span class="line">                                  - h2 * <span class="built_in">f_source</span>(i*h, j*h));</span><br><span class="line">                <span class="type">double</span> unew = u[idx] + omega * (gs - u[idx]);</span><br><span class="line">                maxdelta = std::<span class="built_in">max</span>(maxdelta, std::<span class="built_in">fabs</span>(unew - u[idx]));</span><br><span class="line">                u[idx] = unew;   <span class="comment">// 原地覆盖，实现&quot;边算边用&quot;</span></span><br><span class="line">            &#125;</span><br><span class="line">        <span class="comment">// ... 残差、rate、收敛判断 ...</span></span><br><span class="line">    &#125;</span><br><span class="line">    std::string nm = (omega == <span class="number">1.0</span>)</span><br><span class="line">        ? <span class="string">&quot;Gauss-Seidel&quot;</span></span><br><span class="line">        : <span class="string">&quot;GS-SOR(w=&quot;</span> + std::<span class="built_in">to_string</span>(omega) + <span class="string">&quot;)&quot;</span>;</span><br><span class="line">    <span class="keyword">return</span> &#123; nm, it + <span class="number">1</span>, <span class="built_in">max_error</span>(u, n, h), prev_resid, rate &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这里 GS 和 SOR 用同一个函数、靠 <code>omega</code> 参数区分</strong>，避免代码重复：</p>
+<ol>
+<li><p><strong>原地更新 <code>u[idx] = unew</code></strong>：这是 Gauss-Seidel 与 Jacobi 的本质区别。当扫描到 <code>(i,j)</code> 时，其”上” <code>(j-1)</code> 和”左” <code>(i-1)</code> 邻居已经在<strong>本轮</strong>被更新过（因为字典序先访问它们），所以 <code>u[(j-1)*N+i]</code> 和 <code>u[j*N+i-1]</code> 已经是新值；而”下” <code>(j+1)</code> 和”右” <code>(i+1)</code> 还是旧值。这就是”边算边用”的具体体现。</p>
+</li>
+<li><p><strong>SOR 公式 <code>u[idx] + omega * (gs - u[idx])</code></strong>：<code>gs</code> 是纯 Gauss-Seidel 的新值，<code>(gs - u[idx])</code> 是”变化量”，<code>omega</code> 放大这个变化量。当 <code>omega = 1</code> 时退化为 <code>gs</code> 本身；<code>omega &gt; 1</code> 时”过冲”加速；<code>omega &lt; 1</code> 时欠松弛减速。这个一行式子同时覆盖了三种情况，非常优雅。</p>
+</li>
+<li><p><strong><code>omega == 1.0</code> 的浮点判断</strong>：这里浮点比较 <code>==</code> 在这里是<strong>安全</strong>的，因为调用方传入的字面量 <code>1.0</code> 和默认参数 <code>1.0</code> 都是精确可表示的浮点数，不存在舍入误差。如果 <code>omega</code> 来自复杂计算，则应改用 <code>fabs(omega - 1.0) &lt; epsilon</code>。这里写清楚是”为什么这里能这么写”。</p>
+</li>
+</ol>
+<h3 id="4-4-残差与误差度量"><a href="#4-4-残差与误差度量" class="headerlink" title="4.4 残差与误差度量"></a>4.4 残差与误差度量</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">double</span> <span class="title">max_residual</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; u, <span class="type">int</span> n, <span class="type">double</span> h)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> h2 = h * h;</span><br><span class="line">    <span class="type">double</span> mr = <span class="number">0.0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">1</span>; j &lt; n; ++j)</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; ++i) &#123;</span><br><span class="line">            <span class="type">double</span> x = i * h, y = j * h;</span><br><span class="line">            <span class="type">double</span> lap = (u[(j<span class="number">+1</span>)*(n<span class="number">+1</span>)+i] + u[(j<span class="number">-1</span>)*(n<span class="number">+1</span>)+i]</span><br><span class="line">                        + u[j*(n<span class="number">+1</span>)+i<span class="number">+1</span>]   + u[j*(n<span class="number">+1</span>)+i<span class="number">-1</span>]</span><br><span class="line">                        - <span class="number">4.0</span>*u[j*(n<span class="number">+1</span>)+i]) / h2;</span><br><span class="line">            mr = std::<span class="built_in">max</span>(mr, std::<span class="built_in">fabs</span>(lap - <span class="built_in">f_source</span>(x, y)));</span><br><span class="line">        &#125;</span><br><span class="line">    <span class="keyword">return</span> mr;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>残差 vs 误差，要分清这两个概念</strong>：</p>
+<ul>
+<li><strong>误差（error）</strong>：<code>|u_数值 - u_exact|</code>，衡量”解离真解有多远”，<strong>只有有解析解时才能算</strong>。</li>
+<li><strong>残差（residual）</strong>：<code>|∇²u_数值 - f|</code>，衡量”解离满足方程有多远”，<strong>任何问题都能算</strong>（只要知道 f）。</li>
+</ul>
+<p>二者相关但不同：残差小不代表误差小（例如条件数大的问题，残差小但误差可能大）。好在 Poisson 方程是良态的，二者会同步收敛。我在程序里<strong>同时算两者</strong>：用残差估计收敛率（普适），用误差做最终精度验证（需要解析解）。</p>
+<h3 id="4-5-三重验证的断言"><a href="#4-5-三重验证的断言" class="headerlink" title="4.5 三重验证的断言"></a>4.5 三重验证的断言</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ① 精度：最大误差必须小于 h² 量级</span></span><br><span class="line"><span class="built_in">check</span>(j, <span class="number">1e-3</span>);</span><br><span class="line"><span class="built_in">check</span>(g, <span class="number">1e-3</span>);</span><br><span class="line"><span class="built_in">check</span>(s, <span class="number">1e-3</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// ② 谱半径：实测收敛率 vs 理论 ρ</span></span><br><span class="line"><span class="type">double</span> rho_jac_theory = std::<span class="built_in">cos</span>(PI * h);</span><br><span class="line"><span class="type">double</span> rho_gs_theory  = rho_jac_theory * rho_jac_theory;</span><br><span class="line"><span class="keyword">if</span> (std::<span class="built_in">fabs</span>(j.rate - rho_jac_theory) &gt; <span class="number">0.02</span>) &#123; ok = <span class="literal">false</span>; &#125;</span><br><span class="line"><span class="keyword">if</span> (std::<span class="built_in">fabs</span>(g.rate - rho_gs_theory) &gt; <span class="number">0.02</span>)   &#123; ok = <span class="literal">false</span>; &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// ③ 收敛阶：细网格误差 / 粗网格误差 ≈ 4</span></span><br><span class="line"><span class="type">int</span> n2 = <span class="number">32</span>;</span><br><span class="line"><span class="keyword">auto</span> g_coarse = <span class="built_in">solve_gs</span>(n2, <span class="number">1e-9</span>, max_iter);</span><br><span class="line"><span class="type">double</span> ratio = g_coarse.max_err / g.max_err;   <span class="comment">// 期望 ≈ 4</span></span><br><span class="line"><span class="keyword">if</span> (ratio &lt; <span class="number">3.0</span> || ratio &gt; <span class="number">5.0</span>) &#123; ok = <span class="literal">false</span>; &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这三重验证分别验证了三件不同的事</strong>：</p>
+<ol>
+<li><p><strong>精度验证</strong>：确保解”对”——误差达到 <code>O(h²)</code> 级别。我用 <code>1e-3</code> 作为宽松阈值（<code>h² = 1/64² ≈ 2.4e-4</code>，数值解最大误差约 <code>2e-4</code>，留有余量）。太严会误报，太松则失去意义。</p>
+</li>
+<li><p><strong>谱半径验证</strong>：确保”收敛速度符合理论”。这是本文的<strong>灵魂</strong>——既能确认实现正确（如果 <code>rate</code> 和理论 <code>ρ</code> 差很多，说明代码里有 bug，比如扫错了邻居或漏了某项），又能定量佐证”GS 比 Jacobi 快 2 倍”的结论。</p>
+</li>
+<li><p><strong>收敛阶验证</strong>：确保”差分格式确实是二阶”。用两套网格（32×32 和 64×64），后者的 <code>h</code> 是前者一半，二阶格式下误差应缩小到 <code>1/4</code>。测出比值约 4.08，完美落在 <code>[3,5]</code> 区间内。</p>
+</li>
+</ol>
+<p><strong>为什么阈值用区间 <code>[3,5]</code> 而非精确 4？</strong> 因为收敛阶的观测值会受”主导误差模态尚未完全建立、以及不同网格上停机精度不同”的扰动，实测 4.0 附近上下浮动都属正常。区间验证比点验证更稳健，也更符合数值方法的工程实践。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这个程序看似简单，但我在实现过程中踩了几个**能让人悄悄跑出错误结果却”看起来正常”**的坑。这正是数值计算的危险之处：<strong>程序不崩溃，不代表它是对的。</strong></p>
+<h3 id="坑-1：忘记-h²f-源项，结果”收敛”到了错误答案"><a href="#坑-1：忘记-h²f-源项，结果”收敛”到了错误答案" class="headerlink" title="坑 1：忘记 - h²f 源项，结果”收敛”到了错误答案"></a>坑 1：忘记 <code>- h²f</code> 源项，结果”收敛”到了错误答案</h3><p><strong>症状</strong>：程序跑通，迭代也能”收敛”（更新量变小、残差下降），一切看起来正常。但仔细看数值解，全是 0。</p>
+<p><strong>错误假设</strong>：我以为只要迭代格式对（四邻居平均），解就是对的，源项只是”锦上添花”。</p>
+<p><strong>真实原因</strong>：如果漏写 <code>- h²f</code> 这一项，求解器实际在解的是 <code>∇²u = 0</code>（拉普拉斯方程），而不是 <code>∇²u = f</code>（Poisson 方程）。而 <code>∇²u = 0</code> 在零边界条件下的解就是 <code>u ≡ 0</code>。于是迭代从 0 出发，一路”收敛”回 0——<strong>收敛得又快又漂亮，但答案是错的</strong>。</p>
+<p><strong>修复方式</strong>：把 <code>- h2 * f_source(i*h, j*h)</code> 加回更新公式。<strong>教训</strong>：收敛 ≠ 正确。必须有解析解对照，才能抓住这种”收敛到错误解”的隐性 bug。这也是我坚持在验证层做 <code>max_error</code> 断言的原因——如果只有残差断言，这个 bug 永远不会暴露。</p>
+<h3 id="坑-2：Jacobi-用单缓冲原地更新，结果比-GS-还”快”且结果错"><a href="#坑-2：Jacobi-用单缓冲原地更新，结果比-GS-还”快”且结果错" class="headerlink" title="坑 2：Jacobi 用单缓冲原地更新，结果比 GS 还”快”且结果错"></a>坑 2：Jacobi 用单缓冲原地更新，结果比 GS 还”快”且结果错</h3><p><strong>症状</strong>：我把 Jacobi 的 <code>unew</code> 缓冲省掉，直接原地更新 <code>u[idx] = ...</code>，结果迭代次数骤减，但误差反而大了。</p>
+<p><strong>错误假设</strong>：我以为”原地更新”只是省内存的优化，不影响结果。</p>
+<p><strong>真实原因</strong>：原地更新会破坏 Jacobi 的语义——一旦某个点被更新，它右边的邻居在同一轮里就会读到这个”新值”，Jacobi 就退化成了 Gauss-Seidel（更准确地说是某种 GS 变体）。<strong>Jacobi 和 GS 的唯一区别，恰恰就是这个”是否原地更新”</strong>。我把唯一区别抹掉了，于是 Jacobi 不再是 Jacobi，收敛速度理论上快了，但和”纯 Jacobi”的对比实验就失效了。</p>
+<p><strong>修复方式</strong>：恢复 <code>u</code> &#x2F; <code>unew</code> 双缓冲 + <code>std::swap</code>。<strong>教训</strong>：在对比实验中，要实现”教科书定义”的算法，不能图省事做”看似等价”的优化——否则对比就失去了意义。</p>
+<h3 id="坑-3：收敛率-rate-用第一轮残差算，结果和理论谱半径对不上"><a href="#坑-3：收敛率-rate-用第一轮残差算，结果和理论谱半径对不上" class="headerlink" title="坑 3：收敛率 rate 用第一轮残差算，结果和理论谱半径对不上"></a>坑 3：收敛率 <code>rate</code> 用第一轮残差算，结果和理论谱半径对不上</h3><p><strong>症状</strong>：实测收敛率 <code>rate</code> 和理论 <code>ρ</code> 有肉眼可见的偏差（差了好几个百分点），导致谱半径验证断言差点失败。</p>
+<p><strong>错误假设</strong>：我以为”任何一轮的残差比值”都等于谱半径。</p>
+<p><strong>真实原因</strong>：迭代初期的误差是<strong>多种特征模态的叠加</strong>，各模态的衰减速度不同（都小于等于 <code>ρ</code>，但快慢不一）。只有迭代进入<strong>渐近阶段</strong>——即”慢模态”（对应谱半径 <code>ρ</code> 的那个特征方向）主导误差后，残差比值才收敛到 <code>ρ</code>。如果只用第一轮和第二轮的残差比值，它反映的是”最快衰减模态 + 慢模态的混合”，会低估 <code>ρ</code>。</p>
+<p><strong>修复方式</strong>：改用<strong>停机前最后两轮</strong>的残差比值来估计 <code>rate</code>，此时误差已经被”最慢模态”主导，比值逼近真实 <code>ρ</code>。于是实测 <code>rate</code> 与理论 <code>ρ</code> 精确吻合到小数点后 4 位（0.99880 vs 0.99880）。<strong>教训</strong>：渐近量的估计要取”渐近阶段”的数据，初期数据是有偏的。</p>
+<h3 id="坑-4：误以为-SOR-的-ω-越大越快，取-ω-1-99-直接发散"><a href="#坑-4：误以为-SOR-的-ω-越大越快，取-ω-1-99-直接发散" class="headerlink" title="坑 4：误以为 SOR 的 ω 越大越快，取 ω&#x3D;1.99 直接发散"></a>坑 4：误以为 SOR 的 ω 越大越快，取 ω&#x3D;1.99 直接发散</h3><p><strong>症状</strong>：我贪心地把 <code>ω</code> 从 1.8 提到 1.99，指望更快的收敛，结果迭代不收敛，残差越来越大。</p>
+<p><strong>错误假设</strong>：我以为”超松弛因子 ω 越大，收敛越快”，且 ω 可以无限逼近 2。</p>
+<p><strong>真实原因</strong>：SOR 的收敛条件是 <code>0 &lt; ω &lt; 2</code>，且收敛速度对 ω 并非单调——存在一个<strong>最优 ω_opt</strong>，超过它反而变慢，接近 2 时会因为过冲过大而振荡甚至发散。ω&#x3D;1.99 已经非常接近发散边界，数值上极不稳定。</p>
+<p><strong>修复方式</strong>：回到 ω&#x3D;1.8 这个稳健且接近最优的取值。<strong>教训</strong>：松弛因子是一个”有最优值、两端都危险”的参数，不是”越大越好”。这同时提醒我：迭代法的参数（ω、步长等）必须理解其<strong>稳定域</strong>，而不是凭直觉乱调。</p>
+<h3 id="坑-5：把”最大更新量”和”最大残差”混为一谈"><a href="#坑-5：把”最大更新量”和”最大残差”混为一谈" class="headerlink" title="坑 5：把”最大更新量”和”最大残差”混为一谈"></a>坑 5：把”最大更新量”和”最大残差”混为一谈</h3><p><strong>症状</strong>：停机判断用了”最大更新量”，但报告里我一度误标成了”最大残差”，导致文档和代码语义不一致。</p>
+<p><strong>错误假设</strong>：我觉得”更新量”和”残差”都是”衡量收敛程度的量”，可以通用名字。</p>
+<p><strong>真实原因</strong>：二者数值不同、量纲不同、物理含义也不同——更新量 <code>|u_new - u_old|</code> 衡量”这一轮走了多远”，残差 <code>|∇²u - f|</code> 衡量”离满足方程还差多远”。在误差模态处于渐近阶段时，二者成比例，但在初期差异明显。</p>
+<p><strong>修复方式</strong>：在代码里显式地分别实现 <code>maxdelta</code>（停机用）和 <code>max_residual</code>（报告用），并在博客里分别说明。<strong>教训</strong>：命名要精确，尤其数值方法里”error”、”residual”、”update”、”delta”这些词有严格区别，混用会误导读者。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>这一节我把程序的实际输出完整贴出来，并逐项解读——<strong>所有结论都来自数字，不是截图肉眼判断</strong>。</p>
+<h3 id="6-1-完整运行输出"><a href="#6-1-完整运行输出" class="headerlink" title="6.1 完整运行输出"></a>6.1 完整运行输出</h3><p>在 <code>n = 64</code>（网格步长 <code>h = 1/64 ≈ 0.01562</code>）、停机容差 <code>tol = 1e-8</code> 下，程序输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">Poisson solver  2D  n=64  (h=0.01562)  tol=1.0e-08</span><br><span class="line">Analytic: u = sin(pi x) sin(pi y),  f = -2 pi^2 sin(pi x) sin(pi y)</span><br><span class="line"></span><br><span class="line">Jacobi                iter=  9708  max_err=1.925e-04  resid=1.636e-04  rate=0.99880</span><br><span class="line">Gauss-Seidel          iter=  5142  max_err=1.967e-04  resid=8.192e-05  rate=0.99759</span><br><span class="line">GS-SOR(w=1.800000)    iter=   647  max_err=2.004e-04  resid=9.397e-06  rate=0.9774</span><br><span class="line"></span><br><span class="line">-- Convergence-rate verification (measured vs theory) --</span><br><span class="line">Jacobi        measured rate=0.99880   theory rho=0.99880</span><br><span class="line">Gauss-Seidel  measured rate=0.99759   theory rho=0.99759</span><br><span class="line"></span><br><span class="line">-- Discretization order (GS 32x32 vs 64x64) --</span><br><span class="line">err(32)=8.035e-04  err(64)=1.967e-04  ratio=4.085 (expect ~4 for O(h^2))</span><br><span class="line"></span><br><span class="line">ALL CHECKS PASSED</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-迭代次数对比：三种方法的性能差距"><a href="#6-2-迭代次数对比：三种方法的性能差距" class="headerlink" title="6.2 迭代次数对比：三种方法的性能差距"></a>6.2 迭代次数对比：三种方法的性能差距</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>迭代次数</th>
+<th>相对 Jacobi</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Jacobi</td>
+<td>9708</td>
+<td>1.00×（基准）</td>
+</tr>
+<tr>
+<td>Gauss-Seidel</td>
+<td>5142</td>
+<td>0.53×（≈快 2 倍）</td>
+</tr>
+<tr>
+<td>GS-SOR(ω&#x3D;1.8)</td>
+<td>647</td>
+<td>0.067×（≈快 15 倍）</td>
+</tr>
+</tbody></table>
+<p>三个关键结论：</p>
+<ol>
+<li><p><strong>Gauss-Seidel 约比 Jacobi 快 2 倍</strong>（9708 → 5142）。这精确印证了理论推导 <code>ρ_GS = ρ_Jac²</code>：迭代次数 <code>k ≈ |ln ε| / |ln ρ|</code>，当 <code>ρ</code> 从 <code>1-(πh)²/2</code> 变为 <code>1-(πh)²</code> 时，<code>|ln ρ|</code> 恰好翻倍，迭代次数减半。</p>
+</li>
+<li><p><strong>SOR(ω&#x3D;1.8) 比 Jacobi 快约 15 倍</strong>（9708 → 647），比 GS 快约 8 倍。这印证了 SOR 把谱半径从 <code>1-O(h²)</code> 推进到 <code>1-O(h)</code>，收敛速度量级跃升。</p>
+</li>
+<li><p>三种方法的<strong>最终精度几乎一致</strong>（max_err 都在 <code>1.9e-4 ~ 2.0e-4</code> 之间）。说明收敛速度的差异<strong>只影响”跑多快”，不影响”跑到哪”</strong>——它们都收敛到同一个离散解（五点差分格式的解），差别仅在迭代次数。</p>
+</li>
+</ol>
+<h3 id="6-3-谱半径验证：实测-vs-理论的精确吻合"><a href="#6-3-谱半径验证：实测-vs-理论的精确吻合" class="headerlink" title="6.3 谱半径验证：实测 vs 理论的精确吻合"></a>6.3 谱半径验证：实测 vs 理论的精确吻合</h3><p>这是本次实验最漂亮的结果：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>实测收敛率 rate</th>
+<th>理论谱半径 ρ</th>
+<th>偏差</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Jacobi</td>
+<td>0.99880</td>
+<td>0.99880</td>
+<td>0.00000</td>
+</tr>
+<tr>
+<td>Gauss-Seidel</td>
+<td>0.99759</td>
+<td>0.99759</td>
+<td>0.00000</td>
+</tr>
+</tbody></table>
+<p>理论值 <code>ρ_Jac = cos(π/64)</code>、<code>ρ_GS = cos²(π/64)</code>，实测值（用最后两轮残差比值估计）与之<strong>精确吻合到小数点后 5 位</strong>。</p>
+<p><strong>这意味着什么？</strong> 它用数据确凿地证明了两件事：</p>
+<ul>
+<li>实现<strong>正确无误</strong>——如果扫错邻居、漏掉某项、或缓冲逻辑写错，实测 <code>rate</code> 一定会偏离理论 <code>ρ</code>。</li>
+<li>“GS 谱半径 &#x3D; Jacobi 谱半径的平方”这个定理<strong>真实成立</strong>——<code>0.99759 ≈ 0.99880² = 0.99760</code>，精确到 5 位小数。</li>
+</ul>
+<p>这正是”量化验证”区别于”看着像收敛了”的本质：<strong>数字能精确到小数点后 5 位，肉眼只能判断”大概差不多”。</strong></p>
+<h3 id="6-4-收敛阶验证：O-h²-的量化确认"><a href="#6-4-收敛阶验证：O-h²-的量化确认" class="headerlink" title="6.4 收敛阶验证：O(h²) 的量化确认"></a>6.4 收敛阶验证：O(h²) 的量化确认</h3><p>用 Gauss-Seidel 在两套网格上分别求解，对比最大误差：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">err(32×32) = 8.035e-04</span><br><span class="line">err(64×64) = 1.967e-04</span><br><span class="line">比值        = 8.035e-04 / 1.967e-04 = 4.085</span><br></pre></td></tr></table></figure>
+
+<p><strong>理论预期</strong>：五点差分是二阶格式，步长减半（<code>h → h/2</code>），误差应缩小到 <code>1/4</code>（即 <code>2²</code> 倍关系）。实测比值 <strong>4.085</strong>，与理论值 4 的偏差仅 2%。</p>
+<p><strong>这个验证的意义</strong>：它证明离散化格式的<strong>收敛阶是真实、可复现的</strong>。如果格式实际是一阶（比如用了前向差分），比值会是 2 而不是 4；如果格式有 bug，比值会偏离 4 很远。4.085 这个数字，是”五点差分 &#x3D; 二阶格式”的最硬证据。</p>
+<h3 id="6-5-精度量级：误差与-h²-的关系"><a href="#6-5-精度量级：误差与-h²-的关系" class="headerlink" title="6.5 精度量级：误差与 h² 的关系"></a>6.5 精度量级：误差与 h² 的关系</h3><p><code>h = 1/64</code>，所以 <code>h² ≈ 2.44e-4</code>。实测最大误差约 <code>2.0e-4</code>，与 <code>h²</code> 同量级，符合二阶收敛的理论误差界 <code>‖u - u_h‖∞ ≤ C·h²</code>（C 是与解的光滑性相关的常数）。这里 <code>C ≈ 0.8</code> 左右，完全合理。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-本文核心收获"><a href="#7-1-本文核心收获" class="headerlink" title="7.1 本文核心收获"></a>7.1 本文核心收获</h3><p>这篇文章我用一个 100 行的 C++ 程序，走完了”求解 Poisson 方程”的完整链路，并且<strong>每一步都用数字验证</strong>：</p>
+<ol>
+<li><strong>五点差分</strong>把连续 PDE 离散成线性系统，是 O(h²) 二阶格式（实测收敛阶 4.085 验证）。</li>
+<li><strong>Jacobi 和 Gauss-Seidel</strong> 的唯一区别是”是否原地更新”，这个微小差别导致 Gauss-Seidel 快 2 倍（9708 vs 5142 次）。</li>
+<li><strong>谱半径 <code>ρ_GS = ρ_Jac²</code></strong> 是这 2 倍差距的数学根源（实测谱半径与理论精确吻合到 5 位小数）。</li>
+<li><strong>SOR 松弛</strong>通过”过冲”把谱半径从 <code>1-O(h²)</code> 推到 <code>1-O(h)</code>，再快 8 倍（647 次）。</li>
+<li><strong>有解析解 + 三重断言</strong>（精度 &#x2F; 谱半径 &#x2F; 收敛阶）才是可靠的验证，单纯”看残差下降”会漏掉”收敛到错误解”的隐性 bug。</li>
+</ol>
+<h3 id="7-2-这些方法的局限性"><a href="#7-2-这些方法的局限性" class="headerlink" title="7.2 这些方法的局限性"></a>7.2 这些方法的局限性</h3><p>必须诚实地说，Jacobi 和 Gauss-Seidel 都是**”教学级”**的求解器，在大规模实际问题里并不够用：</p>
+<ol>
+<li><p><strong>收敛太慢</strong>：谱半径 <code>ρ ≈ 1 - O(h²)</code>，意味着网格加密到 <code>n=1000</code> 时，迭代次数会到 <code>O(n²) = 10⁶</code> 量级，实际不可用。这是它们”朴素迭代法”的先天缺陷。</p>
+</li>
+<li><p><strong>GS 不可并行</strong>：Gauss-Seidel 的”边算边用”破坏了并行性，在 GPU 上无法施展，反而 Jacobi 的并行性更好——这暴露了”串行收敛快”和”可并行”之间的本质张力。</p>
+</li>
+<li><p><strong>对问题结构敏感</strong>：只有当矩阵是”对角占优”或”对称正定”等良态结构时，这些定点迭代才收敛。一般稀疏矩阵未必满足，此时需要更通用的 Krylov 方法。</p>
+</li>
+</ol>
+<h3 id="7-3-可以继续优化的方向"><a href="#7-3-可以继续优化的方向" class="headerlink" title="7.3 可以继续优化的方向"></a>7.3 可以继续优化的方向</h3><ol>
+<li><p><strong>红黑排序（Red-Black Ordering）</strong>：把网格染成棋盘状，红点只依赖黑点、黑点只依赖红点，从而把 Gauss-Seidel 的”依赖链”打散，<strong>恢复并行性同时保住收敛速度</strong>——这是把 GS 和 Jacobi 优点结合起来的经典技巧。</p>
+</li>
+<li><p><strong>共轭梯度（CG）&#x2F; 预处理共轭梯度（PCG）</strong>：对对称正定的 Poisson 矩阵，Krylov 方法收敛到 <code>O(√cond)</code>，远快于定点的 <code>O(cond)</code>。用 Jacobi 或 SSOR 做预处理能进一步加速。我之前做过 CG，二者结合就是工业界求解 Poisson 的标配。</p>
+</li>
+<li><p><strong>多重网格（Multigrid）</strong>：这是解 Poisson 的”终极武器”，能达到 <code>O(n²)</code> 的最优复杂度——因为它用”粗细网格嵌套 + 残差校正”把高频误差在细网格消除、低频误差在粗网格消除，突破了单一网格上谱半径 <code>≈1</code> 的限制。</p>
+</li>
+<li><p><strong>自适应 ω</strong>：用 Chebyshev 迭代思路，对不同的误差模态用不同的松弛参数，进一步压榨 SOR 的性能。</p>
+</li>
+</ol>
+<h3 id="7-4-与本系列的关联"><a href="#7-4-与本系列的关联" class="headerlink" title="7.4 与本系列的关联"></a>7.4 与本系列的关联</h3><p>这篇文章和之前几篇形成了清晰的”数值计算”主线：</p>
+<ul>
+<li><strong>08-04 共轭梯度</strong>：Krylov 子空间方法，解同类的稀疏线性系统，比本文方法更快，但”黑盒”。</li>
+<li><strong>09-02 Newton&#x2F;Secant 求根</strong>：非线性方程的迭代法，同样有”收敛阶”的概念（二次收敛），和本文的线性迭代收敛率形成对照。</li>
+<li><strong>09-30 Adaptive Simpson 积分</strong>：数值求积，同样强调”误差估计 + 自适应”的量化思维。</li>
+</ul>
+<p>本文的<strong>谱半径</strong>概念，则是贯穿所有迭代法的”统一语言”——无论是线性迭代、非线性迭代还是 Krylov 方法，收敛性最终都可以归结为”某个半径是否小于 1、多接近 1”。</p>
+<p><strong>一句话总结</strong>：朴素迭代法（Jacobi&#x2F;GS&#x2F;SOR）本身不是最强，但它们揭示了迭代法最本质的原理——<strong>谱半径决定收敛速度</strong>；理解了这个，你就拿到了打开所有高级求解器的钥匙。</p>
+<hr>
+<p><em>完整代码见本仓库 <code>2026/10/10-01-gauss-seidel-jacobi-poisson/main.cpp</code>，编译运行即可复现全部数据。</em></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/">https://chiuhoukazusa.github.io/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E6%96%B9%E6%B3%95/">数值方法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%BA%BF%E6%80%A7%E4%BB%A3%E6%95%B0/">线性代数</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%81%8F%E5%BE%AE%E5%88%86%E6%96%B9%E7%A8%8B/">偏微分方程</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%BF%AD%E4%BB%A3%E6%B3%95/">迭代法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/09/26/daily-coding-matrix-chain-multiplication-2026-09-26/" title="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-26-matrix-chain-multiplication/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化</div></div><div class="info-2"><div class="info-item-1">矩阵链乘法 (Matrix Chain Multiplication)：区间 DP 求解最优括号化在上一篇关于「匈牙利算法（Hungarian Algorithm）」的博客里，我解决的是指派问题——在 n! 种排列中，用 O(n³) 的 Kuhn-Munkres 算法找到总代价最小的那份完美匹配。那篇博客的核心洞察是：暴力枚举指数爆炸，但对偶构造 + 增广路能把问题压到多项式时间。 今天要讨论的「矩阵链乘法（Matrix Chain Multiplication, MCM）」是动态规划领域另一块里程碑式的基石，它同样始于一个朴素到让人意外的观察：矩阵乘法满足结合律，但不同的括号化方式，计算量可以相差几个数量级。它和匈牙利算法一样，本质都是「在指数级的搜索空间里，用多项式时间找到全局最优」，只不过这次我们手中的工具是区间动态规划（Interval DP）。 本文将带你从零推导区间 DP 的状态与递推，实现最优括号方案的重建，并用 Catalan 暴力枚举做严格的量化最优性验证：证明 DP 与暴力在 7 个测试用例上 7&#x2F;7 一致、括号方案自洽、以及在 n&#x3D;20 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/08/daily-coding-qr-decomposition-2026-08-08/" title="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-08</div><div class="info-item-2">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition  ① 背景与动机为什么需要 QR 分解？在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。 实际场景：  最小二乘拟合：当你有一堆数据点想拟合一条曲线时（Ax &#x3D; b 过约束不可解），最小二乘法找的是 min||Ax - b||。直接解 AT A x &#x3D; AT b 的条件数变成原来的平方（condition number 的平方），数值上极其危险。QR 分解通过 Q^T b &#x3D; R x 避免了这个平方效应——稳定性天差地别。  特征值计算：QR 算法（Francis 1961）是现代特征值求解器的核心。通过反复 QR 分解 + 逆序乘（A_{k+1} &#x3D; R_k Q_k），矩阵逐渐收敛到上三角，对角元就是特征值。MATLAB 的 eig()、numpy 的 lin...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"><img class="cover" src="/chiuhou-tech-blog/images/Maria.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-04</div><div class="info-item-2">每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在科学计算和工程模拟中，求解大型稀疏线性方程组 (Ax &#x3D; b) 是最频繁出现的计算任务之一。无论是有限元法的结构分析、计算流体力学中的压力修正、还是机器学习中的优化问题，最终都会归结为”解一个线性方程组”。 然而，传统的高斯消元法面对这类问题时完全无法胜任。考虑一个三维 Poisson 方程在 (100 \times 100 \times 100) 网格上的离散化——矩阵维度达到 (10^6)，如果使用稠密存储需要约 8TB 内存，而即使用稀疏存储，直接法也会在消元过程中产生大量”填充”(fill-in)，使稀疏性丧失殆尽。 工业界实际场景：  CFD 流体仿真：SIMPLE 算法每次外迭代都需要求解压力 Poisson 方程，ANSYS Fluent、OpenFOAM 等工业软件的核心求解器都依赖 Krylov 子空间方法 几何处理：Laplacian 网格编辑、测地线距离计算中需要反复求解稀疏线性系统，MeshLab、Blender 使用了类似方法 物理模拟：Rigid Body Dynamics 的碰撞约束、布料模拟的隐式积分都需要 Jacobi ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/09/daily-coding-gmres-krylov-solver-2026-08-09/" title="每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-09-gmres-krylov-solver/gmres_cg_comparison.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-09</div><div class="info-item-2">每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-09-gmres-krylov-solver  ① 背景与动机什么是 GMRES？GMRES（Generalized Minimal RESidual method，广义最小残量法）是求解大规模稀疏线性方程组 $Ax &#x3D; b$ 的 Krylov 子空间迭代法，由 Saad 和 Schultz 在 1986 年提出。它的核心思想是：在第 $k$ 步迭代中，从 Krylov 子空间 $\mathcal{K}_k(A, r_0) &#x3D; \text{span}{r_0, Ar_0, A^2r_0, \ldots, A^{k-1}r_0}$ 中寻找使残差 $|b - Ax_k|_2$ 最小的解。 为什么不用直接求解器？本周我们已经实现了 LU 分解和 QR 分解，但对于大规模稀疏系统（例如从偏微分方程离散化得到的百万阶矩阵），直接求解器的 $O(n^3)$ 复杂度是无法承受的。迭代法通过矩阵-向量乘法 $O(n^2)$ 在 Krylov 子空间中逐步逼近真解，通常...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/07/daily-coding-lu-decomposition-2026-08-07/" title="每日编程实践: LU 分解（Doolittle 算法）求解线性方程组"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-07-lu-decomposition/lu_decomposition_report.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">每日编程实践: LU 分解（Doolittle 算法）求解线性方程组</div></div><div class="info-2"><div class="info-item-1">① 背景与动机线性方程组求解是科学计算和工程仿真中最基础也是最频繁调用的操作之一。从有限元分析（FEM）中的刚度矩阵求解，到流体力学模拟中的压力 Poisson 方程，再到机器学习中的正规方程和最小二乘拟合，几乎所有的计算密集型任务都有一个共同的内核：给定一个矩阵 A 和一个向量 b，找出满足 Ax &#x3D; b 的 x。 然而，并不是所有的线性方程组都可以直接求解。在数值计算中，我们面临几个核心挑战： 首先，矩阵规模可能非常巨大。在有限元分析中，一个精细的三维网格可能产生数百万阶的稀疏矩阵。为每个 b 都重新求解显然不可接受——如果我们需要求解同一个 A 但 100 个不同的 b（例如参数扫描），直接法每次 O(n³) 的代价是灾难性的。 其次，直接求逆矩阵 A⁻¹ 在数值上是不稳定且低效的。计算 A⁻¹ 本身就需要 O(n³) 操作，且舍入误差会在求逆过程中被放大。实际上，几乎所有数值线性代数教材的第一课都会告诉你：永远不要显式计算 A⁻¹，如果需要解 Ax &#x3D; b，应该使用分解法。 最后，不同的矩阵结构需要不同的策略。对称正定矩阵适合 Cholesky 分解；...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/10/daily-coding-jacobi-eigenvalue-2026-08-10/" title="每日编程实践: Jacobi 特征值算法——对称矩阵对角化"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-10-jacobi-eigenvalue/jacobi_eigenvalue_cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-10</div><div class="info-item-2">每日编程实践: Jacobi 特征值算法——对称矩阵对角化</div></div><div class="info-2"><div class="info-item-1">① 背景与动机特征值分解（Eigendecomposition）是整个数值线性代数中最重要的操作之一，甚至可以说没有之一。在科学计算和工程领域，特征值和特征向量贯穿了从基础物理到前沿机器学习的几乎所有学科： 在结构力学中，建筑物的固有频率和振型本质上就是质量-刚度矩阵的广义特征值问题。地震工程的响应谱分析依赖于前三阶固有频率的精确计算——如果算错了，你的抗震设计就废了。 在量子力学中，Schrödinger 方程的定态解是 Hamiltonian 算符的特征值问题。化学中的分子轨道计算（Hartree-Fock 方法）、固体物理中的能带结构计算，都是在不断求解不同基底下的大规模特征值问题。 在数据科学中，PCA（主成分分析）的核心操作就是计算协方差矩阵的特征值和特征向量。Google 最早的 PageRank 算法本质上是计算 web 图的邻接矩阵的最大特征值对应的特征向量（即 Perron-Frobenius 向量）。 在图论和机器学习中，谱聚类（Spectral Clustering）依赖 Laplacian 矩阵的第二小特征值（Fiedler 值）来进行图分割；GCN（图卷...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-01</div><div class="info-item-2">每日编程实践: Halton序列与拟蒙特卡洛方法</div></div><div class="info-2"><div class="info-item-1">背景与动机渲染工程师做路径追踪时，常常会面临一个根本性问题：如何用最少的采样点，获得最精确的积分结果？ 传统蒙特卡洛方法使用伪随机数生成器产生采样点来估计积分。根据中心极限定理，MC 的收敛速度是 O(1&#x2F;√N) —— 想提升两倍精度，需要四倍的采样点。在实时渲染中，每个像素的采样预算可能只有 16、8、甚至 1 个采样点，O(1&#x2F;√N) 的慢速收敛意味着图像要么充满噪点，要么需要昂贵的去噪。 拟蒙特卡洛方法正是为此而生。QMC 不使用随机序列，而是使用低差异序列——一种确定性构造的点序列，其核心性质是：点集在定义域上的分布比随机采样更均匀。根据 Koksma-Hlawka 不等式，QMC 的误差上界是 O((log N)^d &#x2F; N)，在中等维度和适量采样数下，收敛速度接近 O(1&#x2F;N)，远优于纯随机 MC 的 O(1&#x2F;√N)。 工业界使用场景：  电影级离线渲染：Pixar 的 RenderMan、Disney 的 Hyperion 都大量使用 QMC 采样进行路径追踪、景深、运动模糊等效果的积分 游戏引擎实时渲染：Unrea...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">193</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">197</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Gauss-Seidel-Jacobi-%E8%BF%AD%E4%BB%A3%E6%B1%82%E8%A7%A3-Poisson-%E6%96%B9%E7%A8%8B"><span class="toc-number">1.</span> <span class="toc-text">Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%97%AE%E9%A2%98%E8%AE%BE%E5%AE%9A"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 问题设定</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%BA%94%E7%82%B9%E5%B7%AE%E5%88%86%E6%A0%BC%E5%BC%8F%E7%A6%BB%E6%95%A3%E5%8C%96"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 五点差分格式离散化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E6%8A%8A%E5%B7%AE%E5%88%86%E6%96%B9%E7%A8%8B%E6%94%B9%E5%86%99%E6%88%90%E8%BF%AD%E4%BB%A3%E5%BD%A2%E5%BC%8F"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 把差分方程改写成迭代形式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Jacobi-%E8%BF%AD%E4%BB%A3%EF%BC%9A%E5%85%A8%E9%83%A8%E7%94%A8%E6%97%A7%E5%80%BC"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 Jacobi 迭代：全部用旧值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-Gauss-Seidel-%E8%BF%AD%E4%BB%A3%EF%BC%9A%E8%BE%B9%E7%AE%97%E8%BE%B9%E7%94%A8%E6%96%B0%E5%80%BC"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 Gauss-Seidel 迭代：边算边用新值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-SOR-%E6%9D%BE%E5%BC%9B%EF%BC%9AGauss-Seidel-%E7%9A%84%E2%80%9D%E8%BF%87%E5%86%B2%E2%80%9D%E5%8A%A0%E9%80%9F"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 SOR 松弛：Gauss-Seidel 的”过冲”加速</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E8%B0%B1%E5%8D%8A%E5%BE%84%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%94%B6%E6%95%9B%E9%80%9F%E5%BA%A6%E4%BC%9A%E5%B7%AE%E8%BF%99%E4%B9%88%E5%A4%9A%EF%BC%9F"><span class="toc-number">1.2.7.</span> <span class="toc-text">2.7 谱半径：为什么收敛速度会差这么多？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E8%BF%99%E4%BA%9B%E6%96%B9%E6%B3%95%E8%80%8C%E4%B8%8D%E6%98%AF%E5%88%AB%E7%9A%84%EF%BC%9F"><span class="toc-number">1.2.8.</span> <span class="toc-text">2.8 为什么选这些方法而不是别的？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-Jacobi-%E7%9A%84%E5%8F%8C%E7%BC%93%E5%86%B2-vs-GS-%E7%9A%84%E5%8D%95%E7%BC%93%E5%86%B2"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 Jacobi 的双缓冲 vs GS 的单缓冲</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-Result-%E7%BB%93%E6%9E%84%E4%BD%93%E4%B8%8E%E6%94%B6%E6%95%9B%E5%88%A4%E5%AE%9A"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 Result 结构体与收敛判定</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E8%A7%A3%E6%9E%90%E8%A7%A3%E4%B8%8E%E6%BA%90%E9%A1%B9"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 解析解与源项</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Jacobi-%E8%BF%AD%E4%BB%A3"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Jacobi 迭代</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Gauss-Seidel-%E4%B8%8E-SOR%EF%BC%88%E5%90%88%E4%BA%8C%E4%B8%BA%E4%B8%80%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 Gauss-Seidel 与 SOR（合二为一）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%AE%8B%E5%B7%AE%E4%B8%8E%E8%AF%AF%E5%B7%AE%E5%BA%A6%E9%87%8F"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 残差与误差度量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E4%B8%89%E9%87%8D%E9%AA%8C%E8%AF%81%E7%9A%84%E6%96%AD%E8%A8%80"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 三重验证的断言</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E5%BF%98%E8%AE%B0-h%C2%B2f-%E6%BA%90%E9%A1%B9%EF%BC%8C%E7%BB%93%E6%9E%9C%E2%80%9D%E6%94%B6%E6%95%9B%E2%80%9D%E5%88%B0%E4%BA%86%E9%94%99%E8%AF%AF%E7%AD%94%E6%A1%88"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：忘记 - h²f 源项，结果”收敛”到了错误答案</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9AJacobi-%E7%94%A8%E5%8D%95%E7%BC%93%E5%86%B2%E5%8E%9F%E5%9C%B0%E6%9B%B4%E6%96%B0%EF%BC%8C%E7%BB%93%E6%9E%9C%E6%AF%94-GS-%E8%BF%98%E2%80%9D%E5%BF%AB%E2%80%9D%E4%B8%94%E7%BB%93%E6%9E%9C%E9%94%99"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：Jacobi 用单缓冲原地更新，结果比 GS 还”快”且结果错</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E6%94%B6%E6%95%9B%E7%8E%87-rate-%E7%94%A8%E7%AC%AC%E4%B8%80%E8%BD%AE%E6%AE%8B%E5%B7%AE%E7%AE%97%EF%BC%8C%E7%BB%93%E6%9E%9C%E5%92%8C%E7%90%86%E8%AE%BA%E8%B0%B1%E5%8D%8A%E5%BE%84%E5%AF%B9%E4%B8%8D%E4%B8%8A"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：收敛率 rate 用第一轮残差算，结果和理论谱半径对不上</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E8%AF%AF%E4%BB%A5%E4%B8%BA-SOR-%E7%9A%84-%CF%89-%E8%B6%8A%E5%A4%A7%E8%B6%8A%E5%BF%AB%EF%BC%8C%E5%8F%96-%CF%89-1-99-%E7%9B%B4%E6%8E%A5%E5%8F%91%E6%95%A3"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：误以为 SOR 的 ω 越大越快，取 ω&#x3D;1.99 直接发散</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-5%EF%BC%9A%E6%8A%8A%E2%80%9D%E6%9C%80%E5%A4%A7%E6%9B%B4%E6%96%B0%E9%87%8F%E2%80%9D%E5%92%8C%E2%80%9D%E6%9C%80%E5%A4%A7%E6%AE%8B%E5%B7%AE%E2%80%9D%E6%B7%B7%E4%B8%BA%E4%B8%80%E8%B0%88"><span class="toc-number">1.5.5.</span> <span class="toc-text">坑 5：把”最大更新量”和”最大残差”混为一谈</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E5%AE%8C%E6%95%B4%E8%BF%90%E8%A1%8C%E8%BE%93%E5%87%BA"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 完整运行输出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E8%BF%AD%E4%BB%A3%E6%AC%A1%E6%95%B0%E5%AF%B9%E6%AF%94%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%96%B9%E6%B3%95%E7%9A%84%E6%80%A7%E8%83%BD%E5%B7%AE%E8%B7%9D"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 迭代次数对比：三种方法的性能差距</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E8%B0%B1%E5%8D%8A%E5%BE%84%E9%AA%8C%E8%AF%81%EF%BC%9A%E5%AE%9E%E6%B5%8B-vs-%E7%90%86%E8%AE%BA%E7%9A%84%E7%B2%BE%E7%A1%AE%E5%90%BB%E5%90%88"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 谱半径验证：实测 vs 理论的精确吻合</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%94%B6%E6%95%9B%E9%98%B6%E9%AA%8C%E8%AF%81%EF%BC%9AO-h%C2%B2-%E7%9A%84%E9%87%8F%E5%8C%96%E7%A1%AE%E8%AE%A4"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 收敛阶验证：O(h²) 的量化确认</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E7%B2%BE%E5%BA%A6%E9%87%8F%E7%BA%A7%EF%BC%9A%E8%AF%AF%E5%B7%AE%E4%B8%8E-h%C2%B2-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 精度量级：误差与 h² 的关系</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%9C%AC%E6%96%87%E6%A0%B8%E5%BF%83%E6%94%B6%E8%8E%B7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 本文核心收获</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E8%BF%99%E4%BA%9B%E6%96%B9%E6%B3%95%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 这些方法的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 可以继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 与本系列的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/" title="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/" title="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛">每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛</a><time datetime="2026-09-30T22:00:00.000Z" title="发表于 2026-10-01 06:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/26/daily-coding-matrix-chain-multiplication-2026-09-26/" title="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-26-matrix-chain-multiplication/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/26/daily-coding-matrix-chain-multiplication-2026-09-26/" title="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化">每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化</a><time datetime="2026-09-25T22:00:00.000Z" title="发表于 2026-09-26 06:00:00">2026-09-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/19/daily-coding-bloom-filter-2026-09-19/" title="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-19-bloom-filter/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/19/daily-coding-bloom-filter-2026-09-19/" title="每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合">每日编程实践: 布隆过滤器 (Bloom Filter) —— 用 256KB 替代 7.6MB 的概率型集合</a><time datetime="2026-09-18T22:00:00.000Z" title="发表于 2026-09-19 06:00:00">2026-09-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-15-red-black-tree/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/15/daily-coding-red-black-tree-2026-09-15/" title="每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)">每日编程实践: 红黑树 (Red-Black Tree) —— 用旋转与染色换取确定性 O(log n)</a><time datetime="2026-09-14T22:00:00.000Z" title="发表于 2026-09-15 06:00:00">2026-09-15</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-13-treap-balanced-bst/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/13/daily-coding-treap-balanced-bst-2026-09-13/" title="每日编程实践: 树堆 (Treap) —— 用随机化对抗退化">每日编程实践: 树堆 (Treap) —— 用随机化对抗退化</a><time datetime="2026-09-12T22:00:00.000Z" title="发表于 2026-09-13 06:00:00">2026-09-13</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
