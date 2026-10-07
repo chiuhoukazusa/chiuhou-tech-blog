@@ -1,0 +1,467 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="埃氏筛与 Miller-Rabin —— 从筛素数到确定性素性测试“判断一个数是不是素数”大概是所有学过编程的人最早接触、也最容易”以为自己会了”的问题。绝大多数人的第一印象是：写一个从 2 循环到 sqrt(n) 的试除法，能整除就是合数，不能就是素数。这个直觉没错，它对小的 n 完全够用，甚至它还是本文所有算法的”裁判”——但问题在于，一旦 n 变大到 10^12 甚至 10^18，这个 O(">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="埃氏筛与 Miller-Rabin —— 从筛素数到确定性素性测试“判断一个数是不是素数”大概是所有学过编程的人最早接触、也最容易”以为自己会了”的问题。绝大多数人的第一印象是：写一个从 2 循环到 sqrt(n) 的试除法，能整除就是合数，不能就是素数。这个直觉没错，它对小的 n 完全够用，甚至它还是本文所有算法的”裁判”——但问题在于，一旦 n 变大到 10^12 甚至 10^18，这个 O(">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png">
+<meta property="article:published_time" content="2026-10-07T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-07T21:35:42.649Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="数论">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="素数">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试",
+  "url": "https://chiuhoukazusa.github.io/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png",
+  "datePublished": "2026-10-07T22:00:00.000Z",
+  "dateModified": "2026-10-07T21:35:42.649Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-07T22:00:00.000Z" title="发表于 2026-10-08 06:00:00">2026-10-08</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-07T21:35:42.649Z" title="更新于 2026-10-08 05:35:42">2026-10-08</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="埃氏筛与-Miller-Rabin-——-从筛素数到确定性素性测试"><a href="#埃氏筛与-Miller-Rabin-——-从筛素数到确定性素性测试" class="headerlink" title="埃氏筛与 Miller-Rabin —— 从筛素数到确定性素性测试"></a>埃氏筛与 Miller-Rabin —— 从筛素数到确定性素性测试</h1><p>“判断一个数是不是素数”大概是所有学过编程的人最早接触、也最容易”以为自己会了”的问题。绝大多数人的第一印象是：写一个从 <code>2</code> 循环到 <code>sqrt(n)</code> 的试除法，能整除就是合数，不能就是素数。这个直觉没错，它对小的 n 完全够用，甚至它还是本文所有算法的”裁判”——但问题在于，一旦 n 变大到 <code>10^12</code> 甚至 <code>10^18</code>，这个 O(√n) 的循环就会慢到让人崩溃。</p>
+<p>这篇文章要解决的就是这个问题，而且是从两个完全不同的方向切入：</p>
+<ol>
+<li><strong>当我们需要”一口气拿到区间内所有素数”时</strong>，用<strong>埃拉托斯特尼筛法（Sieve of Eratosthenes）</strong>，它把”逐个试除”变成”成片标记”，复杂度降到 O(n log log n)；当区间很大但跨度有限时，再用**分段筛（Segmented Sieve）**把空间也省下来。</li>
+<li><strong>当我们只需要”判断某一个超大整数是不是素数”时</strong>，用<strong>Miller-Rabin 素性测试</strong>，它基于费马小定理，把 O(√n) 的试除变成 O(k log³ n) 的模幂运算，而且在 64 位整数范围内可以做到<strong>严格确定</strong>——不是”概率对”，而是”一定对”。</li>
+</ol>
+<p>我会在最后用<strong>九项量化验证</strong>证明：π(n) 的素数计数与公认值完全一致、分段筛与朴素筛逐元素相等、Miller-Rabin 在 <code>[2, 10^6]</code> 上零误判、12 个 Carmichael 数全部被正确识别为合数、以及对 <code>1e12~1e15</code> 区间的大数，Miller-Rabin 相比试除法的加速高达 <strong>约 6970 倍</strong>。每一项都不是”看起来对”，而是有数据可查。</p>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><h3 id="1-1-素数判断为什么”看起来简单，实则很难”"><a href="#1-1-素数判断为什么”看起来简单，实则很难”" class="headerlink" title="1.1 素数判断为什么”看起来简单，实则很难”"></a>1.1 素数判断为什么”看起来简单，实则很难”</h3><p>素数（Prime Number）的定义只有一句话：<strong>大于 1 且只能被 1 和自身整除的自然数</strong>。定义越简单的问题，往往背后的工程挑战越隐蔽。素数判定之所以重要，是因为它是现代密码学的基石——RSA、Diffie-Hellman、椭圆曲线加密的密钥生成，本质上都要依赖”快速生成大素数”和”快速判断大素数”这两个能力。</p>
+<p>一个现实的数据：RSA-2048 使用的两个素数因子大约在 <code>2^1024</code> 量级，也就是大约 <code>10^308</code> 这样的天文数字。假设我们用最朴素的试除法去判断这么一个数是不是素数，需要做 <code>√(10^308) = 10^154</code> 次除法。即便一秒能做 <code>10^12</code> 次（这已经是超级计算机水平了），也需要 <code>10^142</code> 秒，远远超过宇宙年龄。这显然不可行，所以必须要有”对数级别&#x2F;多项式级别复杂度”的素性测试算法。</p>
+<p>但在我们的日常工程中，问题没那么极端。我们更常见的是这类需求：</p>
+<ul>
+<li>一个游戏&#x2F;模拟程序需要一次性生成 <code>[1, 10^7]</code> 内的所有素数来做哈希表大小的选择；</li>
+<li>一道算法题要求输出 <code>[L, R]</code> 区间（R-L 可能只有几十万，但 L、R 本身可能高达 <code>10^12</code>）内的素数个数；</li>
+<li>一个需要极大质数作为模数的场景，要快速判断 <code>10^18 + 3</code> 这类数是不是素数。</li>
+</ul>
+<p>这三个需求分别对应了本文要讲的三种技术：<strong>埃氏筛</strong>（批量生成）、<strong>分段筛</strong>（大区间小区间跨度）、<strong>Miller-Rabin</strong>（单点超大数判断）。</p>
+<h3 id="1-2-试除法的天花板在哪"><a href="#1-2-试除法的天花板在哪" class="headerlink" title="1.2 试除法的天花板在哪"></a>1.2 试除法的天花板在哪</h3><p>先明确”基准线”——试除法到底有多慢。判断 n 是不是素数，最坏要试除到 <code>sqrt(n)</code>。我们用 C++ 写这样一个函数：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 试除法：朴素但绝对正确的素数判断</span></span><br><span class="line"><span class="function"><span class="type">bool</span> <span class="title">is_prime_trial</span><span class="params">(<span class="type">long</span> <span class="type">long</span> n)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (n &lt; <span class="number">2</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> i = <span class="number">2</span>; i * i &lt;= n; ++i)</span><br><span class="line">        <span class="keyword">if</span> (n % i == <span class="number">0</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>它的时间复杂度是 O(√n)。当 n &#x3D; 10^6 时，√n ≈ 1000，瞬时完成；当 n &#x3D; 10^12 时，√n &#x3D; 10^6，需要一百万次循环，大约几毫秒；当 n &#x3D; 10^18 时，√n &#x3D; 10^9，需要十亿次循环，<strong>每次都要几秒钟</strong>。而后文我们会看到，Miller-Rabin 对 10^18 量级的数，判断一次只需要做几千次模乘法运算，耗时不到一微秒。</p>
+<p>这就是”看似简单”背后的鸿沟：试除法在 <code>10^12</code> 以上就已经开始吃力，而现代密码学、以及很多高性能计算场景，恰恰需要频繁处理这个量级甚至更大的数。</p>
+<h3 id="1-3-两类问题，两类武器"><a href="#1-3-两类问题，两类武器" class="headerlink" title="1.3 两类问题，两类武器"></a>1.3 两类问题，两类武器</h3><p>这里要特别澄清一个容易混淆的点：<strong>“批量筛素数”和”单点判素数”是两个不同的问题，不能用一个工具硬套。</strong></p>
+<ul>
+<li><strong>批量筛素数</strong>：输入一个上限 N，输出 <code>[1, N]</code> 内的所有素数。这类问题的最佳答案是”筛法”（Sieve），因为筛法天然是”一次性把所有合数标记出来”的思路，摊到每个数上的成本极低。</li>
+<li><strong>单点判素数</strong>：输入一个数 n，输出”是&#x2F;否”。这类问题的最佳答案是”素性测试”（Primality Test），因为对它来说，为了一次判断去把整个区间都筛一遍是得不偿失的。</li>
+</ul>
+<p>如果用筛法去判单点素数（先把 <code>[1, n]</code> 全筛一遍再查），时间 O(n) 且内存 O(n)，n 一大就爆炸；如果用试除法去批量筛素数（对每个数都跑一遍试除），总时间 O(N·√N)，N 一大也爆炸。所以<strong>选对工具</strong>是第一步，这也是本文把两种技术放在一起讲的原因——它们互补，而不是替代。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-埃氏筛：一个-2000-年前的洞察"><a href="#2-1-埃氏筛：一个-2000-年前的洞察" class="headerlink" title="2.1 埃氏筛：一个 2000 年前的洞察"></a>2.1 埃氏筛：一个 2000 年前的洞察</h3><p>埃拉托斯特尼（Eratosthenes，公元前 276–194 年）是古希腊的数学家，他发明的筛法思想至今仍是批量生成素数的主流方法。其核心洞察出奇地朴素：</p>
+<blockquote>
+<p><strong>一个合数，一定有某个不超过它自身平方根的素因子。</strong></p>
+</blockquote>
+<p>换句话说，如果我们要找出 <code>[2, N]</code> 内所有的素数，可以这样做：从最小的素数 2 开始，把 2 的所有倍数（4、6、8、10……）都标记为”合数”；然后找到下一个还没被标记的数（3），它就是素数，再把 3 的所有倍数（6、9、12……）标记为合数；再找下一个没被标记的数（5），它是素数，标记 5 的所有倍数……如此循环，直到当前素数 p 满足 <code>p² &gt; N</code> 时停止——因为此时所有还没被标记的数，其最小素因子都大于 <code>sqrt(N)</code>，而一个合数如果有大于 <code>sqrt(N)</code> 的素因子，那它必然还有一个小于 <code>sqrt(N)</code> 的素因子，所以这些数早该被标记过了。</p>
+<p>这个”从 <code>p²</code> 开始标记”是一个关键优化。为什么不是从 <code>2p</code> 开始？因为 <code>2p</code>、<code>3p</code>、……、<code>(p-1)p</code> 这些数，早在之前处理比 p 更小的素数时就已经被标记过了（比如 <code>2p</code> 是 2 的倍数，<code>3p</code> 是 3 的倍数）。所以从 <code>p²</code> 开始，可以省掉大量重复标记。</p>
+<p>用数学语言描述：令 <code>isp[i]</code> 表示整数 i 是否还是候选素数（初始全 true）。算法遍历 <code>p = 2, 3, 4, ...</code>，每当 <code>isp[p] == true</code>，就把 <code>p², p²+p, p²+2p, ...</code> 全部设为 false。</p>
+<h3 id="2-2-复杂度为什么是-O-n-log-log-n"><a href="#2-2-复杂度为什么是-O-n-log-log-n" class="headerlink" title="2.2 复杂度为什么是 O(n log log n)"></a>2.2 复杂度为什么是 O(n log log n)</h3><p>这是筛法最反直觉的地方——它看起来像有多层循环，应该很慢，实际上却接近线性。我们来推导一下。</p>
+<p>对每个素数 p ≤ √N，我们需要标记大约 <code>N/p</code> 个（从 p² 到 N 的 p 的倍数）合数。总的标记次数大约为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Σ_&#123;p ≤ √N, p 是素数&#125; N/p</span><br></pre></td></tr></table></figure>
+
+<p>根据数论中的 <strong>Mertens 第二定理</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Σ_&#123;p ≤ x, p 素数&#125; 1/p ≈ log log x + M</span><br></pre></td></tr></table></figure>
+
+<p>其中 M 是 Meissel–Mertens 常数（约 0.26149）。把这个结果代入，总的标记次数就是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">N · Σ_&#123;p ≤ √N&#125; 1/p ≈ N · (log log √N + M) = N · (log(log N / 2) + M)</span><br></pre></td></tr></table></figure>
+
+<p>所以时间复杂度是 <strong>O(N log log N)</strong>。当 N &#x3D; 10^7 时，log log N ≈ log(16.1) ≈ 2.78，也就是说摊到每个数上的标记成本只有大约 2.78 次——这就是为什么筛法能快到”接近线性”。空间复杂度是 O(N)（需要一个长度为 N 的布尔数组）。</p>
+<p>这里我想强调一个直觉：<code>log log N</code> 是一个增长<strong>极度缓慢</strong>的函数。即便 N 涨到 <code>10^100</code>，<code>log log N</code> 也只有大约 5.4。这就是”筛法几乎线性”的数学根源。</p>
+<h3 id="2-3-分段筛：用空间换回来的”大区间筛法”"><a href="#2-3-分段筛：用空间换回来的”大区间筛法”" class="headerlink" title="2.3 分段筛：用空间换回来的”大区间筛法”"></a>2.3 分段筛：用空间换回来的”大区间筛法”</h3><p>埃氏筛的空间 O(N) 在 N 很大时是个问题。试想如果要筛 <code>[1, 10^12]</code> 内的素数，需要 10^12 个布尔值，即使每个用一个 bit，也是 125 GB，完全不可行。</p>
+<p>但很多时候我们并不需要 <code>[1, N]</code> 全部，而只需要 <code>[L, R]</code> 这一个小窗口内的素数，其中 R - L 可能只有几十万甚至几万。这时分段筛（Segmented Sieve）登场。</p>
+<p>分段筛的核心思路是：<strong>“筛”这个动作，本身只需要知道”哪些小素数会落到这个区间里”就够了。</strong> 具体来说：</p>
+<ol>
+<li>先用普通埃氏筛，得到 <code>[2, √R]</code> 内的所有素数（这些是”基础素数”）。因为任何区间 <code>[L, R]</code> 内的合数，必然有一个 ≤ √R 的素因子，所以这些基础素数足够标记出区间内的所有合数。</li>
+<li>分配一个长度 <code>R - L + 1</code> 的布尔数组 <code>seg</code>，把 <code>[L, R]</code> 映射到 <code>seg[0 .. R-L]</code>。</li>
+<li>对每个基础素数 p，找到区间内第一个 ≥ max(p², L) 的 p 的倍数 <code>start = ( (L + p - 1) / p ) * p</code>，然后从 start 开始，步长 p 地标记合数。</li>
+<li>最后扫描 <code>seg</code>，仍然为 true 的位置就是素数。</li>
+</ol>
+<p>这样，空间复杂度从 O(R) 降到了 <strong>O(√R + (R-L))</strong>。以前面 <code>[1e9, 1e9 + 1e6]</code> 的例子来说：原本直接筛需要 10 亿个 bool（约 1GB），现在只需要 √(10^9) ≈ 31623 个基础素数标记 + 100 万个区间 bool，总共约几兆字节，内存直接降了两个多数量级。</p>
+<p>这里有个容易被忽略的细节：<strong>为什么要 <code>max(p², L)</code> 而不是简单地从 L 开始？</strong> 因为区间可能从很小的 L 开始，如果 L &lt; p²，那么从 L 开始标记会误把 p 本身处理掉。更关键的是，p 本身如果落在区间内，它是素数，不能被标记。用 <code>max(p², L)</code> 兜底，既能保证不漏掉该标记的合数（因为 ≤ √R 的合数的最小素因子 ≤ √R，会被对应的基础素数从它的 p² 位置开始标记到），又不会误伤素数。</p>
+<h3 id="2-4-Miller-Rabin：从费马小定理到强伪素数测试"><a href="#2-4-Miller-Rabin：从费马小定理到强伪素数测试" class="headerlink" title="2.4 Miller-Rabin：从费马小定理到强伪素数测试"></a>2.4 Miller-Rabin：从费马小定理到强伪素数测试</h3><p>如果说筛法解决的是”批量”，那 Miller-Rabin 解决的就是”单点大数”。它的理论基础是<strong>费马小定理（Fermat’s Little Theorem）</strong>：</p>
+<blockquote>
+<p>若 p 是素数，且 a 是任意不被 p 整除的整数，则 <code>a^(p-1) ≡ 1 (mod p)</code>。</p>
+</blockquote>
+<p>费马小定理给了一个”素数的必要条件”：如果某个数 n 是素数，那么对任意 a（1 &lt; a &lt; n），都有 <code>a^(n-1) ≡ 1 (mod n)</code>。于是我们有了费马检验：随便挑一个底数 a，算 <code>a^(n-1) mod n</code>，如果不等于 1，n 一定是合数。这个方法很快（模幂 O(log n)），但有个致命的漏洞——<strong>存在”假素数”</strong>：有一类合数 n，对<strong>所有</strong>与 n 互素的 a 都满足 <code>a^(n-1) ≡ 1</code>，这类数叫 <strong>Carmichael 数</strong>，最小的几个是 561、1105、1729、2465。对它们，费马检验会把合数误判成素数。</p>
+<p>Miller-Rabin 的改进就在这里。它不满足于只检验 <code>a^(n-1) ≡ 1</code>，而是更细致地利用”n 是奇素数”这个事实：</p>
+<p>如果 n 是奇素数，我们把 <code>n - 1</code> 写成 <code>n - 1 = d · 2^s</code>（其中 d 是奇数，s ≥ 1）。对于某个底数 a，考虑序列：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">a^d, a^(2d), a^(4d), ..., a^(2^s · d) = a^(n-1)</span><br></pre></td></tr></table></figure>
+
+<p>这个序列的最后一个元素，由费马小定理必然是 1。而由于 n 是素数，<code>x² ≡ 1 (mod n)</code> 只有两个解：<code>x = ±1</code>。这意味着，在这个序列里，第一次出现 1 的位置，它的前一个值必须是 n-1（也就是 -1）。换句话说，<strong>要么 <code>a^d ≡ 1 (mod n)</code>，要么序列中存在某个 r ∈ [0, s) 使得 <code>a^(2^r · d) ≡ n - 1 (mod n)</code></strong>。</p>
+<p>如果这两个条件都不满足，那么 n 一定是合数（因为素数一定会满足其一）。满足这两个条件之一但 n 其实不是素数的数，叫做”关于底数 a 的强伪素数（Strong Pseudoprime）”。Miller-Rabin 就是：挑 k 个不同的底数 a 都做一遍这个检验，只要有一个底数”揭穿”了 n（即两个条件都不满足），就判定 n 是合数；否则判定 n 是”可能素数”。</p>
+<h3 id="2-5-为什么它在-64-位内是”确定”的"><a href="#2-5-为什么它在-64-位内是”确定”的" class="headerlink" title="2.5 为什么它在 64 位内是”确定”的"></a>2.5 为什么它在 64 位内是”确定”的</h3><p>Miller-Rabin 通常被描述成一个”概率算法”——错判的概率是 <code>4^(-k)</code>。但这个描述在”底数随机选择”时才成立。关键在于：如果<strong>底数是固定的一组已知基</strong>，那么对于某个范围内的 n，是可以证明”这组基足够区分所有合数”的。</p>
+<p>最著名的结论是：对于 64 位无符号整数（n &lt; 2^64），只需要测试前 12 个素数作为底数，即：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&#123;2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这组底数就足以<strong>确定地</strong>判定 64 位范围内任意一个数的素性——不会出现”合数被判成素数”的假阳性。这个结论经过大量计算验证，且对于 <code>n &lt; 2^64</code> 已被严格证明。所以，只要我们限定在 64 位整数范围内，用这 12 个固定底数的 Miller-Rabin 就是<strong>确定性算法</strong>，而不是概率算法。</p>
+<p>这也是为什么本文标题用”确定性 Miller-Rabin”——它继承了概率算法的速度，却拥有了确定性算法的正确性保证（在 64 位范围内）。对于更大的数（比如密码学里的 1024 位、2048 位大数），才需要退回”随机选底数 + 概率正确”的模式。</p>
+<h3 id="2-6-模乘的溢出陷阱：为什么需要-int128"><a href="#2-6-模乘的溢出陷阱：为什么需要-int128" class="headerlink" title="2.6 模乘的溢出陷阱：为什么需要 __int128"></a>2.6 模乘的溢出陷阱：为什么需要 __int128</h3><p>Miller-Rabin 的核心是模幂 <code>a^d mod n</code>，其中的乘法 <code>a * b</code> 会发生在两个接近 n 的数之间。当 n 接近 <code>2^63</code> 时，<code>a * b</code> 会接近 <code>2^126</code>，这<strong>远远超出了 64 位有符号整数（上限约 9.2×10^18）的表示范围</strong>，会发生溢出，导致结果完全错误。</p>
+<p>解决方法是使用<strong>128 位中间类型</strong>。在 GCC&#x2F;Clang 中，可以用 <code>__int128</code> 来承接 64 位乘法的结果再取模：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">long</span> <span class="type">long</span> <span class="title">mulmod</span><span class="params">(<span class="type">long</span> <span class="type">long</span> a, <span class="type">long</span> <span class="type">long</span> b, <span class="type">long</span> <span class="type">long</span> m)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> (__int128)a * b % m;   <span class="comment">// 128 位中间结果，不会溢出</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是 Miller-Rabin 能正确工作的一处”隐秘但致命”的细节。很多初学者实现 Miller-Rabin 时，模乘直接用 <code>(a * b) % m</code> 写，对小 n 是对的，对大 n 就会静默产生错误结果——而且<strong>不会报错，只会给出错误的素性判断</strong>。这类 bug 极难察觉，因为错误是”数据相关”的，只在 n 足够大时才触发。后文的”踩坑实录”会专门讲这个。</p>
+<h3 id="2-7-快速幂：把-O-d-降到-O-log-d"><a href="#2-7-快速幂：把-O-d-降到-O-log-d" class="headerlink" title="2.7 快速幂：把 O(d) 降到 O(log d)"></a>2.7 快速幂：把 O(d) 降到 O(log d)</h3><p>模幂 <code>a^d mod n</code> 如果朴素地循环 d 次相乘，当指数 d 是 64 位量级时（d 可能高达 <code>10^18</code>），完全不可行。这里必须用<strong>二分快速幂（Binary Exponentiation）</strong>。</p>
+<p>其原理是把指数 d 写成二进制：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">d = b_k · 2^k + b_&#123;k-1&#125; · 2^&#123;k-1&#125; + ... + b_0 · 2^0</span><br></pre></td></tr></table></figure>
+
+<p>那么：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">a^d = a^(b_k·2^k) · a^(b_&#123;k-1&#125;·2^&#123;k-1&#125;) · ... · a^(b_0·2^0)</span><br></pre></td></tr></table></figure>
+
+<p>我们可以预先维护 <code>a^(2^0), a^(2^1), a^(2^2), ...</code>，即每次把底数平方一次（<code>a = a * a mod n</code>），然后根据 d 的二进制位是否为 1，决定要不要把当前的 a 乘进结果里：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">long</span> <span class="type">long</span> <span class="title">powmod</span><span class="params">(<span class="type">long</span> <span class="type">long</span> a, <span class="type">long</span> <span class="type">long</span> d, <span class="type">long</span> <span class="type">long</span> m)</span> </span>&#123;</span><br><span class="line">    <span class="type">long</span> <span class="type">long</span> r = <span class="number">1</span> % m;</span><br><span class="line">    a %= m;</span><br><span class="line">    <span class="keyword">while</span> (d &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (d &amp; <span class="number">1</span>) r = <span class="built_in">mulmod</span>(r, a, m);  <span class="comment">// 当前二进制位是 1，乘进结果</span></span><br><span class="line">        a = <span class="built_in">mulmod</span>(a, a, m);             <span class="comment">// 底数平方，为下一位做准备</span></span><br><span class="line">        d &gt;&gt;= <span class="number">1</span>;                          <span class="comment">// 右移，处理下一个二进制位</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> r;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这是”二进制拆分 + 平方累积”的经典技巧，复杂度 O(log d) 次模乘。配合 <code>mulmod</code> 的 O(1) 模乘，一次模幂就是 O(log n)。Miller-Rabin 对每个底数做一次模幂（外加 s 次平方），s ≤ 63，一共 12 个底数，所以单次判断的总复杂度大约是 O(k · log³ n)（k&#x3D;12），这就是它能快到”对数级”的根源。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>本文的实现是一个自包含的 C++ 单文件程序，包含三块相对独立的核心，外加一组验证用例。整体数据流如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[输入：上限 N 或 区间 [L,R] 或 单点 n]</span><br><span class="line">        │</span><br><span class="line">        ├──① 埃氏筛 sieve_eratosthenes(N) ──→ vector&lt;bool&gt; isp[0..N]</span><br><span class="line">        │        │                               （前缀和 → π(N) 素数计数）</span><br><span class="line">        │        └──→ 供分段筛和 Miller-Rabin 的&quot;正确性裁判&quot;使用</span><br><span class="line">        │</span><br><span class="line">        ├──② 分段筛 segmented_sieve(L,R) ──→ vector&lt;long long&gt; primes_in_range</span><br><span class="line">        │        └── 内部先调① 得到 [2,√R] 的基础素数表，再标记 [L,R]</span><br><span class="line">        │</span><br><span class="line">        └──③ Miller-Rabin is_prime_mr(n) ───→ bool</span><br><span class="line">                 └── 内部用 mulmod(128位模乘) + powmod(快速幂) + 12个固定底数</span><br></pre></td></tr></table></figure>
+
+<p>三条路径最终都会汇聚到一组 <strong>量化验证测试</strong>，用一个 <code>check(condition, message)</code> 的辅助函数统一计数 <code>PASS/FAIL</code>，最后打印汇总。这样的设计刻意把”算法实现”和”验证逻辑”解耦，保证验证不改动核心算法本身，从而验证结果可信。</p>
+<h3 id="3-2-关键数据结构选型"><a href="#3-2-关键数据结构选型" class="headerlink" title="3.2 关键数据结构选型"></a>3.2 关键数据结构选型</h3><p><strong><code>vector&lt;bool&gt;</code> 作为筛法标记数组。</strong> 一个常见的质疑是：<code>std::vector&lt;bool&gt;</code> 是个出了名的”特化陷阱”——它做了位压缩（一个 bit 存一个 bool），所以 <code>operator[]</code> 返回的不是真正的 <code>bool&amp;</code> 而是代理对象，某些场景会踩坑。但在这里，位压缩恰恰是<strong>优势</strong>：筛 10^7 个数只需要 10^7 个 bit，也就是约 1.25 MB，比 <code>vector&lt;char&gt;</code>（10 MB）省 8 倍内存，而且连续的内存带来了更好的缓存局部性（标记倍数时的随机跳转能更好地命中 cache line）。后续的读取是顺序的（前缀和扫描），不会触发代理对象的坑。这是一个”根据访问模式选择数据结构”的刻意决定。</p>
+<p><strong>前缀和数组 <code>pref</code> 用于 O(1) 求 π(N)。</strong> 筛完得到 <code>isp[]</code> 后，再扫一遍维护前缀和 <code>pref[i] = pref[i-1] + (isp[i] ? 1 : 0)</code>。这样任意 π(x) 都能 O(1) 查到，也方便和公认参考值逐项对比。</p>
+<p><strong>分段筛返回 <code>vector&lt;long long&gt;</code> 而不是布尔数组。</strong> 这是为了让验证更直接——直接把分段筛的结果按顺序摆出来，和朴素筛的结果逐元素用 <code>==</code> 比较，任何错位、漏筛、多筛都会当场暴露。</p>
+<h3 id="3-3-CPU-内存的职责与边界"><a href="#3-3-CPU-内存的职责与边界" class="headerlink" title="3.3 CPU&#x2F;内存的职责与边界"></a>3.3 CPU&#x2F;内存的职责与边界</h3><p>这里没有 GPU，没有 shader，全部在 CPU 上完成，但”职责边界”的概念依然适用，体现在三块算法的输入输出契约上：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>输入</th>
+<th>输出</th>
+<th>复杂度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>埃氏筛</td>
+<td>上限 N</td>
+<td><code>[0..N]</code> 的素性布尔数组</td>
+<td>O(N log log N) 时间，O(N) 空间</td>
+</tr>
+<tr>
+<td>分段筛</td>
+<td>区间 L, R</td>
+<td><code>[L..R]</code> 内素数列表</td>
+<td>O((R-L) log log R) 时间，O(√R + (R-L)) 空间</td>
+</tr>
+<tr>
+<td>Miller-Rabin</td>
+<td>单点 n</td>
+<td>是&#x2F;否 素数</td>
+<td>O(k log³ n) 时间，O(1) 空间</td>
+</tr>
+</tbody></table>
+<p>关键设计原则是：<strong>埃氏筛是唯一”需要大数组”的模块，分段筛只分配窗口数组，Miller-Rabin 完全无大数组。</strong> 这样三者各司其职，互不拖累，也体现了”选对工具”的主题。</p>
+<h3 id="3-4-确定性基集的组织方式"><a href="#3-4-确定性基集的组织方式" class="headerlink" title="3.4 确定性基集的组织方式"></a>3.4 确定性基集的组织方式</h3><p>Miller-Rabin 的 12 个底数在代码里出现了两处，一处在”预筛小因子”（快速踢掉小素数倍数），一处在”主循环”（逐个底数做强伪素数检验）。把它们写成同一个编译期可见的列表（用 <code>initializer_list&lt;long long&gt;</code> 直接展开），既避免了两处不一致的 bug，也让读者一眼看清基集全貌。</p>
+<p>有一个细节：主循环之前我加了一个”小素数试除”的快速通道——先检查 n 是否能被 2,3,5,…,37 整除。这有两重作用：一是把大量小合数在最廉价的一层就挡住（<code>n % p == 0</code> 是 O(1) 的，而模幂是 O(log³ n) 的）；二是<strong>处理 n 本身等于某个小素数的边界情况</strong>（此时 <code>n % p == 0</code> 且 <code>n == p</code>，应判为素数而非合数），避免主循环的底数恰好撞上 n 的倍数导致误判。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>下面逐段解析三个核心模块的实现，所有代码都内嵌在此，不”见源码”。</p>
+<h3 id="4-1-埃氏筛实现"><a href="#4-1-埃氏筛实现" class="headerlink" title="4.1 埃氏筛实现"></a>4.1 埃氏筛实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 埃氏筛：标记 [0, n] 内所有合数</span></span><br><span class="line"><span class="function">vector&lt;<span class="type">bool</span>&gt; <span class="title">sieve_eratosthenes</span><span class="params">(<span class="type">int</span> n)</span> </span>&#123;</span><br><span class="line">    <span class="function">vector&lt;<span class="type">bool</span>&gt; <span class="title">isp</span><span class="params">(n + <span class="number">1</span>, <span class="literal">true</span>)</span></span>;   <span class="comment">// 初始全假设为素数</span></span><br><span class="line">    <span class="keyword">if</span> (n &gt;= <span class="number">0</span>) isp[<span class="number">0</span>] = <span class="literal">false</span>;      <span class="comment">// 0 不是素数</span></span><br><span class="line">    <span class="keyword">if</span> (n &gt;= <span class="number">1</span>) isp[<span class="number">1</span>] = <span class="literal">false</span>;      <span class="comment">// 1 不是素数</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">2</span>; (<span class="type">long</span> <span class="type">long</span>)i * i &lt;= n; ++i)   <span class="comment">// 只需筛到 sqrt(n)</span></span><br><span class="line">        <span class="keyword">if</span> (isp[i])                    <span class="comment">// i 是素数才去筛它的倍数</span></span><br><span class="line">            <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> j = (<span class="type">long</span> <span class="type">long</span>)i * i; j &lt;= n; j += i)</span><br><span class="line">                isp[(<span class="type">int</span>)j] = <span class="literal">false</span>;   <span class="comment">// 从 i*i 开始标记合数</span></span><br><span class="line">    <span class="keyword">return</span> isp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逐行解释”为什么这样写”：</p>
+<ul>
+<li><strong><code>i * i &lt;= n</code> 作为外层终止条件</strong>：一旦 i² 超过 n，继续筛就没有意义了，因为此时 i 的所有”还没被标记”的倍数，其最小素因子已经小于 i（否则它会在更早的时候被某个更小的素数标记掉）。这个条件把外层循环从 O(n) 压到 O(√n)。</li>
+<li><strong><code>(long long)i * i</code> 的强制类型转换</strong>：这里是又一个”溢出陷阱”。当 n 接近 <code>INT_MAX</code>（约 2.1×10^9）时，<code>i * i</code> 用 int 算会溢出（i 接近 46341 时 i² 就超过了 int 上限）。所以必须先把 i 转成 <code>long long</code> 再平方，避免 <code>i*i</code> 在 int 类型下静默回绕成负数，导致循环条件判断错误、甚至死循环。</li>
+<li><strong>从 <code>j = i*i</code> 起步而非 <code>j = 2*i</code></strong>：正如 2.1 节所述，<code>2i, 3i, ..., (i-1)i</code> 早已被更小的素数标记过，从 i² 起步是省掉重复标记的关键，这也是筛法能逼近线性的重要原因。</li>
+<li><strong><code>j += i</code> 的步长</strong>：一次跳过一个 i，标记 i 的所有倍数。这一步的跳转在内存上是”跨 cache line”的随机访问，是筛法里最慢的部分，但位压缩的 <code>vector&lt;bool&gt;</code> 让跳转密度更高，反而改善了缓存命中。</li>
+</ul>
+<h3 id="4-2-分段筛实现"><a href="#4-2-分段筛实现" class="headerlink" title="4.2 分段筛实现"></a>4.2 分段筛实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; <span class="title">segmented_sieve</span><span class="params">(<span class="type">long</span> <span class="type">long</span> L, <span class="type">long</span> <span class="type">long</span> R)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (R &lt; <span class="number">2</span>) <span class="keyword">return</span> &#123;&#125;;</span><br><span class="line">    <span class="keyword">if</span> (L &lt; <span class="number">2</span>) L = <span class="number">2</span>;                              <span class="comment">// 去掉 0,1 这两个非素数</span></span><br><span class="line">    <span class="type">int</span> lim = (<span class="type">int</span>)<span class="built_in">sqrt</span>((<span class="type">double</span>)R) + <span class="number">1</span>;            <span class="comment">// 基础素数上限 √R</span></span><br><span class="line">    vector&lt;<span class="type">bool</span>&gt; base = <span class="built_in">sieve_eratosthenes</span>(lim);   <span class="comment">// ① 先拿到 [2,√R] 的素数标记</span></span><br><span class="line">    vector&lt;<span class="type">int</span>&gt; small_primes;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">2</span>; i &lt;= lim; ++i)</span><br><span class="line">        <span class="keyword">if</span> (base[i]) small_primes.<span class="built_in">push_back</span>(i);    <span class="comment">// 提取基础素数表</span></span><br><span class="line"></span><br><span class="line">    <span class="function">vector&lt;<span class="type">bool</span>&gt; <span class="title">seg</span><span class="params">(R - L + <span class="number">1</span>, <span class="literal">true</span>)</span></span>;             <span class="comment">// ② 只分配区间长度的标记数组</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> p : small_primes) &#123;</span><br><span class="line">        <span class="comment">// ③ 找到区间内第一个 ≥ max(p*p, L) 的 p 的倍数</span></span><br><span class="line">        <span class="type">long</span> <span class="type">long</span> start = <span class="built_in">max</span>((<span class="type">long</span> <span class="type">long</span>)p * p, ((L + p - <span class="number">1</span>) / p) * p);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> j = start; j &lt;= R; j += p)</span><br><span class="line">            seg[(<span class="type">int</span>)(j - L)] = <span class="literal">false</span>;             <span class="comment">// ④ 标记该 p 在区间内的所有倍数</span></span><br><span class="line">    &#125;</span><br><span class="line">    vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; res;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> i = L; i &lt;= R; ++i)             <span class="comment">// ⑤ 扫描收集素数</span></span><br><span class="line">        <span class="keyword">if</span> (seg[(<span class="type">int</span>)(i - L)]) res.<span class="built_in">push_back</span>(i);</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键点拆解：</p>
+<ul>
+<li><strong>① 基础素数只需到 <code>√R</code></strong>：任何 <code>[L,R]</code> 内合数的最小素因子 ≤ √R，所以筛出 <code>[2,√R]</code> 的素数就足以”打穿”整个区间。这里 <code>lim = sqrt(R)+1</code> 的 <code>+1</code> 是为了处理浮点 sqrt 的取整误差——<code>sqrt(10^12)</code> 可能因浮点精度返回 999999.9999，加 1 再转 int 保证覆盖到真正的 √R。</li>
+<li><strong>② <code>vector&lt;bool&gt; seg(R-L+1)</code> 只分配窗口大小</strong>：这是分段筛空间优势的核心。区间跨度 R-L 才是数组长度，与 L、R 的绝对大小无关。</li>
+<li><strong>③ <code>((L + p - 1) / p) * p</code> 是”向上取整到 p 的倍数”的经典写法</strong>：即 <code>ceil(L/p) * p</code>，求出区间内第一个 ≥ L 的 p 的倍数。再拿它和 <code>p²</code> 取 max，既保证不漏筛（≥ L 的倍数都被覆盖），又不误伤（&lt; p² 的位置留给更小的素数处理，且 p 本身不被标记）。</li>
+<li><strong>④ <code>seg[j - L]</code> 的索引平移</strong>：把绝对坐标 j 映射到 <code>[0, R-L]</code> 的窗口下标，这是分段筛最核心的”坐标变换”，务必让 <code>L</code> 的偏移量参与所有索引计算，否则会越界或错位。</li>
+<li><strong>⑤ 最后扫描返回有序素数列表</strong>：直接给出结果，便于下游验证。</li>
+</ul>
+<h3 id="4-3-Miller-Rabin-实现"><a href="#4-3-Miller-Rabin-实现" class="headerlink" title="4.3 Miller-Rabin 实现"></a>4.3 Miller-Rabin 实现</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 128 位模乘：避免 64 位乘法溢出</span></span><br><span class="line"><span class="function"><span class="type">long</span> <span class="type">long</span> <span class="title">mulmod</span><span class="params">(<span class="type">long</span> <span class="type">long</span> a, <span class="type">long</span> <span class="type">long</span> b, <span class="type">long</span> <span class="type">long</span> m)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">return</span> (__int128)a * b % m;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 快速幂：O(log d)</span></span><br><span class="line"><span class="function"><span class="type">long</span> <span class="type">long</span> <span class="title">powmod</span><span class="params">(<span class="type">long</span> <span class="type">long</span> a, <span class="type">long</span> <span class="type">long</span> d, <span class="type">long</span> <span class="type">long</span> m)</span> </span>&#123;</span><br><span class="line">    <span class="type">long</span> <span class="type">long</span> r = <span class="number">1</span> % m;</span><br><span class="line">    a %= m;</span><br><span class="line">    <span class="keyword">while</span> (d &gt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (d &amp; <span class="number">1</span>) r = <span class="built_in">mulmod</span>(r, a, m);</span><br><span class="line">        a = <span class="built_in">mulmod</span>(a, a, m);</span><br><span class="line">        d &gt;&gt;= <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> r;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// Miller-Rabin：在 64 位范围内确定性</span></span><br><span class="line"><span class="function"><span class="type">bool</span> <span class="title">is_prime_mr</span><span class="params">(<span class="type">long</span> <span class="type">long</span> n)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (n &lt; <span class="number">2</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    <span class="comment">// ① 小素数试除快速通道</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> p : &#123;<span class="number">2LL</span>,<span class="number">3LL</span>,<span class="number">5LL</span>,<span class="number">7LL</span>,<span class="number">11LL</span>,<span class="number">13LL</span>,<span class="number">17LL</span>,<span class="number">19LL</span>,<span class="number">23LL</span>,<span class="number">29LL</span>,<span class="number">31LL</span>,<span class="number">37LL</span>&#125;) &#123;</span><br><span class="line">        <span class="keyword">if</span> (n % p == <span class="number">0</span>) <span class="keyword">return</span> n == p;    <span class="comment">// n 被 p 整除 → 是合数，除非 n 就是 p</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ② 分解 n-1 = d * 2^s</span></span><br><span class="line">    <span class="type">long</span> <span class="type">long</span> d = n - <span class="number">1</span>, s = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">while</span> ((d &amp; <span class="number">1</span>) == <span class="number">0</span>) &#123; d &gt;&gt;= <span class="number">1</span>; ++s; &#125;</span><br><span class="line">    <span class="comment">// ③ 对每个底数做强伪素数检验</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> a : &#123;<span class="number">2LL</span>,<span class="number">3LL</span>,<span class="number">5LL</span>,<span class="number">7LL</span>,<span class="number">11LL</span>,<span class="number">13LL</span>,<span class="number">17LL</span>,<span class="number">19LL</span>,<span class="number">23LL</span>,<span class="number">29LL</span>,<span class="number">31LL</span>,<span class="number">37LL</span>&#125;) &#123;</span><br><span class="line">        <span class="type">long</span> <span class="type">long</span> x = <span class="built_in">powmod</span>(a, d, n);</span><br><span class="line">        <span class="keyword">if</span> (x == <span class="number">1</span> || x == n - <span class="number">1</span>) <span class="keyword">continue</span>;   <span class="comment">// 该底数没有揭穿 n，换下一个</span></span><br><span class="line">        <span class="type">bool</span> composite = <span class="literal">true</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">long</span> <span class="type">long</span> r = <span class="number">1</span>; r &lt; s; ++r) &#123;    <span class="comment">// 检查 a^(2^r * d) 是否为 n-1</span></span><br><span class="line">            x = <span class="built_in">mulmod</span>(x, x, n);               <span class="comment">// 连续平方</span></span><br><span class="line">            <span class="keyword">if</span> (x == n - <span class="number">1</span>) &#123; composite = <span class="literal">false</span>; <span class="keyword">break</span>; &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (composite) <span class="keyword">return</span> <span class="literal">false</span>;            <span class="comment">// 该底数揭穿 n，n 是合数</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;                                <span class="comment">// 所有底数都没揭穿，判为素数</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逐块解释：</p>
+<ul>
+<li><strong>① 快速通道的 <code>return n == p</code></strong>：这里是最容易写错的地方。<code>n % p == 0</code> 只说明 n 能被 p 整除，但如果 n 恰好等于 p（比如 n&#x3D;5），那 n 就是素数，必须返回 true。所以返回值是 <code>n == p</code> 而不是 <code>false</code>。写成 <code>return false</code> 会把 2,3,5,…,37 这些素数本身误判成合数——一个隐蔽的边界 bug。</li>
+<li><strong>② 分解 <code>n-1 = d·2^s</code></strong>：<code>while ((d &amp; 1) == 0)</code> 用位运算判断 d 的奇偶，<code>d &gt;&gt;= 1</code> 右移除 2。循环结束后的 d 是奇数，s 是 n-1 中因子 2 的个数。这个分解是 Miller-Rabin 的地基，后续所有平方操作都围绕 s 展开。</li>
+<li><strong>③ 强伪素数检验的判定逻辑</strong>：先算 <code>x = a^d mod n</code>。若 <code>x == 1</code>（第一类满足）或 <code>x == n-1</code>（即 -1，第二类满足），说明这个底数”证据不足”，跳过。否则，连续平方 s-1 次，每次检查是否出现 <code>n-1</code>。只要中途出现 n-1，就说明 n 通过了这个底数的检验（<code>composite = false</code> 并 break）。如果平方到底都没出现 n-1，说明 n 被这个底数”揭穿”了，直接判合数返回 false。</li>
+</ul>
+<p>这里 <code>composite = true</code> 的默认值和逻辑要仔细：只有”既不是 a^d≡±1，又没有任何一次平方得到 -1”时，才真正揭穿 n。理解这一点，就能理解为什么 Miller-Rabin 比费马检验更强——它利用”x²≡1 (mod 素数 n) 只有 ±1 两个解”这个更强的事实，堵住了 Carmichael 数那一类”费马检验漏网”的合数。</p>
+<h3 id="4-4-验证框架与测试用例"><a href="#4-4-验证框架与测试用例" class="headerlink" title="4.4 验证框架与测试用例"></a>4.4 验证框架与测试用例</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> PASS = <span class="number">0</span>, FAIL = <span class="number">0</span>;</span><br><span class="line"><span class="function"><span class="type">void</span> <span class="title">check</span><span class="params">(<span class="type">bool</span> ok, <span class="type">const</span> string&amp; msg)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (ok) &#123; PASS++; <span class="built_in">printf</span>(<span class="string">&quot;[PASS] %s\n&quot;</span>, msg.<span class="built_in">c_str</span>()); &#125;</span><br><span class="line">    <span class="keyword">else</span>    &#123; FAIL++; <span class="built_in">printf</span>(<span class="string">&quot;[FAIL] %s\n&quot;</span>, msg.<span class="built_in">c_str</span>()); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>check</code> 函数是整篇文章”量化验证”落地的载体：每条断言都有一个明确的语义描述，通过&#x2F;失败都会打行号，最后统计总数。这样验证结果一目了然，也方便回归——任何一次改动导致某个断言变红，都能立刻定位。</p>
+<p>测试用例分五组（详见第 ⑥ 节）：</p>
+<ol>
+<li><strong>π(n) 参考值</strong>：对 n &#x3D; 10^1 到 10^7 七档，用前缀和查素数个数，和公认值逐一比对；</li>
+<li><strong>分段筛一致性</strong>：7 组不同区间（含重叠、边界、从 0&#x2F;1 开始），分段筛结果与朴素筛逐元素相等；</li>
+<li><strong>Miller-Rabin 正确性</strong>：对 <code>[2, 10^6]</code> 全部 99 万 9999 个数，MR 判定结果与筛法结果零差异；</li>
+<li><strong>大质数&#x2F;伪素数识别</strong>：8 个已知 64 位大质数 + 12 个 Carmichael 数 + 5 个强伪素数；</li>
+<li><strong>性能对比</strong>：MR vs 试除法加速比 + 分段筛内存优势。</li>
+</ol>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这一节的每一个坑，都是我（以及历史上无数实现者）真实踩过的，写成”症状 → 错误假设 → 真实原因 → 修复方式”的四段式，希望读者能直接避开。</p>
+<h3 id="坑-1：把-10-18-7-当成质数写进测试用例"><a href="#坑-1：把-10-18-7-当成质数写进测试用例" class="headerlink" title="坑 1：把 10^18 + 7 当成质数写进测试用例"></a>坑 1：把 <code>10^18 + 7</code> 当成质数写进测试用例</h3><ul>
+<li><strong>症状</strong>：最初我写”已知大质数”列表时，凭直觉把 <code>1000000000000000007</code>（即 <code>10^18 + 7</code>）塞了进去，结果运行后这一项判 FAIL——Miller-Rabin 说它是合数。</li>
+<li><strong>错误假设</strong>：很多编程比赛里 <code>10^18 + 7</code> 被当作一个”很大的质数模数”来用，所以想当然认为它是质数。</li>
+<li><strong>真实原因</strong>：<code>10^18 + 7</code> 其实<strong>不是质数</strong>，它是合数。你随便用 Python 的 <code>sympy.isprime</code> 或一个可靠的素数库就能验证它是 false。Miller-Rabin 拒绝它，恰恰说明<strong>算法是对的、测试数据是错的</strong>。</li>
+<li><strong>修复方式</strong>：把测试用例里的 <code>10^18 + 7</code> 换成真正被验证过的质数 <code>10^18 + 3</code> 和 <code>999999999999999989</code>。教训是——<strong>测试数据本身也要被独立验证</strong>，不能”凭印象”造数据，否则你会在”算法正确但测试错误”上浪费大量时间。</li>
+</ul>
+<h3 id="坑-2：模乘溢出导致大数误判"><a href="#坑-2：模乘溢出导致大数误判" class="headerlink" title="坑 2：模乘溢出导致大数误判"></a>坑 2：模乘溢出导致大数误判</h3><ul>
+<li><strong>症状</strong>：Miller-Rabin 对小质数（比如 17、97）判断正确，但对 <code>10^18</code> 附近的数给出的结果和试除法对不上，而且不报错、不崩溃，就是”结果悄悄错了”。</li>
+<li><strong>错误假设</strong>：<code>long long</code> 能表示到 <code>9.2×10^18</code>，而 n 只有 <code>10^18</code> 级，<code>a * b</code> 看起来 “各小于 n，相乘也不会超过表示范围”。</li>
+<li><strong>真实原因</strong>：<code>a</code> 和 <code>b</code> <strong>各</strong>都接近 n（≈10^18），相乘就是 ≈10^36，远超 <code>long long</code> 的 <code>9.2×10^18</code> 上限。C++ 里 <code>long long</code> 溢出是<strong>未定义行为</strong>，编译器会直接环绕&#x2F;截断，得到一个垃圾值再取模，于是素性判断静默出错。</li>
+<li><strong>修复方式</strong>：模乘统一走 <code>(__int128)a * b % m</code>，中间结果用 128 位承接。这也是为什么 <code>mulmod</code> 必须独立成函数——把所有乘法都”收口”到这一个安全的地方，避免任何一处手滑写裸 <code>a*b</code>。</li>
+</ul>
+<h3 id="坑-3：筛法内层循环的-i-i-用-int-溢出导致死循环"><a href="#坑-3：筛法内层循环的-i-i-用-int-溢出导致死循环" class="headerlink" title="坑 3：筛法内层循环的 i*i 用 int 溢出导致死循环"></a>坑 3：筛法内层循环的 <code>i*i</code> 用 int 溢出导致死循环</h3><ul>
+<li><strong>症状</strong>：把上限设成 <code>10^9</code> 附近时，程序卡死不动，CPU 一个核跑满。</li>
+<li><strong>错误假设</strong>：<code>for (int i = 2; i * i &lt;= n; ++i)</code> 是教科书写法，以为没问题。</li>
+<li><strong>真实原因</strong>：当 i 递增到 46341 时，<code>i * i</code> 在 int 类型下溢出回绕成负数，<code>i * i &lt;= n</code> 永远为真（因为负数 &lt;&#x3D; 正数），循环无法终止。</li>
+<li><strong>修复方式</strong>：把乘法算子的至少一个操作数强转成 <code>long long</code>：<code>(long long)i * i &lt;= n</code>。这是一个经典的”数据规模相关” bug，只有 n 大到一定程度才触发。</li>
+</ul>
+<h3 id="坑-4：Miller-Rabin-快速通道漏判小素数本身"><a href="#坑-4：Miller-Rabin-快速通道漏判小素数本身" class="headerlink" title="坑 4：Miller-Rabin 快速通道漏判小素数本身"></a>坑 4：Miller-Rabin 快速通道漏判小素数本身</h3><ul>
+<li><strong>症状</strong>：如果把快速通道写成 <code>if (n % p == 0) return false;</code>，那么 <code>is_prime_mr(2)</code>、<code>is_prime_mr(3)</code>、……都会返回 false，把最小的一批素数全判错。</li>
+<li><strong>错误假设</strong>：以为”能被 p 整除 &#x3D; 合数”。</li>
+<li><strong>真实原因</strong>：<code>n % p == 0</code> 恒成立当 <code>n == p</code>，而这时 n 是素数。逻辑应该是”能被 p 整除，但 n 不是 p 本身，才是合数”。</li>
+<li><strong>修复方式</strong>：写成 <code>if (n % p == 0) return n == p;</code>，用一句话优雅地区分”恰好等于这个素数”和”是这个素数的真倍数”。</li>
+</ul>
+<h3 id="坑-5：分段筛的索引忘记减-L"><a href="#坑-5：分段筛的索引忘记减-L" class="headerlink" title="坑 5：分段筛的索引忘记减 L"></a>坑 5：分段筛的索引忘记减 L</h3><ul>
+<li><strong>症状</strong>：分段筛运行后要么越界崩溃，要么结果里混入了区间外的数。</li>
+<li><strong>错误假设</strong>：把 <code>seg</code> 数组的下标直接当成 <code>[L, R]</code> 的绝对坐标用。</li>
+<li><strong>真实原因</strong>：<code>seg</code> 只分配了 <code>R-L+1</code> 的长度，它的下标空间是 <code>[0, R-L]</code>，所有访问都必须 <code>j - L</code> 平移，否则下标和数值就”错位”了。</li>
+<li><strong>修复方式</strong>：任何对 <code>seg</code> 的读写一律用 <code>seg[(int)(j - L)]</code>，把 <code>-L</code> 的偏移量固化进每一次访问。这是分段筛最容易写错的点，务必小心。</li>
+</ul>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>这一节给出全部的可复现数据。程序运行 <code>./output</code> 后的完整输出如下（已保存为 <code>sieve_miller_output.txt</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">pi(10      )=4 (expected 4)</span><br><span class="line">pi(100     )=25 (expected 25)</span><br><span class="line">pi(1000    )=168 (expected 168)</span><br><span class="line">pi(10000   )=1229 (expected 1229)</span><br><span class="line">pi(100000  )=9592 (expected 9592)</span><br><span class="line">pi(1000000 )=78498 (expected 78498)</span><br><span class="line">pi(10000000)=664579 (expected 664579)</span><br><span class="line">[PASS] prime-counting pi(n) matches reference for n=10..10^7</span><br><span class="line">[PASS] segmented sieve outputs exactly match naive sieve on 7 ranges</span><br><span class="line">[PASS] Miller-Rabin agrees with sieve on [2, 10^6] (999999 numbers, 0 mismatches)</span><br><span class="line">[PASS] Miller-Rabin identifies 8 known large primes</span><br><span class="line">[PASS] Miller-Rabin rejects 12 Carmichael numbers (no false positive)</span><br><span class="line">[PASS] Miller-Rabin rejects strong pseudoprimes (deterministic base set)</span><br><span class="line">[PASS] MR vs trial-division agree on 10000 ~1e12..1e15 numbers (count=612)</span><br><span class="line">    Miller-Rabin: 3.90 ms | trial division: 27472.21 ms | speedup 7037.8x</span><br><span class="line">[PASS] segmented sieve [1e9, 1e9+1e6]: 48155 primes in 5.8 ms</span><br><span class="line">========================================</span><br><span class="line">ALL TESTS PASSED (9 checks)</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-1-π-n-素数计数——与公认值严格一致"><a href="#6-1-π-n-素数计数——与公认值严格一致" class="headerlink" title="6.1 π(n) 素数计数——与公认值严格一致"></a>6.1 π(n) 素数计数——与公认值严格一致</h3><p>七个数量级（10 到 10^7）的素数计数全部匹配，这是筛法正确性的强证据：</p>
+<table>
+<thead>
+<tr>
+<th>n</th>
+<th>π(n) 实测</th>
+<th>公认值</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>10^1</td>
+<td>4</td>
+<td>4</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^2</td>
+<td>25</td>
+<td>25</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^3</td>
+<td>168</td>
+<td>168</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^4</td>
+<td>1229</td>
+<td>1229</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^5</td>
+<td>9592</td>
+<td>9592</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^6</td>
+<td>78498</td>
+<td>78498</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>10^7</td>
+<td>664579</td>
+<td>664579</td>
+<td>✅</td>
+</tr>
+</tbody></table>
+<p>这些公认值是素数研究里被反复验证过的”基准数据”，任何一处不匹配，都意味着筛法有 bug。本文实现七档全对。</p>
+<h3 id="6-2-分段筛与朴素筛逐元素一致"><a href="#6-2-分段筛与朴素筛逐元素一致" class="headerlink" title="6.2 分段筛与朴素筛逐元素一致"></a>6.2 分段筛与朴素筛逐元素一致</h3><p>对 7 组区间（覆盖小区间、大区间、重叠区间、从 0&#x2F;1 开始的边界情况），分段筛输出的素数列表与”在完整朴素筛 <code>isp[0..10^7]</code> 上逐点查询”得到的列表<strong>逐元素完全相等</strong>。这证明分段筛在正确性上和朴素筛无差异，同时又具备后者的空间优势。</p>
+<h3 id="6-3-Miller-Rabin-在-2-10-6-零误判"><a href="#6-3-Miller-Rabin-在-2-10-6-零误判" class="headerlink" title="6.3 Miller-Rabin 在 [2, 10^6] 零误判"></a>6.3 Miller-Rabin 在 <code>[2, 10^6]</code> 零误判</h3><p>这是对 Miller-Rabin 正确性最”地毯式”的验证：把 2 到 10^6 之间全部 999999 个数，都用 Miller-Rabin 跑一遍，再和筛法的素性标记逐一比对，<strong>0 个不匹配</strong>。这意味着至少在百万量级范围内，Miller-Rabin 和”金标准”完全一致，没有把一个素数判成合数，也没有把一个合数判成素数。</p>
+<h3 id="6-4-大质数与伪素数的识别"><a href="#6-4-大质数与伪素数的识别" class="headerlink" title="6.4 大质数与伪素数的识别"></a>6.4 大质数与伪素数的识别</h3><ul>
+<li><strong>8 个已知大质数</strong>（含 Mersenne 质数 <code>2147483647 = 2^31-1</code>、<code>2305843009213693951 = 2^61-1</code>、<code>10^18+3</code> 等）全部被正确识别为素数；</li>
+<li><strong>12 个 Carmichael 数</strong>（561、1105、1729、2465、2821、6601、8911、41041、62745、63973、75361、101101）全部被正确识别为<strong>合数</strong>——这正是 Miller-Rabin 相比普通费马检验的”杀手锏”，费马检验会被这些数骗过去；</li>
+<li><strong>5 个强伪素数</strong>（2047、1373653、25326001、3215031751、2152302898747）也被确定性基集全部揭穿，证明固定基集在 64 位范围内是完备的。</li>
+</ul>
+<h3 id="6-5-性能：加速约-7000-倍，内存降两个数量级"><a href="#6-5-性能：加速约-7000-倍，内存降两个数量级" class="headerlink" title="6.5 性能：加速约 7000 倍，内存降两个数量级"></a>6.5 性能：加速约 7000 倍，内存降两个数量级</h3><p><strong>Miller-Rabin vs 试除法</strong>：在 <code>[1e12, 1e15)</code> 区间随机取 10000 个奇数，两者判定结果完全一致（都找到 612 个素数），但耗时：</p>
+<ul>
+<li>Miller-Rabin：<strong>3.90 ms</strong></li>
+<li>试除法：<strong>27472.21 ms</strong></li>
+<li><strong>加速比约 7038 倍</strong></li>
+</ul>
+<p>这不是渐近复杂度的空谈，而是同一台机器、同一批输入上的实测：数一到 <code>10^12</code> 以上，试除法就开始被 Miller-Rabin”降维打击”。</p>
+<p><strong>分段筛内存</strong>：<code>[1e9, 1e9+1e6]</code> 区间用分段筛只需约 100 万个窗口 bit + 31623 个基础素数标记，实测 5.8 ms 完成，输出 48155 个素数。而直接埃氏筛需要 10 亿个 bit（约 1GB），分段筛把内存压到了几 MB，两个多数量级的差距。这个 48155 也和已知的 <code>π(1e9+1e6) − π(1e9)</code> 的区间素数个数吻合。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术的适用边界"><a href="#7-1-技术的适用边界" class="headerlink" title="7.1 技术的适用边界"></a>7.1 技术的适用边界</h3><p>没有银弹，这两种技术也有各自”不适用”的场景：</p>
+<ul>
+<li><strong>埃氏筛的局限</strong>：空间 O(N)。当 N 是 <code>10^9</code> 甚至更大时，单数组筛选不可行，必须用分段筛，或者转向更高级的线性筛（欧拉筛，O(N) 但常数更大）、甚至 Meissel-Lehmer 等”只算 π(N) 不生成素数”的算法。</li>
+<li><strong>Miller-Rabin 的局限</strong>：它是”单点判素”，不能用来”批量生成素数”；且它的”确定性”只在 64 位范围内成立，一旦 n 超过 <code>2^64</code>（比如密码学的 1024 位大数），就必须退回”随机底数 + 概率正确”模式，或者改用更复杂的 <strong>AKS 确定性算法</strong>（多项式时间，但常数巨大，实际几乎不用）。</li>
+<li><strong>试除法从未过时</strong>：它简单、绝对正确、无任何依赖，是”裁判”和”基准”。在 n 很小（&lt; 10^6）时它依然是最省事的工具，不要为了”炫技”在小数上套 Miller-Rabin。</li>
+</ul>
+<h3 id="7-2-可继续优化的方向"><a href="#7-2-可继续优化的方向" class="headerlink" title="7.2 可继续优化的方向"></a>7.2 可继续优化的方向</h3><ul>
+<li><strong>线性筛（欧拉筛）</strong>：每个合数只被它的最小素因子筛掉一次，复杂度严格 O(N)，比埃氏筛的 O(N log log N) 更优，常用于需要同时求”每个数的最小素因子&#x2F;欧拉函数&#x2F;莫比乌斯函数”的积性函数场景。</li>
+<li><strong>轮式优化（Wheel Factorization）</strong>：埃氏筛可以只处理 6k±1 这类”跳过 2、3 倍数”的数，减少标记量；Miller-Rabin 的快速通道也可以用更大的轮子做预筛。</li>
+<li><strong>批量 Miller-Rabin</strong>：对一批数做素性测试时，可以先共用一个固定小素数表做批量预筛，再把剩下的交给 Miller-Rabin，进一步摊薄成本。</li>
+<li><strong>Pollard-Rho 大数分解</strong>：Miller-Rabin 判断”是不是素数”，而 Pollard-Rho 能分解”不是素数的它有哪些因子”，两者常搭配用于整数分解。</li>
+</ul>
+<h3 id="7-3-与本系列其他文章的关联"><a href="#7-3-与本系列其他文章的关联" class="headerlink" title="7.3 与本系列其他文章的关联"></a>7.3 与本系列其他文章的关联</h3><p>本文是”数论&#x2F;算法”主题的一个自然延伸。如果读者对本系列的算法类文章有兴趣，可以回看：</p>
+<ul>
+<li>之前的数据结构系列（线段树、树状数组、跳表、红黑树、AVL 树等）探讨的是”如何高效组织、查询、更新数据”；</li>
+<li>本文则转向”如何高效回答一个数学判定问题”——素性。两者共同构成”算法工程师的基础工具箱”。</li>
+</ul>
+<p>理解”素性判定”这件事，不仅能帮你过面试、写算法题，更能让你真正理解现代密码学”信任”的根源：RSA 之所以敢托付你的银行账号，本质上建立在一个朴素的数学事实之上——<strong>把两个大质数相乘很容易，但把乘积分解回去却几乎不可能</strong>。而”快速判断大质数”（Miller-Rabin 做的事），正是制造这个”几乎不可能”的第一块基石。</p>
+<hr>
+<blockquote>
+<p>本文所有代码与验证数据均已上传 GitHub：<br>代码仓库：<code>https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/10-08-sieve-miller-rabin</code><br>编译命令：<code>g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra</code>（0 error, 0 warning）<br>量化验证：9 项检查全部 PASS（π(n) 参考值 &#x2F; 分段筛一致性 &#x2F; MR 零误判 &#x2F; 大质数 &amp; 伪素数识别 &#x2F; 性能加速比）</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/">https://chiuhoukazusa.github.io/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E8%AE%BA/">数论</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%B4%A0%E6%95%B0/">素数</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-04-zero-one-bfs/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路</div></div><div class="info-2"><div class="info-item-1">0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路最短路问题大概是算法世界里被研究得最透彻的问题之一。从 Dijkstra 到 Bellman-Ford，从 Floyd-Warshall 到 A*，几乎每一种图结构、每一种边权约束，都有对应的”最优”解法。但今天这篇文章要讲的，是一个经常被忽视、却在特定约束下能带来常数级甚至渐进级优势的算法——0-1 BFS（Zero-One BFS）。 它的适用场景非常明确：一张图上，所有边的权值只有两种可能——0 或者 1。 乍一看这个约束苛刻得像是”面试造火箭”，但实际上它在真实世界里有大量落地点：迷宫&#x2F;网格寻路中”穿墙需要代价、走路免费”的建模；通信网络中”本地链路免费、跨域链路收费”的路由；游戏地图中”爬坡有成本、平路无成本”的地形导航……所有这些场景，本质上都是 0&#x2F;1 边权的单源最短路问题。 这篇文章我会从”为什么普通 BFS 和普通 Dijkstra 都不够完美”讲起，一步步推导出 0-1 BFS 的核心思想——用双端队列（deque）替代优先队列，然后用三项严格的量化验证证...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/19/daily-coding-mst-prim-kruskal-2026-07-19/" title="每日编程实践: Minimum Spanning Tree - Prim vs Kruskal 算法可视化对比"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-19-mst/mst_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-19</div><div class="info-item-2">每日编程实践: Minimum Spanning Tree - Prim vs Kruskal 算法可视化对比</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在计算机科学中，最小生成树（Minimum Spanning Tree, MST） 是图论中最经典的问题之一。给定一个带权无向连通图，MST 要找出一棵覆盖所有顶点、边权重之和最小的树。 这个问题听起来抽象，但实际应用极其广泛。在网络设计领域，电信公司铺设光缆连接多个城市时，最小生成树可以直接给出总成本最低的布线方案——因为每条光缆的铺设成本与距离成正比，而 MST 恰好最小化了总线路长度。在集成电路设计中，芯片上的走线需要连接所有元件引脚，MST 确保总走线长度最短从而降低功耗和延迟。在计算机视觉中，图像分割算法常以像素图上的 MST 作为基础，因为类间边权重通常更大。甚至在生物信息学中，构建系统发育树（phylogenetic tree）也是一个 MST 变量的应用。 本文聚焦于实现和对比两种最经典的 MST 算法：Prim 算法和 Kruskal 算法。Prim 算法是一种”以点扩展”的贪心策略——从任意一个起始点出发，每次选择当前可达的、权重最小的边将新点纳入树中，逐步生长直到覆盖所有顶点。Kruskal 算法则采取”以边排序”的策略——将所有边按权重升序排...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/03/daily-coding-rotating-calipers-2026-08-03/" title="每日编程实践: Rotating Calipers 最小面积包围矩形"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily-coding/08-03/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-03</div><div class="info-item-2">每日编程实践: Rotating Calipers 最小面积包围矩形</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学和计算几何领域，包围体（Bounding Volume） 是最基础也最重要的概念之一。无论是碰撞检测、视锥剔除、射线拾取还是空间索引，我们几乎都要和包围体打交道。最常用的是 AABB（Axis-Aligned Bounding Box，轴对齐包围盒）：用平行于坐标轴的矩形来包裹一个形状，计算极其简单——只需要找到 x 和 y 方向的最小&#x2F;最大值即可。 但 AABB 有一个致命的缺点：它不随物体旋转而旋转，导致冗余空间极大。试想一个 45 度倾斜的长条形物体，AABB 会把它包在一个巨大的正方形里，浪费掉超过一半的面积。在游戏引擎的物理碰撞中，这会触发大量”假阳性”碰撞；在渲染管线中，这会导致视锥剔除效率下降，多渲染很多屏幕上根本看不到的物体。 OBB（Oriented Bounding Box，有向包围盒） 就是为解决这个问题而生的。OBB 允许包围盒随物体的形状旋转，找到”贴得最紧”的那个矩形。问题来了：给定一组点，如何找到面积最小的 OBB？ 答案就是今天的主角：Rotating Calipers（旋转卡壳）算法。 工业界的实际应用Rotat...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/24/daily-coding-simulated-annealing-tsp-2026-06-24/" title="每日编程实践: 模拟退火算法求解TSP旅行商问题"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-24-simulated-annealing-tsp/tsp_best_tour.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-24</div><div class="info-item-2">每日编程实践: 模拟退火算法求解TSP旅行商问题</div></div><div class="info-2"><div class="info-item-1">① 背景与动机TSP——NP-hard 问题的典型代表旅行商问题（Traveling Salesman Problem, TSP）是组合优化领域中最经典的问题之一：给定 N 个城市，找到一条访问每个城市恰好一次并回到起点的最短路径。这个问题看似简单，但随着城市数量增加，解空间呈阶乘级爆炸——N 个城市有 (N-1)!&#x2F;2 种可能的回路。对于 50 个城市，可能的解数量约为 3.04×10⁶²，比已知宇宙中的原子数量还要多几十个数量级。 TSP 属于 NP-hard 问题类别。这意味着我们不可能（在目前已知的理论框架下）找到一个多项式时间的算法来精确求解所有实例。穷举搜索在 N&gt;12 时就已经不可行——12 个城市的全排列搜索需要检查 39,916,800 种回路，在我的测试机器上需要数秒；15 个城市则需要约 43 亿种，已经触及时限天花板。 为什么需要启发式&#x2F;元启发式算法？面对 NP-hard 问题，我们有三条路可走：  精确算法（分支定界、动态规划）：可以保证找到最优解，但时间复杂度通常是指数级的。Held-Karp 动态规划算法复杂度为 O(N²·...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-12</div><div class="info-item-2">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</div></div><div class="info-2"><div class="info-item-1">一、背景与动机如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是路径规划算法。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。 路径搜索问题可以抽象为图搜索问题：把世界建模为一个图，每个格子（或 NavMesh 三角形）是一个节点，相邻的可通行格子之间有边相连。目标很简单：给定起点 S 和终点 G，找到一条从 S 到 G 的路径，使得经过的边数或边的权重之和最小。 初看起来这个问题很简单——BFS（广度优先搜索）就能找到无权图的最短路径，而 Dijkstra 算法能处理带权图。问题在于：它们的搜索策略是”盲目的”。BFS 和 Dijkstra 都不知道目标在哪里，它们只是机械地向外扩张，直到”撞上”目标为止。在一个 80×60 的网格上这没什么，但在一个典型的游戏场景（比如 500×500 的网格，或 NavMesh 上数千个多边形），Dijkstra 可能要展开几十万...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-12</div><div class="info-item-2">每日编程实践: Boids 集群行为模拟</div></div><div class="info-2"><div class="info-item-1">背景与动机在自然界中，我们经常能看到令人惊叹的群体行为：天空中成群的椋鸟变换队形、海洋中鱼群集体躲避捕食者、草原上瞪羚的集群迁徙。这些个体遵循简单规则却能产生复杂涌现行为的现象，一直是计算机图形学和人工智能领域的重要研究课题。 1986年，Craig Reynolds 在他的开创性论文《Flocks, Herds, and Schools: A Distributed Behavioral Model》中首次提出了 Boids 模型。这个名字既是”bird-oid”（类鸟体）的缩写，也恰好与”birds”（鸟群）发音相似。Reynolds 的核心洞察是：复杂的群体运动不需要中央控制器，只需要每个个体遵循三条简单的局部规则，整个群体就会自然地展现出逼真的集群行为。 Boids 模型在实际工业界有着广泛的应用。游戏引擎中，它被用于生成 NPC 的群体移动——从《半条命 2》中的飞锯鸟到《刺客信条》中的人群 AI。电影行业也大量使用扩展的 Boids 系统来模拟大规模场景，例如《指环王》中的兽人大军冲锋、《海底总动员》中的鱼群迁徙。Tim Burton 在 1992 年的《蝙蝠侠归来》...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/26/daily-coding-scanline-polygon-fill-2026-07-26/" title="每日编程实践: 扫描线多边形填充算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07-26-scanline-polygon-fill/scanline_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-26</div><div class="info-item-2">每日编程实践: 扫描线多边形填充算法</div></div><div class="info-2"><div class="info-item-1">背景与动机扫描线多边形填充（Scanline Polygon Fill）是计算机图形学中最基础也最经典的算法之一。它的核心问题非常朴素：给你一个多边形（可能是凸的、凹的、甚至是自交的），如何高效地用颜色填满它的内部区域？ 这个问题看起来简单，但它的答案影响了所有现代 2D&#x2F;3D 渲染管线。在 OpenGL 和 Vulkan 等图形 API 中，多边形填充是光栅化（Rasterization）的核心步骤。当你在屏幕上画一个三角形或任何凸多边形时，GPU 底层用的正是扫描线填充的变体：逐行扫描、找到与多边形的交点区间、填充这些区间内部的像素。 在 GPU 还未普及的年代，软件渲染器需要自己实现多边形填充。比如经典的 Doom 游戏引擎、早期的 PostScript 打印机驱动、乃至现在仍然在使用的 SVG 渲染库和 PDF 阅读器，都离不开扫描线填充算法。甚至在 3D 渲染中，Z-Buffer 算法也需要在三角形光栅化时逐行填充像素——这里的”逐行填充”本质上就是扫描线填充的一个特例。 为什么专门实现一个扫描线填充算法？因为这是理解光栅化原理的最好切入点。通过学习这个算法，...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">196</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">201</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9F%83%E6%B0%8F%E7%AD%9B%E4%B8%8E-Miller-Rabin-%E2%80%94%E2%80%94-%E4%BB%8E%E7%AD%9B%E7%B4%A0%E6%95%B0%E5%88%B0%E7%A1%AE%E5%AE%9A%E6%80%A7%E7%B4%A0%E6%80%A7%E6%B5%8B%E8%AF%95"><span class="toc-number">1.</span> <span class="toc-text">埃氏筛与 Miller-Rabin —— 从筛素数到确定性素性测试</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E7%B4%A0%E6%95%B0%E5%88%A4%E6%96%AD%E4%B8%BA%E4%BB%80%E4%B9%88%E2%80%9D%E7%9C%8B%E8%B5%B7%E6%9D%A5%E7%AE%80%E5%8D%95%EF%BC%8C%E5%AE%9E%E5%88%99%E5%BE%88%E9%9A%BE%E2%80%9D"><span class="toc-number">1.1.1.</span> <span class="toc-text">1.1 素数判断为什么”看起来简单，实则很难”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E8%AF%95%E9%99%A4%E6%B3%95%E7%9A%84%E5%A4%A9%E8%8A%B1%E6%9D%BF%E5%9C%A8%E5%93%AA"><span class="toc-number">1.1.2.</span> <span class="toc-text">1.2 试除法的天花板在哪</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E4%B8%A4%E7%B1%BB%E9%97%AE%E9%A2%98%EF%BC%8C%E4%B8%A4%E7%B1%BB%E6%AD%A6%E5%99%A8"><span class="toc-number">1.1.3.</span> <span class="toc-text">1.3 两类问题，两类武器</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%9F%83%E6%B0%8F%E7%AD%9B%EF%BC%9A%E4%B8%80%E4%B8%AA-2000-%E5%B9%B4%E5%89%8D%E7%9A%84%E6%B4%9E%E5%AF%9F"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 埃氏筛：一个 2000 年前的洞察</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%A4%8D%E6%9D%82%E5%BA%A6%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-O-n-log-log-n"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 复杂度为什么是 O(n log log n)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%88%86%E6%AE%B5%E7%AD%9B%EF%BC%9A%E7%94%A8%E7%A9%BA%E9%97%B4%E6%8D%A2%E5%9B%9E%E6%9D%A5%E7%9A%84%E2%80%9D%E5%A4%A7%E5%8C%BA%E9%97%B4%E7%AD%9B%E6%B3%95%E2%80%9D"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 分段筛：用空间换回来的”大区间筛法”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Miller-Rabin%EF%BC%9A%E4%BB%8E%E8%B4%B9%E9%A9%AC%E5%B0%8F%E5%AE%9A%E7%90%86%E5%88%B0%E5%BC%BA%E4%BC%AA%E7%B4%A0%E6%95%B0%E6%B5%8B%E8%AF%95"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 Miller-Rabin：从费马小定理到强伪素数测试</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E5%9C%A8-64-%E4%BD%8D%E5%86%85%E6%98%AF%E2%80%9D%E7%A1%AE%E5%AE%9A%E2%80%9D%E7%9A%84"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 为什么它在 64 位内是”确定”的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E6%A8%A1%E4%B9%98%E7%9A%84%E6%BA%A2%E5%87%BA%E9%99%B7%E9%98%B1%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-int128"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 模乘的溢出陷阱：为什么需要 __int128</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E5%BF%AB%E9%80%9F%E5%B9%82%EF%BC%9A%E6%8A%8A-O-d-%E9%99%8D%E5%88%B0-O-log-d"><span class="toc-number">1.2.7.</span> <span class="toc-text">2.7 快速幂：把 O(d) 降到 O(log d)</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E9%80%89%E5%9E%8B"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构选型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-CPU-%E5%86%85%E5%AD%98%E7%9A%84%E8%81%8C%E8%B4%A3%E4%B8%8E%E8%BE%B9%E7%95%8C"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 CPU&#x2F;内存的职责与边界</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E7%A1%AE%E5%AE%9A%E6%80%A7%E5%9F%BA%E9%9B%86%E7%9A%84%E7%BB%84%E7%BB%87%E6%96%B9%E5%BC%8F"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 确定性基集的组织方式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%9F%83%E6%B0%8F%E7%AD%9B%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 埃氏筛实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E5%88%86%E6%AE%B5%E7%AD%9B%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 分段筛实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Miller-Rabin-%E5%AE%9E%E7%8E%B0"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 Miller-Rabin 实现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%AA%8C%E8%AF%81%E6%A1%86%E6%9E%B6%E4%B8%8E%E6%B5%8B%E8%AF%95%E7%94%A8%E4%BE%8B"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 验证框架与测试用例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E6%8A%8A-10-18-7-%E5%BD%93%E6%88%90%E8%B4%A8%E6%95%B0%E5%86%99%E8%BF%9B%E6%B5%8B%E8%AF%95%E7%94%A8%E4%BE%8B"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：把 10^18 + 7 当成质数写进测试用例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E6%A8%A1%E4%B9%98%E6%BA%A2%E5%87%BA%E5%AF%BC%E8%87%B4%E5%A4%A7%E6%95%B0%E8%AF%AF%E5%88%A4"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：模乘溢出导致大数误判</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E7%AD%9B%E6%B3%95%E5%86%85%E5%B1%82%E5%BE%AA%E7%8E%AF%E7%9A%84-i-i-%E7%94%A8-int-%E6%BA%A2%E5%87%BA%E5%AF%BC%E8%87%B4%E6%AD%BB%E5%BE%AA%E7%8E%AF"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：筛法内层循环的 i*i 用 int 溢出导致死循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9AMiller-Rabin-%E5%BF%AB%E9%80%9F%E9%80%9A%E9%81%93%E6%BC%8F%E5%88%A4%E5%B0%8F%E7%B4%A0%E6%95%B0%E6%9C%AC%E8%BA%AB"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：Miller-Rabin 快速通道漏判小素数本身</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-5%EF%BC%9A%E5%88%86%E6%AE%B5%E7%AD%9B%E7%9A%84%E7%B4%A2%E5%BC%95%E5%BF%98%E8%AE%B0%E5%87%8F-L"><span class="toc-number">1.5.5.</span> <span class="toc-text">坑 5：分段筛的索引忘记减 L</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%CF%80-n-%E7%B4%A0%E6%95%B0%E8%AE%A1%E6%95%B0%E2%80%94%E2%80%94%E4%B8%8E%E5%85%AC%E8%AE%A4%E5%80%BC%E4%B8%A5%E6%A0%BC%E4%B8%80%E8%87%B4"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 π(n) 素数计数——与公认值严格一致</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%88%86%E6%AE%B5%E7%AD%9B%E4%B8%8E%E6%9C%B4%E7%B4%A0%E7%AD%9B%E9%80%90%E5%85%83%E7%B4%A0%E4%B8%80%E8%87%B4"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 分段筛与朴素筛逐元素一致</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-Miller-Rabin-%E5%9C%A8-2-10-6-%E9%9B%B6%E8%AF%AF%E5%88%A4"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 Miller-Rabin 在 [2, 10^6] 零误判</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%A4%A7%E8%B4%A8%E6%95%B0%E4%B8%8E%E4%BC%AA%E7%B4%A0%E6%95%B0%E7%9A%84%E8%AF%86%E5%88%AB"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 大质数与伪素数的识别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E6%80%A7%E8%83%BD%EF%BC%9A%E5%8A%A0%E9%80%9F%E7%BA%A6-7000-%E5%80%8D%EF%BC%8C%E5%86%85%E5%AD%98%E9%99%8D%E4%B8%A4%E4%B8%AA%E6%95%B0%E9%87%8F%E7%BA%A7"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 性能：加速约 7000 倍，内存降两个数量级</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E7%9A%84%E9%80%82%E7%94%A8%E8%BE%B9%E7%95%8C"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术的适用边界</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列其他文章的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试">每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试</a><time datetime="2026-10-07T22:00:00.000Z" title="发表于 2026-10-08 06:00:00">2026-10-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-04-zero-one-bfs/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路">每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路</a><time datetime="2026-10-03T22:00:00.000Z" title="发表于 2026-10-04 06:00:00">2026-10-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/02/daily-coding-lcs-hirschberg-2026-10-02/" title="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-02-lcs-hirschberg/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/02/daily-coding-lcs-hirschberg-2026-10-02/" title="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治">每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治</a><time datetime="2026-10-01T22:00:00.000Z" title="发表于 2026-10-02 06:00:00">2026-10-02</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/" title="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/" title="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛">每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛</a><time datetime="2026-09-30T22:00:00.000Z" title="发表于 2026-10-01 06:00:00">2026-10-01</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/09/26/daily-coding-matrix-chain-multiplication-2026-09-26/" title="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/09/09-26-matrix-chain-multiplication/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/09/26/daily-coding-matrix-chain-multiplication-2026-09-26/" title="每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化">每日编程实践: 矩阵链乘法 (Matrix Chain Multiplication) —— 区间 DP 求解最优括号化</a><time datetime="2026-09-25T22:00:00.000Z" title="发表于 2026-09-26 06:00:00">2026-09-26</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
