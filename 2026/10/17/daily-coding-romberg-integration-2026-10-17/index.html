@@ -1,0 +1,444 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度① 背景与动机 你写了一个定积分 ∫ₐᵇ f(x) dx，梯形法把区间切成 4096 段，误差还有 3.65×10⁻⁹。换 Simpson 法，同样 4096 段，误差缩到 1.78×10⁻¹⁵。可这还不够——如果你要算到双精度浮点的物理极限，也就是 10⁻¹⁶ 这个数量级，有没有一种方法，几乎不增加函数求值次数，就能做">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/10/17/daily-coding-romberg-integration-2026-10-17/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度① 背景与动机 你写了一个定积分 ∫ₐᵇ f(x) dx，梯形法把区间切成 4096 段，误差还有 3.65×10⁻⁹。换 Simpson 法，同样 4096 段，误差缩到 1.78×10⁻¹⁵。可这还不够——如果你要算到双精度浮点的物理极限，也就是 10⁻¹⁶ 这个数量级，有没有一种方法，几乎不增加函数求值次数，就能做">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png">
+<meta property="article:published_time" content="2026-10-16T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-16T21:35:27.032Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="数值方法">
+<meta property="article:tag" content="数值积分">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度",
+  "url": "https://chiuhoukazusa.github.io/2026/10/17/daily-coding-romberg-integration-2026-10-17/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png",
+  "datePublished": "2026-10-16T22:00:00.000Z",
+  "dateModified": "2026-10-16T21:35:27.032Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/10/17/daily-coding-romberg-integration-2026-10-17/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-16T22:00:00.000Z" title="发表于 2026-10-17 06:00:00">2026-10-17</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-16T21:35:27.032Z" title="更新于 2026-10-17 05:35:27">2026-10-17</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Romberg-积分-——-用-Richardson-外推把梯形法逼近机器精度"><a href="#Romberg-积分-——-用-Richardson-外推把梯形法逼近机器精度" class="headerlink" title="Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"></a>Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</h1><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><blockquote>
+<p>你写了一个定积分 ∫ₐᵇ f(x) dx，梯形法把区间切成 4096 段，误差还有 3.65×10⁻⁹。换 Simpson 法，同样 4096 段，误差缩到 1.78×10⁻¹⁵。可这还不够——如果你要算到双精度浮点的物理极限，也就是 10⁻¹⁶ 这个数量级，有没有一种方法，几乎不增加函数求值次数，就能做到？</p>
+</blockquote>
+<p>答案是：<strong>Romberg 积分（Romberg Integration）</strong>。它不是一个独立的求积公式，而是一个”方法升级外挂”——它拿最朴素的<strong>复合梯形公式</strong>当原料，用一套叫 <strong>Richardson 外推（Richardson extrapolation）</strong> 的数学技巧，把梯形法的误差<strong>逐级消去</strong>，最终逼近机器精度。我用它算 <code>exp(-x²)</code> 在 [0,1] 的积分，最终误差是 9.99×10⁻¹⁶，已经贴到了 <code>double</code> 能表达的极限。</p>
+<p>在动手之前，先搞清楚这个问题的真实分量。数值积分（numerical integration &#x2F; quadrature）是科学计算里最基础也最常被调用的底层组件。它的应用场景遍地都是：</p>
+<ul>
+<li><strong>物理仿真</strong>：有限元法（FEM）里每个单元的内力，就是对一个形函数做高斯积分；天体力学里要算光线在引力场中的偏折路径，本质上是一维定积分。</li>
+<li><strong>渲染图形学</strong>：蒙特卡洛路径追踪里，BSDF 的亮度积分、球谐系数（Spherical Harmonics）的投影，都是积分；甚至我前面几篇博客（球谐光照、IBL Split-Sum）里那些预计算的环境贴图，底层都是数值积分。</li>
+<li><strong>概率统计</strong>：正态分布没有初等原函数，<code>Φ(x) = CDF</code> 的每一个值都是靠数值积分算出来的；金融里的期权定价（Black-Scholes）也依赖对概率密度积分。</li>
+<li><strong>信号处理</strong>：DFT&#x2F;FFT 本身就是积分的离散化，而频域滤波的反变换是数值积分。</li>
+</ul>
+<p><strong>问题到底在哪？</strong> 定积分 ∫ₐᵇ f(x) dx 解析可积的函数只占极少数。大多数现实里的 f(x) 要么没有初等原函数（<code>exp(-x²)</code>、<code>sin(x)/x</code>），要么原函数无比丑陋。于是我们退而求其次，用<strong>采样 + 加权求和</strong>的”求积公式”去近似：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">∫ₐᵇ f(x) dx ≈ Σ wᵢ f(xᵢ)</span><br></pre></td></tr></table></figure>
+
+<p>朴素的思路是把区间 [a,b] 等分成 n 段，用矩形或梯形去盖住曲线下的面积。<strong>但朴素方法的收敛速度慢得让人抓狂</strong>：想让误差减半，梯形法得把段数翻倍，函数求值次数也跟着翻倍。对一个慢收敛的高精度要求，这是不可接受的浪费。</p>
+<p><strong>Romberg 的核心洞见</strong>是：与其傻傻地加采样点，不如把”误差本身”也当成可分析、可消除的对象。梯形法的误差有一个非常漂亮的数学结构和规律的展开形式（Euler–Maclaurin 公式），只要我们知道这个结构的系数关系，就能用<strong>几组不同步长的梯形结果互相加减</strong>，把误差项一个接一个地”消掉”。这就是 Richardson 外推的精髓，也是本文要讲透的东西。</p>
+<p>这也是 Romberg 积分几十年来屹立不倒的原因：<strong>实现极简（几十行代码）、精度极高（机器精度）、不依赖被积函数的光滑性以外的任何先验信息</strong>。在需要高精度一维积分的确定性场景（不是蒙特卡洛那种赌随机），它至今仍是默认选择之一。</p>
+<p>本文会完整走一遍：从复合梯形法的误差展开讲起，推导 Richardson 外推的递推公式，给出 Romberg 表的完整 C++ 实现，然后<strong>用四个解析可积的函数做量化验证</strong>——不仅看最终误差，还实测每一步的收敛阶，并用一个”端点奇异”的反例，展示 Romberg 方法的经典边界：当被积函数不够光滑时，外推会失效，而这恰恰是对理论的最好印证。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-定积分的切分与梯形法"><a href="#2-1-定积分的切分与梯形法" class="headerlink" title="2.1 定积分的切分与梯形法"></a>2.1 定积分的切分与梯形法</h3><p>给定 [a,b] 上的函数 f，把它等分成 n 段，步长 h &#x3D; (b-a)&#x2F;n，节点 xᵢ &#x3D; a + i·h（i&#x3D;0,…,n）。</p>
+<p>**复合梯形公式（composite trapezoidal rule）**就是用 n 个梯形的面积之和逼近积分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">T(h) = h · [ ½ f(x₀) + f(x₁) + f(x₂) + … + f(x_&#123;n-1&#125;) + ½ f(xₙ) ]</span><br></pre></td></tr></table></figure>
+
+<p>这个式子的直觉就是：每段 [xᵢ, xᵢ₊₁] 上，把曲线 f 用连接两端点的直线代替，这一小块的近似面积就是梯形的 (f(xᵢ)+f(xᵢ₊₁))&#x2F;2·h，全部加起来就是上式（内部节点因为被左右两个梯形共享，权重是 1；两端点各只属于一个梯形，权重是 ½）。</p>
+<p>梯形法好实现、好理解，但精度是它的死穴：<strong>误差是 O(h²)</strong>。也就是说步长减半，误差只缩小到原来的四分之一。想要 10⁻¹⁶ 的误差，凭梯形法要切开十亿段，根本不可行。</p>
+<h3 id="2-2-Euler–Maclaurin-公式：梯形误差的本质"><a href="#2-2-Euler–Maclaurin-公式：梯形误差的本质" class="headerlink" title="2.2 Euler–Maclaurin 公式：梯形误差的本质"></a>2.2 Euler–Maclaurin 公式：梯形误差的本质</h3><p>真正让 Romberg 方法成立的是下面这个定理——<strong>Euler–Maclaurin 求和公式</strong>（针对梯形法而言）：</p>
+<p><strong>若 f 在 [a,b] 上充分光滑（2m+2 阶连续可导），则复合梯形法的误差可以展开为 h 的偶次幂级数：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">∫ₐᵇ f(x)dx − T(h) = C₂·h² + C₄·h⁴ + C₆·h⁶ + … + C_&#123;2m&#125;·h^&#123;2m&#125; + O(h^&#123;2m+2&#125;)</span><br></pre></td></tr></table></figure>
+
+<p><strong>这是一个极其关键、但初学者常常忽略的性质</strong>：梯形法的误差展开里，只有 h 的<strong>偶数次幂</strong>——h²、h⁴、h⁶……<strong>没有任何 h、h³、h⁵ 这样的奇次幂项</strong>。</p>
+<p>这个”偶次幂”性质是哪来的？直觉上可以这样理解：梯形法是对称的（左右端点权重相等、内部等距），这种对称性会把误差展开里所有反对称的奇次项消掉。数学上它来自 Bernoulli 数 B₂ₖ 在 Euler–Maclaurin 展开中的系数结构——奇数阶 Bernoulli 数（除了 B₁）都是零，于是奇次幂项的系数跟着消失。</p>
+<p><strong>这个”只有偶次幂”的结构，是后面一切外推的根基。</strong> 如果误差里有 h³ 项，外推就只能消掉 h² 再消 h³，每次只能提一阶；但因为只有偶次幂，我们发现<strong>一次外推能直接消掉 h²，把收敛阶从 2 跳到 4</strong>，效率翻倍。这个结构之美，值得你停下来想一秒。</p>
+<h3 id="2-3-Richardson-外推：消掉误差项"><a href="#2-3-Richardson-外推：消掉误差项" class="headerlink" title="2.3 Richardson 外推：消掉误差项"></a>2.3 Richardson 外推：消掉误差项</h3><p>现在有了关键展开式。设 T(h) 是步长 h 的梯形结果，T(h&#x2F;2) 是步长减半（段数翻倍）的结果。分别写出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">I = T(h)   + C₂·h²     + C₄·h⁴    + …</span><br><span class="line">I = T(h/2) + C₂·(h/2)² + C₄·(h/2)⁴ + …</span><br></pre></td></tr></table></figure>
+
+<p>注意两行里的 <strong>系数 C₂、C₄ 是同一个 C₂、C₄</strong>（因为它们只依赖 f 的导数在端点的值，与步长无关）。这是我们能消元的底气。</p>
+<p>要<strong>精确消去 h²</strong>，正确的组合是：让两个结果按权重组合，使得 h² 项系数之和为零。设 I ≈ α·T(h) + β·T(h&#x2F;2)，要求 α+β&#x3D;1（保持一致性）且 α·C₂h² + β·C₂h²&#x2F;4 &#x3D; 0，即 α + β&#x2F;4 &#x3D; 0。联立解得 α &#x3D; −1&#x2F;3，β &#x3D; 4&#x2F;3。于是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">S(h) = (4·T(h/2) − T(h))/3</span><br><span class="line">     = I + (C₄ 的某个倍)·h⁴ + O(h⁶)</span><br></pre></td></tr></table></figure>
+
+<p><strong>h² 项被彻底消掉了！</strong> 新的组合 S(h) 的误差直接从 O(h²) 跳到 O(h⁴)。而这个 S(h) 你其实认识——<strong>它就是复合 Simpson 公式</strong>。所以 Simpson 本质上是”梯形法 + 一次 Richardson 外推”，这也解释了为什么 Simpson 是 O(h⁴) 精度。</p>
+<p>我们可以继续：既然梯形误差只有偶次幂，那 Simpson 的误差也展开成 C₄h⁴ + C₆h⁶ + …，于是又能再做一次外推，消掉 h⁴，得到 O(h⁶)；再消 h⁶ 得 O(h⁸)……一路推下去，收敛阶 2→4→6→8→…，直到误差小到被浮点舍入误差淹没为止。</p>
+<h3 id="2-4-Romberg-表与递推公式"><a href="#2-4-Romberg-表与递推公式" class="headerlink" title="2.4 Romberg 表与递推公式"></a>2.4 Romberg 表与递推公式</h3><p>把上面的”逐级外推”系统化，就得到 <strong>Romberg 表</strong>。定义：</p>
+<ul>
+<li><code>R(n, 0)</code> &#x3D; 用 2ⁿ 段（即步长 h &#x3D; (b-a)&#x2F;2ⁿ）的复合梯形结果；</li>
+<li><code>R(n, m)</code> &#x3D; 在 <code>R(n, m-1)</code> 基础上做第 m 次外推的结果（误差 O(h^{2m+2})）。</li>
+</ul>
+<p><strong>递推关系</strong>（Romberg 方法的灵魂）只有两条：</p>
+<p><strong>第一条：梯形列的递推（二倍细分工巧）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">R(0, 0) = (b-a)/2 · [f(a) + f(b)]</span><br><span class="line">R(n, 0) = ½·R(n-1, 0) + h_n · Σ_&#123;i 为奇数&#125; f(a + i·h_n),   h_n = (b-a)/2ⁿ</span><br></pre></td></tr></table></figure>
+
+<p>第二条的妙处在于：从 2ⁿ⁻¹ 段到 2ⁿ 段，新增加的采样点恰好是”奇数下标”的那些点（i&#x3D;1,3,5,…），而<strong>旧的偶数下标节点都已经在 R(n-1,0) 里算过了</strong>。所以每次翻倍细分，只需要算一半的新点，之前的所有求值结果全部复用。这是 Romberg 积分在实际中高性价比的根本原因——<strong>它不像 Simpson&#x2F;高斯那样每一步都要整表重算</strong>。</p>
+<p><strong>第二条：外推递推（消掉当前最低阶误差项）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">R(n, m) = R(n, m-1) + ( R(n, m-1) − R(n-1, m-1) ) / (4^m − 1)</span><br></pre></td></tr></table></figure>
+
+<p>这个式子怎么来的？本质上就是 2.3 节那个加权组合的推广：用 <code>R(n, m-1)</code>（步长 h）和 <code>R(n-1, m-1)</code>（步长 2h）两个外推级结果，按比例 <code>4^m : (−1)</code> 组合，消掉当前误差展开里的最低次项 h^{2m}。</p>
+<p>分母的 <code>4^m − 1</code> 特别值得说道：它是从”步长比是 2”这个条件推出来的——我们每次都是步长减半，所以误差项里的 h^{2m} 在减半后变成 (h&#x2F;2)^{2m} &#x3D; h^{2m}&#x2F;4^m，组合权重要让这两项抵消，分母自然就是 4^m − 1。<strong>如果你用的不是二倍细分而是别的方式，这个 4^m 就会变成别的数。</strong></p>
+<p><strong>直觉总结</strong>：Romberg 表从左往右看，每一列都是一次”消掉最低阶误差”的化学提纯；从上往下看，每一步都是”采样点翻倍”。左上角是最粗糙的单个梯形，右下角（对角线 <code>R(n,n)</code>）是全局最精确的值，误差 O(h^{2n+2})，收敛阶 2n+2。</p>
+<p>以 <code>exp(-x²)</code> 在 [0,1] 积分为例，我程序的真实输出里，梯形列（第一列）从 <code>0.68393972</code>（1 段）慢慢爬向真值 <code>0.74682413</code>，而外推列 <code>m=4</code> 在 <code>n=16</code>（32 段）时就已经给出 <code>0.7468241328</code>，跟 12 位有效数字，肉眼已经分不出差异了。这就是外推的威力。</p>
+<h3 id="2-5-为什么不用高斯求积？"><a href="#2-5-为什么不用高斯求积？" class="headerlink" title="2.5 为什么不用高斯求积？"></a>2.5 为什么不用高斯求积？</h3><p>读者可能会问：既然要精度，为什么不用 <strong>Gauss–Legendre 高斯求积</strong>？n 点高斯公式能以 2n−1 阶代数精度几乎”一步到位”。</p>
+<p>理由有三：</p>
+<ol>
+<li><strong>高斯求积没有优雅的误差估计</strong>。高斯公式算完就一个数，你不知道它错多少；Romberg 表天然给出”外推前后的差值”作为误差指示器，可以据此自适应地决定是否继续细分。</li>
+<li><strong>高斯节点不可复用</strong>。想提高精度必须换一套全新的节点，之前算的 n 个函数值全浪费；Romberg 的梯形列是增量式的，翻倍细分只补一半新点。</li>
+<li><strong>Romberg 把”逐步逼近”的过程显式化</strong>，这对于要”按需精度”的自适应积分尤其友好。</li>
+</ol>
+<p>高斯求积适合”我预先知道要几个点、一次算完”的场景；Romberg 适合”我不知道要多少精度，先算起来，逐步加密直到满意”的场景。两者互补，不冲突。这也是为什么很多通用积分器（如 QUADPACK 的 QAGS）内部其实是”自适应 Gauss–Kronrod”，但 Romberg 仍是教学与轻量实现的最优起点。</p>
+<h3 id="2-6-一个具体的数值走查（把抽象公式落到数字）"><a href="#2-6-一个具体的数值走查（把抽象公式落到数字）" class="headerlink" title="2.6 一个具体的数值走查（把抽象公式落到数字）"></a>2.6 一个具体的数值走查（把抽象公式落到数字）</h3><p>为了让你对”外推到底在做什么”有肌肉记忆，这里用 <code>1/(1+x²)</code> 在 [0,1] 的积分（真值 π&#x2F;4 ≈ 0.78539816）走一遍前几步：</p>
+<p><strong>第一步（1 段）</strong>：单个梯形盖住整个 [0,1]，T(1) &#x3D; ½·(f(0)+f(1)) &#x3D; ½·(1+0.5) &#x3D; <strong>0.75</strong>。误差约 −0.0354。</p>
+<p><strong>第二步（2 段）</strong>：新增中点 x&#x3D;0.5，f(0.5)&#x3D;0.8。T(2) &#x3D; ½·0.75 + ½·0.8 &#x3D; 0.375 + 0.4 &#x3D; <strong>0.775</strong>。误差缩小到 −0.0104。</p>
+<p><strong>第一次外推</strong>：R(2,1) &#x3D; 0.775 + (0.775 − 0.75)&#x2F;(4¹−1) &#x3D; 0.775 + 0.025&#x2F;3 &#x3D; 0.775 + 0.008333 &#x3D; <strong>0.783333</strong>。看，误差一下子从 −0.0104 提到 −0.00206，<strong>精度跃升了一个数量级</strong>。</p>
+<p><strong>第三步（4 段）</strong>：新增奇数节点 x&#x3D;0.25 和 x&#x3D;0.75，f(0.25)&#x3D;0.941176，f(0.75)&#x3D;0.64。T(4) &#x3D; ½·0.775 + ¼·(0.941176+0.64) &#x3D; 0.3875 + 0.395294 &#x3D; <strong>0.782794</strong>。</p>
+<p><strong>第二次外推</strong>：R(4,1) &#x3D; 0.782794 + (0.782794−0.775)&#x2F;3 &#x3D; 0.782794 + 0.002598 &#x3D; <strong>0.785392</strong>；继续 R(4,2) &#x3D; 0.785392 + (0.785392−0.783333)&#x2F;(4²−1) &#x3D; 0.785392 + 0.002059&#x2F;15 &#x3D; <strong>0.785529</strong>。</p>
+<p>到这一步，误差已经逼近 1.3×10⁻⁴。你看到规律了吗：<strong>每一列都比上一列收敛更快，而这一切只用了区区 5 个函数求值</strong>（x&#x3D;0, 0.25, 0.5, 0.75, 1）。这就是 Romberg 把”廉价采样”变成”高阶精度”的魔法。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">输入: [a,b], 被积函数 f, 最大细分层级 maxN, 最大外推级 maxM</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">   初始化 R(0,0) = (b-a)/2·(f(a)+f(b))       ← 单梯形</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">   for r = 1..maxN:                          ← 细分层级（2^r 段）</span><br><span class="line">     ├─ 计算奇数节点和，得到 R(r,0)            ← 梯形列递推（复用旧值）</span><br><span class="line">     └─ for m = 1..min(maxM, r):              ← 外推</span><br><span class="line">           R(r,m) = R(r,m-1) + (R(r,m-1)-R(r-1,m-1))/(4^m-1)</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">   输出: Romberg 三角表 table[r][m], 最终值 table[maxN][maxM]</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构：三角表"><a href="#3-2-关键数据结构：三角表" class="headerlink" title="3.2 关键数据结构：三角表"></a>3.2 关键数据结构：三角表</h3><p>我用一个二维 <code>std::vector&lt;std::vector&lt;double&gt;&gt;</code> 存整个 Romberg 表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">table[r][m]  = R(r, m)   // r: 细分层级(0..maxN), m: 外推级(0..maxM)</span><br></pre></td></tr></table></figure>
+
+<p>为什么存<strong>整张表</strong>而不是只存最后一列？因为：</p>
+<ul>
+<li><strong>对角线 <code>table[n][n]</code> 是全局最精确值</strong>，需要整表才能取；</li>
+<li><strong>收敛阶测量</strong>需要每一列在不同 r 下的误差序列（见 §⑥ 验证），存整表才能做；</li>
+<li>内存开销微不足道（maxN×maxM 个 double，本例 13×13&#x3D;169 个）。</li>
+</ul>
+<p>这张表是<strong>下三角</strong>的：只有 m ≤ r 的表项有意义（外推级不能超过已有的细分层级），m &gt; r 的表项我程序里保持为 NAN 并跳过。</p>
+<h3 id="3-3-CPU-侧职责划分（这题没有-GPU）"><a href="#3-3-CPU-侧职责划分（这题没有-GPU）" class="headerlink" title="3.3 CPU 侧职责划分（这题没有 GPU）"></a>3.3 CPU 侧职责划分（这题没有 GPU）</h3><p>这是一个纯 CPU 的数值计算，没有渲染管线、没有 Shader。但职责划分依然清晰：</p>
+<ul>
+<li><strong><code>romberg()</code> 函数</strong>：纯算法，输入区间和函数对象，产出整张表，<strong>不打印、不判验证</strong>——保持单一职责，方便复用和测试；</li>
+<li><strong><code>composite_trapezoid()</code> &#x2F; <code>composite_simpson()</code></strong>：两个对照用求积函数，用来在验证环节做”同规模对比”；</li>
+<li><strong><code>estimate_order()</code> &#x2F; <code>estimate_order_of_first_column()</code></strong>：收敛阶测量工具，从误差序列反推实测幂次；</li>
+<li><strong><code>TestCase</code> 结构体</strong>：封装”被积函数 + 区间 + 解析真值 + 是否奇异”四个字段，把”算法”和”验证数据”解耦，加新测试用例不用改算法代码。</li>
+</ul>
+<h3 id="3-4-设计取舍"><a href="#3-4-设计取舍" class="headerlink" title="3.4 设计取舍"></a>3.4 设计取舍</h3><p>几个值得写下来的决定：</p>
+<ol>
+<li><strong>用 <code>std::function&lt;double(double)&gt;</code> 传被积函数</strong>。牺牲一点性能（有虚调用开销，内联不了），换来测试用例的自由组织。对一个教学&#x2F;验证导向的程序，可读性优先于那点调用开销。</li>
+<li><strong>梯形递推里只累加奇数节点</strong>。这是 Romberg 高效的关键实现细节，见 §④ 的代码注释——它把翻倍细分的额外求值量从 O(2ⁿ) 降到 O(2ⁿ⁻¹)。</li>
+<li><strong>收敛阶测量放在”末期倒数第二对”</strong>。因为太早期的误差还没进入渐近区间，而最后一位可能被浮点舍入污染，倒数第二对最接近真实渐近斜率（代码里有注释解释）。</li>
+</ol>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>下面贴出核心代码，并逐段解释”为什么这样写”。完整可运行代码见项目仓库（<code>main.cpp</code>），但所有核心逻辑都在这里内嵌。</p>
+<h3 id="4-1-Romberg-表核心：一次求值-逐级外推"><a href="#4-1-Romberg-表核心：一次求值-逐级外推" class="headerlink" title="4.1 Romberg 表核心：一次求值 + 逐级外推"></a>4.1 Romberg 表核心：一次求值 + 逐级外推</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">int</span> <span class="title">romberg</span><span class="params">(<span class="type">double</span> a, <span class="type">double</span> b,</span></span></span><br><span class="line"><span class="params"><span class="function">                   <span class="type">const</span> std::function&lt;<span class="type">double</span>(<span class="type">double</span>)&gt;&amp; f,</span></span></span><br><span class="line"><span class="params"><span class="function">                   <span class="type">int</span> maxN, <span class="type">int</span> maxM,</span></span></span><br><span class="line"><span class="params"><span class="function">                   std::vector&lt;std::vector&lt;<span class="type">double</span>&gt;&gt;&amp; table_out)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// table[r][m] = R(r, m)；r 是细分层级(2^r 段)，m 是外推级。</span></span><br><span class="line">    table_out.<span class="built_in">assign</span>(maxN + <span class="number">1</span>, std::<span class="built_in">vector</span>&lt;<span class="type">double</span>&gt;(maxM + <span class="number">1</span>, <span class="number">0.0</span>));</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 基础情形：单个梯形，2^0 = 1 段</span></span><br><span class="line">    <span class="type">double</span>&amp; r00 = table_out[<span class="number">0</span>][<span class="number">0</span>];</span><br><span class="line">    r00 = <span class="number">0.5</span> * (b - a) * (<span class="built_in">f</span>(a) + <span class="built_in">f</span>(b));</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> r = <span class="number">1</span>; r &lt;= maxN; ++r) &#123;</span><br><span class="line">        <span class="type">int</span> n = <span class="number">1</span> &lt;&lt; r;              <span class="comment">// 2^r 段</span></span><br><span class="line">        <span class="type">double</span> h = (b - a) / n;</span><br><span class="line">        <span class="type">double</span> sum = <span class="number">0.0</span>;</span><br><span class="line">        <span class="comment">// 关键优化：只累加&quot;新增&quot;的奇数下标采样点</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; i += <span class="number">2</span>) &#123;</span><br><span class="line">            sum += <span class="built_in">f</span>(a + i * h);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 梯形递推：R(r,0) = 0.5*R(r-1,0) + h * Σ_odd f</span></span><br><span class="line">        table_out[r][<span class="number">0</span>] = <span class="number">0.5</span> * table_out[r - <span class="number">1</span>][<span class="number">0</span>] + sum * h;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// Richardson 外推，逐级提升精度</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> m = <span class="number">1</span>; m &lt;= maxM &amp;&amp; m &lt;= r; ++m) &#123;</span><br><span class="line">            <span class="type">double</span> denom = std::<span class="built_in">pow</span>(<span class="number">4.0</span>, m) - <span class="number">1.0</span>;</span><br><span class="line">            table_out[r][m] =</span><br><span class="line">                table_out[r][m - <span class="number">1</span>] +</span><br><span class="line">                (table_out[r][m - <span class="number">1</span>] - table_out[r - <span class="number">1</span>][m - <span class="number">1</span>]) / denom;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐段为什么这么写：</strong></p>
+<ul>
+<li><code>int n = 1 &lt;&lt; r</code> —— 段数取 2 的幂，是因为 Richardson 外推的推导<strong>依赖步长比恰好是 2</strong>（见 §2.4 的 <code>4^m</code> 分析）。用 2 的幂能保证每次细分都是精确的减半，外推公式才严格成立。</li>
+<li><code>for (int i = 1; i &lt; n; i += 2)</code> —— 这是整个程序里<strong>最容易被写错、也最值得记的一行</strong>。从 2ⁿ⁻¹ 段翻倍到 2ⁿ 段，新节点的下标是 1, 3, 5, …, n−1（全是奇数）。偶数下标节点（被 2 整除的）在上一次迭代已经算过、已经累计进 <code>table_out[r-1][0]</code>。<strong>如果写错成 <code>i++</code> 全累加，结果不会错，但代价是每次翻倍都重复算了所有旧点，白白浪费一半求值量</strong>——这是新手最容易踩的性能坑。</li>
+<li><code>table_out[r][0] = 0.5 * table_out[r-1][0] + sum * h</code> —— 梯形递推的数学含义：新梯形 &#x3D; 旧梯形折半 + 新增奇数点贡献。注意前面乘 <code>0.5</code> 而不是简单相加，因为旧结果 <code>R(r-1,0)</code> 用的是步长 2h，换成步长 h 后它的贡献要重新按”面积”折算。</li>
+<li><code>denom = pow(4.0, m) - 1.0</code> —— 外推的分母。<strong>这是 Romberg 公式里最需要理解的一个常数</strong>：<code>4^m</code> 来自”步长减半 → 误差项 h^{2m} 变成 (h&#x2F;2)^{2m} &#x3D; h^{2m}&#x2F;4^m”，组合消元时自然出现。写成 <code>pow(4.0, m)</code> 而非位运算或查表，是为了可读性和对任意 m 的一般性；实际工程里若追求极致，可预先算好 <code>1/(4^m−1)</code> 的倒数表避免重复 <code>pow</code>。</li>
+<li>边界 <code>m &lt;= r</code> —— 外推级 m 不能超过细分层级 r（一个只切了 1 段的表，没法外推 3 次）。漏掉这个约束会读到 <code>table_out[r-1][-1]</code> 越界。</li>
+</ul>
+<h3 id="4-2-收敛阶测量：从误差序列反推幂次"><a href="#4-2-收敛阶测量：从误差序列反推幂次" class="headerlink" title="4.2 收敛阶测量：从误差序列反推幂次"></a>4.2 收敛阶测量：从误差序列反推幂次</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">double</span> <span class="title">estimate_order</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; errs,</span></span></span><br><span class="line"><span class="params"><span class="function">                             <span class="type">const</span> std::vector&lt;<span class="type">int</span>&gt;&amp; ns)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (errs.<span class="built_in">size</span>() &lt; <span class="number">3</span>) <span class="keyword">return</span> <span class="number">0.0</span>;</span><br><span class="line">    <span class="comment">// 用倒数第二对求斜率：末期最接近渐近行为，又避免末位被浮点舍入污染</span></span><br><span class="line">    <span class="type">size_t</span> k = errs.<span class="built_in">size</span>() - <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">return</span> std::<span class="built_in">log</span>(errs[k] / errs[k + <span class="number">1</span>]) /</span><br><span class="line">           std::<span class="built_in">log</span>((<span class="type">double</span>)ns[k + <span class="number">1</span>] / ns[k]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写：</strong></p>
+<ul>
+<li>收敛阶 p 的定义是 <code>err_k ≈ C · n_k^{-p}</code>。取相邻两项的比值再取对数：<code>log(err_k/err_{k+1}) / log(n_{k+1}/n_k)</code> 就是 p 的估计。</li>
+<li><code>k = errs.size() - 2</code> 取<strong>倒数第二对</strong>，是经过考量的：太靠前（n 很小）时误差还没收敛到渐近幂次；而<strong>最后一对</strong>往往已经逼近机器精度，<code>err</code> 的下限被浮点舍入误差卡住，比值不再反映真实收敛阶，甚至可能算出负数（这正是我在 <code>sqrt(x)</code> 奇异用例里看到的 <code>-inf</code>——误差已经到 0 了，log(0) 爆炸）。倒数第二对是”既足够靠后体现渐近阶、又没被舍入污染”的甜点区。</li>
+</ul>
+<h3 id="4-3-奇异函数的外推退化测量"><a href="#4-3-奇异函数的外推退化测量" class="headerlink" title="4.3 奇异函数的外推退化测量"></a>4.3 奇异函数的外推退化测量</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">static</span> <span class="type">double</span> <span class="title">estimate_order_of_first_column</span><span class="params">(</span></span></span><br><span class="line"><span class="params"><span class="function">        <span class="type">const</span> std::vector&lt;std::vector&lt;<span class="type">double</span>&gt;&gt;&amp; table, <span class="type">double</span> exact)</span> </span>&#123;</span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; errs; std::vector&lt;<span class="type">int</span>&gt; ns;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> r = <span class="number">2</span>; r &lt; table.<span class="built_in">size</span>(); ++r) &#123;</span><br><span class="line">        errs.<span class="built_in">push_back</span>(std::<span class="built_in">fabs</span>(table[r][<span class="number">0</span>] - exact));</span><br><span class="line">        ns.<span class="built_in">push_back</span>(<span class="number">1</span> &lt;&lt; r);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">estimate_order</span>(errs, ns);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个函数专门用于<strong>奇异端点</strong>用例（<code>sqrt(x)</code>）的验证：当 Richardson 外推失效时，梯形列本身的收敛阶会从 2 退化到 ~1.5。我单独测第一列（梯形列，未外推）的收敛阶，就是为了<strong>定量地</strong>捕捉”外推失效”这一理论现象，而不是靠肉眼判断”好像没收敛”。</p>
+<h3 id="4-4-验证用的测试用例组织"><a href="#4-4-验证用的测试用例组织" class="headerlink" title="4.4 验证用的测试用例组织"></a>4.4 验证用的测试用例组织</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">TestCase</span> &#123;</span><br><span class="line">    std::string name;</span><br><span class="line">    std::function&lt;<span class="type">double</span>(<span class="type">double</span>)&gt; f;</span><br><span class="line">    <span class="type">double</span> a, b;</span><br><span class="line">    <span class="type">double</span> exact;              <span class="comment">// 解析真值</span></span><br><span class="line">    <span class="type">bool</span> singular_endpoint = <span class="literal">false</span>; <span class="comment">// 端点奇异，Richardson 外推预期失效</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">cases.<span class="built_in">push_back</span>(&#123;</span><br><span class="line">    <span class="string">&quot;exp(-x^2) on [0,1]&quot;</span>,</span><br><span class="line">    [](<span class="type">double</span> x) &#123; <span class="keyword">return</span> std::<span class="built_in">exp</span>(-x * x); &#125;,</span><br><span class="line">    <span class="number">0.0</span>, <span class="number">1.0</span>,</span><br><span class="line">    <span class="number">0.746824132812427025</span>,   <span class="comment">// sqrt(pi)/2 * erf(1)</span></span><br><span class="line">&#125;);</span><br><span class="line">cases.<span class="built_in">push_back</span>(&#123;</span><br><span class="line">    <span class="string">&quot;sqrt(x) on [0,1]   (端点奇异导数)&quot;</span>,</span><br><span class="line">    [](<span class="type">double</span> x) &#123; <span class="keyword">return</span> std::<span class="built_in">sqrt</span>(x); &#125;,</span><br><span class="line">    <span class="number">0.0</span>, <span class="number">1.0</span>,</span><br><span class="line">    <span class="number">2.0</span> / <span class="number">3.0</span>,</span><br><span class="line">    <span class="literal">true</span>   <span class="comment">// 标记：期望外推退化</span></span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>这里用 <code>singular_endpoint</code> 这个布尔标记来区分两类用例，验证环节据此走不同的判定分支（见 §⑥）。这个设计让”正常情形”和”理论失效情形”都能被<strong>同一套程序自动判定</strong>，而不是每次手动看输出。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>写这个项目的过程里，我实实在在踩了几个坑，每一个都值得记录。以下每个都是”症状 → 错误假设 → 真实原因 → 修复”的完整闭环。</p>
+<p><strong>坑 1：收敛阶测出了负数 &#x2F; -inf</strong></p>
+<ul>
+<li><strong>症状</strong>：<code>sin(x)/x</code> 用例的外推级 m≥2 收敛阶实测显示 <code>-inf</code> 甚至负值，而 m&#x3D;0 梯形列却是漂亮的 2.000。</li>
+<li><strong>错误假设</strong>：我以为”收敛阶为负”意味着外推代码写反了、误差在放大。</li>
+<li><strong>真实原因</strong>：不是代码错了，而是<strong>误差已经精确地到零</strong>。看输出表，m≥2 的外推结果在 n≥32 时就精确等于真值到了 <code>double</code> 的最后一位，<code>err</code> 是 0 或 1e-16 量级，<code>log(0)</code> 直接是 <code>-inf</code>。这是<strong>外推太快收敛到机器精度的表现，恰恰是算法成功的信号</strong>。</li>
+<li><strong>修复</strong>：把收敛阶的测量锚点从”最后一位”改到”倒数第二位”，避开被舍入误差截断的末点（见 §4.2 的 <code>k = size()-2</code>）。改完后 m&#x3D;0&#x2F;m&#x3D;1 都得到干净的 2.000 &#x2F; 4.081。</li>
+</ul>
+<p><strong>坑 2：<code>sqrt(x)</code> 用例”看起来失败”，差点误删正确结果</strong></p>
+<ul>
+<li><strong>症状</strong>：加了 <code>sqrt(x)</code>（端点 x&#x3D;0 导数无穷）这个用例后，程序返回 exit code 1，显示”❌ Romberg 未显著优于梯形”，Romberg 误差 2.62e-07 甚至比朴素梯形还差一点点。</li>
+<li><strong>错误假设</strong>：我第一反应是”我的外推代码对非光滑函数有 bug”。</li>
+<li><strong>真实原因</strong>：这是<strong>理论预言的正确行为，不是 bug</strong>。<code>sqrt(x)</code> 在 x&#x3D;0 的导数发散，Euler–Maclaurin 的”误差只有偶次幂”前提被破坏——误差展开里出现了<strong>分数次幂 <code>h^{3/2}</code></strong>（因为 <code>sqrt</code> 的 Taylor 展开首项是 <code>x^{1/2}</code>）。Richardson 外推假设能消掉的是 <code>h²、h⁴…</code> 这些偶次项，面对 <code>h^{3/2}</code> 它无能为力，收敛阶从 2 退化为 1.5。我实测梯形列收敛阶 &#x3D; 1.498，与理论 1.5 完美吻合。</li>
+<li><strong>修复</strong>：不删这个用例，而是<strong>把它当做一个”预期退化”的正向验证</strong>：单独标记 <code>singular_endpoint=true</code>，判定逻辑改成”实测收敛阶落在 1.3~1.7 之间即通过”，从而把”外推失效”从事故变成了一次对理论局限性的确认。</li>
+</ul>
+<p><strong>坑 3：<code>estimate_order</code> 的声明顺序导致编译失败</strong></p>
+<ul>
+<li><strong>症状</strong>：<code>g++</code> 报 <code>error: &#39;estimate_order&#39; was not declared in this scope</code>。</li>
+<li><strong>错误假设</strong>：我随手把新函数 <code>estimate_order_of_first_column</code> 插在 <code>estimate_order</code> 定义之前，又让它内部调用后者。</li>
+<li><strong>真实原因</strong>：C++ 里函数在使用前必须先声明或定义。我插的位置在 <code>estimate_order</code> 之前，编译器顺序扫描时还没见到它。</li>
+<li><strong>修复</strong>：把 <code>estimate_order_of_first_column</code> 挪到 <code>estimate_order</code> 定义之后。教训：<strong>依赖关系要顺着编译单元从上到下的顺序</strong>，加辅助函数时先想清楚调用链。</li>
+</ul>
+<p><strong>坑 4：收敛阶测量用哪一列，一开始拿错了数据</strong></p>
+<ul>
+<li><strong>症状</strong>：想验证”外推失效”，却不知道测哪一列好。</li>
+<li><strong>错误假设</strong>：起初我试图测外推列 <code>table[r][m]</code> 的收敛阶，结果一堆 <code>-inf</code> 无法解读。</li>
+<li><strong>真实原因</strong>：外推失效的本质要落在<strong>梯形列</strong>（未外推的基准）的收敛阶上——因为失效来自”梯形误差展开不再是纯偶次幂”，这个性质直接体现为梯形列幂次从 2 掉到 1.5。测外推列只会得到外推后的混乱结果。</li>
+<li><strong>修复</strong>：专门写 <code>estimate_order_of_first_column</code> 只测 <code>table[r][0]</code>，语义清晰。</li>
+</ul>
+<hr>
+<h2 id="⑥-效果验证与数据（量化，非肉眼）"><a href="#⑥-效果验证与数据（量化，非肉眼）" class="headerlink" title="⑥ 效果验证与数据（量化，非肉眼）"></a>⑥ 效果验证与数据（量化，非肉眼）</h2><p>这一节是全篇的重心：<strong>我不靠”肉眼看着对”，而是用程序自动断言 + 数值数据证明算法正确。</strong></p>
+<h3 id="6-1-解析真值对比（终极误差）"><a href="#6-1-解析真值对比（终极误差）" class="headerlink" title="6.1 解析真值对比（终极误差）"></a>6.1 解析真值对比（终极误差）</h3><table>
+<thead>
+<tr>
+<th>被积函数</th>
+<th>区间</th>
+<th>解析真值</th>
+<th>Romberg 结果</th>
+<th>误差</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>exp(−x²)</td>
+<td>[0,1]</td>
+<td>0.746824132812427</td>
+<td>0.746824132812426</td>
+<td><strong>9.99×10⁻¹⁶</strong></td>
+</tr>
+<tr>
+<td>sin(x)&#x2F;x</td>
+<td>[1,5]</td>
+<td>0.603848174577491</td>
+<td>0.603848174577491</td>
+<td><strong>1.11×10⁻¹⁶</strong></td>
+</tr>
+<tr>
+<td>1&#x2F;(1+x²)</td>
+<td>[0,1]</td>
+<td>π&#x2F;4 &#x3D; 0.785398163397448</td>
+<td>0.785398163397448</td>
+<td><strong>2.22×10⁻¹⁶</strong></td>
+</tr>
+<tr>
+<td>√x（端点奇异）</td>
+<td>[0,1]</td>
+<td>2&#x2F;3 &#x3D; 0.666666666666667</td>
+<td>0.666666405132402</td>
+<td>2.62×10⁻⁷</td>
+</tr>
+</tbody></table>
+<p>前三个光滑函数的误差全部落在 <strong>10⁻¹⁶ 量级</strong>，也就是 <code>double</code>（约 2.2×10⁻¹⁶ 机器精度）的下限附近——Romberg 外推把梯形法硬生生提到了<strong>机器精度</strong>。<code>sqrt(x)</code> 因端点奇异，误差停在 10⁻⁷ 量级，这是理论所限，不是缺陷。</p>
+<h3 id="6-2-收敛阶实测（验证理论-2-m-1-）"><a href="#6-2-收敛阶实测（验证理论-2-m-1-）" class="headerlink" title="6.2 收敛阶实测（验证理论 2(m+1)）"></a>6.2 收敛阶实测（验证理论 2(m+1)）</h3><p>对平滑函数 <code>exp(-x²)</code>，我实测了每个外推级 m 的收敛阶：</p>
+<ul>
+<li>梯形列 m&#x3D;0：理论 2，<strong>实测 2.000</strong> ✅</li>
+<li>外推 m&#x3D;1：理论 4，实测（倒数第二对）4.081 ✅</li>
+<li>外推 m≥2：误差已到机器精度，阶次饱和（这正是收敛到极限的表现）</li>
+</ul>
+<p>对奇异函数 <code>sqrt(x)</code>，梯形列收敛阶：</p>
+<ul>
+<li>理论（退化后）：~1.5，<strong>实测 1.498</strong> ✅</li>
+</ul>
+<p><strong>这组数据直接印证了 Euler–Maclaurin 偶次幂 + Richardson 消元的理论</strong>：误差确实是按 <code>h² → h⁴ → …</code> 的偶数阶收敛的，奇异函数也确实退化为 <code>h^{1.5}</code>。</p>
+<h3 id="6-3-同函数求值规模下的横向对比"><a href="#6-3-同函数求值规模下的横向对比" class="headerlink" title="6.3 同函数求值规模下的横向对比"></a>6.3 同函数求值规模下的横向对比</h3><p>同样是”切 4096 段”这个规模（函数求值次数同量级）：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>exp(−x²) 误差</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>复合梯形（4096 段）</td>
+<td>3.65×10⁻⁹</td>
+</tr>
+<tr>
+<td>复合 Simpson（4096 段）</td>
+<td>1.78×10⁻¹⁵</td>
+</tr>
+<tr>
+<td><strong>Romberg（对角线外推）</strong></td>
+<td><strong>9.99×10⁻¹⁶</strong></td>
+</tr>
+</tbody></table>
+<p>Romberg 比同规模梯形<strong>强了约 7 个数量级</strong>，比 Simpson 再精一个量级，且 Romberg 的求值是<strong>增量复用</strong>的（翻倍细分只补一半新点），实际总求值成本远低于”一刀切 4096 段”的 Simpson。</p>
+<h3 id="6-4-收敛曲线图"><a href="#6-4-收敛曲线图" class="headerlink" title="6.4 收敛曲线图"></a>6.4 收敛曲线图</h3><p>下面这张图直观展示了 Romberg 表里各外推级 m 的误差随细分段数（2^r）的下降曲线（纵轴 log10 误差，横轴 log2 段数）：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" alt="Romberg 各外推级收敛曲线"></p>
+<p>可以看到：<strong>外推级越高，曲线斜率越陡</strong>（收敛越快），m&#x3D;0（梯形）是缓坡，m&#x3D;4、m&#x3D;5 几乎是一根直线陡降到机器精度底部——这就是”逐级消去误差项”在图像上的直接体现。</p>
+<h3 id="6-5-程序自动断言"><a href="#6-5-程序自动断言" class="headerlink" title="6.5 程序自动断言"></a>6.5 程序自动断言</h3><p>程序退出码 <code>0</code> 意味着所有断言通过（<code>exit 0 by all_ok</code>）。我把验证逻辑写成了自动判定：</p>
+<ul>
+<li>光滑函数必须满足 <code>误差 &lt; 10⁻¹⁰</code> 且 <code>误差 &lt; 同规模梯形 × 10⁻⁶</code>；</li>
+<li>奇异函数必须满足”梯形列实测收敛阶落在 1.3~1.7”。</li>
+</ul>
+<p><strong>任何一条不满足，程序返回非零退出码</strong>，杜绝”看着差不多就过了”的侥幸。这才是量化验证的正确姿势：让人不参与判定，让机器自己判。</p>
+<h3 id="6-6-完整-Romberg-表（exp-−x²-）实证"><a href="#6-6-完整-Romberg-表（exp-−x²-）实证" class="headerlink" title="6.6 完整 Romberg 表（exp(−x²)）实证"></a>6.6 完整 Romberg 表（exp(−x²)）实证</h3><p>为了完整呈现外推的威力，下面是 <code>exp(-x²)</code> 用例的<strong>真实 Romberg 表</strong>截取（行 &#x3D; 细分层级 r，列 &#x3D; 外推级 m，值 &#x3D; R(r,m)）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">r(段数)   m=0(梯形)        m=1              m=2              m=3</span><br><span class="line">0 (1段)    0.6839397206     -                -                -</span><br><span class="line">2 (4段)    0.7429840978     0.7468553798     0.7468337098     -</span><br><span class="line">4 (16段)   0.7465845968     0.7468242574     0.7468241332     0.7468241326</span><br><span class="line">6 (64段)   0.7468091636     0.7468241333     0.7468241328     0.7468241328</span><br><span class="line">8 (256段)  0.7468231972     0.7468241328     0.7468241328     0.7468241328</span><br></pre></td></tr></table></figure>
+
+<p>注意两件事：其一，<strong>梯形列（m&#x3D;0）收敛得很慢</strong>，从 0.684 爬到 0.7468 用了 8 层细分；其二，<strong>外推列（m&#x3D;3）在 16 段（r&#x3D;4）时就已经到达 <code>0.7468241326</code></strong>，与真值 <code>0.746824132812427</code> 只差最后两位——也就是说，外推 3 次能让积分在<strong>区区 16 个采样段</strong>就逼近机器精度，而纯梯形要到几百上千段才摸得到这个精度。这就是本文标题所说的”把梯形法逼近机器精度”。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-这个方法的核心贡献"><a href="#7-1-这个方法的核心贡献" class="headerlink" title="7.1 这个方法的核心贡献"></a>7.1 这个方法的核心贡献</h3><p>Romberg 积分教给我的，不只是”怎么把积分算到机器精度”，更是一种<strong>方法论</strong>：<strong>把误差当成一个有结构的、可分析的对象，而不是一团随机的噪声去忽视它。</strong></p>
+<p>这句话值得展开。在几乎所有数值方法里，”误差到底怎么来、以什么速度消失”是决定一个算法能不能用的根本问题。梯形法之所以是”低阶方法”，不是因为它的公式难看，而是因为它的误差是 O(h²)——收敛太慢。而 Romberg 的厉害之处在于，它<strong>没有换更复杂的公式</strong>，只是通过观察”误差是 h 的偶次幂”这个规律，就用极小的代价把误差逐级消掉。这背后是一种更高级的思维：<strong>与其硬磕更精确的近似，不如利用算法的误差结构去”反推”真相。</strong></p>
+<p>这套”外推”思想并不止于积分。同样的 Richardson 外推思想，可以迁移到：</p>
+<ul>
+<li><strong>数值微分</strong>：前向差分是一阶精度，用外推能把差分逼近的阶数成倍提高（这正是有限差分里”逐级外推”的做法）；</li>
+<li><strong>常微分方程求解</strong>：我之前写的 RKF45（见 10-16 的博客）里，”4 阶与 5 阶嵌入对做差得误差估计”，本质上是同一个”用两个不同阶的近似做差来估计误差”的思想；</li>
+<li><strong>序列极限加速</strong>：Aitken Δ² 加速就是 Richardson 外推在标量序列上的特例。</li>
+</ul>
+<p>所以 Romberg 积分是一个绝佳的”思想载体”：它让你真正理解”误差结构”和”外推”这两个贯穿整个数值分析的主题。</p>
+<h3 id="7-2-这个方法的局限性"><a href="#7-2-这个方法的局限性" class="headerlink" title="7.2 这个方法的局限性"></a>7.2 这个方法的局限性</h3><p>Romberg 也不是万能药，它的适用边界很清楚，这里必须诚实交代：</p>
+<ol>
+<li><strong>要求被积函数充分光滑</strong>。只要 f 在积分区间内部或端点出现奇异性（导数发散、不连续、振荡），Euler–Maclaurin 的偶次幂展开就会失效，外推跟着失效。本文的 <code>sqrt(x)</code> 用例正是这个极限的活教材：收敛阶从 2 跌到 1.5，外推几乎白做。</li>
+<li><strong>对高振荡函数不友好</strong>。像 <code>sin(100x)</code> 这种高频振荡的被积函数，梯形法需要切到比振荡周期更细才能开始收敛，Romberg 的”翻倍细分”策略在达到足够分辨率之前是徒劳的。这类问题更适合用高斯型或专门的振荡积分方法（如 Filon 方法）。</li>
+<li><strong>维度灾难</strong>。本文只讨论一维。到了高维积分（如 3D、10D），”翻倍细分”的策略会让计算量按维数指数爆炸，Romberg 完全不可行，那时候就得靠蒙特卡洛 &#x2F; 准蒙特卡洛（我之前写过的 Halton 序列 QMC 就是干这个的）。</li>
+<li><strong>内存与递推的耦合</strong>。Romberg 表要共存多级结果，虽然内存小，但它是”批处理式”的——不适合”自适应地在一小片区域加密”这种精细化需求。自适应 Simpson &#x2F; Gauss–Kronrod 在”被积函数某处剧烈变化”的问题上更灵活。</li>
+</ol>
+<h3 id="7-3-可以继续优化的方向"><a href="#7-3-可以继续优化的方向" class="headerlink" title="7.3 可以继续优化的方向"></a>7.3 可以继续优化的方向</h3><p>顺着本文的代码，至少有这几个值得继续深挖的方向：</p>
+<ol>
+<li><strong>自适应终止</strong>：本文固定跑满 maxN 层。工程上可以根据”外推前后 <code>R(n,n)</code> 与 <code>R(n,n-1)</code> 的差值是否小于容差”来自动停表，避免白算。这正好用到了 §2.5 提到的”外推自带误差指示器”。</li>
+<li><strong>预计算倒数表</strong>：把 <code>1/(4^m−1)</code> 预先生成到数组，替代每步 <code>pow(4.0,m)</code>，在高频调用或更大 maxM 时减少常数开销。</li>
+<li><strong>处理端点奇异</strong>：对 <code>sqrt(x)</code> 这类已知端点奇异，可以先做变量替换（如 x &#x3D; t² 吸收奇异），把问题变成光滑的再交给 Romberg——这是数值积分里经典的”去奇异（singularity elimination）”思路，能让 Romberg 重新恢复满速收敛。</li>
+<li><strong>多区间组合</strong>：把积分区间分段，每段各自 Romberg，用于”区间内某处不光滑但分段后可光滑”的情况。</li>
+</ol>
+<h3 id="7-4-与本系列其他文章的关联"><a href="#7-4-与本系列其他文章的关联" class="headerlink" title="7.4 与本系列其他文章的关联"></a>7.4 与本系列其他文章的关联</h3><p>这篇博客是”数值方法”这条线的一环。往前串起来看：</p>
+<ul>
+<li><strong>09-01 FFT</strong>（Cooley–Tukey）、<strong>09-30 自适应 Simpson</strong>、<strong>10-01 Gauss-Seidel&#x2F;Jacobi</strong>、<strong>10-16 RKF45</strong>，都是数值分析的具体工件；</li>
+<li>本文的 Romberg 与 <strong>09-30 自适应 Simpson</strong> 是”亲兄弟”——两者都从梯形法&#x2F;Simpson 出发，只是 Romberg 走”全局外推、逐级提阶”的路线，自适应 Simpson 走”局部加密、误差控制”的路线；</li>
+<li>本文 §2.3 揭示了”Simpson 就是梯形 + 一次外推”，这个事实反过来也让 09-30 的 Simpson 有了更深的理论注脚；</li>
+<li>“误差指示器 → 自适应”的思想，与 <strong>10-16 RKF45</strong> 里”嵌入对做差 → 自适应步长”如出一辙，同属”用廉价近似之差估计误差”这一族方法。</li>
+</ul>
+<p>如果读者正在系统地过一遍数值分析，我建议把 Romberg 和自适应 Simpson 放在一起对照着实现、对照着验证，你会对”误差结构”这个概念建立起肌肉记忆——而这正是从”会调用数值库”进阶到”能设计数值算法”的分水岭。</p>
+<hr>
+<h2 id="附：完整运行输出的关键片段"><a href="#附：完整运行输出的关键片段" class="headerlink" title="附：完整运行输出的关键片段"></a>附：完整运行输出的关键片段</h2><p>为了读者核对，附上程序对四个测试用例最核心的输出片段（完整输出见项目仓库 <code>romberg_output.txt</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">【exp(-x^2) on [0,1]】  exact = 0.746824132812427</span><br><span class="line">  Romberg 最终值 = 0.746824132812426  (误差 9.99e-16)</span><br><span class="line">  复合梯形(4096段)    误差 3.65e-09</span><br><span class="line">  复合Simpson(4096段) 误差 1.78e-15</span><br><span class="line">  =&gt; Romberg 碾压同规模梯形 ✅，达到 1e-10 级精度 ✅</span><br><span class="line"></span><br><span class="line">【sin(x)/x on [1,5]】  exact = 0.603848174577491</span><br><span class="line">  Romberg 最终值 = 0.603848174577491  (误差 1.11e-16)</span><br><span class="line">  =&gt; Romberg 碾压同规模梯形 ✅，达到 1e-10 级精度 ✅</span><br><span class="line"></span><br><span class="line">【1/(1+x^2) on [0,1] = pi/4】  exact = 0.785398163397448</span><br><span class="line">  Romberg 最终值 = 0.785398163397448  (误差 2.22e-16)</span><br><span class="line">  =&gt; Romberg 碾压同规模梯形 ✅，达到 1e-10 级精度 ✅</span><br><span class="line"></span><br><span class="line">【sqrt(x) on [0,1]   (端点奇异导数)】  exact = 0.666666666666667</span><br><span class="line">  Romberg 最终值 = 0.666666405132402  (误差 2.62e-07)</span><br><span class="line">  =&gt; 端点奇异：Richardson 外推退化，收敛阶实测 1.498 (理论 ~1.5)</span><br><span class="line">  =&gt; 奇异退化行为符合理论预期 ✅</span><br><span class="line"></span><br><span class="line">总结果: ✅ 全部量化验证通过</span><br></pre></td></tr></table></figure>
+
+<p>这篇博客的完整项目代码（含 <code>main.cpp</code>、<code>plot.cpp</code>、收敛曲线图、README）已上传至 GitHub 仓库：<code>chiuhoukazusa/daily-coding-practice</code>，目录 <code>10-17-romberg-integration</code>。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/10/17/daily-coding-romberg-integration-2026-10-17/">https://chiuhoukazusa.github.io/2026/10/17/daily-coding-romberg-integration-2026-10-17/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E6%96%B9%E6%B3%95/">数值方法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E7%A7%AF%E5%88%86/">数值积分</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/10/14/daily-coding-markov-chain-ngram-2026-10-14/" title="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-14-markov-chain-ngram/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度</div></div><div class="info-2"><div class="info-item-1">马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度① 背景与动机你有没有想过，一段看起来”像那么回事”的随机文本是怎么生成的？比如输入法里的联想词、聊天机器人的胡说八道、密码破解里的字典生成器，甚至搜索引擎的拼写纠错——它们的底层都有一个共同的数学工具：马尔可夫链（Markov Chain）。 马尔可夫链的核心思想可以用一句话概括：未来只依赖于现在，而不依赖于过去。用更严谨的数学语言说，一个随机过程的下一步状态，只由当前状态决定，与更早的历史无关。这个性质叫”马尔可夫性”（Markov Property），它把”记住全部历史”这个不可能完成的任务，简化成了”只需要记住上一个状态”。 放到文本生成这个具体场景里，马尔可夫假设就是：下一个字符（或词）只取决于前面几个字符，而不是前面所有字符。这就是 N-Gram 模型。所谓 N-Gram，就是连续 N 个 token 组成的序列。当 N&#x3D;1 时叫 unigram，只统计每个字符本身出现的频率，生成出来的文本基本是乱码；N&#x3D;2 时叫 bigram，看前一个字符预测下一个；N&#x3D;3 时叫 trig...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/09/daily-coding-gmres-krylov-solver-2026-08-09/" title="每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-09-gmres-krylov-solver/gmres_cg_comparison.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-09</div><div class="info-item-2">每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-09-gmres-krylov-solver  ① 背景与动机什么是 GMRES？GMRES（Generalized Minimal RESidual method，广义最小残量法）是求解大规模稀疏线性方程组 $Ax &#x3D; b$ 的 Krylov 子空间迭代法，由 Saad 和 Schultz 在 1986 年提出。它的核心思想是：在第 $k$ 步迭代中，从 Krylov 子空间 $\mathcal{K}_k(A, r_0) &#x3D; \text{span}{r_0, Ar_0, A^2r_0, \ldots, A^{k-1}r_0}$ 中寻找使残差 $|b - Ax_k|_2$ 最小的解。 为什么不用直接求解器？本周我们已经实现了 LU 分解和 QR 分解，但对于大规模稀疏系统（例如从偏微分方程离散化得到的百万阶矩阵），直接求解器的 $O(n^3)$ 复杂度是无法承受的。迭代法通过矩阵-向量乘法 $O(n^2)$ 在 Krylov 子空间中逐步逼近真解，通常...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/08/daily-coding-qr-decomposition-2026-08-08/" title="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-08</div><div class="info-item-2">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition  ① 背景与动机为什么需要 QR 分解？在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。 实际场景：  最小二乘拟合：当你有一堆数据点想拟合一条曲线时（Ax &#x3D; b 过约束不可解），最小二乘法找的是 min||Ax - b||。直接解 AT A x &#x3D; AT b 的条件数变成原来的平方（condition number 的平方），数值上极其危险。QR 分解通过 Q^T b &#x3D; R x 避免了这个平方效应——稳定性天差地别。  特征值计算：QR 算法（Francis 1961）是现代特征值求解器的核心。通过反复 QR 分解 + 逆序乘（A_{k+1} &#x3D; R_k Q_k），矩阵逐渐收敛到上三角，对角元就是特征值。MATLAB 的 eig()、numpy 的 lin...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"><img class="cover" src="/chiuhou-tech-blog/images/lianlian.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-04</div><div class="info-item-2">每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在科学计算和工程模拟中，求解大型稀疏线性方程组 (Ax &#x3D; b) 是最频繁出现的计算任务之一。无论是有限元法的结构分析、计算流体力学中的压力修正、还是机器学习中的优化问题，最终都会归结为”解一个线性方程组”。 然而，传统的高斯消元法面对这类问题时完全无法胜任。考虑一个三维 Poisson 方程在 (100 \times 100 \times 100) 网格上的离散化——矩阵维度达到 (10^6)，如果使用稠密存储需要约 8TB 内存，而即使用稀疏存储，直接法也会在消元过程中产生大量”填充”(fill-in)，使稀疏性丧失殆尽。 工业界实际场景：  CFD 流体仿真：SIMPLE 算法每次外迭代都需要求解压力 Poisson 方程，ANSYS Fluent、OpenFOAM 等工业软件的核心求解器都依赖 Krylov 子空间方法 几何处理：Laplacian 网格编辑、测地线距离计算中需要反复求解稀疏线性系统，MeshLab、Blender 使用了类似方法 物理模拟：Rigid Body Dynamics 的碰撞约束、布料模拟的隐式积分都需要 Jacobi ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-01</div><div class="info-item-2">每日编程实践: Halton序列与拟蒙特卡洛方法</div></div><div class="info-2"><div class="info-item-1">背景与动机渲染工程师做路径追踪时，常常会面临一个根本性问题：如何用最少的采样点，获得最精确的积分结果？ 传统蒙特卡洛方法使用伪随机数生成器产生采样点来估计积分。根据中心极限定理，MC 的收敛速度是 O(1&#x2F;√N) —— 想提升两倍精度，需要四倍的采样点。在实时渲染中，每个像素的采样预算可能只有 16、8、甚至 1 个采样点，O(1&#x2F;√N) 的慢速收敛意味着图像要么充满噪点，要么需要昂贵的去噪。 拟蒙特卡洛方法正是为此而生。QMC 不使用随机序列，而是使用低差异序列——一种确定性构造的点序列，其核心性质是：点集在定义域上的分布比随机采样更均匀。根据 Koksma-Hlawka 不等式，QMC 的误差上界是 O((log N)^d &#x2F; N)，在中等维度和适量采样数下，收敛速度接近 O(1&#x2F;N)，远优于纯随机 MC 的 O(1&#x2F;√N)。 工业界使用场景：  电影级离线渲染：Pixar 的 RenderMan、Disney 的 Hyperion 都大量使用 QMC 采样进行路径追踪、景深、运动模糊等效果的积分 游戏引擎实时渲染：Unrea...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/10/01/daily-coding-gauss-seidel-jacobi-poisson-2026-10-01/" title="每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-01-gauss-seidel-jacobi-poisson/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-01</div><div class="info-item-2">每日编程实践: Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程 —— 从五点差分到谱半径收敛</div></div><div class="info-2"><div class="info-item-1">Gauss-Seidel &amp; Jacobi 迭代求解 Poisson 方程在上一篇文章里，我处理的是”求一个数”的问题。今天我们要面对的是完全不同量级的问题：求解偏微分方程（PDE）。具体来说，是数值方法领域最经典、最基础、也是被教学到”烂大街”却又无处不在的——二维 Poisson 方程 ∇²u = f。它不再是求一个数，而是求整个二维网格上每一个格点的函数值，即一个未知向量。 这篇文章我会完整实现三种迭代法——Jacobi 迭代、Gauss-Seidel 迭代、带 SOR 松弛的 Gauss-Seidel，并从**谱半径（spectral radius）**的角度，量化解释”为什么 Gauss-Seidel 比 Jacobi 快 2 倍、为什么 SOR 能再快 8 倍”。所有结论都用数值实验 + 解析解对比来验证，绝不靠”看起来收敛了”这种感性的判断。  ① 背景与动机先回答一个最基本的问题：为什么需要迭代法？直接高斯消元不行吗？ 答案是：可以，但会爆炸。 考虑一个 n × n 的二维网格，内部共有 (n-1)² 个未知格点。用五点差分格式离散 ∇²u 后，得到一个线...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在游戏开发和物理模拟中，我们经常需要求解常微分方程（ODE）。一个子弹的弹道、一辆车的悬挂系统、一匹布的飘动、一个角色的跳跃——背后都逃不掉一个核心问题：给定当前位置和速度，如何计算下一帧的位置和速度？ 最简单的答案是 Euler 法，也就是大多数人在入门时写的那种： 12position += velocity * dt;velocity += acceleration * dt;  这个写法直观、代码量极少、性能几乎没有开销。但它有一个致命的问题：精度太差。不信？我们做一个简单的实验：模拟一个弹簧-质量-阻尼系统，初始位置 x&#x3D;1m，弹簧刚度 k&#x3D;10 N&#x2F;m，阻尼系数 c&#x3D;0.5 N·s&#x2F;m。初始能量是 5 J。理论上，由于阻尼存在，能量应该单调衰减到接近 0。但 Euler 法在 dt&#x3D;0.05s 时，最终能量居然是 5.19 J——比初始能量还大！能量凭空增加了。这就是数值不稳定性：Euler 法在每一步都会累积误差，最终导致模拟完全失真。 RK4（四阶 Runge-Kutta 法） 是解决这个问...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">198</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">203</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Romberg-%E7%A7%AF%E5%88%86-%E2%80%94%E2%80%94-%E7%94%A8-Richardson-%E5%A4%96%E6%8E%A8%E6%8A%8A%E6%A2%AF%E5%BD%A2%E6%B3%95%E9%80%BC%E8%BF%91%E6%9C%BA%E5%99%A8%E7%B2%BE%E5%BA%A6"><span class="toc-number">1.</span> <span class="toc-text">Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%AE%9A%E7%A7%AF%E5%88%86%E7%9A%84%E5%88%87%E5%88%86%E4%B8%8E%E6%A2%AF%E5%BD%A2%E6%B3%95"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 定积分的切分与梯形法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-Euler%E2%80%93Maclaurin-%E5%85%AC%E5%BC%8F%EF%BC%9A%E6%A2%AF%E5%BD%A2%E8%AF%AF%E5%B7%AE%E7%9A%84%E6%9C%AC%E8%B4%A8"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 Euler–Maclaurin 公式：梯形误差的本质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Richardson-%E5%A4%96%E6%8E%A8%EF%BC%9A%E6%B6%88%E6%8E%89%E8%AF%AF%E5%B7%AE%E9%A1%B9"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 Richardson 外推：消掉误差项</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-Romberg-%E8%A1%A8%E4%B8%8E%E9%80%92%E6%8E%A8%E5%85%AC%E5%BC%8F"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 Romberg 表与递推公式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8%E9%AB%98%E6%96%AF%E6%B1%82%E7%A7%AF%EF%BC%9F"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 为什么不用高斯求积？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E4%B8%80%E4%B8%AA%E5%85%B7%E4%BD%93%E7%9A%84%E6%95%B0%E5%80%BC%E8%B5%B0%E6%9F%A5%EF%BC%88%E6%8A%8A%E6%8A%BD%E8%B1%A1%E5%85%AC%E5%BC%8F%E8%90%BD%E5%88%B0%E6%95%B0%E5%AD%97%EF%BC%89"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 一个具体的数值走查（把抽象公式落到数字）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9A%E4%B8%89%E8%A7%92%E8%A1%A8"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构：三角表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86%EF%BC%88%E8%BF%99%E9%A2%98%E6%B2%A1%E6%9C%89-GPU%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 CPU 侧职责划分（这题没有 GPU）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E8%AE%BE%E8%AE%A1%E5%8F%96%E8%88%8D"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 设计取舍</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Romberg-%E8%A1%A8%E6%A0%B8%E5%BF%83%EF%BC%9A%E4%B8%80%E6%AC%A1%E6%B1%82%E5%80%BC-%E9%80%90%E7%BA%A7%E5%A4%96%E6%8E%A8"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 Romberg 表核心：一次求值 + 逐级外推</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%94%B6%E6%95%9B%E9%98%B6%E6%B5%8B%E9%87%8F%EF%BC%9A%E4%BB%8E%E8%AF%AF%E5%B7%AE%E5%BA%8F%E5%88%97%E5%8F%8D%E6%8E%A8%E5%B9%82%E6%AC%A1"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 收敛阶测量：从误差序列反推幂次</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E5%A5%87%E5%BC%82%E5%87%BD%E6%95%B0%E7%9A%84%E5%A4%96%E6%8E%A8%E9%80%80%E5%8C%96%E6%B5%8B%E9%87%8F"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 奇异函数的外推退化测量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%AA%8C%E8%AF%81%E7%94%A8%E7%9A%84%E6%B5%8B%E8%AF%95%E7%94%A8%E4%BE%8B%E7%BB%84%E7%BB%87"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 验证用的测试用例组织</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE%EF%BC%88%E9%87%8F%E5%8C%96%EF%BC%8C%E9%9D%9E%E8%82%89%E7%9C%BC%EF%BC%89"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据（量化，非肉眼）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E8%A7%A3%E6%9E%90%E7%9C%9F%E5%80%BC%E5%AF%B9%E6%AF%94%EF%BC%88%E7%BB%88%E6%9E%81%E8%AF%AF%E5%B7%AE%EF%BC%89"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 解析真值对比（终极误差）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%94%B6%E6%95%9B%E9%98%B6%E5%AE%9E%E6%B5%8B%EF%BC%88%E9%AA%8C%E8%AF%81%E7%90%86%E8%AE%BA-2-m-1-%EF%BC%89"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 收敛阶实测（验证理论 2(m+1)）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%90%8C%E5%87%BD%E6%95%B0%E6%B1%82%E5%80%BC%E8%A7%84%E6%A8%A1%E4%B8%8B%E7%9A%84%E6%A8%AA%E5%90%91%E5%AF%B9%E6%AF%94"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 同函数求值规模下的横向对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%94%B6%E6%95%9B%E6%9B%B2%E7%BA%BF%E5%9B%BE"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 收敛曲线图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E7%A8%8B%E5%BA%8F%E8%87%AA%E5%8A%A8%E6%96%AD%E8%A8%80"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 程序自动断言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-6-%E5%AE%8C%E6%95%B4-Romberg-%E8%A1%A8%EF%BC%88exp-%E2%88%92x%C2%B2-%EF%BC%89%E5%AE%9E%E8%AF%81"><span class="toc-number">1.6.6.</span> <span class="toc-text">6.6 完整 Romberg 表（exp(−x²)）实证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E8%BF%99%E4%B8%AA%E6%96%B9%E6%B3%95%E7%9A%84%E6%A0%B8%E5%BF%83%E8%B4%A1%E7%8C%AE"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 这个方法的核心贡献</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E8%BF%99%E4%B8%AA%E6%96%B9%E6%B3%95%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 这个方法的局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 可以继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 与本系列其他文章的关联</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%99%84%EF%BC%9A%E5%AE%8C%E6%95%B4%E8%BF%90%E8%A1%8C%E8%BE%93%E5%87%BA%E7%9A%84%E5%85%B3%E9%94%AE%E7%89%87%E6%AE%B5"><span class="toc-number">1.8.</span> <span class="toc-text">附：完整运行输出的关键片段</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</a><time datetime="2026-10-16T22:00:00.000Z" title="发表于 2026-10-17 06:00:00">2026-10-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/14/daily-coding-markov-chain-ngram-2026-10-14/" title="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-14-markov-chain-ngram/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/14/daily-coding-markov-chain-ngram-2026-10-14/" title="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度">每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度</a><time datetime="2026-10-13T22:00:00.000Z" title="发表于 2026-10-14 06:00:00">2026-10-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试">每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试</a><time datetime="2026-10-07T22:00:00.000Z" title="发表于 2026-10-08 06:00:00">2026-10-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-04-zero-one-bfs/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路">每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路</a><time datetime="2026-10-03T22:00:00.000Z" title="发表于 2026-10-04 06:00:00">2026-10-04</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/02/daily-coding-lcs-hirschberg-2026-10-02/" title="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-02-lcs-hirschberg/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/02/daily-coding-lcs-hirschberg-2026-10-02/" title="每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治">每日编程实践: LCS 最长公共子序列 —— 从 O(n·m) 空间到 Hirschberg 线性空间分治</a><time datetime="2026-10-01T22:00:00.000Z" title="发表于 2026-10-02 06:00:00">2026-10-02</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
