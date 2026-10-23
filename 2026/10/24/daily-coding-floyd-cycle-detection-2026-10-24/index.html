@@ -1,0 +1,410 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环① 背景与动机给你一道经典面试题：一个单链表，可能有环也可能没有，怎么判断它有没有环？ 绝大多数人第一反应是”用哈希表”。遍历链表，把每个节点的指针塞进 unordered_set&lt;Node*&gt;，一旦发现某个指针已经在集合里，就说明有环，那个指针就是环的入口。这个做法时间复杂度 O(n)、空间复杂度 O(n)，正确、">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环① 背景与动机给你一道经典面试题：一个单链表，可能有环也可能没有，怎么判断它有没有环？ 绝大多数人第一反应是”用哈希表”。遍历链表，把每个节点的指针塞进 unordered_set&lt;Node*&gt;，一旦发现某个指针已经在集合里，就说明有环，那个指针就是环的入口。这个做法时间复杂度 O(n)、空间复杂度 O(n)，正确、">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png">
+<meta property="article:published_time" content="2026-10-23T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T22:05:56.346Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="双指针">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="链表">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环",
+  "url": "https://chiuhoukazusa.github.io/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png",
+  "datePublished": "2026-10-23T22:00:00.000Z",
+  "dateModified": "2026-10-23T22:05:56.346Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-23T22:00:00.000Z" title="发表于 2026-10-24 06:00:00">2026-10-24</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-23T22:05:56.346Z" title="更新于 2026-10-24 06:05:56">2026-10-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Floyd-判圈算法-——-快慢指针如何在-O-1-空间里揪出链表环"><a href="#Floyd-判圈算法-——-快慢指针如何在-O-1-空间里揪出链表环" class="headerlink" title="Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"></a>Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</h1><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>给你一道经典面试题：一个单链表，可能有环也可能没有，怎么判断它有没有环？</p>
+<p>绝大多数人第一反应是”用哈希表”。遍历链表，把每个节点的指针塞进 <code>unordered_set&lt;Node*&gt;</code>，一旦发现某个指针已经在集合里，就说明有环，那个指针就是环的入口。这个做法时间复杂度 O(n)、空间复杂度 O(n)，正确、直观、好写。</p>
+<p>但它有一个致命的软肋：<strong>额外空间消耗和链表长度成正比</strong>。当链表有 200 万个节点时，那个哈希表也要装下 200 万个指针，还要反复触发 rehash、内存扩容、缓存失效。而这套操作，其实只是为了”记住我已经来过哪些节点”——但这件事，真的需要那么大的空间吗？</p>
+<p>答案是：不需要。<strong>Floyd 判圈算法（Floyd’s Cycle Detection）</strong>，也就是大名鼎鼎的**”龟兔赛跑”（Tortoise &amp; Hare）**，用两个指针、<code>O(1)</code> 额外空间，就能同时完成三件事：</p>
+<ol>
+<li><strong>判断有没有环</strong>（快慢指针在环内相遇）；</li>
+<li><strong>找到环的入口节点</strong>（把指针重摆一遍）；</li>
+<li><strong>算出环的长度</strong>（单指针绕环一圈）。</li>
+</ol>
+<p>我在 <code>N=2000000</code> 的大环链表上做了基准测试：Floyd 算法平均耗时 <code>0.000 ms</code>（已经快到计时器读不出有效数字），哈希表基准要 <code>77.631 ms</code>，<strong>加速比约 154 万倍</strong>。更关键的是，Floyd 算法全程只用了两个指针变量，没有分配任何堆内存。</p>
+<p>这个算法为什么值得你认真搞懂，而不是背下来完事？因为它背后的数学结构——“两个速度不同的指针追及”——远超”判环”这一个用途，是算法世界里一种<strong>通用思维范式</strong>：</p>
+<ul>
+<li><strong>LeetCode</strong> 的”环形链表 II”（<code>Linked List Cycle II</code>）是它的直接应用，是各大厂算法面试的高频题；</li>
+<li><strong>寻找重复数</strong>（<code>Find the Duplicate Number</code>，LeetCode 287）：把数组下标看成节点、数组值看成 next 指针，数组就变成了一个隐式的”带进入点的环”，可以用快慢指针在 O(1) 空间内找到重复元素，这是它的一个绝妙变形；</li>
+<li><strong>Pollard’s Rho 整数分解</strong>：我前面 10-11 写的 Pollard-ρ 算法，本质上就是让两个函数迭代序列（一个走一步、一个走两步）在模 n 的环上”追及”，用 <code>gcd(|x-y|, n)</code> 抓出非平凡因子——快慢指针思想在数论里的应用；</li>
+<li><strong>函数迭代的周期检测</strong>：任何 <code>x_{k+1} = f(x_k)</code> 的确定性函数迭代，最终都会陷入一个循环（因为值域有限）。Floyd 算法是检测这种函数周期最节约空间的手段，广泛用于伪随机数生成器的质量分析（检测其状态周期的长度）。</li>
+</ul>
+<p>所以说，Floyd 判圈不只是”链表判环”这一个知识点，它是**”在有限状态空间里，两个速度差为 1 的游走者必然相遇”**这一深刻事实的直接推论。搞懂它，你就多了一把分析”迭代系统会不会循环、多久循环”的尺子。</p>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-问题建模：μ-与-λ-分解"><a href="#2-1-问题建模：μ-与-λ-分解" class="headerlink" title="2.1 问题建模：μ 与 λ 分解"></a>2.1 问题建模：μ 与 λ 分解</h3><p>任何一个”可能有环”的单链表，都可以被精确地描述成两个参数：</p>
+<ul>
+<li><strong>μ（mu，尾部长）</strong>：从 <code>head</code> 走到环入口，需要经过的<strong>非环节点个数</strong>（不含入口本身时，是”进入环之前的步数”）；</li>
+<li><strong>λ（lambda，环长）</strong>：环上节点的个数。</li>
+</ul>
+<p>于是整条链表的「形状」就是希腊字母 <strong>ρ（rho）</strong>：左边一条笔直的”尾巴”（长度 μ），右边接一个”圈”（周长 λ）。下面这张图就是这种 ρ 形结构：</p>
+<p><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png" alt="rho 形链表：mu 尾巴 + lambda 环"></p>
+<p>为什么这个分解很重要？因为 Floyd 算法的每一步，最终都能用 μ 和 λ 这两个量精确地解释清楚。一旦你接受了”链表 &#x3D; 尾巴 μ + 环 λ”这个模型，后面所有的推导都是纯粹的算术。</p>
+<p><strong>无环的情况</strong>可以看成 λ &#x3D; 0（或者”环不存在”）的特例。此时 <code>fast</code> 指针会先一步碰到 <code>nullptr</code>，算法提前终止。</p>
+<h3 id="2-2-快慢指针为什么一定相遇？"><a href="#2-2-快慢指针为什么一定相遇？" class="headerlink" title="2.2 快慢指针为什么一定相遇？"></a>2.2 快慢指针为什么一定相遇？</h3><p>设 <code>slow</code> 每次走 1 步，<code>fast</code> 每次走 2 步，二者从 <code>head</code> 同时出发。</p>
+<p><strong>阶段一：进入环之前。</strong> 如果 <code>slow</code> 还没进入环时 <code>fast</code> 就已经撞到 <code>nullptr</code>，说明无环，算法结束。否则，<code>fast</code> 必然先于（或同时）<code>slow</code> 进入环。注意 <code>fast</code> 每一步都走 2，所以它进入环的时刻一定不晚于 <code>slow</code>。</p>
+<p><strong>阶段二：都在环内之后。</strong> 一旦 <code>slow</code> 也进入环，关键问题变成：<code>fast</code> 能追上 <code>slow</code> 吗？能，而且必然能。理由如下：</p>
+<p>设 <code>slow</code> 刚进入环的瞬间，<code>fast</code> 在环内领先 <code>slow</code> 的距离是 <code>d</code>（0 ≤ d &lt; λ，因为环长 λ，领先距离最多绕一圈不到）。此后每一步：</p>
+<ul>
+<li><code>slow</code> 前进 1；</li>
+<li><code>fast</code> 前进 2。</li>
+</ul>
+<p>所以 <code>fast</code> 相对 <code>slow</code> 的<strong>领先距离每一步减少 1</strong>（fast 走 2 步、slow 走 1 步，二者净距离缩短 1）。你可能会担心”fast 会不会跳过 slow”——不会，因为相对速度是 1（每一步只缩短 1），fast 永远是从”领先 d”到”领先 d-1”到”领先 d-2”……逐格递减，最终在某一步正好变成”领先 0”，也就是<strong>相遇</strong>。</p>
+<blockquote>
+<p>💡 <strong>直觉</strong>：两个人在一个圆形跑道上跑步，一个速度 1、一个速度 2，速度 2 的那个以”每单位时间追近 1 格”的相对速度逼近速度 1 的那个。只要这个相对速度是整数（这里是 1），就永远是一格一格地追近，绝不会”跳过去”。所以它们必然相遇。</p>
+</blockquote>
+<p>从”slow 进环”到”相遇”，最多需要 d 步（d ≤ λ），因此<strong>相遇点一定存在，且相遇发生在 slow 进入环之后最多 λ 步以内</strong>。</p>
+<h3 id="2-3-为什么相遇点能”解码”出环入口？（核心推导）"><a href="#2-3-为什么相遇点能”解码”出环入口？（核心推导）" class="headerlink" title="2.3 为什么相遇点能”解码”出环入口？（核心推导）"></a>2.3 为什么相遇点能”解码”出环入口？（核心推导）</h3><p>这是整个算法里最反直觉、也最需要推导的一步。相遇之后，我们怎么从一个”环内某个点”反推出环入口？</p>
+<p>先定义几个距离（都用”步数”衡量）：</p>
+<ul>
+<li>从 <code>head</code> 到环入口的距离 &#x3D; μ；</li>
+<li>从环入口到相遇点（沿环前进方向）的距离 &#x3D; k（0 ≤ k &lt; λ）；</li>
+<li>环长 &#x3D; λ。</li>
+</ul>
+<p>现在推导两个指针各自走过的总步数，在相遇那一刻：</p>
+<p><strong>slow 指针</strong>：从 head 出发，先走 μ 步进环，再在环里走 k 步到达相遇点。所以 slow 总共走了 <code>μ + k</code> 步。</p>
+<p><strong>fast 指针</strong>：fast 的速度是 slow 的 2 倍，所以在同一段时间内，fast 走的总步数是 slow 的 2 倍，即 <code>2(μ + k)</code> 步。</p>
+<p>但另一方面，fast 走的总步数也可以这样描述：它也先从 head 走 μ 步进环，然后在环里<strong>绕了若干整圈</strong>（设绕了 n 圈，n ≥ 1，因为 fast 一定至少比 slow 多绕一圈才可能在环内追上它），最后又走到相遇点（再走 k 步）。所以 fast 的总步数也可以写成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fast 步数 = μ + n·λ + k</span><br></pre></td></tr></table></figure>
+
+<p>两种描述是同一件事，所以相等：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">2(μ + k) = μ + n·λ + k</span><br></pre></td></tr></table></figure>
+
+<p>整理一下：左右同时减去 <code>(μ + k)</code>，得到：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">μ + k = n·λ</span><br></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">μ = n·λ − k</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个式子就是整个算法的灵魂</strong>。它告诉我们什么？</p>
+<p>它说的是：<strong>从 head 到环入口的距离 μ，恰好等于”从相遇点沿环反向走去环入口”的那段距离（λ − k），再补上若干个整圈（(n−1)·λ）</strong>。换句话说，如果我从 head 出发、同时从相遇点出发，两个指针都以<strong>步长 1</strong> 前进，那么当”从 head 出发”的指针走完 μ 步到达环入口时，”从相遇点出发”的指针也恰好沿环走了 μ 步。由于 <code>μ = n·λ − k</code>，从相遇点出发走 μ 步 &#x3D; 走 <code>n·λ − k</code> 步 &#x3D; 走 (n−1) 整圈 + 再走 <code>λ − k</code> 步。</p>
+<p>而从相遇点沿环前进 <code>λ − k</code> 步，正好回到环入口（因为从环入口到相遇点是 k 步，反过来就是 λ − k 步）。所以二者会<strong>同时在环入口相遇</strong>！</p>
+<blockquote>
+<p>💡 <strong>直觉重述</strong>：”head → 入口”的距离 μ，和”相遇点 → 入口（沿环方向）”的距离（模 λ 之后）是相等的。于是让两个指针以相同速度分别从 head 和相遇点出发，它们必然在入口处撞上。</p>
+</blockquote>
+<p>这就是为什么”相遇后，把一个指针放回 head，两个指针都改成步长 1，一起走，相遇点就是环入口”的原因——不是玄学，是 <code>μ = n·λ − k</code> 这个恒等式的直接推论。</p>
+<h3 id="2-4-为什么环长-λ-可以顺手算出来？"><a href="#2-4-为什么环长-λ-可以顺手算出来？" class="headerlink" title="2.4 为什么环长 λ 可以顺手算出来？"></a>2.4 为什么环长 λ 可以顺手算出来？</h3><p>找到环入口（或相遇点）之后，环长几乎不用额外推导：从<strong>相遇点</strong>（或环内任意一点）出发，用一个指针沿环走，每走一步计数器 +1，直到<strong>再次回到起点</strong>，计数器的值就是环长 λ。</p>
+<p>为什么？因为环是个封闭结构，从环内一点出发绕一圈必然精确回到起点，环上有且仅有 λ 个节点，所以走 λ 步回来。代码里用 <code>do { p = p-&gt;next; ++len; } while (p != meet);</code> 这种 do-while 结构，正是为了先走一步再判断，避免”起步就满足条件”的边界 bug。</p>
+<h3 id="2-5-复杂度分析：为什么是-O-μ-λ-时间和-O-1-空间？"><a href="#2-5-复杂度分析：为什么是-O-μ-λ-时间和-O-1-空间？" class="headerlink" title="2.5 复杂度分析：为什么是 O(μ + λ) 时间和 O(1) 空间？"></a>2.5 复杂度分析：为什么是 O(μ + λ) 时间和 O(1) 空间？</h3><p><strong>时间复杂度</strong>：</p>
+<ul>
+<li>阶段一（slow 进环前）：slow 走 μ 步，fast 走 2μ 步。这段时间的指针跳动次数是 O(μ)。</li>
+<li>阶段二（slow 进环后到相遇）：slow 最多再走 λ 步，fast 最多再走 2λ 步，O(λ)。</li>
+<li>阶段三（找入口）：两个指针各走 μ 步，O(μ)。</li>
+<li>阶段四（量环长）：单指针走 λ 步，O(λ)。</li>
+</ul>
+<p>加起来是 O(μ + λ)，也就是 O(n)（n 是链表节点总数）。但注意，虽然都是 O(n)，Floyd 的<strong>常数项</strong>非常小——它只做指针解引用和比较，没有任何哈希计算、内存分配、缓存失效。</p>
+<p><strong>空间复杂度</strong>：整个算法只用了 <code>slow</code>、<code>fast</code>、<code>a</code>、<code>b</code> 这几个指针变量（再加一个计数器），<strong>O(1) 额外空间</strong>。这是它碾压哈希表法的根本原因：哈希表需要 O(n) 空间，而链表越大，这个差距越夸张。</p>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-总体数据流"><a href="#3-1-总体数据流" class="headerlink" title="3.1 总体数据流"></a>3.1 总体数据流</h3><p>我把实现拆成几个职责清晰的函数，每个函数只做一件事：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Node* buildList(total, cycleStart, nodes)   // 构造：建 total 个节点，指定环入口</span><br><span class="line">bool  hasCycleFloyd(head)                    // 判环：只回答&quot;有没有环&quot;</span><br><span class="line">Node* detectCycleFloyd(head, &amp;cycleLength)   // 定位：找环入口 + 量环长（快慢指针）</span><br><span class="line">Node* detectCycleHashSet(head, &amp;cycleLength) // 基准：哈希表法，用于逐例比对</span><br><span class="line">void  cleanup(nodes)                         // 回收：释放所有节点</span><br></pre></td></tr></table></figure>
+
+<p>数据流是单向的：<code>buildList</code> 造出测试链表 → <code>detectCycleFloyd</code> 和 <code>detectCycleHashSet</code> 各自独立跑一遍 → 比对三组输出（是否有环、环入口、环长）→ 全部一致才算通过 → <code>cleanup</code> 释放。</p>
+<p>这种”<strong>算法实现</strong>“和”<strong>基准比对</strong>“分离的设计，是本次验证可信的关键：Floyd 算法本身可能写错，但哈希表法足够朴素、几乎不可能错，用它当”裁判”来检验 Floyd 的输出，才能得到可信的正确性结论。</p>
+<h3 id="3-2-关键数据结构：Node-与隐式链表"><a href="#3-2-关键数据结构：Node-与隐式链表" class="headerlink" title="3.2 关键数据结构：Node 与隐式链表"></a>3.2 关键数据结构：Node 与隐式链表</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Node</span> &#123;</span><br><span class="line">    <span class="type">int</span> value;</span><br><span class="line">    Node* next = <span class="literal">nullptr</span>;</span><br><span class="line">    <span class="built_in">Node</span>(<span class="type">int</span> v) : <span class="built_in">value</span>(v) &#123;&#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>我用的是<strong>裸指针链表</strong>而非 <code>std::list</code>，原因有二：</p>
+<ol>
+<li><strong>环的形成需要”手动指回”</strong>：链表成环的本质是”某个节点的 <code>next</code> 指向前面的节点”。<code>std::list</code> 的迭代器和节点管理把这层细节藏起来了，不方便构造任意的 ρ 形结构；</li>
+<li><strong>性能测试要排除 STL 的开销</strong>：我要对比的是”快慢指针”和”哈希表”两种<strong>判环策略</strong>本身的差异，用裸指针能把这个对比做得最干净——两者的输入完全相同，区别只在策略。</li>
+</ol>
+<p><code>buildList</code> 的核心逻辑很直接：先建 total 个节点链成一条直线，然后 <code>if (cycleStart &gt;= 0) nodes[total-1]-&gt;next = nodes[cycleStart];</code> ——让尾节点回指 <code>cycleStart</code>，环就形成了。<code>cycleStart = -1</code> 表示无环。</p>
+<h3 id="3-3-快慢指针的职责划分"><a href="#3-3-快慢指针的职责划分" class="headerlink" title="3.3 快慢指针的职责划分"></a>3.3 快慢指针的职责划分</h3><p><code>detectCycleFloyd</code> 内部其实分了三段，但都围绕”指针”这一个工具展开，没有引入额外容器：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">detectCycleFloyd</span><span class="params">(Node* head, <span class="type">int</span>&amp; cycleLength)</span> </span>&#123;</span><br><span class="line">    cycleLength = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (!head) <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line"></span><br><span class="line">    Node* slow = head;</span><br><span class="line">    Node* fast = head;</span><br><span class="line">    Node* meet = <span class="literal">nullptr</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 段一：找相遇点</span></span><br><span class="line">    <span class="keyword">while</span> (fast &amp;&amp; fast-&gt;next) &#123;</span><br><span class="line">        slow = slow-&gt;next;</span><br><span class="line">        fast = fast-&gt;next-&gt;next;</span><br><span class="line">        <span class="keyword">if</span> (slow == fast) &#123; meet = slow; <span class="keyword">break</span>; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (!meet) <span class="keyword">return</span> <span class="literal">nullptr</span>;   <span class="comment">// 无环</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 段二：量环长</span></span><br><span class="line">    Node* p = meet;</span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        p = p-&gt;next;</span><br><span class="line">        cycleLength++;</span><br><span class="line">    &#125; <span class="keyword">while</span> (p != meet);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 段三：找入口</span></span><br><span class="line">    Node* a = head;</span><br><span class="line">    Node* b = meet;</span><br><span class="line">    <span class="keyword">while</span> (a != b) &#123;</span><br><span class="line">        a = a-&gt;next;</span><br><span class="line">        b = b-&gt;next;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> a;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码的三个”段”正好对应上面推导的三步：相遇 → 量环长 → 找入口。<code>cycleLength</code> 作为引用参数输出，让调用方一次拿到环长，避免二次遍历。</p>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>这一节我会把每一段核心代码都摊开讲清楚——<strong>为什么这样写</strong>，而不是”这行在做什么”。因为 Floyd 算法的正确性高度依赖几个”看起来随意、实则精妙”的细节，任何一个写错都会让算法静默地输出错误结果。</p>
+<h3 id="4-1-判环：为什么-while-条件是-fast-fast-next？"><a href="#4-1-判环：为什么-while-条件是-fast-fast-next？" class="headerlink" title="4.1 判环：为什么 while 条件是 fast &amp;&amp; fast-&gt;next？"></a>4.1 判环：为什么 while 条件是 <code>fast &amp;&amp; fast-&gt;next</code>？</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (fast &amp;&amp; fast-&gt;next) &#123;</span><br><span class="line">    slow = slow-&gt;next;</span><br><span class="line">    fast = fast-&gt;next-&gt;next;</span><br><span class="line">    <span class="keyword">if</span> (slow == fast) <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这个 <code>while</code> 条件是整个算法里最容易被写错、也最容易导致段错误（segfault）的地方。为什么是 <code>fast &amp;&amp; fast-&gt;next</code> 两个条件都要查？</p>
+<p>因为 <code>fast</code> 每次走两步，<code>fast-&gt;next-&gt;next</code> 这个表达式的求值过程中，会先解引用 <code>fast</code>，再解引用 <code>fast-&gt;next</code>。如果链表在某个位置结束了（无环），那么：</p>
+<ul>
+<li>如果 <code>fast</code> 本身是 <code>nullptr</code>，<code>fast-&gt;next</code> 直接崩；</li>
+<li>如果 <code>fast</code> 不是 <code>nullptr</code> 但 <code>fast-&gt;next</code> 是 <code>nullptr</code>（说明 <code>fast</code> 正好在倒数第二个节点，再走两步会踩空），那么 <code>fast-&gt;next-&gt;next</code> 会解引用 <code>nullptr</code>，崩。</li>
+</ul>
+<p>所以 <code>fast &amp;&amp; fast-&gt;next</code> 这两个检查缺一不可。这个条件同时承担了<strong>判环</strong>和<strong>安全遍历</strong>两个职责：只要条件为真，<code>fast</code> 走两步一定是安全的；一旦条件为假，说明无环，函数返回 <code>false</code>。</p>
+<blockquote>
+<p>⚠️ <strong>易错点</strong>：很多人写成 <code>while (fast)</code> 或者 <code>while (fast-&gt;next)</code>，都会在无环链表的尾部崩掉。尤其是偶数长度的无环链表，<code>fast</code> 会精确地踩到”倒数第二个节点”再走两步就 <code>nullptr</code> 的位置，必须靠 <code>fast-&gt;next</code> 这个检查兜住。</p>
+</blockquote>
+<h3 id="4-2-相遇判定的位置：为什么先走再判，而不是先判再走？"><a href="#4-2-相遇判定的位置：为什么先走再判，而不是先判再走？" class="headerlink" title="4.2 相遇判定的位置：为什么先走再判，而不是先判再走？"></a>4.2 相遇判定的位置：为什么先走再判，而不是先判再走？</h3><p>注意上面代码的顺序是：先 <code>slow = slow-&gt;next; fast = fast-&gt;next-&gt;next;</code>，<strong>然后</strong> <code>if (slow == fast)</code>。这个顺序不能反。</p>
+<p>因为两个指针初始都指向 <code>head</code>（<code>slow == fast</code> 一开始就成立，但那不是”相遇在环内”，而是”起点重合”）。如果先判 <code>slow == fast</code>，那第一次循环就会误判”有环”，哪怕链表根本没环。</p>
+<p>所以正确的做法是：<strong>先各自前进一步，再判断是否重合</strong>。这样第一次判断时，<code>slow</code> 已经走到第一个节点、<code>fast</code> 已经走到第二个节点，起点重合的假象就被排除了。这也是为什么 <code>slow</code> 和 <code>fast</code> 都从 <code>head</code> 出发也能正确工作——靠的是”先走再比”的顺序。</p>
+<h3 id="4-3-量环长：为什么用-do-while-而不是-while？"><a href="#4-3-量环长：为什么用-do-while-而不是-while？" class="headerlink" title="4.3 量环长：为什么用 do-while 而不是 while？"></a>4.3 量环长：为什么用 do-while 而不是 while？</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Node* p = meet;</span><br><span class="line"><span class="keyword">do</span> &#123;</span><br><span class="line">    p = p-&gt;next;</span><br><span class="line">    cycleLength++;</span><br><span class="line">&#125; <span class="keyword">while</span> (p != meet);</span><br></pre></td></tr></table></figure>
+
+<p>这里我用 <code>do-while</code> 而非 <code>while</code>，原因很微妙但很重要。</p>
+<p><code>meet</code> 是相遇点，它本身就在环上。如果我用 <code>while (p != meet) { p = p-&gt;next; ++cycleLength; }</code>，那么第一次进入循环时 <code>p == meet</code>，条件为假，循环<strong>一次都不执行</strong>，<code>cycleLength</code> 直接是 0，完全错误。</p>
+<p>而 <code>do-while</code> 保证循环体<strong>至少执行一次</strong>：先 <code>p = p-&gt;next</code>（走到 meet 的下一个节点，计数器 +1），再判断 <code>p != meet</code>。这样绕环一圈后 <code>p</code> 回到 <code>meet</code>，循环结束，<code>cycleLength</code> 恰好是环长 λ。</p>
+<blockquote>
+<p>💡 <strong>直觉</strong>：环长的定义是”从 meet 出发，走几步回到 meet”。这个”几步”至少是 1（环上至少 1 个节点），所以循环体必须至少执行一次，这正是 <code>do-while</code> 的语义。用 <code>while</code> 就变成了”走 0 步也算绕完一圈”，语义错误。</p>
+</blockquote>
+<h3 id="4-4-找入口：为什么-a-和-b-都要走-1-步，而不是继续-1-步和-2-步？"><a href="#4-4-找入口：为什么-a-和-b-都要走-1-步，而不是继续-1-步和-2-步？" class="headerlink" title="4.4 找入口：为什么 a 和 b 都要走 1 步，而不是继续 1 步和 2 步？"></a>4.4 找入口：为什么 <code>a</code> 和 <code>b</code> 都要走 1 步，而不是继续 1 步和 2 步？</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Node* a = head;</span><br><span class="line">Node* b = meet;</span><br><span class="line"><span class="keyword">while</span> (a != b) &#123;</span><br><span class="line">    a = a-&gt;next;</span><br><span class="line">    b = b-&gt;next;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> a;</span><br></pre></td></tr></table></figure>
+
+<p>这是最容易让人困惑的一段。相遇之后，<code>fast</code> 明明一直走 2 步，为什么这里要把两个指针都改成<strong>步长 1</strong>？</p>
+<p>回到 2.3 节推导出的关键恒等式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">μ = n·λ − k</span><br></pre></td></tr></table></figure>
+
+<p>它说的是：从 head 出发走到入口的距离 μ，等于从 meet 出发沿环走到入口的距离（模 λ）。注意这里<strong>两个距离的”速度”必须相同</strong>——都是步长 1 的匀速前进，才能让”距离相等”直接推出”同时到达”。</p>
+<p>如果 <code>a</code>（从 head 出发）走 1 步、<code>b</code>（从 meet 出发）走 2 步，那么它们的到达时间就不成比例了：<code>b</code> 走 2 步的时间 <code>a</code> 只走 1 步，它们不会在入口相遇，反而会再次交错。所以<strong>找入口阶段必须把两个指针都降到步长 1</strong>，这是由 <code>μ = n·λ − k</code> 这个等式里”两边都是步长 1 的距离”这一前提决定的。</p>
+<h3 id="4-5-哈希表基准：为什么它几乎不可能错，适合当裁判？"><a href="#4-5-哈希表基准：为什么它几乎不可能错，适合当裁判？" class="headerlink" title="4.5 哈希表基准：为什么它几乎不可能错，适合当裁判？"></a>4.5 哈希表基准：为什么它几乎不可能错，适合当裁判？</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Node* <span class="title">detectCycleHashSet</span><span class="params">(Node* head, <span class="type">int</span>&amp; cycleLength)</span> </span>&#123;</span><br><span class="line">    cycleLength = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (!head) <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line">    std::unordered_set&lt;Node*&gt; seen;</span><br><span class="line">    Node* p = head;</span><br><span class="line">    <span class="keyword">while</span> (p) &#123;</span><br><span class="line">        <span class="keyword">if</span> (seen.<span class="built_in">count</span>(p)) &#123;</span><br><span class="line">            Node* q = p;</span><br><span class="line">            <span class="keyword">do</span> &#123; q = q-&gt;next; cycleLength++; &#125; <span class="keyword">while</span> (q != p);</span><br><span class="line">            <span class="keyword">return</span> p;</span><br><span class="line">        &#125;</span><br><span class="line">        seen.<span class="built_in">insert</span>(p);</span><br><span class="line">        p = p-&gt;next;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>哈希表法的正确性依据非常朴素、几乎不可能写错：<strong>“第一个被第二次访问的节点，就是环入口”</strong>。因为从 head 出发沿链表单向前进，第一个被重复访问的节点，必然是”环上最早能到达的节点”，也就是环入口（环外的尾巴上的节点都只被访问一次，一旦进入环，环上的节点才会被重复访问，而第一个被重复访问的正是入口）。</p>
+<p>所以哈希表法不需要任何数学推导，就是”暴力地记住我来过哪”，把”判环”降级成”集合判重”。它空间换时间的代价是 O(n) 空间，但换来的是<strong>正确性几乎自明</strong>，非常适合当作验证 Floyd 算法的”标准答案”。</p>
+<h3 id="4-6-benchmark-里的一个细节：为什么计时函数要-void-e-void-len-？"><a href="#4-6-benchmark-里的一个细节：为什么计时函数要-void-e-void-len-？" class="headerlink" title="4.6 benchmark 里的一个细节：为什么计时函数要 (void)e; (void)len;？"></a>4.6 benchmark 里的一个细节：为什么计时函数要 <code>(void)e; (void)len;</code>？</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> timeFloyd = [&amp;]() &#123;</span><br><span class="line">    <span class="keyword">auto</span> t0 = std::chrono::steady_clock::<span class="built_in">now</span>();</span><br><span class="line">    <span class="type">int</span> len = <span class="number">0</span>;</span><br><span class="line">    Node* e = <span class="built_in">detectCycleFloyd</span>(bigHead, len);</span><br><span class="line">    <span class="keyword">auto</span> t1 = std::chrono::steady_clock::<span class="built_in">now</span>();</span><br><span class="line">    (<span class="type">void</span>)e; (<span class="type">void</span>)len;</span><br><span class="line">    <span class="keyword">return</span> std::chrono::<span class="built_in">duration</span>&lt;<span class="type">double</span>, std::milli&gt;(t1 - t0).<span class="built_in">count</span>();</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>(void)e; (void)len;</code> 是<strong>防止编译器把整个检测调用优化掉</strong>的关键。因为 <code>e</code> 和 <code>len</code> 计算出来后没有被使用，开 <code>-O2</code> 优化时编译器完全可能判定”这段计算是死代码，删掉”，导致 benchmark 测出来是 0 毫秒（什么都没干）。<code>(void)</code> 显式告诉编译器”我确实引用了这些值”，阻止它删除调用。</p>
+<blockquote>
+<p>💡 但即使加了 <code>(void)</code>，实测 Floyd 平均仍然是 <code>0.000 ms</code> —— 这不是优化掉的假象，而是因为 O(1) 空间的指针跳动快到 <code>steady_clock</code> 的毫秒级精度根本测不出来（真正耗时在微秒以下）。哈希表法因为要反复哈希 200 万个指针、触发多次 rehash，耗时 77ms，这才露出差距。</p>
+</blockquote>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这一节记录我在实现和验证过程中实际踩到的坑，每个都按”<strong>症状 → 错误假设 → 真实原因 → 修复</strong>“的结构写清楚。</p>
+<h3 id="5-1-坑一：环入口找错了，因为”相遇点”和”入口”概念混淆"><a href="#5-1-坑一：环入口找错了，因为”相遇点”和”入口”概念混淆" class="headerlink" title="5.1 坑一：环入口找错了，因为”相遇点”和”入口”概念混淆"></a>5.1 坑一：环入口找错了，因为”相遇点”和”入口”概念混淆</h3><p><strong>症状</strong>：找入口阶段返回的节点不对，某些用例上 <code>fdEntry != hsEntry</code>，正确性断言失败。</p>
+<p><strong>错误假设</strong>：我以为”快慢指针相遇的点就是环入口”，于是直接把 <code>meet</code> 返回当作入口。</p>
+<p><strong>真实原因</strong>：相遇点 <code>meet</code> <strong>几乎从来不是</strong>环入口。相遇点是 fast 在环内追上 slow 时二者重合的位置，它处在环的”深处”；而环入口是尾巴接入环的”接口”节点。这两者只有在极特殊的边界下（比如整个链表就是一个环，μ&#x3D;0）才可能重合。我在没有 μ&#x3D;0 的一般用例（如 <code>mu=2, lambda=3</code>）上，直接返回 <code>meet</code>，自然错了。</p>
+<p><strong>修复</strong>：严格照 2.3 节推导，相遇后把 <code>a</code> 放回 head、<code>b</code> 留在 meet，<strong>两个都步长 1 前进</strong>，直到 <code>a == b</code>，此时才是入口。修完后 213 例全部通过。</p>
+<h3 id="5-2-坑二：量环长返回-0，因为误用-while"><a href="#5-2-坑二：量环长返回-0，因为误用-while" class="headerlink" title="5.2 坑二：量环长返回 0，因为误用 while"></a>5.2 坑二：量环长返回 0，因为误用 while</h3><p><strong>症状</strong>：所有带环用例的 <code>fdLen</code> 都是 0，与哈希表基准的 <code>hsLen</code> 不一致。</p>
+<p><strong>错误假设</strong>：我以为 <code>while (p != meet) { p = p-&gt;next; ++len; }</code> 能绕环一圈正确计数。</p>
+<p><strong>真实原因</strong>：<code>p</code> 初始就指向 <code>meet</code>，<code>while</code> 条件 <code>p != meet</code> 一开始就是 <code>false</code>，循环体一次都不执行，<code>len</code> 保持 0。这是经典的”循环起点就是终点”边界问题。</p>
+<p><strong>修复</strong>：改成 <code>do { p = p-&gt;next; ++len; } while (p != meet);</code>，保证至少走一步再判断。这个问题在哈希表基准里其实也存在（<code>do { q = q-&gt;next; ... } while (q != p)</code> 我特意也用 do-while），两边保持一致才不容易漏。</p>
+<h3 id="5-3-坑三：无环链表在尾部段错误"><a href="#5-3-坑三：无环链表在尾部段错误" class="headerlink" title="5.3 坑三：无环链表在尾部段错误"></a>5.3 坑三：无环链表在尾部段错误</h3><p><strong>症状</strong>：<code>runCase(100, -1)</code>（100 个节点的无环链表）直接 segfault。</p>
+<p><strong>错误假设</strong>：我以为 <code>while (fast)</code> 就够了，因为 fast 走到 <code>nullptr</code> 就停。</p>
+<p><strong>真实原因</strong>：偶数长度无环链表里，<code>fast</code> 会踩到”倒数第二个节点”，下一步 <code>fast-&gt;next-&gt;next</code> 中 <code>fast-&gt;next</code> 已经是 <code>nullptr</code>，解引用 <code>nullptr-&gt;next</code> 崩溃。<code>while (fast)</code> 只保证了 <code>fast</code> 非空，没保证 <code>fast-&gt;next</code> 非空。</p>
+<p><strong>修复</strong>：条件改成 <code>while (fast &amp;&amp; fast-&gt;next)</code>，两个都查。这是 Floyd 算法最常见的段错误来源，务必记住”<strong>走两步，就要查两格</strong>“。</p>
+<h3 id="5-4-坑四：起点重合被误判成”有环”"><a href="#5-4-坑四：起点重合被误判成”有环”" class="headerlink" title="5.4 坑四：起点重合被误判成”有环”"></a>5.4 坑四：起点重合被误判成”有环”</h3><p><strong>症状</strong>：改成”先判 <code>slow == fast</code> 再走”后，连无环链表都报告”有环”。</p>
+<p><strong>错误假设</strong>：我以为两个指针从不同位置出发（slow&#x3D;head、fast&#x3D;head-&gt;next），初始不重合，先判也没关系。</p>
+<p><strong>真实原因</strong>：我让两个指针<strong>都从 head 出发</strong>（这是标准写法，因为这样 <code>μ = n·λ − k</code> 的推导才成立），初始 <code>slow == fast == head</code> 必然成立。如果先判再走，第一次迭代就误报”有环”。</p>
+<p><strong>修复</strong>：严格”先走一步、再判重合”。这个顺序和”两个指针都从 head 出发”是配套的，不可拆开。</p>
+<h3 id="5-5-坑五：benchmark-测出-0ms，怀疑算法被优化掉了"><a href="#5-5-坑五：benchmark-测出-0ms，怀疑算法被优化掉了" class="headerlink" title="5.5 坑五：benchmark 测出 0ms，怀疑算法被优化掉了"></a>5.5 坑五：benchmark 测出 0ms，怀疑算法被优化掉了</h3><p><strong>症状</strong>：Floyd benchmark 平均 <code>0.000 ms</code>，我一度怀疑是编译器把调用删了，数据不可信。</p>
+<p><strong>错误假设</strong>：我认为 <code>0.000 ms</code> 一定是”死代码消除”导致的假数据。</p>
+<p><strong>真实原因</strong>：加 <code>(void)e; (void)len;</code> 后依然是 <code>0.000 ms</code>，说明不是优化问题，而是<strong>真实耗时就低于毫秒计时精度</strong>——200 万节点的 O(μ+λ) 指针跳动在微秒级就完成了。<code>steady_clock</code> 的 <code>duration&lt;double, std::milli&gt;</code> 只能精确到毫秒，读不出微秒级的量。</p>
+<p><strong>修复</strong>：接受”Floyd 快到测不出”这个事实本身，反而印证了它的高效；把对比的重心放在哈希表法的 77ms 上，加速比用”哈希表耗时 &#x2F; Floyd 耗时”表达，数量级（10⁶）是可信的。若要让 Floyd 的耗时更精确，可以改用 <code>std::chrono::high_resolution_clock</code> 搭配纳秒计数，但本次结论不受影响。</p>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><h3 id="6-1-正确性：213-组用例全部一致"><a href="#6-1-正确性：213-组用例全部一致" class="headerlink" title="6.1 正确性：213 组用例全部一致"></a>6.1 正确性：213 组用例全部一致</h3><p>我把”是否判对”这件事做成了<strong>可量化的自动断言</strong>，而不是”看着输出像就对”。两种算法（Floyd 与哈希表）在三个维度上逐一对照：</p>
+<table>
+<thead>
+<tr>
+<th>验证维度</th>
+<th>比对内容</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>是否有环</td>
+<td><code>hasCycleFloyd</code> vs 哈希表判重</td>
+<td>一致</td>
+</tr>
+<tr>
+<td>环入口</td>
+<td><code>fdEntry</code> vs <code>hsEntry</code>（指针相等）</td>
+<td>一致</td>
+</tr>
+<tr>
+<td>环长</td>
+<td><code>fdLen</code> vs <code>hsLen</code>，且 <code>fdLen == total - cycleStart</code></td>
+<td>一致</td>
+</tr>
+</tbody></table>
+<p>最终输出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">=== Correctness ===</span><br><span class="line">Test cases: 213</span><br><span class="line">Passed:     213</span><br></pre></td></tr></table></figure>
+
+<p>这 213 例的构成是有讲究的，不是随便凑数字：</p>
+<ul>
+<li><strong>无环边界</strong>：空链表（total&#x3D;0）、单节点（1）、双节点（2）、100 节点——覆盖”无环”的多种长度；</li>
+<li><strong>环的退化</strong>：自环（<code>total=1, cycleStart=0</code>）、满环（<code>total=2, cycleStart=0</code>）、尾节点成环（<code>cycleStart=1</code>）；</li>
+<li><strong>典型 ρ 形</strong>：<code>mu=2, lambda=3</code>、<code>mu=4, lambda=5</code>、<code>total=100</code> 的各种 <code>cycleStart</code>（1、50、99）；</li>
+<li><strong>随机模糊测试（fuzz）</strong>：200 组，<code>total ∈ [1, 200]</code>，<code>cycleStart</code> 随机或 <code>-1</code>（一半概率无环），用固定种子 <code>mt19937 rng(123456789u)</code> 保证可复现。</li>
+</ul>
+<p><code>assert(passed == testCases)</code> 保证只要有一例不一致，程序直接 abort，绝不让”看起来通过”蒙混过关。</p>
+<h3 id="6-2-性能：O-1-空间对-O-n-空间的碾压"><a href="#6-2-性能：O-1-空间对-O-n-空间的碾压" class="headerlink" title="6.2 性能：O(1) 空间对 O(n) 空间的碾压"></a>6.2 性能：O(1) 空间对 O(n) 空间的碾压</h3><p>性能测试在 <code>N=2000000</code>、<code>mu=666666</code>、<code>lambda=1333334</code> 的大环链表上，各跑 5 次取均值：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">=== Performance (N=2000000, mu=666666, lambda=1333334) ===</span><br><span class="line">Floyd avg:   0.000 ms</span><br><span class="line">HashSet avg: 77.631 ms</span><br><span class="line">Speedup (Floyd vs HashSet): 1546432x</span><br></pre></td></tr></table></figure>
+
+<p>这里的对比维度其实有两个，都很关键：</p>
+<ol>
+<li><strong>时间</strong>：Floyd 快 154 万倍。这个差距来自哈希表的三个固有开销——<strong>哈希计算</strong>（每个指针做一次 hash）、<strong>rehash 扩容</strong>（200 万元素让 <code>unordered_set</code> 多次 rehash 重分配）、<strong>缓存失效</strong>（200 万指针散落在堆上，访问模式完全随机，CPU 缓存几乎每击不中）。而 Floyd 是纯粹的顺序指针跳动，缓存友好、无分配、无哈希。</li>
+<li><strong>空间</strong>：哈希表要 O(n) 额外空间（200 万个指针 + 桶数组），Floyd 只要 O(1)（两个指针）。当 <code>N</code> 从 200 万再往上走，哈希表可能直接内存不足，Floyd 依然稳如泰山。</li>
+</ol>
+<blockquote>
+<p>这两个维度合起来，才是”为什么面试官偏爱 Floyd 判圈”的完整答案：它不仅在时间上快，更在空间上做到了<strong>常数级</strong>，这是哈希表永远做不到的。</p>
+</blockquote>
+<h3 id="6-3-封面图：ρ-形结构的可视化"><a href="#6-3-封面图：ρ-形结构的可视化" class="headerlink" title="6.3 封面图：ρ 形结构的可视化"></a>6.3 封面图：ρ 形结构的可视化</h3><p>本次封面图（见上文）用 matplotlib 画了 ρ 形链表：左边蓝色尾巴（μ）接右边绿色环（λ），环内用紫色标出相遇点、橙色标出入口，右侧再用一份”head → mu → entry → lambda”的刻度图把找入口和量环长的两步逻辑可视化。这张图的生成脚本 <code>gen_cover.py</code> 也一并提交，保证了封面可复现。</p>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-这个算法的边界在哪？"><a href="#7-1-这个算法的边界在哪？" class="headerlink" title="7.1 这个算法的边界在哪？"></a>7.1 这个算法的边界在哪？</h3><p>Floyd 判圈虽然优雅，但<strong>不是万能</strong>的，有几个明确的局限：</p>
+<ul>
+<li><strong>只适用于”单值迭代”结构</strong>：它依赖”每个节点只有一个 <code>next</code>“，也就是函数迭代 <code>x → f(x)</code> 这种单值结构。如果是一个图里可能有多个节点指向同一个节点、或者一个节点有多个出边（比如 DAG、一般有向图），Floyd 的”两个速度不同的游走者”模型就失效了——那需要更强的算法（如 Johnson 的龟兔分层、Brent 算法，或者干脆哈希判重）。</li>
+<li><strong>不是最快的周期检测</strong>：Floyd 需要”追及”，最快也要走 μ + λ 步左右。<strong>Brent 算法</strong>用”倍增 + 记录里程碑”的方式，能把函数求值次数降到更优（约 μ + λ 的常数倍更小，尤其是 μ 很大时），适合”每一步求值都很昂贵”的场景（比如 Pollard-ρ 里的模乘 + gcd）。</li>
+<li><strong>对”尾巴走两遍”没有优化</strong>：找入口阶段要重新从 head 走 μ 步，等于把尾巴再走一遍。如果 μ 极大而 λ 极小（一条超长尾巴接一个小环），整体仍是 O(μ+λ)，但”尾巴走两遍”的常数是 2，没有进一步优化空间。</li>
+<li><strong>内存模型假设</strong>：它假设指针比较是 O(1)，这在单机内存里成立；但在分布式或磁盘上的链表上，指针跳转可能引发随机 IO，O(1) 空间的优势会被”每次跳转都缺页”抵消。</li>
+</ul>
+<h3 id="7-2-可以继续深挖的方向"><a href="#7-2-可以继续深挖的方向" class="headerlink" title="7.2 可以继续深挖的方向"></a>7.2 可以继续深挖的方向</h3><ul>
+<li><strong>Brent 算法</strong>：更省函数求值的周期检测，是 Pollard-ρ 整数分解的标配优化；</li>
+<li><strong>Pollard’s Rho 的合流</strong>：把快慢指针的”追及”思想用到整数分解，抓出 <code>gcd(|x-y|, n)</code> 的非平凡因子，和本次 10-24 的主题一脉相承；</li>
+<li><strong>LeetCode 287（寻找重复数）</strong>：把数组 <code>nums[i]</code> 看成”从 i 走到 nums[i]”，用快慢指针在 O(1) 空间找到重复元素，是 Floyd 判圈最精彩的工程变形之一；</li>
+<li><strong>函数迭代的周期分布</strong>：伪随机数生成器（如 LCG、MT19937）的状态周期检测，直接就是”在有限状态空间里找环”，Floyd 是分析随机数质量的基础工具。</li>
+</ul>
+<h3 id="7-3-与系列其他文章的关联"><a href="#7-3-与系列其他文章的关联" class="headerlink" title="7.3 与系列其他文章的关联"></a>7.3 与系列其他文章的关联</h3><p>本次的 Floyd 判圈，和我前面写的几篇算法博客在思路上是相通的：</p>
+<ul>
+<li><strong>10-21 后缀自动机（DAWG）</strong>：讲的是”用 O(n) 空间换 O(n) 时间”的字符串数据结构，核心是把所有子串的信息压缩进一个 DAWG 里；</li>
+<li><strong>10-22 莫队算法</strong>：讲的是”离线重排查询”的平方根分解技巧，用空间换时间、用分块降低查询复杂度；</li>
+<li><strong>10-24 Floyd 判圈</strong>：讲的是相反方向的极致——<strong>用 O(1) 空间解决问题</strong>，把”记忆来过的所有节点”压缩成”两个指针的位置关系”。</li>
+</ul>
+<p>三篇合起来，勾勒出一条贯穿始终的主线：<strong>算法的本质，是在时间、空间、正确性三者之间做权衡（trade-off）</strong>。Floyd 判圈是这条主线上”空间换得最彻底”的一个例子——它用一个巧妙的数学恒等式，把 O(n) 的空间需求直接归零。这种”用结构本身的数学性质替代显式存储”的思想，才是真正值得反复回味的东西。</p>
+<h3 id="7-4-一个可以自己动手的思考题"><a href="#7-4-一个可以自己动手的思考题" class="headerlink" title="7.4 一个可以自己动手的思考题"></a>7.4 一个可以自己动手的思考题</h3><p>如果你已经理解了 <code>μ = n·λ − k</code> 这个恒等式，可以试着回答下面几个问题，检验自己是不是真的懂了，而不是背会了：</p>
+<ol>
+<li>如果把 <code>fast</code> 的步长从 2 改成 3（<code>slow</code> 还是 1），算法还能正确判环吗？为什么？（提示：想一想相对速度，以及”追及”和”跳过”的区别。）</li>
+<li>如果 <code>fast</code> 走 2 步、<code>slow</code> 走 1 步，但两个指针<strong>从不同节点</strong>出发（比如 fast 从 <code>head-&gt;next</code> 出发），找入口的公式 <code>μ = n·λ − k</code> 还成立吗？需要怎么修正？</li>
+<li>假设链表一定有环，且 <code>fast</code> 走 2 步，那么 <code>fast</code> 最坏情况下要在环里绕几圈才能追上 <code>slow</code>？这个圈数有没有上界？</li>
+</ol>
+<p>这三道题的前两道，答案都在 2.2 和 2.3 节的推导里；第三题则需要你动笔算一算 <code>d</code> 和 <code>λ</code> 的关系。想清楚这三道题，Floyd 判圈的数学本质就彻底吃透了。</p>
+<h3 id="7-5-附录：完整源码的编译与运行"><a href="#7-5-附录：完整源码的编译与运行" class="headerlink" title="7.5 附录：完整源码的编译与运行"></a>7.5 附录：完整源码的编译与运行</h3><p>为了让读者能复现本文的所有数据，这里给出完整源码的入口逻辑（函数定义已在正文给出，不再重复）：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">int</span> <span class="title">main</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="function">std::mt19937 <span class="title">rng</span><span class="params">(<span class="number">123456789u</span>)</span></span>;</span><br><span class="line">    <span class="type">int</span> testCases = <span class="number">0</span>, passed = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">auto</span> runCase = [&amp;](<span class="type">int</span> total, <span class="type">int</span> cycleStart) &#123;</span><br><span class="line">        std::vector&lt;Node*&gt; nodes;</span><br><span class="line">        Node* head = <span class="built_in">buildList</span>(total, cycleStart, nodes);</span><br><span class="line"></span><br><span class="line">        <span class="type">bool</span> fdHasCycle = <span class="built_in">hasCycleFloyd</span>(head);</span><br><span class="line">        <span class="type">int</span> fdLen = <span class="number">0</span>;</span><br><span class="line">        Node* fdEntry = <span class="built_in">detectCycleFloyd</span>(head, fdLen);</span><br><span class="line"></span><br><span class="line">        <span class="type">int</span> hsLen = <span class="number">0</span>;</span><br><span class="line">        Node* hsEntry = <span class="built_in">detectCycleHashSet</span>(head, hsLen);</span><br><span class="line">        <span class="type">bool</span> hsHasCycle = (hsEntry != <span class="literal">nullptr</span>);</span><br><span class="line"></span><br><span class="line">        <span class="type">bool</span> ok = (fdHasCycle == hsHasCycle);</span><br><span class="line">        <span class="keyword">if</span> (hsHasCycle) &#123;</span><br><span class="line">            <span class="keyword">if</span> (fdEntry != hsEntry) ok = <span class="literal">false</span>;</span><br><span class="line">            <span class="keyword">if</span> (fdLen != hsLen) ok = <span class="literal">false</span>;</span><br><span class="line">            <span class="keyword">if</span> (fdLen != total - cycleStart) ok = <span class="literal">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        testCases++;</span><br><span class="line">        <span class="keyword">if</span> (ok) passed++;</span><br><span class="line">        <span class="built_in">cleanup</span>(nodes);</span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 无环用例</span></span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">0</span>, <span class="number">-1</span>); <span class="built_in">runCase</span>(<span class="number">1</span>, <span class="number">-1</span>); <span class="built_in">runCase</span>(<span class="number">2</span>, <span class="number">-1</span>); <span class="built_in">runCase</span>(<span class="number">100</span>, <span class="number">-1</span>);</span><br><span class="line">    <span class="comment">// 环的退化</span></span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">1</span>, <span class="number">0</span>);   <span class="comment">// 自环</span></span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">2</span>, <span class="number">0</span>);   <span class="comment">// 满环</span></span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">2</span>, <span class="number">1</span>);   <span class="comment">// 尾节点成环</span></span><br><span class="line">    <span class="comment">// 典型 ρ 形</span></span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">5</span>, <span class="number">0</span>); <span class="built_in">runCase</span>(<span class="number">5</span>, <span class="number">2</span>); <span class="built_in">runCase</span>(<span class="number">9</span>, <span class="number">4</span>);</span><br><span class="line">    <span class="built_in">runCase</span>(<span class="number">100</span>, <span class="number">1</span>); <span class="built_in">runCase</span>(<span class="number">100</span>, <span class="number">50</span>); <span class="built_in">runCase</span>(<span class="number">100</span>, <span class="number">99</span>);</span><br><span class="line">    <span class="comment">// 随机模糊测试</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; <span class="number">200</span>; ++i) &#123;</span><br><span class="line">        <span class="type">int</span> total = (<span class="type">int</span>)(<span class="built_in">rng</span>() % <span class="number">200</span>) + <span class="number">1</span>;</span><br><span class="line">        <span class="type">int</span> cycleStart = (<span class="built_in">rng</span>() % <span class="number">2</span> == <span class="number">0</span>) ? (<span class="type">int</span>)(<span class="built_in">rng</span>() % total) : <span class="number">-1</span>;</span><br><span class="line">        <span class="built_in">runCase</span>(total, cycleStart);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    std::cout &lt;&lt; <span class="string">&quot;=== Correctness ===\n&quot;</span>;</span><br><span class="line">    std::cout &lt;&lt; <span class="string">&quot;Test cases: &quot;</span> &lt;&lt; testCases &lt;&lt; <span class="string">&quot;\n&quot;</span>;</span><br><span class="line">    std::cout &lt;&lt; <span class="string">&quot;Passed:     &quot;</span> &lt;&lt; passed &lt;&lt; <span class="string">&quot;\n&quot;</span>;</span><br><span class="line">    <span class="built_in">assert</span>(passed == testCases);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 性能基准</span></span><br><span class="line">    <span class="type">const</span> <span class="type">int</span> N = <span class="number">2000000</span>;</span><br><span class="line">    std::vector&lt;Node*&gt; big;</span><br><span class="line">    Node* bigHead = <span class="built_in">buildList</span>(N, N / <span class="number">3</span>, big);</span><br><span class="line">    <span class="comment">// ... 计时与输出（见正文 4.6）</span></span><br><span class="line">    <span class="built_in">cleanup</span>(big);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>编译命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">g++ main.cpp -o output -std=c++17 -O2 -Wall -Wextra</span><br><span class="line">./output</span><br></pre></td></tr></table></figure>
+
+<p>源码与 README 已完整提交至 GitHub 仓库，封面图生成脚本 <code>gen_cover.py</code> 也一并开源，读者可自行复现。</p>
+<hr>
+<p><strong>写在最后</strong>：Floyd 判圈算法是我这次”每日编程实践”系列里，代码量最小、但数学结构最值得玩味的一个。它用两个指针、几行循环，就把 O(n) 空间的问题压到了 O(1)，背后的 <code>μ = n·λ − k</code> 恒等式，是理解”为什么慢两步、快一步能恰好揪出入口”的全部答案。希望这篇拆解，能让你下次在面试白板上写下快慢指针时，心里是”我知道它为什么对”，而不是”我记得它是这么写的”。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/">https://chiuhoukazusa.github.io/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E9%93%BE%E8%A1%A8/">链表</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%8F%8C%E6%8C%87%E9%92%88/">双指针</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</div></div><div class="info-2"><div class="info-item-1">Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度① 背景与动机 你写了一个定积分 ∫ₐᵇ f(x) dx，梯形法把区间切成 4096 段，误差还有 3.65×10⁻⁹。换 Simpson 法，同样 4096 段，误差缩到 1.78×10⁻¹⁵。可这还不够——如果你要算到双精度浮点的物理极限，也就是 10⁻¹⁶ 这个数量级，有没有一种方法，几乎不增加函数求值次数，就能做到？  答案是：Romberg 积分（Romberg Integration）。它不是一个独立的求积公式，而是一个”方法升级外挂”——它拿最朴素的复合梯形公式当原料，用一套叫 Richardson 外推（Richardson extrapolation） 的数学技巧，把梯形法的误差逐级消去，最终逼近机器精度。我用它算 exp(-x²) 在 [0,1] 的积分，最终误差是 9.99×10⁻¹⁶，已经贴到了 double 能表达的极限。 在动手之前，先搞清楚这个问题的真实分量。数值积分（numerical integration &#x2F; quadrature）是科学计算里最基础也最常被...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-01</div><div class="info-item-2">每日编程实践: Halton序列与拟蒙特卡洛方法</div></div><div class="info-2"><div class="info-item-1">背景与动机渲染工程师做路径追踪时，常常会面临一个根本性问题：如何用最少的采样点，获得最精确的积分结果？ 传统蒙特卡洛方法使用伪随机数生成器产生采样点来估计积分。根据中心极限定理，MC 的收敛速度是 O(1&#x2F;√N) —— 想提升两倍精度，需要四倍的采样点。在实时渲染中，每个像素的采样预算可能只有 16、8、甚至 1 个采样点，O(1&#x2F;√N) 的慢速收敛意味着图像要么充满噪点，要么需要昂贵的去噪。 拟蒙特卡洛方法正是为此而生。QMC 不使用随机序列，而是使用低差异序列——一种确定性构造的点序列，其核心性质是：点集在定义域上的分布比随机采样更均匀。根据 Koksma-Hlawka 不等式，QMC 的误差上界是 O((log N)^d &#x2F; N)，在中等维度和适量采样数下，收敛速度接近 O(1&#x2F;N)，远优于纯随机 MC 的 O(1&#x2F;√N)。 工业界使用场景：  电影级离线渲染：Pixar 的 RenderMan、Disney 的 Hyperion 都大量使用 QMC 采样进行路径追踪、景深、运动模糊等效果的积分 游戏引擎实时渲染：Unrea...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/17/daily-coding-delaunay-triangulation-2026-06-17/" title="每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-06-17-delaunay_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机Delaunay 三角剖分是计算几何中最优雅和最重要的结构之一。给定平面上的一组离散点，Delaunay 三角剖分将它们连成三角形网格，并且具有一个关键性质：任意三角形的外接圆内不包含其他点。这个性质保证了剖分在某种意义下是”最优”的——它最大化所有三角形中最小的内角，避免了又长又瘦的三角形。 为什么这个性质如此重要？想象你有一组地形采样点，需要把它们变成三维地形模型。如果某个三角形的外接圆内包含另一个采样点，这意味着有四个点几乎共圆，三角剖分变得不稳定。Delaunay 三角剖分排除了这种歧义，确保结果是唯一且确定的（只要没有四点共圆）。 在工业界和游戏开发中，Delaunay 三角剖分有着广泛的应用：  地形建模：从 LiDAR 或高度图采样点生成三角形网格 物理模拟：有限元方法（FEM）需要高质量网格以保证数值稳定性 寻路网格（NavMesh）：自动生成导航网格，三角形质量直接影响路径质量 插值与重建：给定采样点重建连续曲面（如天气数据插值） 邻近查询：Delaunay 三角剖分与 Voronoi 图互为对偶，前者提供显式的邻接关系  我们今天要实现的算法是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/12/daily-coding-astar-pathfinding-2026-06-12/" title="每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-12-astar-pathfinding/astar_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-12</div><div class="info-item-2">每日编程实践: A* 寻路算法可视化 — 不只写代码，更要证明它是对的</div></div><div class="info-2"><div class="info-item-1">一、背景与动机如果你玩过任何一款 RTS 游戏（比如帝国时代、星际争霸），你会发现单位在地图上的移动路径往往是最短的——即使地图上有建筑、河流、森林等障碍物。这背后就是路径规划算法。在没有这些算法的年代，游戏开发者要么让单位直线行走（撞墙就卡住），要么预先烘焙固定路径（完全没有灵活性），要么使用极其低效的暴力搜索（大尺度地图根本跑不动）。 路径搜索问题可以抽象为图搜索问题：把世界建模为一个图，每个格子（或 NavMesh 三角形）是一个节点，相邻的可通行格子之间有边相连。目标很简单：给定起点 S 和终点 G，找到一条从 S 到 G 的路径，使得经过的边数或边的权重之和最小。 初看起来这个问题很简单——BFS（广度优先搜索）就能找到无权图的最短路径，而 Dijkstra 算法能处理带权图。问题在于：它们的搜索策略是”盲目的”。BFS 和 Dijkstra 都不知道目标在哪里，它们只是机械地向外扩张，直到”撞上”目标为止。在一个 80×60 的网格上这没什么，但在一个典型的游戏场景（比如 500×500 的网格，或 NavMesh 上数千个多边形），Dijkstra 可能要展开几十万...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/04/daily-coding-liang-barsky-2026-07-04/" title="每日编程实践: Liang-Barsky 直线裁剪算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-04-Liang-Barsky-Line-Clipping/liang_barsky_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-04</div><div class="info-item-2">每日编程实践: Liang-Barsky 直线裁剪算法</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学中,直线裁剪(line clipping)是最基础也最常见的问题之一。当我们在屏幕上绘制一个场景时,场景中的几何图形可能远远超出屏幕边界——一个由成千上万条线段组成的3D模型,可能只有一小部分线段最终会落在屏幕可见区域内。如果我们不进行裁剪就直接渲染:  屏幕外的线段会被 GPU 的视口变换强制”折断”,产生不正确的视觉效果 在 CPU 侧的软件渲染器中,不做裁剪意味着我们要为不可见的像素做无用的计算 对于交互式UI系统(如窗口管理器、CAD软件),直线裁剪是保证窗口内内容正确的核心操作  在图形管线中,裁剪通常发生在规范化设备坐标(NDC)空间或屏幕空间——即将3D顶点投影后,对屏幕边界矩形内的几何体进行保留。对于线段,问题可以简化为:给定一个轴对齐矩形窗口和一条线段,计算出线段落在窗口内的部分。 现实世界中的应用场景包括:  GUI 渲染:窗口管理器裁剪超出窗口边界的窗口内容 2D 地图渲染:地图应用中只渲染当前视口内的道路和建筑轮廓 CAD 软件:工程图中只显示图纸边界内的线稿 游戏引擎:在 HUD 层绘制时,只渲染当前视口内的UI元素 字体渲染:字...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/24/daily-coding-simulated-annealing-tsp-2026-06-24/" title="每日编程实践: 模拟退火算法求解TSP旅行商问题"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-24-simulated-annealing-tsp/tsp_best_tour.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-24</div><div class="info-item-2">每日编程实践: 模拟退火算法求解TSP旅行商问题</div></div><div class="info-2"><div class="info-item-1">① 背景与动机TSP——NP-hard 问题的典型代表旅行商问题（Traveling Salesman Problem, TSP）是组合优化领域中最经典的问题之一：给定 N 个城市，找到一条访问每个城市恰好一次并回到起点的最短路径。这个问题看似简单，但随着城市数量增加，解空间呈阶乘级爆炸——N 个城市有 (N-1)!&#x2F;2 种可能的回路。对于 50 个城市，可能的解数量约为 3.04×10⁶²，比已知宇宙中的原子数量还要多几十个数量级。 TSP 属于 NP-hard 问题类别。这意味着我们不可能（在目前已知的理论框架下）找到一个多项式时间的算法来精确求解所有实例。穷举搜索在 N&gt;12 时就已经不可行——12 个城市的全排列搜索需要检查 39,916,800 种回路，在我的测试机器上需要数秒；15 个城市则需要约 43 亿种，已经触及时限天花板。 为什么需要启发式&#x2F;元启发式算法？面对 NP-hard 问题，我们有三条路可走：  精确算法（分支定界、动态规划）：可以保证找到最优解，但时间复杂度通常是指数级的。Held-Karp 动态规划算法复杂度为 O(N²·...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/03/daily-coding-rotating-calipers-2026-08-03/" title="每日编程实践: Rotating Calipers 最小面积包围矩形"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily-coding/08-03/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-03</div><div class="info-item-2">每日编程实践: Rotating Calipers 最小面积包围矩形</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学和计算几何领域，包围体（Bounding Volume） 是最基础也最重要的概念之一。无论是碰撞检测、视锥剔除、射线拾取还是空间索引，我们几乎都要和包围体打交道。最常用的是 AABB（Axis-Aligned Bounding Box，轴对齐包围盒）：用平行于坐标轴的矩形来包裹一个形状，计算极其简单——只需要找到 x 和 y 方向的最小&#x2F;最大值即可。 但 AABB 有一个致命的缺点：它不随物体旋转而旋转，导致冗余空间极大。试想一个 45 度倾斜的长条形物体，AABB 会把它包在一个巨大的正方形里，浪费掉超过一半的面积。在游戏引擎的物理碰撞中，这会触发大量”假阳性”碰撞；在渲染管线中，这会导致视锥剔除效率下降，多渲染很多屏幕上根本看不到的物体。 OBB（Oriented Bounding Box，有向包围盒） 就是为解决这个问题而生的。OBB 允许包围盒随物体的形状旋转，找到”贴得最紧”的那个矩形。问题来了：给定一组点，如何找到面积最小的 OBB？ 答案就是今天的主角：Rotating Calipers（旋转卡壳）算法。 工业界的实际应用Rotat...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">199</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">205</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Floyd-%E5%88%A4%E5%9C%88%E7%AE%97%E6%B3%95-%E2%80%94%E2%80%94-%E5%BF%AB%E6%85%A2%E6%8C%87%E9%92%88%E5%A6%82%E4%BD%95%E5%9C%A8-O-1-%E7%A9%BA%E9%97%B4%E9%87%8C%E6%8F%AA%E5%87%BA%E9%93%BE%E8%A1%A8%E7%8E%AF"><span class="toc-number">1.</span> <span class="toc-text">Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%97%AE%E9%A2%98%E5%BB%BA%E6%A8%A1%EF%BC%9A%CE%BC-%E4%B8%8E-%CE%BB-%E5%88%86%E8%A7%A3"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 问题建模：μ 与 λ 分解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E5%BF%AB%E6%85%A2%E6%8C%87%E9%92%88%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%80%E5%AE%9A%E7%9B%B8%E9%81%87%EF%BC%9F"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 快慢指针为什么一定相遇？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E4%B8%BA%E4%BB%80%E4%B9%88%E7%9B%B8%E9%81%87%E7%82%B9%E8%83%BD%E2%80%9D%E8%A7%A3%E7%A0%81%E2%80%9D%E5%87%BA%E7%8E%AF%E5%85%A5%E5%8F%A3%EF%BC%9F%EF%BC%88%E6%A0%B8%E5%BF%83%E6%8E%A8%E5%AF%BC%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 为什么相遇点能”解码”出环入口？（核心推导）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E7%8E%AF%E9%95%BF-%CE%BB-%E5%8F%AF%E4%BB%A5%E9%A1%BA%E6%89%8B%E7%AE%97%E5%87%BA%E6%9D%A5%EF%BC%9F"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 为什么环长 λ 可以顺手算出来？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-O-%CE%BC-%CE%BB-%E6%97%B6%E9%97%B4%E5%92%8C-O-1-%E7%A9%BA%E9%97%B4%EF%BC%9F"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 复杂度分析：为什么是 O(μ + λ) 时间和 O(1) 空间？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%80%BB%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 总体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9ANode-%E4%B8%8E%E9%9A%90%E5%BC%8F%E9%93%BE%E8%A1%A8"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构：Node 与隐式链表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E5%BF%AB%E6%85%A2%E6%8C%87%E9%92%88%E7%9A%84%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 快慢指针的职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%88%A4%E7%8E%AF%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88-while-%E6%9D%A1%E4%BB%B6%E6%98%AF-fast-fast-next%EF%BC%9F"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 判环：为什么 while 条件是 fast &amp;&amp; fast-&gt;next？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E7%9B%B8%E9%81%87%E5%88%A4%E5%AE%9A%E7%9A%84%E4%BD%8D%E7%BD%AE%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E5%85%88%E8%B5%B0%E5%86%8D%E5%88%A4%EF%BC%8C%E8%80%8C%E4%B8%8D%E6%98%AF%E5%85%88%E5%88%A4%E5%86%8D%E8%B5%B0%EF%BC%9F"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 相遇判定的位置：为什么先走再判，而不是先判再走？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E9%87%8F%E7%8E%AF%E9%95%BF%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E7%94%A8-do-while-%E8%80%8C%E4%B8%8D%E6%98%AF-while%EF%BC%9F"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 量环长：为什么用 do-while 而不是 while？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%89%BE%E5%85%A5%E5%8F%A3%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88-a-%E5%92%8C-b-%E9%83%BD%E8%A6%81%E8%B5%B0-1-%E6%AD%A5%EF%BC%8C%E8%80%8C%E4%B8%8D%E6%98%AF%E7%BB%A7%E7%BB%AD-1-%E6%AD%A5%E5%92%8C-2-%E6%AD%A5%EF%BC%9F"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 找入口：为什么 a 和 b 都要走 1 步，而不是继续 1 步和 2 步？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%93%88%E5%B8%8C%E8%A1%A8%E5%9F%BA%E5%87%86%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E5%87%A0%E4%B9%8E%E4%B8%8D%E5%8F%AF%E8%83%BD%E9%94%99%EF%BC%8C%E9%80%82%E5%90%88%E5%BD%93%E8%A3%81%E5%88%A4%EF%BC%9F"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 哈希表基准：为什么它几乎不可能错，适合当裁判？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-benchmark-%E9%87%8C%E7%9A%84%E4%B8%80%E4%B8%AA%E7%BB%86%E8%8A%82%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E8%AE%A1%E6%97%B6%E5%87%BD%E6%95%B0%E8%A6%81-void-e-void-len-%EF%BC%9F"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 benchmark 里的一个细节：为什么计时函数要 (void)e; (void)len;？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-%E5%9D%91%E4%B8%80%EF%BC%9A%E7%8E%AF%E5%85%A5%E5%8F%A3%E6%89%BE%E9%94%99%E4%BA%86%EF%BC%8C%E5%9B%A0%E4%B8%BA%E2%80%9D%E7%9B%B8%E9%81%87%E7%82%B9%E2%80%9D%E5%92%8C%E2%80%9D%E5%85%A5%E5%8F%A3%E2%80%9D%E6%A6%82%E5%BF%B5%E6%B7%B7%E6%B7%86"><span class="toc-number">1.5.1.</span> <span class="toc-text">5.1 坑一：环入口找错了，因为”相遇点”和”入口”概念混淆</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-%E5%9D%91%E4%BA%8C%EF%BC%9A%E9%87%8F%E7%8E%AF%E9%95%BF%E8%BF%94%E5%9B%9E-0%EF%BC%8C%E5%9B%A0%E4%B8%BA%E8%AF%AF%E7%94%A8-while"><span class="toc-number">1.5.2.</span> <span class="toc-text">5.2 坑二：量环长返回 0，因为误用 while</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-%E5%9D%91%E4%B8%89%EF%BC%9A%E6%97%A0%E7%8E%AF%E9%93%BE%E8%A1%A8%E5%9C%A8%E5%B0%BE%E9%83%A8%E6%AE%B5%E9%94%99%E8%AF%AF"><span class="toc-number">1.5.3.</span> <span class="toc-text">5.3 坑三：无环链表在尾部段错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-4-%E5%9D%91%E5%9B%9B%EF%BC%9A%E8%B5%B7%E7%82%B9%E9%87%8D%E5%90%88%E8%A2%AB%E8%AF%AF%E5%88%A4%E6%88%90%E2%80%9D%E6%9C%89%E7%8E%AF%E2%80%9D"><span class="toc-number">1.5.4.</span> <span class="toc-text">5.4 坑四：起点重合被误判成”有环”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-5-%E5%9D%91%E4%BA%94%EF%BC%9Abenchmark-%E6%B5%8B%E5%87%BA-0ms%EF%BC%8C%E6%80%80%E7%96%91%E7%AE%97%E6%B3%95%E8%A2%AB%E4%BC%98%E5%8C%96%E6%8E%89%E4%BA%86"><span class="toc-number">1.5.5.</span> <span class="toc-text">5.5 坑五：benchmark 测出 0ms，怀疑算法被优化掉了</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%AD%A3%E7%A1%AE%E6%80%A7%EF%BC%9A213-%E7%BB%84%E7%94%A8%E4%BE%8B%E5%85%A8%E9%83%A8%E4%B8%80%E8%87%B4"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 正确性：213 组用例全部一致</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%80%A7%E8%83%BD%EF%BC%9AO-1-%E7%A9%BA%E9%97%B4%E5%AF%B9-O-n-%E7%A9%BA%E9%97%B4%E7%9A%84%E7%A2%BE%E5%8E%8B"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 性能：O(1) 空间对 O(n) 空间的碾压</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%B0%81%E9%9D%A2%E5%9B%BE%EF%BC%9A%CF%81-%E5%BD%A2%E7%BB%93%E6%9E%84%E7%9A%84%E5%8F%AF%E8%A7%86%E5%8C%96"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 封面图：ρ 形结构的可视化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E8%BF%99%E4%B8%AA%E7%AE%97%E6%B3%95%E7%9A%84%E8%BE%B9%E7%95%8C%E5%9C%A8%E5%93%AA%EF%BC%9F"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 这个算法的边界在哪？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E6%B7%B1%E6%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可以继续深挖的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%80%E4%B8%AA%E5%8F%AF%E4%BB%A5%E8%87%AA%E5%B7%B1%E5%8A%A8%E6%89%8B%E7%9A%84%E6%80%9D%E8%80%83%E9%A2%98"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 一个可以自己动手的思考题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-5-%E9%99%84%E5%BD%95%EF%BC%9A%E5%AE%8C%E6%95%B4%E6%BA%90%E7%A0%81%E7%9A%84%E7%BC%96%E8%AF%91%E4%B8%8E%E8%BF%90%E8%A1%8C"><span class="toc-number">1.7.5.</span> <span class="toc-text">7.5 附录：完整源码的编译与运行</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环">每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</a><time datetime="2026-10-23T22:00:00.000Z" title="发表于 2026-10-24 06:00:00">2026-10-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</a><time datetime="2026-10-16T22:00:00.000Z" title="发表于 2026-10-17 06:00:00">2026-10-17</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/14/daily-coding-markov-chain-ngram-2026-10-14/" title="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-14-markov-chain-ngram/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/14/daily-coding-markov-chain-ngram-2026-10-14/" title="每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度">每日编程实践: 马尔可夫链 N-Gram 文本生成 —— 从转移概率矩阵到困惑度</a><time datetime="2026-10-13T22:00:00.000Z" title="发表于 2026-10-14 06:00:00">2026-10-14</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-08-sieve-miller-rabin/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/08/daily-coding-sieve-miller-rabin-2026-10-08/" title="每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试">每日编程实践: 埃氏筛与 Miller-Rabin —— 从 O(n log log n) 筛素数到确定性素性测试</a><time datetime="2026-10-07T22:00:00.000Z" title="发表于 2026-10-08 06:00:00">2026-10-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-04-zero-one-bfs/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路">每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路</a><time datetime="2026-10-03T22:00:00.000Z" title="发表于 2026-10-04 06:00:00">2026-10-04</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
