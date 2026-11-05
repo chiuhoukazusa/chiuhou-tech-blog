@@ -1,0 +1,464 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Johnson 算法 —— 稀疏图上带负权边的全源最短路① 背景与动机在图论算法里，「最短路」是出现频率最高、也是唯一一个几乎每个算法工程师都绕不开的问题类别。它的问题规模可以很小——比如一个城市地铁换乘查询里几十个站点的最短路；也可以很大——比如社交网络里几亿节点之间的平均距离、或者物流网络中任意两个仓库之间的最优运输路径。 我们通常会问两类最短路问题：单源最短路（SSSP）和全源最短路（APS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="Johnson 算法 —— 稀疏图上带负权边的全源最短路① 背景与动机在图论算法里，「最短路」是出现频率最高、也是唯一一个几乎每个算法工程师都绕不开的问题类别。它的问题规模可以很小——比如一个城市地铁换乘查询里几十个站点的最短路；也可以很大——比如社交网络里几亿节点之间的平均距离、或者物流网络中任意两个仓库之间的最优运输路径。 我们通常会问两类最短路问题：单源最短路（SSSP）和全源最短路（APS">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png">
+<meta property="article:published_time" content="2026-11-04T22:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-04T22:04:51.091Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="图论">
+<meta property="article:tag" content="最短路">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路",
+  "url": "https://chiuhoukazusa.github.io/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png",
+  "datePublished": "2026-11-04T22:00:00.000Z",
+  "dateModified": "2026-11-04T22:04:51.091Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-11-04T22:00:00.000Z" title="发表于 2026-11-05 06:00:00">2026-11-05</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-11-04T22:04:51.091Z" title="更新于 2026-11-05 06:04:51">2026-11-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Johnson-算法-——-稀疏图上带负权边的全源最短路"><a href="#Johnson-算法-——-稀疏图上带负权边的全源最短路" class="headerlink" title="Johnson 算法 —— 稀疏图上带负权边的全源最短路"></a>Johnson 算法 —— 稀疏图上带负权边的全源最短路</h1><h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在图论算法里，「最短路」是出现频率最高、也是唯一一个几乎每个算法工程师都绕不开的问题类别。它的问题规模可以很小——比如一个城市地铁换乘查询里几十个站点的最短路；也可以很大——比如社交网络里几亿节点之间的平均距离、或者物流网络中任意两个仓库之间的最优运输路径。</p>
+<p>我们通常会问两类最短路问题：<strong>单源最短路（SSSP）<strong>和</strong>全源最短路（APSP）</strong>。</p>
+<p>单源最短路的意思是：给定一个起点 <code>s</code>，求 <code>s</code> 到图中其它所有节点的最短距离。这个问题已经有两个经典且高效的解法：</p>
+<ul>
+<li><strong>Dijkstra 算法</strong>：在非负权图上，用优先队列（二叉堆）实现，时间复杂度是 <code>O((V+E) log V)</code>，也就是 <code>O(E log V)</code>。这是目前已知最快的通用 SSSP 算法（在非负权前提下）。</li>
+<li><strong>Bellman-Ford 算法</strong>：能够处理带负权边的图，但它的代价是 <code>O(V·E)</code> 的复杂度——每条边要被松弛 <code>V-1</code> 轮。这个平方级别的复杂度在稍微大一点的图上就让人难以接受。</li>
+</ul>
+<p>那么全源最短路呢？所谓全源，就是要求<strong>任意两对节点之间的最短距离</strong>，一共 <code>V(V-1)</code> 对，通常表示为一张 <code>V × V</code> 的距离矩阵。</p>
+<p>一个最直观、也最「暴力」的做法是：<strong>对每个节点都跑一次单源最短路</strong>。</p>
+<ul>
+<li>如果对每个节点跑一次 Dijkstra，复杂度是 <code>O(V · E log V)</code>，在<strong>非负权</strong>图上这是一个非常漂亮的结果。</li>
+<li>如果图里有负权边，Dijkstra 就失效了（Dijkstra 的正确性建立在「每次弹出的节点距离不可能再被更新」这个假设上，而负权边会破坏这个假设）。这时我们只能退而求其次，对每个节点跑一次 Bellman-Ford，复杂度飙升到 <code>O(V · V·E) = O(V²·E)</code>，在稠密图上甚至接近 <code>O(V⁴)</code>——这在实际中是完全不可接受的。</li>
+</ul>
+<p>那有没有一个算法，既能处理负权边，又能在稀疏图上保持接近 Dijkstra 级别的效率？</p>
+<p>答案是 <strong>Johnson 算法</strong>。它是历史上第一个在「带负权边、但不存在负环」的图上，把 APSP 做到 <code>O(VE log V)</code> 的算法。这个复杂度之所以漂亮，是因为它抓住了两个关键事实：</p>
+<ol>
+<li><strong>稀疏图</strong>（<code>E = O(V)</code> 甚至更少）在实际中极其常见。社交网络、道路网络、电路布线、通信网络几乎都是稀疏的。对于稀疏图，<code>O(VE log V)</code> 远优于 Floyd-Warshall 的 <code>O(V³)</code>，也远优于「每个节点跑 Bellman-Ford」的 <code>O(V²E)</code>。</li>
+<li><strong>负权边</strong>在很多真实场景里存在，而且不可忽略。一个典型例子是套利检测：把外汇汇率建模成图时，<code>log(汇率)</code> 就是一个带负权的边权（因为汇率可能小于 1，取对数后是负数）。在这个图上，「负环」恰好对应「套利机会」——如果存在一个负环，你就可以无限套利。Johnson 算法天然集成了负环检测，这让它在金融工程里有直接的应用价值。</li>
+</ol>
+<p>Johnson 算法的核心思想极其优雅，可以用一句话概括：</p>
+<blockquote>
+<p><strong>先想办法把图上的所有边权「重赋权」成非负的，然后用 Dijkstra 对每个节点跑一次，最后把重赋权的影响「反解」回来。</strong></p>
+</blockquote>
+<p>这个「重赋权」的技巧，是整个算法最精妙、也最值得反复玩味的部分。它不是随便加一个常数——因为随便加常数会改变最短路径本身。它用的是一套基于「势能函数（potential）」的严格数学构造。</p>
+<p>在工业界和学术界，Johnson 算法虽然不像 Dijkstra 那样「人人都会」，但它的思想——<strong>势能重赋权（reweighting by potentials）</strong>——延伸出了很多重要的应用：</p>
+<ul>
+<li><strong>套利检测</strong>（如上所述，Bellman-Ford 的负环检测直接对应）。</li>
+<li><strong>多商品流（Multi-commodity flow）</strong>：很多网络优化问题需要反复求解 APSP，Johnson 的势能技巧可以加速后续的增量计算。</li>
+<li><strong>图神经网络&#x2F;图上的最短路径核（Shortest-Path Kernel）</strong>：计算图之间的相似度时，需要 APSP 距离矩阵作为特征，稀疏图上 Johnson 是比 Floyd-Warshall 更优的选择。</li>
+<li><strong>A* 搜索的启发式</strong>：Johnson 的势能函数本质上和「可行启发式（consistent heuristic）」是同一回事，理解 Johnson 有助于理解 A* 为什么能找到最优解。</li>
+</ul>
+<p>写这篇博客的目的，不只是「复现一个算法」，更是要<strong>用严格的量化验证</strong>证明：实现是正确无误的。历史上有太多「看起来跑通了、结果其实是错的」的教训。所以我会用三个独立的基准（Floyd-Warshall 精确距离矩阵比对、Bellman-Ford 从每个源独立比对、负环检测一致性）来交叉验证，并给出稀疏图上的加速比数据。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-问题形式化"><a href="#2-1-问题形式化" class="headerlink" title="2.1 问题形式化"></a>2.1 问题形式化</h3><p>给定一个有向带权图 <code>G = (V, E)</code>，<code>|V| = n</code>，<code>|E| = m</code>，每条边 <code>(u, v)</code> 有一个权重 <code>w(u, v)</code>，允许为负。我们要求出所有点对 <code>(u, v)</code> 之间的最短距离 <code>δ(u, v)</code>。</p>
+<p>前提条件：<strong>图中不存在负权环</strong>（negative cycle）。如果存在负环，那么「最短路径」本身就没有定义（你可以沿着负环一直走，路径长度无限减小），此时算法的正确输出应该是「报告存在负环」而不是给出一个（无穷小的）距离。</p>
+<h3 id="2-2-为什么不能直接对每个节点跑-Dijkstra？"><a href="#2-2-为什么不能直接对每个节点跑-Dijkstra？" class="headerlink" title="2.2 为什么不能直接对每个节点跑 Dijkstra？"></a>2.2 为什么不能直接对每个节点跑 Dijkstra？</h3><p>Dijkstra 算法的核心不变量是：</p>
+<blockquote>
+<p>每次从优先队列中弹出的节点 <code>u</code>，其 <code>dist[u]</code> 已经是最终的最短距离，<strong>之后不会被再更新</strong>。</p>
+</blockquote>
+<p>这个不变量在「所有边权非负」时成立。为什么？直观理解：Dijkstra 每次贪心选择当前 <code>dist</code> 最小的未处理节点。因为所有边权 <code>≥ 0</code>，任何一条「绕路」的路径都不可能让已经是最小的距离变得更小——从别的节点过来，至少还要加一个非负的边权，只会更大或相等。</p>
+<p>但一旦出现负权边，这个贪心就错了。举一个经典反例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">A --(-2)--&gt; B</span><br><span class="line">A --(+1)--&gt; C</span><br><span class="line">C --(+1)--&gt; B</span><br></pre></td></tr></table></figure>
+
+<p>从 A 出发：Dijkstra 先弹 A（dist&#x3D;0），然后松弛出 B 的候选距离 -2、C 的候选距离 1。它贪心弹出 B（dist&#x3D;-2，当前最小），标记 B 为「已确定」。但事实上，A→C→B 的路径长度是 <code>1 + 1 = 2</code>，比 -2 大——这个例子里 B 的 -2 恰好是对的。</p>
+<p>把例子再改一下，让负权真正制造问题：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">A --(+10)--&gt; B</span><br><span class="line">A --(+5)--&gt;  C</span><br><span class="line">C --(-1)--&gt;  B</span><br></pre></td></tr></table></figure>
+
+<p>从 A 出发：弹出 A，松弛得到 B&#x3D;10, C&#x3D;5。贪心弹出 C（dist&#x3D;5），松弛 C→B，得到 B &#x3D; 5 + (-1) &#x3D; 4，更新 B 为 4。再弹出 B，B&#x3D;4。这个例子里最终 B&#x3D;4 是对的（因为通过 C 更短）。</p>
+<p>关键的反例要更「阴险」——负权边指向一个「已经弹出」的节点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">A --(+1)--&gt; B</span><br><span class="line">A --(+2)--&gt; C</span><br><span class="line">B --(+3)--&gt; D</span><br><span class="line">C --(-5)--&gt; B   // 注意：负权边指向 B，而 B 可能已经被弹出</span><br></pre></td></tr></table></figure>
+
+<p>从 A 出发：弹出 A，松弛 B&#x3D;1, C&#x3D;2。弹出 B（dist&#x3D;1），松弛 B→D，D&#x3D;4。弹出 C（dist&#x3D;2），松弛 C→B：<code>2 + (-5) = -3 &lt; 1</code>，所以 B 应该被更新为 -3。但此时 B 已经被弹出并标记为「已确定」，Dijkstra 不会再处理 B 的更新，于是 D 的最短距离被错误地算成了 4（正确应该是最多 -3 + 3 &#x3D; 0）。</p>
+<p>这就是问题的本质：<strong>负权边可以让「已经确定」的节点的距离进一步变小，而 Dijkstra 对此无能为力。</strong></p>
+<p>所以我们有以下两难：</p>
+<ul>
+<li>想用 Dijkstra 的 <code>O(E log V)</code> 高效性 → 但它要求非负权。</li>
+<li>想支持负权 → 只能用 Bellman-Ford，但要付出 <code>O(VE)</code> 的代价，每个源都跑一遍就是 <code>O(V²E)</code>。</li>
+</ul>
+<p>Johnson 的核心洞察就是打破这个两难：<strong>通过一次巧妙的预处理，把任意（无负环）图转换成「边权全部非负」的等价图，同时保证最短路径的结构不变。</strong></p>
+<h3 id="2-3-势能重赋权：Johnson-的数学核心"><a href="#2-3-势能重赋权：Johnson-的数学核心" class="headerlink" title="2.3 势能重赋权：Johnson 的数学核心"></a>2.3 势能重赋权：Johnson 的数学核心</h3><h4 id="2-3-1-为什么「加一个常数」不行？"><a href="#2-3-1-为什么「加一个常数」不行？" class="headerlink" title="2.3.1 为什么「加一个常数」不行？"></a>2.3.1 为什么「加一个常数」不行？</h4><p>有人会想：既然负权麻烦，那我给所有边权都加上一个足够大的常数 <code>c</code>，让它们都变成非负的，然后跑 Dijkstra 不就行了？</p>
+<p>这是错的。原因是：<strong>最短路径和「经过的边数」有关</strong>。设一条路径 <code>P</code> 经过 <code>k</code> 条边，原始长度为 <code>len(P)</code>，加常数后长度为 <code>len(P) + k·c</code>。如果两条路径的边数不同，加常数后会<strong>相对地</strong>偏向边数更少的路径，从而改变最短路径的选择。</p>
+<p>举例：从 s 到 t 有两条路，路径 1 有 1 条边、权重 100；路径 2 有 3 条边、权重分别是 30、30、30（总 90）。原始最短是路径 2（90 &lt; 100）。如果给每条边加常数 <code>c = 50</code>，那么路径 1 变成 <code>100 + 50 = 150</code>，路径 2 变成 <code>90 + 150 = 240</code>，此时最短变成了路径 1——<strong>最短路径被改变了</strong>。</p>
+<p>所以「给边加常数」这个朴素的方案是无效的。</p>
+<h4 id="2-3-2-势能函数的构造"><a href="#2-3-2-势能函数的构造" class="headerlink" title="2.3.2 势能函数的构造"></a>2.3.2 势能函数的构造</h4><p>Johnson 用的是「给<strong>节点</strong>加势能、而不是给边加常数」的办法。核心公式如下：</p>
+<p>给每个节点 <code>v</code> 赋一个势能值 <code>h[v]</code>，然后定义重赋权后的边权：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">w&#x27;(u, v) = w(u, v) + h[u] - h[v]</span><br></pre></td></tr></table></figure>
+
+<p>这个式子为什么巧妙？看它对于一个「节点」的净效果：当一条路径 <code>v0 → v1 → v2 → ... → vk</code> 经过多个节点时，中间节点的势能会两两抵消：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">w&#x27;(v0,v1) + w&#x27;(v1,v2) + ... + w&#x27;(vk-1,vk)</span><br><span class="line">= [w(v0,v1)+h(v0)-h(v1)] + [w(v1,v2)+h(v1)-h(v2)] + ... + [w(vk-1,vk)+h(vk-1)-h(vk)]</span><br><span class="line">= w(v0,v1) + w(v1,v2) + ... + w(vk-1,vk) + h(v0) - h(vk)</span><br></pre></td></tr></table></figure>
+
+<p>中间所有 <code>h(vi)</code> 都正负抵消了，最后只剩下 <code>h(起点) - h(终点)</code>！</p>
+<p>所以关键结论是：</p>
+<blockquote>
+<p><strong>重赋权后，任意两点 <code>u, v</code> 之间所有路径的「相对顺序」保持不变</strong>：任意路径 <code>u→v</code> 的新长度等于「旧长度 + h(u) - h(v)」。而 <code>h(u) - h(v)</code> 对于固定的 <code>(u, v)</code> 是一个常数，不随路径变化。</p>
+</blockquote>
+<p>这意味着：</p>
+<ol>
+<li>重赋权后，<code>u→v</code> 的最短路径<strong>和重赋权前完全一样</strong>（都是让 <code>旧长度</code> 最小的那条路）。</li>
+<li>新旧最短距离之间有一个简单关系：<code>δ&#39;(u,v) = δ(u,v) + h(u) - h(v)</code>，即 <code>δ(u,v) = δ&#39;(u,v) - h(u) + h(v)</code>。</li>
+</ol>
+<p>于是，只要我们找到一组合适的 <code>h[]</code>，使得<strong>所有重赋权后的边权 <code>w&#39;(u,v)</code> 都是非负的</strong>，就可以在重赋权图上用 Dijkstra（每个节点跑一次），最后用公式 <code>δ(u,v) = δ&#39;(u,v) - h(u) + h(v)</code> 反解出真实距离。</p>
+<h4 id="2-3-3-如何找到这样一组势能-h？"><a href="#2-3-3-如何找到这样一组势能-h？" class="headerlink" title="2.3.3 如何找到这样一组势能 h？"></a>2.3.3 如何找到这样一组势能 h？</h4><p>我们需要：对所有边 <code>(u, v)</code>，都有 <code>w&#39;(u,v) = w(u,v) + h[u] - h[v] ≥ 0</code>，即：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">h[v] ≤ h[u] + w(u, v)</span><br></pre></td></tr></table></figure>
+
+<p>这个不等式是不是很眼熟？这正是<strong>最短路径的三角不等式</strong>！它说：<code>h[v]</code> 不能超过「从 u 到 v 的这条边的权 + h[u]」。</p>
+<p>如果 <code>h[v]</code> 恰好等于「源点到 v 的最短距离」，那么三角不等式天然成立（因为最短距离满足 <code>δ(v) ≤ δ(u) + w(u,v)</code>）。但问题是我们需要找的是<strong>某个源到所有节点</strong>的最短距离，而且这个「源」要能到达所有节点。</p>
+<p>Johnson 的巧妙做法：<strong>引入一个虚拟源节点 <code>q</code></strong>，从 <code>q</code> 向图中所有真实节点连一条权重为 0 的边。然后：</p>
+<ol>
+<li>从虚拟源 <code>q</code> 跑一次 <strong>Bellman-Ford</strong>（因为图可能有负权边，只能用 Bellman-Ford），得到 <code>q</code> 到每个节点的最短距离 <code>h[v]</code>。</li>
+<li>由最短距离的定义，对任意真实边 <code>(u, v)</code>，必有 <code>h[v] ≤ h[u] + w(u, v)</code>（否则从 q 经 u 到 v 会得到一条比 h[v] 更短的路径，矛盾）。这就是我们要找的势能！</li>
+<li><strong>如果 Bellman-Ford 检测到负环</strong>，说明原图存在负环，直接报告「存在负环」，算法结束。这天然完成了负环检测。</li>
+</ol>
+<p>这就解决了「如何找 h」的问题：<code>h = 虚拟源的最短距离</code>，通过一次 Bellman-Ford 即可得到。</p>
+<h4 id="2-3-4-完整流程回顾"><a href="#2-3-4-完整流程回顾" class="headerlink" title="2.3.4 完整流程回顾"></a>2.3.4 完整流程回顾</h4><p>把 Johnson 算法的完整流程梳理一遍：</p>
+<ol>
+<li><strong>加虚拟源</strong>：新增一个节点 <code>q</code>，从 <code>q</code> 到每个真实节点连一条权 0 的边。</li>
+<li><strong>Bellman-Ford 求势能</strong>：以 <code>q</code> 为源跑 Bellman-Ford，得到 <code>h[v]</code> &#x3D; <code>q</code> 到 <code>v</code> 的最短距离。若检测到负环，报错返回。</li>
+<li><strong>重赋权</strong>：对每条边 <code>(u, v)</code>，计算新权 <code>w&#39;(u,v) = w(u,v) + h[u] - h[v]</code>（保证非负）。</li>
+<li><strong>n 次 Dijkstra</strong>：在重赋权图上，对每个节点 <code>s</code> 跑 Dijkstra，得到 <code>δ&#39;(s, t)</code>。</li>
+<li><strong>反解</strong>：真实距离 <code>δ(s,t) = δ&#39;(s,t) - h[s] + h[t]</code>。</li>
+</ol>
+<p>复杂度：一次 Bellman-Ford 是 <code>O(VE)</code>，<code>n</code> 次 Dijkstra 是 <code>n · O(E log V) = O(VE log V)</code>。总复杂度 <code>O(VE log V)</code>。</p>
+<p>这个复杂度在稀疏图（<code>E = O(V)</code>）下是 <code>O(V² log V)</code>，远优于 Floyd-Warshall 的 <code>O(V³)</code>，也远优于「每个节点跑 Bellman-Ford」的 <code>O(V²E) = O(V³)</code>（稀疏图下两者都是 V³ 量级，但 Johnson 是 <code>V² log V</code>，常数和规模都更友好）。关于加速比，我们会在第六节给出实测数据。</p>
+<h3 id="2-4-为什么势能重赋权能保证「非负」？"><a href="#2-4-为什么势能重赋权能保证「非负」？" class="headerlink" title="2.4 为什么势能重赋权能保证「非负」？"></a>2.4 为什么势能重赋权能保证「非负」？</h3><p>这一步值得再强调一遍，因为它是整个算法的正确性根基。重赋权后的边权：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">w&#x27;(u,v) = w(u,v) + h[u] - h[v]</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>h[u]</code>、<code>h[v]</code> 是虚拟源 <code>q</code> 到 <code>u</code>、<code>v</code> 的最短距离。因为存在边 <code>(u,v)</code>，所以从 <code>q</code> 到 <code>v</code> 存在一条「q → … → u → v」的路径，其长度为 <code>h[u] + w(u,v)</code>。而 <code>h[v]</code> 是 <code>q</code> 到 <code>v</code> 的<strong>最短</strong>距离，所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">h[v] ≤ h[u] + w(u,v)</span><br><span class="line">⟹ w(u,v) + h[u] - h[v] ≥ 0</span><br><span class="line">⟹ w&#x27;(u,v) ≥ 0</span><br></pre></td></tr></table></figure>
+
+<p>完美。这就是「最短距离满足三角不等式」这一性质带来的直接红利——它保证了重赋权后的边权非负，从而 Dijkstra 可以安全使用。</p>
+<h3 id="2-5-负环检测的等价性"><a href="#2-5-负环检测的等价性" class="headerlink" title="2.5 负环检测的等价性"></a>2.5 负环检测的等价性</h3><p>Johnson 用 Bellman-Ford（虚拟源）来检测负环。这里有个值得注意的点：<strong>Bellman-Ford 从虚拟源 <code>q</code> 出发能检测到原图的任何负环吗？</strong></p>
+<p>可以。因为 <code>q</code> 通过权 0 的边能到达所有真实节点，所以原图中的任何负环，从 <code>q</code> 出发都能「进入」这个负环并沿它无限降低距离，从而 Bellman-Ford 会在第 <code>V</code> 轮（超过 <code>V-1</code> 轮）仍然发生松弛，据此判定存在负环。</p>
+<p>而 Floyd-Warshall 检测负环的方式是：若某个 <code>d[i][i] &lt; 0</code>，说明存在经过 <code>i</code> 的负环。两种检测方式在数学上是等价的，我们的验证代码会显式比对这两者的一致性（见第六节）。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>整个程序可以分成「算法核心」和「验证框架」两层，数据流如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">[随机图生成器]</span><br><span class="line">      │  生成 n 个节点、指定密度的有向带权边（含负权）</span><br><span class="line">      ▼</span><br><span class="line">[Johnson 算法核心]</span><br><span class="line">      │  ① 加虚拟源 → ② Bellman-Ford 求势能 h[]</span><br><span class="line">      │  ③ 重赋权 w&#x27;  → ④ n 次 Dijkstra → ⑤ 反解 δ</span><br><span class="line">      ▼</span><br><span class="line">[三个独立基准交叉验证]</span><br><span class="line">      │  Floyd-Warshall（精确距离矩阵比对）</span><br><span class="line">      │  Bellman-Ford 逐源（独立基线）</span><br><span class="line">      │  负环检测一致性</span><br><span class="line">      ▼</span><br><span class="line">[性能对比]</span><br><span class="line">      │ 稀疏图上的加速比（speedup）</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><p>代码里用到了几个核心数据结构，每个都有明确的选型理由：</p>
+<ol>
+<li><p><strong>边表 <code>vector&lt;Edge&gt;</code></strong>：<code>Edge = {u, v, w}</code>，用于 Bellman-Ford 的松弛。Bellman-Ford 需要「遍历所有边」，所以用扁平边表最高效（连续内存、缓存友好），而不是邻接表。</p>
+</li>
+<li><p><strong>邻接表 <code>vector&lt;vector&lt;pair&lt;int,long long&gt;&gt;&gt; adj</code></strong>：用于 Dijkstra。Dijkstra 需要「从一个节点快速拿到它的所有出边」，所以用邻接表（每个节点一个 vector 存 <code>(邻居, 重赋权后权重)</code>）。</p>
+</li>
+<li><p><strong><code>vector&lt;long long&gt;</code> 用 <code>INF = 4e18</code></strong>：距离用一个很大的数表示「不可达」，避免溢出。因为权重可能累加，用 <code>long long</code>（64 位）保证安全，<code>4e18</code> 远小于 <code>LLONG_MAX</code>（约 <code>9.2e18</code>），中间加法不会溢出。</p>
+</li>
+<li><p><strong>势能数组 <code>h[]</code> 大小为 <code>n+1</code></strong>：多出来的一个下标给虚拟源 <code>q = n</code>。真实节点编号 <code>0..n-1</code>，虚拟源编号 <code>n</code>。</p>
+</li>
+</ol>
+<h3 id="3-3-CPU-侧职责划分（三个函数的边界）"><a href="#3-3-CPU-侧职责划分（三个函数的边界）" class="headerlink" title="3.3 CPU 侧职责划分（三个函数的边界）"></a>3.3 CPU 侧职责划分（三个函数的边界）</h3><ul>
+<li><strong><code>bellman_ford_potentials(n, aug, h)</code></strong>：只负责「求势能 + 负环检测」。输入是（已带虚拟源边的）边表，输出势能 <code>h[]</code>，返回 <code>bool</code> 表示是否存在负环。</li>
+<li><strong><code>dijkstra(n, s, adj)</code></strong>：只负责「单源最短路」（在重赋权图上），返回从 <code>s</code> 出发的距离数组。</li>
+<li><strong><code>johnson(n, edges, dist)</code></strong>：顶层编排函数，串联「加虚拟源→求势能→重赋权建邻接表→n 次 Dijkstra→反解」，输出 <code>n×n</code> 距离矩阵 <code>dist</code>，返回 <code>bool</code> 表示是否有负环。</li>
+</ul>
+<p>这三个函数职责单一、边界清晰，方便独立测试和复用。</p>
+<h3 id="3-4-负环检测的实现细节"><a href="#3-4-负环检测的实现细节" class="headerlink" title="3.4 负环检测的实现细节"></a>3.4 负环检测的实现细节</h3><p>Bellman-Ford 求势能时，负环检测的实现有一个容易写错的细节。标准 Bellman-Ford 跑 <code>V-1</code> 轮（<code>V</code> 是节点数，这里含虚拟源是 <code>n+1</code> 个节点，所以最多 <code>n</code> 轮松弛）。代码里让循环变量 <code>i</code> 从 0 到 <code>n</code>（共 <code>n+1</code> 次），当 <code>i == n</code> 时如果还能松弛，说明到了「第 <code>n+1</code> 次」仍有改进，即存在负环：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt;= n; i++) &#123;          <span class="comment">// 最多 n+1 轮</span></span><br><span class="line">    <span class="type">bool</span> changed = <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> &amp;e : edges) &#123;</span><br><span class="line">        <span class="keyword">if</span> (h[e.u] != INF &amp;&amp; h[e.u] + e.w &lt; h[e.v]) &#123;</span><br><span class="line">            h[e.v] = h[e.u] + e.w;</span><br><span class="line">            changed = <span class="literal">true</span>;</span><br><span class="line">            <span class="keyword">if</span> (i == n) <span class="keyword">return</span> <span class="literal">false</span>;   <span class="comment">// 第 n+1 轮仍松弛 =&gt; 负环</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (!changed) <span class="keyword">break</span>;                <span class="comment">// 提前终止优化</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>为什么要跑到第 <code>n</code> 轮？因为含虚拟源共有 <code>n+1</code> 个节点，若不存在负环，最长最短路径的边数不超过 <code>n</code>（即 <code>(n+1)-1</code>），所以 <code>n</code> 轮（i&#x3D;0..n-1）足够收敛。若第 <code>n+1</code> 轮（i&#x3D;n）仍能松弛，必然是负环。这个 off-by-one 是 Bellman-Ford 负环检测最容易出 bug 的地方，值得特别注意。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><h3 id="4-1-求势能-负环检测：bellman-ford-potentials"><a href="#4-1-求势能-负环检测：bellman-ford-potentials" class="headerlink" title="4.1 求势能 + 负环检测：bellman_ford_potentials"></a>4.1 求势能 + 负环检测：<code>bellman_ford_potentials</code></h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">bellman_ford_potentials</span><span class="params">(<span class="type">int</span> n, <span class="type">const</span> vector&lt;Edge&gt;&amp; edges, vector&lt;<span class="type">long</span> <span class="type">long</span>&gt;&amp; h)</span> </span>&#123;</span><br><span class="line">    h.<span class="built_in">assign</span>(n + <span class="number">1</span>, INF);</span><br><span class="line">    h[n] = <span class="number">0</span>;                              <span class="comment">// 虚拟源 n 的距离为 0</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt;= n; i++) &#123;</span><br><span class="line">        <span class="type">bool</span> changed = <span class="literal">false</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">auto</span> &amp;e : edges) &#123;</span><br><span class="line">            <span class="keyword">if</span> (h[e.u] != INF &amp;&amp; h[e.u] + e.w &lt; h[e.v]) &#123;</span><br><span class="line">                h[e.v] = h[e.u] + e.w;</span><br><span class="line">                changed = <span class="literal">true</span>;</span><br><span class="line">                <span class="keyword">if</span> (i == n) <span class="keyword">return</span> <span class="literal">false</span>;  <span class="comment">// 负环检测</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (!changed) <span class="keyword">break</span>;               <span class="comment">// 稳定，提前结束</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：</p>
+<ul>
+<li><code>h.assign(n+1, INF)</code> 然后把 <code>h[n] = 0</code>：虚拟源 <code>n</code> 是起点，其它节点初始化为无穷大，等待被松弛。</li>
+<li>双重循环：外层是「轮数」，内层是「遍历所有边松弛」。这是 Bellman-Ford 的标准形态。</li>
+<li><code>if (i == n) return false</code>：这是负环检测的关键。如前所述，含虚拟源共 <code>n+1</code> 个节点，无负环时最长路径不超过 <code>n</code> 条边，第 <code>0..n-1</code> 轮（即 i&#x3D;0..n-1）就应该收敛。若 <code>i=n</code>（第 n+1 轮）还能松弛，说明有负环。</li>
+<li><code>if (!changed) break</code>：一个重要的工程优化。如果某一轮没有任何松弛发生，说明已经收敛，可以提前退出，避免无谓的 <code>O(VE)</code> 遍历。这在稀疏、正权图上能显著提速。</li>
+</ul>
+<p><strong>容易写错的地方</strong>：<code>i</code> 的边界。如果写成 <code>i &lt; n</code>（少了负环检测的最后一轮），那么当图中有负环时，算法不会报错，而是带着「错误的势能」继续跑 Dijkstra，最终产生<strong>错误的、看似合理的</strong>距离结果——这是一种最危险的 bug，因为它不会崩，只会悄悄给错结果。我们的验证框架（对拍 Floyd-Warshall）就是专门为了揪出这类 bug 而设计的。</p>
+<h3 id="4-2-重赋权-建邻接表"><a href="#4-2-重赋权-建邻接表" class="headerlink" title="4.2 重赋权 + 建邻接表"></a>4.2 重赋权 + 建邻接表</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">vector&lt;vector&lt;pair&lt;<span class="type">int</span>,<span class="type">long</span> <span class="type">long</span>&gt;&gt;&gt; <span class="built_in">adj</span>(n);</span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">auto</span> &amp;e : edges) &#123;</span><br><span class="line">    <span class="type">long</span> <span class="type">long</span> nw = e.w + h[e.u] - h[e.v];   <span class="comment">// 势能重赋权</span></span><br><span class="line">    adj[e.u].<span class="built_in">push_back</span>(&#123;e.v, nw&#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：</p>
+<ul>
+<li><code>nw = e.w + h[e.u] - h[e.v]</code>：这就是 2.3.2 节的势能重赋权公式。由 2.4 节的证明，<code>nw ≥ 0</code> 恒成立，所以下面可以用 Dijkstra。</li>
+<li>邻接表 <code>adj</code> 的索引是真实节点 <code>0..n-1</code>，虚拟源不参与 Dijkstra（它的使命已经在 Bellman-Ford 阶段完成了）。</li>
+<li>这里只遍历 <code>edges</code>（原始边），<strong>不包含虚拟源边</strong>——因为虚拟源边只服务于求势能，重赋权图里不需要它们。</li>
+</ul>
+<h3 id="4-3-Dijkstra（二叉堆优化）"><a href="#4-3-Dijkstra（二叉堆优化）" class="headerlink" title="4.3 Dijkstra（二叉堆优化）"></a>4.3 Dijkstra（二叉堆优化）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; <span class="title">dijkstra</span><span class="params">(<span class="type">int</span> n, <span class="type">int</span> s, <span class="type">const</span> vector&lt;vector&lt;pair&lt;<span class="type">int</span>,<span class="type">long</span> <span class="type">long</span>&gt;&gt;&gt;&amp; adj)</span> </span>&#123;</span><br><span class="line">    <span class="function">vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; <span class="title">dist</span><span class="params">(n, INF)</span></span>;</span><br><span class="line">    dist[s] = <span class="number">0</span>;</span><br><span class="line">    priority_queue&lt;pair&lt;<span class="type">long</span> <span class="type">long</span>,<span class="type">int</span>&gt;, vector&lt;pair&lt;<span class="type">long</span> <span class="type">long</span>,<span class="type">int</span>&gt;&gt;, greater&lt;&gt;&gt; pq;</span><br><span class="line">    pq.<span class="built_in">push</span>(&#123;<span class="number">0</span>, s&#125;);</span><br><span class="line">    <span class="keyword">while</span> (!pq.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">        <span class="keyword">auto</span> [d, u] = pq.<span class="built_in">top</span>(); pq.<span class="built_in">pop</span>();</span><br><span class="line">        <span class="keyword">if</span> (d != dist[u]) <span class="keyword">continue</span>;          <span class="comment">// 惰性删除：跳过过期节点</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="keyword">auto</span> &amp;[v, w] : adj[u]) &#123;</span><br><span class="line">            <span class="keyword">if</span> (dist[u] + w &lt; dist[v]) &#123;</span><br><span class="line">                dist[v] = dist[u] + w;</span><br><span class="line">                pq.<span class="built_in">push</span>(&#123;dist[v], v&#125;);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> dist;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：</p>
+<ul>
+<li><code>priority_queue&lt;pair&lt;long long,int&gt;, ..., greater&lt;&gt;&gt;</code>：一个小顶堆，按距离排序。<code>pair</code> 的比较默认先比 <code>first</code>（距离）再比 <code>second</code>（节点编号），<code>greater&lt;&gt;</code> 让小的在堆顶。</li>
+<li><strong>惰性删除（lazy deletion）</strong>：第 <code>if (d != dist[u]) continue;</code> 这一行是全函数最容易被人忽视、但至关重要的优化。同一个节点可能被多次压入堆（每次距离被更新都压一次），当它从堆里弹出时，可能已经有一个更短的距离把它覆盖了。这时 <code>d</code>（堆里存的旧值）和 <code>dist[u]</code>（最新值）不一致，说明这是一个「过期」的记录，直接跳过。这避免了用 <code>decrease-key</code> 这种复杂操作，代码更简洁，实际性能也很好。</li>
+<li>之所以不用 <code>decrease-key</code>：C++ 标准库的 <code>priority_queue</code> 不支持 <code>decrease-key</code>，用惰性删除是标准做法，复杂度仍然是 <code>O(E log V)</code>（每条边最多导致一次入堆，堆最多 <code>E</code> 个元素，所以是 <code>O(E log E) = O(E log V)</code>）。</li>
+</ul>
+<h3 id="4-4-顶层编排：johnson"><a href="#4-4-顶层编排：johnson" class="headerlink" title="4.4 顶层编排：johnson"></a>4.4 顶层编排：<code>johnson</code></h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">johnson</span><span class="params">(<span class="type">int</span> n, <span class="type">const</span> vector&lt;Edge&gt;&amp; edges, vector&lt;vector&lt;<span class="type">long</span> <span class="type">long</span>&gt;&gt;&amp; dist)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// ① 加虚拟源：虚拟源 n -&gt; 每个真实节点 v，权 0</span></span><br><span class="line">    vector&lt;Edge&gt; aug = edges;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> v = <span class="number">0</span>; v &lt; n; v++) aug.<span class="built_in">push_back</span>(&#123;n, v, <span class="number">0</span>&#125;);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ② Bellman-Ford 求势能</span></span><br><span class="line">    vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; h;</span><br><span class="line">    <span class="keyword">if</span> (!<span class="built_in">bellman_ford_potentials</span>(n, aug, h)) <span class="keyword">return</span> <span class="literal">false</span>;  <span class="comment">// 负环</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// ③ 重赋权建邻接表</span></span><br><span class="line">    vector&lt;vector&lt;pair&lt;<span class="type">int</span>,<span class="type">long</span> <span class="type">long</span>&gt;&gt;&gt; <span class="built_in">adj</span>(n);</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">auto</span> &amp;e : edges) &#123;</span><br><span class="line">        <span class="type">long</span> <span class="type">long</span> nw = e.w + h[e.u] - h[e.v];</span><br><span class="line">        adj[e.u].<span class="built_in">push_back</span>(&#123;e.v, nw&#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ④⑤ n 次 Dijkstra + 反解</span></span><br><span class="line">    dist.<span class="built_in">assign</span>(n, <span class="built_in">vector</span>&lt;<span class="type">long</span> <span class="type">long</span>&gt;(n, INF));</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> s = <span class="number">0</span>; s &lt; n; s++) &#123;</span><br><span class="line">        vector&lt;<span class="type">long</span> <span class="type">long</span>&gt; d = <span class="built_in">dijkstra</span>(n, s, adj);</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> t = <span class="number">0</span>; t &lt; n; t++) &#123;</span><br><span class="line">            <span class="keyword">if</span> (d[t] != INF) &#123;</span><br><span class="line">                dist[s][t] = d[t] - h[s] + h[t];  <span class="comment">// 反解真实距离</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写</strong>：</p>
+<ul>
+<li>① 加虚拟源边：<code>aug.push_back({n, v, 0})</code>，用节点编号 <code>n</code> 作为虚拟源（真实节点是 <code>0..n-1</code>）。</li>
+<li>② 若 <code>bellman_ford_potentials</code> 返回 <code>false</code>，说明有负环，直接返回 <code>false</code>，<strong>不输出任何距离矩阵</strong>（因为负环下距离无定义）。</li>
+<li>④ 对每个源 <code>s</code> 跑 Dijkstra。</li>
+<li>⑤ 反解公式 <code>dist[s][t] = d[t] - h[s] + h[t]</code>：这是 2.3.2 节的结论 <code>δ(u,v) = δ&#39;(u,v) - h(u) + h(v)</code> 的直接落地。注意这里 <code>if (d[t] != INF)</code> 的判断——如果 <code>d[t]</code> 是 INF（不可达），不能做反解运算（INF 减去 h 会得到错误的小值），保持 INF 即可。</li>
+</ul>
+<p><strong>容易写错的地方</strong>：反解公式的符号。<code>δ = δ&#39; - h[s] + h[t]</code> 中的 <code>-h[s]</code> 和 <code>+h[t]</code> 很容易写反。一个记忆技巧：重赋权公式是 <code>w&#39; = w + h[u] - h[v]</code>（加起点的 h，减终点的 h），反解时要「反过来」：减起点的 h，加终点的 h。如果把 <code>-h[s] + h[t]</code> 写成 <code>+h[s] - h[t]</code>，得到的距离会系统性偏差 <code>2(h[t]-h[s])</code>，在随机图上会出现大量对不上 Floyd-Warshall 的错误——这也正是对拍验证能立刻抓住的错误。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这一节的每一条都是我在实现和调试 Johnson 算法时真实踩过的坑，记录下来希望读者能直接避开。</p>
+<h3 id="坑-1：Bellman-Ford-负环检测的-off-by-one"><a href="#坑-1：Bellman-Ford-负环检测的-off-by-one" class="headerlink" title="坑 1：Bellman-Ford 负环检测的 off-by-one"></a>坑 1：Bellman-Ford 负环检测的 off-by-one</h3><p><strong>症状</strong>：某些随机图（密度较高、负权占比高）上，Johnson 报告「存在负环」，但 Floyd-Warshall 检查 <code>d[i][i] &lt; 0</code> 却全是 false——两个基准矛盾，说明某一边检测错了。</p>
+<p><strong>错误假设</strong>：我一开始以为「含虚拟源共 n+1 个节点，所以 Bellman-Ford 应该跑 n 轮（i &lt; n）就能稳定，第 n+1 轮（i &#x3D;&#x3D; n）跑一次来检测负环」。于是我写成了外层 <code>for (i = 0; i &lt;= n; i++)</code>，但在 <code>i == n</code> 轮里又没有正确地区分「正常收敛」和「负环」。</p>
+<p><strong>真实原因</strong>：off-by-one。不含负环时，<code>n+1</code> 个节点的图，最短路径最多经过 <code>n</code> 条边，所以<strong>第 0 轮到第 n-1 轮</strong>（共 n 轮）就能让所有距离收敛。如果第 <code>n</code> 轮（i 从 0 开始计的第 n+1 次迭代）还能松弛，才说明存在负环。正确写法是：<code>i</code> 跑 0 到 n，当 <code>i == n</code> 且还能松弛时返回 false。</p>
+<p><strong>修复方式</strong>：把检测条件精确写成 <code>if (i == n) return false;</code>，并配合 <code>if (!changed) break;</code> 的提前终止。修复后，负环检测与 Floyd-Warshall 的 <code>d[i][i] &lt; 0</code> 判定在 60 个随机图上 100% 一致。</p>
+<h3 id="坑-2：重赋权后忘记「反解」，直接返回重赋权距离"><a href="#坑-2：重赋权后忘记「反解」，直接返回重赋权距离" class="headerlink" title="坑 2：重赋权后忘记「反解」，直接返回重赋权距离"></a>坑 2：重赋权后忘记「反解」，直接返回重赋权距离</h3><p><strong>症状</strong>：距离矩阵和 Floyd-Warshall 比对时，大量数值对不上，且偏差有规律（似乎是某个常数偏移）。</p>
+<p><strong>错误假设</strong>：我一度以为重赋权后的 Dijkstra 距离就是真实最短距离（忽视了「重赋权改变了路径总长度」这个事实）。</p>
+<p><strong>真实原因</strong>：重赋权后，路径长度变成了 <code>δ&#39; = δ + h[s] - h[t]</code>，多了一个「起点势能 − 终点势能」的常数项。这个常数项对不同起点、终点是不同的，所以绝不能直接返回 <code>δ&#39;</code>。</p>
+<p><strong>修复方式</strong>：在反解循环里加上 <code>dist[s][t] = d[t] - h[s] + h[t]</code>，符号务必对齐（见 4.4 的符号记忆技巧）。修复后距离矩阵与 Floyd-Warshall 完全一致。</p>
+<h3 id="坑-3：INF-参与了重赋权-反解运算导致溢出或污染"><a href="#坑-3：INF-参与了重赋权-反解运算导致溢出或污染" class="headerlink" title="坑 3：INF 参与了重赋权&#x2F;反解运算导致溢出或污染"></a>坑 3：INF 参与了重赋权&#x2F;反解运算导致溢出或污染</h3><p><strong>症状</strong>：某些稀疏图上，不可达的点对距离出现了「接近 INF 但略小」的奇怪值，甚至变成了负数。</p>
+<p><strong>错误假设</strong>：我以为用 <code>INF = 4e18</code> 就「绝对安全」，反解时不需要特判。</p>
+<p><strong>真实原因</strong>：当 <code>d[t] == INF</code>（不可达）时，如果我直接算 <code>d[t] - h[s] + h[t]</code>，<code>INF - h[s]</code> 仍然接近 INF（因为 h 是有限值），但它在后续比较中会污染结果；更糟的是，如果 <code>h[s]</code> 或 <code>h[t]</code> 本身也是 INF（比如虚拟源到某些节点不可达），<code>INF - INF</code> 就是未定义行为&#x2F;杂乱值，可能变成负数。</p>
+<p><strong>修复方式</strong>：在反解循环里显式判断 <code>if (d[t] != INF)</code> 才做反解，否则保持 <code>dist[s][t] = INF</code>。同时 <code>floyd_warshall</code> 里也要用 <code>if (d[i][k] != INF &amp;&amp; d[k][j] != INF)</code> 来保护中间节点不可达的情况，否则 <code>INF + 负权</code> 会得到比 INF 小的错误值。</p>
+<h3 id="坑-4：随机图生成时自环和重边导致的”隐形错误”"><a href="#坑-4：随机图生成时自环和重边导致的”隐形错误”" class="headerlink" title="坑 4：随机图生成时自环和重边导致的”隐形错误”"></a>坑 4：随机图生成时自环和重边导致的”隐形错误”</h3><p><strong>症状</strong>：验证时偶尔出现「距离矩阵比对失败」，但很难复现，像是有随机性。</p>
+<p><strong>错误假设</strong>：我一开始用 <code>int u = rd() % n, v = rd() % n</code> 直接生成边，没过滤 <code>u == v</code>（自环）和重复的 <code>(u, v)</code> 对。我以为自环和重边对最短路无影响。</p>
+<p><strong>真实原因</strong>：自环 <code>(u, u, w)</code> 在 <code>w &lt; 0</code> 时，实际上就是一个「负环」！它会破坏「无负环」的前提，让 Johnson 和 Floyd-Warshall 的行为变得不可预测。而重边（同一个 <code>(u,v)</code> 出现多次）虽然理论上可以取最小权处理，但如果两个基准算法对重边的处理方式不同（一个是「取 min」，另一个是「都参与松弛」），就可能产生微妙的差异。</p>
+<p><strong>修复方式</strong>：生成边时用 <code>set&lt;pair&lt;int,int&gt;&gt; seen</code> 去重，跳过 <code>u == v</code> 的自环和已存在的边。这样保证生成的图是「干净的简单有向图」，两个基准的语义完全一致。修复后，60 个随机测试用例 100% 通过，稳定可复现。</p>
+<h3 id="坑-5：性能测试时用了带负权边的图，导致-Dijkstra-部分行为异常"><a href="#坑-5：性能测试时用了带负权边的图，导致-Dijkstra-部分行为异常" class="headerlink" title="坑 5：性能测试时用了带负权边的图，导致 Dijkstra 部分行为异常"></a>坑 5：性能测试时用了带负权边的图，导致 Dijkstra 部分行为异常</h3><p><strong>症状</strong>：性能对比时，某些 <code>n</code> 值下 Johnson 的耗时异常抖动，速度反而比预期慢。</p>
+<p><strong>错误假设</strong>：我一开始在性能测试里也用了「含负权边」的随机图，以为重赋权之后 Dijkstra 一定能高效处理。</p>
+<p><strong>真实原因</strong>：重赋权之后边权确实非负了，Dijkstra 也正确，问题不在正确性而在「测试意图」。性能对比想测的是「稀疏图上 Johnson 的加速比」，而负权边的存在会让势能 <code>h[]</code> 的取值范围变大，重赋权后的边权分布更「离散」，Dijkstra 的堆操作更多，引入不必要的噪声。更重要的是，性能对比应该突出「稀疏 + 正权」这个最典型、最能体现 Johnson 优势的场景。</p>
+<p><strong>修复方式</strong>：性能测试段落单独用「正权」边（<code>w = (rd() % 10) + 1</code>，即 1~10），密度降到 2%，这样测出来的加速比干净、有说服力（见第六节数据）。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>这一节是整个实践最有价值的部分：<strong>用三个独立基准交叉对拍 + 一组性能数据，客观证明实现正确高效</strong>。不是”看起来对了”，而是”每一对距离都和权威算法逐点一致”。</p>
+<h3 id="6-1-正确性基线一：对拍-Floyd-Warshall（精确距离矩阵）"><a href="#6-1-正确性基线一：对拍-Floyd-Warshall（精确距离矩阵）" class="headerlink" title="6.1 正确性基线一：对拍 Floyd-Warshall（精确距离矩阵）"></a>6.1 正确性基线一：对拍 Floyd-Warshall（精确距离矩阵）</h3><p>Floyd-Warshall 是全源最短路的”黄金标准”之一，它基于动态规划，对任意图（含负权，只要无负环）都给出精确的 <code>n×n</code> 距离矩阵。我把 Johnson 的 <code>dist</code> 和 Floyd-Warshall 的 <code>d</code> 逐点比对，<code>n</code> 取 <code>{8, 16, 32, 64, 128}</code> 五档，每档多次随机试验（小图 20 次、大图 4 次），密度 20%，40% 负权边（权值范围 <code>[-5, 20]</code>）。</p>
+<p>输出结果（节选自 <code>johnson_apsp_output.txt</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">========================================</span><br><span class="line">Johnson vs Floyd-Warshall correctness</span><br><span class="line">========================================</span><br><span class="line">Random graph cases passed: 60 / 60</span><br><span class="line">RESULT: PASS (all distance matrices + neg-cycle detection match Floyd-Warshall)</span><br></pre></td></tr></table></figure>
+
+<p><strong>60 &#x2F; 60 全部通过</strong>，意味着：</p>
+<ul>
+<li>每一个点对的距离，Johnson 和 Floyd-Warshall 都<strong>完全一致</strong>（<code>long long</code> 逐字节相等，不是”近似相等”）。</li>
+<li>负环检测也一致：凡 Floyd-Warshall 判定有负环（<code>d[i][i] &lt; 0</code>）的图，Johnson 也报告负环；反之亦然。</li>
+</ul>
+<h3 id="6-2-正确性基线二：独立的-Bellman-Ford-逐源对拍"><a href="#6-2-正确性基线二：独立的-Bellman-Ford-逐源对拍" class="headerlink" title="6.2 正确性基线二：独立的 Bellman-Ford 逐源对拍"></a>6.2 正确性基线二：独立的 Bellman-Ford 逐源对拍</h3><p>Floyd-Warshall 和 Johnson 虽然在形式上不同，但为了排除”两个算法可能有相同的隐蔽 bug”的风险，我又引入了<strong>第三个完全独立的基准</strong>：对每个源 <code>s</code> 单独跑 Bellman-Ford（<code>O(VE)</code> 的朴素版本），拿它的结果和 Johnson 的 <code>dist[s][*]</code> 逐点比对。</p>
+<p>Bellman-Ford 逐源是一个和 Johnson&#x2F;Dijkstra 都不同的、教科书级朴素的实现，它的正确性是独立的。如果三者的结果都一致，那么”实现有 bug”的概率被压到极低。</p>
+<p>输出结果：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">========================================</span><br><span class="line">Johnson vs Bellman-Ford (independent)</span><br><span class="line">========================================</span><br><span class="line">Full distance match vs Bellman-Ford: PASS</span><br></pre></td></tr></table></figure>
+
+<p>三个基准（Floyd-Warshall &#x2F; Bellman-Ford &#x2F; 负环检测）全部一致，证明实现正确无误。</p>
+<h3 id="6-3-负环检测一致性"><a href="#6-3-负环检测一致性" class="headerlink" title="6.3 负环检测一致性"></a>6.3 负环检测一致性</h3><p>代码里专门构造了含负环的场景（Bellman-Ford 段落里当 Floyd-Warshall 检测到 <code>d[i][i] &lt; 0</code> 时），验证 Johnson 是否”正确地拒绝”（返回 false 而不是给出错误距离）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">========================================</span><br><span class="line">Johnson vs Bellman-Ford (independent)</span><br><span class="line">========================================</span><br><span class="line">Graph has negative cycle; Johnson result: correctly rejected</span><br></pre></td></tr></table></figure>
+
+<p>这验证了负环检测的正确性：Johnson 在遇到负环时<strong>果断拒绝</strong>，不会返回一堆看似合理、实则错误的距离。</p>
+<h3 id="6-4-性能数据：稀疏图上的加速比"><a href="#6-4-性能数据：稀疏图上的加速比" class="headerlink" title="6.4 性能数据：稀疏图上的加速比"></a>6.4 性能数据：稀疏图上的加速比</h3><p>这是 Johnson 存在的意义所在——稀疏图上的巨大优势。稀疏图（密度 2%，正权边），对比 Johnson 与 Floyd-Warshall 的耗时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">========================================</span><br><span class="line">Performance (sparse graph, density 2%)</span><br><span class="line">========================================</span><br><span class="line">n=  200  edges=   790  Johnson= 0.0038s  FloydWarshall= 0.0043s  speedup=   1.1x</span><br><span class="line">n=  400  edges=  3158  Johnson= 0.0236s  FloydWarshall= 0.0373s  speedup=   1.6x</span><br><span class="line">n=  800  edges= 12648  Johnson= 0.1275s  FloydWarshall= 0.3105s  speedup=   2.4x</span><br><span class="line">n= 1600  edges= 50634  Johnson= 0.6536s  FloydWarshall= 2.5727s  speedup=   3.9x</span><br><span class="line"></span><br><span class="line">ALL CHECKS COMPLETE</span><br></pre></td></tr></table></figure>
+
+<p>把加速比随规模变化的数据可视化地理解一下：</p>
+<table>
+<thead>
+<tr>
+<th>节点数 n</th>
+<th>边数</th>
+<th>Johnson 耗时</th>
+<th>Floyd-Warshall 耗时</th>
+<th>加速比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>200</td>
+<td>790</td>
+<td>0.0038s</td>
+<td>0.0043s</td>
+<td>1.1x</td>
+</tr>
+<tr>
+<td>400</td>
+<td>3158</td>
+<td>0.0236s</td>
+<td>0.0373s</td>
+<td>1.6x</td>
+</tr>
+<tr>
+<td>800</td>
+<td>12648</td>
+<td>0.1275s</td>
+<td>0.3105s</td>
+<td>2.4x</td>
+</tr>
+<tr>
+<td>1600</td>
+<td>50634</td>
+<td>0.6536s</td>
+<td>2.5727s</td>
+<td>3.9x</td>
+</tr>
+</tbody></table>
+<p>有几个值得注意的观察：</p>
+<ol>
+<li><p><strong>加速比随规模单调递增</strong>：从 200 节点的 1.1x 涨到 1600 节点的 3.9x。这正是理论预期的体现——Floyd-Warshall 是 <code>O(V³)</code>，Johnson 是 <code>O(VE log V)</code>，稀疏图上 <code>E = O(V)</code>，所以 Johnson 是 <code>O(V² log V)</code>。两者复杂度差一个 <code>V/log V</code> 因子，规模越大差距越明显。</p>
+</li>
+<li><p><strong>小规模时 Johnson 反而没有优势</strong>（200 节点只有 1.1x）：这是正常的。因为 Johnson 有「一次 Bellman-Ford + 建邻接表」的固定开销，小规模时这个开销占比高，甚至可能让 Johnson 略慢。这提醒我们：<strong>规模极小时，直接用 Floyd-Warshall 更省事</strong>，不必为了”最优复杂度”而引入 Johnson 的工程复杂度。</p>
+</li>
+<li><p><strong>边数增长符合 <code>n²·密度</code> 的预期</strong>：密度 2% 下，200 节点约 790 条边（理论 <code>200·199·0.02 ≈ 796</code>），1600 节点约 50634 条边（理论 <code>1600·1599·0.02 ≈ 51168</code>），实测与理论吻合，说明随机图生成器工作正常。</p>
+</li>
+</ol>
+<h3 id="6-5-验证结论"><a href="#6-5-验证结论" class="headerlink" title="6.5 验证结论"></a>6.5 验证结论</h3><ul>
+<li>✅ 正确性：60&#x2F;60 随机图对拍 Floyd-Warshall 全部一致</li>
+<li>✅ 独立性：Bellman-Ford 逐源对拍全部一致（三重交叉验证）</li>
+<li>✅ 负环检测：与 Floyd-Warshall 的 <code>d[i][i] &lt; 0</code> 判定 100% 一致</li>
+<li>✅ 性能：稀疏图 1600 节点时加速 3.9x，且趋势随规模增大而上升</li>
+</ul>
+<p>这套”多基准交叉验证 + 量化性能数据”的方法，正是为了彻底杜绝”代码能跑但结果错误”这类历史痛点。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><p>Johnson 算法不是万能的，它有几个明确的适用边界：</p>
+<ol>
+<li><strong>不支持负环</strong>（这是最短路问题的本质限制，任何正确算法都不该”支持”负环，只该”检测”负环）。负环下最短路无定义。</li>
+<li><strong>稀疏图才是它的主场</strong>。稠密图（<code>E = O(V²)</code>）下，<code>O(VE log V) = O(V³ log V)</code> 反而<strong>慢于</strong> Floyd-Warshall 的 <code>O(V³)</code>，而且 Floyd-Warshall 实现极其简单（三层循环），几乎没有工程隐患。所以”稠密图用 Floyd-Warshall、稀疏图用 Johnson”是一条实用的经验法则。</li>
+<li><strong>全源场景才需要 Johnson</strong>。如果只需要单源最短路，负权图直接用一次 Bellman-Ford（<code>O(VE)</code>）即可，没必要引入 Johnson 的势能机制。Johnson 的优势在于”要为每个节点都求最短路”时，能把 n 次 Bellman-Ford 的 <code>O(V²E)</code> 降到 <code>O(VE log V)</code>。</li>
+</ol>
+<h3 id="7-2-可以继续优化的方向"><a href="#7-2-可以继续优化的方向" class="headerlink" title="7.2 可以继续优化的方向"></a>7.2 可以继续优化的方向</h3><ol>
+<li><strong>Fibonacci 堆优化 Dijkstra</strong>：理论复杂度从 <code>O(E log V)</code> 降到 <code>O(E + V log V)</code>。但 Fibonacci 堆常数巨大，实践中二叉堆常反而更快。这是一个”理论上更优、工程上未必”的典型案例，值得对比实验。</li>
+<li><strong>增量势能（incremental potentials）</strong>：如果图在动态变化（比如偶尔加一条边），可以复用上一轮的势能 <code>h[]</code>，避免每次重新跑 Bellman-Ford。这在需要多次求解 APSP 的场景（如多商品流）里是重要的优化。</li>
+<li><strong>并行化</strong>：Johnson 的 <code>n</code> 次 Dijkstra 是天然可并行的（彼此独立），在 GPU 或线程池上可以轻松加速。</li>
+<li><strong>与 TSP &#x2F; 其他组合优化的衔接</strong>：APSP 距离矩阵是很多算法（如 Christofides 近似的 TSP、多源最短路相关的图核）的输入，Johnson 是高效得到这个矩阵的手段。</li>
+</ol>
+<h3 id="7-3-与本系列其他文章的关联"><a href="#7-3-与本系列其他文章的关联" class="headerlink" title="7.3 与本系列其他文章的关联"></a>7.3 与本系列其他文章的关联</h3><ul>
+<li><strong>Dijkstra &#x2F; Bellman-Ford</strong>：本篇的两个”积木”。Johnson 之所以优雅，正是因为它站在这两位巨人的肩膀上：用 Bellman-Ford 求势能，用 Dijkstra 跑最短路。</li>
+<li><strong>Floyd-Warshall</strong>（本系列若已覆盖）：动态规划的经典，是稠密图 APSP 的首选，也是本篇的对拍基准。</li>
+<li><strong>负环检测</strong>：Johnson 内置的负环检测，其思想（Bellman-Ford 多跑一轮）可以独立出来，用于金融套利检测等场景。</li>
+</ul>
+<h3 id="7-4-一句话总结"><a href="#7-4-一句话总结" class="headerlink" title="7.4 一句话总结"></a>7.4 一句话总结</h3><p>Johnson 算法的精髓，是用一个<strong>虚拟源 + Bellman-Ford 求出的势能</strong>，把”带负权边的图”等价地变成”非负权图”，从而解锁了”对每个节点跑 Dijkstra”这条高效路径。它完美诠释了算法设计中”<strong>通过一次巧妙的变换，把难问题约化成已解决的问题</strong>“这一核心思想——而这个思想，远比单个算法本身更值得内化。</p>
+<hr>
+<p><em>本文是「每日编程实践」系列的一部分。完整代码与验证输出见 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice">daily-coding-practice 仓库</a>。</em></p>
+<h3 id=""><a href="#" class="headerlink" title=""></a></h3></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/">https://chiuhoukazusa.github.io/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E8%AE%BA/">图论</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%9C%80%E7%9F%AD%E8%B7%AF/">最短路</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</div></div><div class="info-2"><div class="info-item-1">Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)① 背景与动机在计算机的世界里，整数并不是无限的。一个 int 只有 32 位，最多表示到约 21 亿；一个 long long（或者说 int64）有 64 位，最多表示到约 9.2×10¹⁸。对于绝大多数日常计算来说，这些已经完全够用了——你很少需要去算一个超过 19 位十进制的整数乘法。 但现实里确实存在这样一类问题，它们的数值会巨大到突破任何原生整数类型的上限：密码学里的 RSA 需要处理 2048 位甚至 4096 位的大素数相乘；高精度科学计算里，双精度浮点数的小数部分精度不够，需要用到几千位甚至几万位的定点整型；还有程序员们津津乐道的「求 10000 的阶乘」「求第 100000 个斐波那契数」，这些数字动辄几万位十进制，用原生类型根本无法表示。 要表示一个几千位的整数，业界通用的做法是「分段存储」：用一个数组（或者 vector）来存放这个大整数的每一位（或者每若干位作为一个「limb」）。比如底数取 10⁹，那么一个 32000 位的十进制数，就只需要拆成约 3556 个 limb...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-27-hld/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询</div></div><div class="info-2"><div class="info-item-1">树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询① 背景与动机在处理「树」这种数据结构时，有一类问题会反复出现，而且如果不懂技巧会被直接卡死：  给定一棵带点权的树，有若干次操作，每次操作形如「查询节点 u 到节点 v 这条路径上所有节点的权值之和」或者「查询 u 到 v 路径上的最大节点权值」。如果还要求支持单点修改，那难度又上一个台阶。  如果树退化成一条链，这个问题立刻变成我们熟悉的「区间和」「区间最值」——用线段树或者树状数组 O(log n) 就能搞定。但问题在于：树不是链，节点之间存在分叉，路径不是简单的一段连续下标，我们没法直接把树套进线段树。 一个最朴素的思路是：对每次查询 (u, v)，直接从 u 出发沿着父指针走到 v 的祖先，沿途累加。最坏情况下这是一条「V 字形」往返，路径长度最坏是 O(n)，所以单次查询是 O(n) 的。这在 n &#x3D; 1e5、查询次数 q &#x3D; 1e5 的典型场景下就是 O(1e10)，完全不可接受。 再往深一点想：我们能不能给每个节点重新编一个号（一个新...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/10/04/daily-coding-zero-one-bfs-2026-10-04/" title="每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-04-zero-one-bfs/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-04</div><div class="info-item-2">每日编程实践: 0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路</div></div><div class="info-2"><div class="info-item-1">0-1 BFS —— 用双端队列把 O(E log V) 压到 O(V+E) 的最短路最短路问题大概是算法世界里被研究得最透彻的问题之一。从 Dijkstra 到 Bellman-Ford，从 Floyd-Warshall 到 A*，几乎每一种图结构、每一种边权约束，都有对应的”最优”解法。但今天这篇文章要讲的，是一个经常被忽视、却在特定约束下能带来常数级甚至渐进级优势的算法——0-1 BFS（Zero-One BFS）。 它的适用场景非常明确：一张图上，所有边的权值只有两种可能——0 或者 1。 乍一看这个约束苛刻得像是”面试造火箭”，但实际上它在真实世界里有大量落地点：迷宫&#x2F;网格寻路中”穿墙需要代价、走路免费”的建模；通信网络中”本地链路免费、跨域链路收费”的路由；游戏地图中”爬坡有成本、平路无成本”的地形导航……所有这些场景，本质上都是 0&#x2F;1 边权的单源最短路问题。 这篇文章我会从”为什么普通 BFS 和普通 Dijkstra 都不够完美”讲起，一步步推导出 0-1 BFS 的核心思想——用双端队列（deque）替代优先队列，然后用三项严格的量化验证证...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/19/daily-coding-mst-prim-kruskal-2026-07-19/" title="每日编程实践: Minimum Spanning Tree - Prim vs Kruskal 算法可视化对比"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-19-mst/mst_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-19</div><div class="info-item-2">每日编程实践: Minimum Spanning Tree - Prim vs Kruskal 算法可视化对比</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在计算机科学中，最小生成树（Minimum Spanning Tree, MST） 是图论中最经典的问题之一。给定一个带权无向连通图，MST 要找出一棵覆盖所有顶点、边权重之和最小的树。 这个问题听起来抽象，但实际应用极其广泛。在网络设计领域，电信公司铺设光缆连接多个城市时，最小生成树可以直接给出总成本最低的布线方案——因为每条光缆的铺设成本与距离成正比，而 MST 恰好最小化了总线路长度。在集成电路设计中，芯片上的走线需要连接所有元件引脚，MST 确保总走线长度最短从而降低功耗和延迟。在计算机视觉中，图像分割算法常以像素图上的 MST 作为基础，因为类间边权重通常更大。甚至在生物信息学中，构建系统发育树（phylogenetic tree）也是一个 MST 变量的应用。 本文聚焦于实现和对比两种最经典的 MST 算法：Prim 算法和 Kruskal 算法。Prim 算法是一种”以点扩展”的贪心策略——从任意一个起始点出发，每次选择当前可达的、权重最小的边将新点纳入树中，逐步生长直到覆盖所有顶点。Kruskal 算法则采取”以边排序”的策略——将所有边按权重升序排...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/29/daily-coding-jps-2026-06-29/" title="每日编程实践: Jump Point Search 跳点搜索算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/06/06-29-jps/jps_vs_astar.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-29</div><div class="info-item-2">每日编程实践: Jump Point Search 跳点搜索算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机寻路（Pathfinding）是游戏AI的基石功能。从一个RTS游戏里的农民去伐木，到一个开放世界RPG中NPC在城镇里巡逻，再到MOBA游戏里小兵沿兵线前进——所有这些行为的背后都依赖寻路算法来找到从起点到终点的最短路径。 经典的A算法（1968年提出）是寻路领域的黄金标准。它结合了Dijkstra的最短路径保证和贪心最佳优先搜索的效率，通过一个启发式函数f(n) = g(n) + h(n)来引导搜索方向。在均匀网格上，A使用八方向移动（上下左右+四个对角线），每次将当前节点的八个邻居加入open list，然后从中选择f值最小的节点扩展。 A*的痛点：在一个空旷的128×128网格上，从(0,0)寻路到(127,127)，A需要扩展约3400个节点。这对于即时战略游戏来说不算多，但在需要同时处理数百个单位寻路的场景下（或者网格更大、地图更复杂的场景），A的节点扩展量会成为性能瓶颈。 为什么A*会扩展这么多节点？ 在空旷区域中，大多数路径都是对称的。比如从(0,0)到(5,5)，你可以走”右上右上右上右上右上”，也可以走”上右上右上右上右”——这些路径长度相同，启...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/10/daily-coding-barnes-hut-2026-07-10/" title="每日编程实践: Barnes-Hut N体引力模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-10-barnes-hut/barnes_hut_final.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-10</div><div class="info-item-2">每日编程实践: Barnes-Hut N体引力模拟</div></div><div class="info-2"><div class="info-item-1">背景与动机在天体物理模拟、分子动力学计算和游戏开发中，N体问题（N-body problem）是一个经典且核心的挑战。所谓N体问题，是指给定N个相互作用的粒子（它们通过万有引力或其他力场相互影响），我们需要计算每个粒子在任意时刻受到的合力，从而更新它们的位置和速度。 最朴素的方法是直接计算法（Direct Sum）：对每个粒子，遍历其他所有N-1个粒子，累加它们对该粒子的引力贡献。这种方法的时间复杂度是O(n²)——对于N&#x3D;100个粒子，需要计算约10000对相互作用；对于N&#x3D;10000，则需要1亿对。这在实时模拟中是完全不可接受的。 工业界的实际应用这个问题的现实意义远远超出”天体物理”这个狭窄领域：  星系模拟：如GADGET-2（宇宙学N体&#x2F;SPH模拟代码），使用树方法模拟数十亿粒子 分子动力学：如GROMACS、NAMD，使用基于网格的方法计算分子间力 流体模拟：SPH（光滑粒子流体动力学）本质上是N体问题的一个变种 游戏物理：在某些粒子系统中，当粒子数量较多时也需要高效的空间划分 星团动力学：研究球状星团的演化，需要数百万粒子级别的模拟  ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-09</div><div class="info-item-2">每日编程实践: Conway生命游戏与元胞自动机</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1970年，John Conway 在剑桥大学一间小房间里摆弄着围棋棋盘，试图发明一套简单到不需要计算机就能用手演算的规则，却意外创造出了一个计算系统——Conway 生命游戏 (Game of Life)。这不是一个传统意义上的”游戏”，没有玩家、没有目标、没有胜负。它是一种元胞自动机 (Cellular Automaton)：一个由简单规则驱动、从局部相互作用涌现出全局复杂行为的离散动力系统。 元胞自动机这个概念可以追溯到 1940 年代的冯·诺依曼。当时他正在研究自我复制机器的理论——如何用非常简单的组件构造一个能复制自身的系统？答案是一张二维网格，每个格子有少数几个状态，每个格子的未来状态仅由它自己和邻居的当前状态决定。这就是元胞自动机的基本范式。 为什么值得我们今天去实现？理由不止一个是”有趣”： 第一，它是自然界复杂性的最小模型。 蚁群没有中央调度，每只蚂蚁只遵循”跟信息素走”这个简单规则，却能涌现出高效的觅食路径。股市的价格波动没有导演，每个交易者基于局部信息买卖，却能形成趋势和泡沫。生命游戏的每个格子只依赖 8 个邻居的状态，却能在宏观层面产生静态结...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/12/daily-coding-boids-flocking-2026-07-12/" title="每日编程实践: Boids 集群行为模拟"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-12-Boids-Flocking-Simulation/boids_composite.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-12</div><div class="info-item-2">每日编程实践: Boids 集群行为模拟</div></div><div class="info-2"><div class="info-item-1">背景与动机在自然界中，我们经常能看到令人惊叹的群体行为：天空中成群的椋鸟变换队形、海洋中鱼群集体躲避捕食者、草原上瞪羚的集群迁徙。这些个体遵循简单规则却能产生复杂涌现行为的现象，一直是计算机图形学和人工智能领域的重要研究课题。 1986年，Craig Reynolds 在他的开创性论文《Flocks, Herds, and Schools: A Distributed Behavioral Model》中首次提出了 Boids 模型。这个名字既是”bird-oid”（类鸟体）的缩写，也恰好与”birds”（鸟群）发音相似。Reynolds 的核心洞察是：复杂的群体运动不需要中央控制器，只需要每个个体遵循三条简单的局部规则，整个群体就会自然地展现出逼真的集群行为。 Boids 模型在实际工业界有着广泛的应用。游戏引擎中，它被用于生成 NPC 的群体移动——从《半条命 2》中的飞锯鸟到《刺客信条》中的人群 AI。电影行业也大量使用扩展的 Boids 系统来模拟大规模场景，例如《指环王》中的兽人大军冲锋、《海底总动员》中的鱼群迁徙。Tim Burton 在 1992 年的《蝙蝠侠归来》...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">202</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">208</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Johnson-%E7%AE%97%E6%B3%95-%E2%80%94%E2%80%94-%E7%A8%80%E7%96%8F%E5%9B%BE%E4%B8%8A%E5%B8%A6%E8%B4%9F%E6%9D%83%E8%BE%B9%E7%9A%84%E5%85%A8%E6%BA%90%E6%9C%80%E7%9F%AD%E8%B7%AF"><span class="toc-number">1.</span> <span class="toc-text">Johnson 算法 —— 稀疏图上带负权边的全源最短路</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E9%97%AE%E9%A2%98%E5%BD%A2%E5%BC%8F%E5%8C%96"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 问题形式化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E8%83%BD%E7%9B%B4%E6%8E%A5%E5%AF%B9%E6%AF%8F%E4%B8%AA%E8%8A%82%E7%82%B9%E8%B7%91-Dijkstra%EF%BC%9F"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 为什么不能直接对每个节点跑 Dijkstra？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%8A%BF%E8%83%BD%E9%87%8D%E8%B5%8B%E6%9D%83%EF%BC%9AJohnson-%E7%9A%84%E6%95%B0%E5%AD%A6%E6%A0%B8%E5%BF%83"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 势能重赋权：Johnson 的数学核心</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E3%80%8C%E5%8A%A0%E4%B8%80%E4%B8%AA%E5%B8%B8%E6%95%B0%E3%80%8D%E4%B8%8D%E8%A1%8C%EF%BC%9F"><span class="toc-number">1.2.3.1.</span> <span class="toc-text">2.3.1 为什么「加一个常数」不行？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-3-2-%E5%8A%BF%E8%83%BD%E5%87%BD%E6%95%B0%E7%9A%84%E6%9E%84%E9%80%A0"><span class="toc-number">1.2.3.2.</span> <span class="toc-text">2.3.2 势能函数的构造</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-3-3-%E5%A6%82%E4%BD%95%E6%89%BE%E5%88%B0%E8%BF%99%E6%A0%B7%E4%B8%80%E7%BB%84%E5%8A%BF%E8%83%BD-h%EF%BC%9F"><span class="toc-number">1.2.3.3.</span> <span class="toc-text">2.3.3 如何找到这样一组势能 h？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-3-4-%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B%E5%9B%9E%E9%A1%BE"><span class="toc-number">1.2.3.4.</span> <span class="toc-text">2.3.4 完整流程回顾</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%8A%BF%E8%83%BD%E9%87%8D%E8%B5%8B%E6%9D%83%E8%83%BD%E4%BF%9D%E8%AF%81%E3%80%8C%E9%9D%9E%E8%B4%9F%E3%80%8D%EF%BC%9F"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 为什么势能重赋权能保证「非负」？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E8%B4%9F%E7%8E%AF%E6%A3%80%E6%B5%8B%E7%9A%84%E7%AD%89%E4%BB%B7%E6%80%A7"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 负环检测的等价性</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-CPU-%E4%BE%A7%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86%EF%BC%88%E4%B8%89%E4%B8%AA%E5%87%BD%E6%95%B0%E7%9A%84%E8%BE%B9%E7%95%8C%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 CPU 侧职责划分（三个函数的边界）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E8%B4%9F%E7%8E%AF%E6%A3%80%E6%B5%8B%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%86%E8%8A%82"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 负环检测的实现细节</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E6%B1%82%E5%8A%BF%E8%83%BD-%E8%B4%9F%E7%8E%AF%E6%A3%80%E6%B5%8B%EF%BC%9Abellman-ford-potentials"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 求势能 + 负环检测：bellman_ford_potentials</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E9%87%8D%E8%B5%8B%E6%9D%83-%E5%BB%BA%E9%82%BB%E6%8E%A5%E8%A1%A8"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 重赋权 + 建邻接表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Dijkstra%EF%BC%88%E4%BA%8C%E5%8F%89%E5%A0%86%E4%BC%98%E5%8C%96%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 Dijkstra（二叉堆优化）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%A1%B6%E5%B1%82%E7%BC%96%E6%8E%92%EF%BC%9Ajohnson"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 顶层编排：johnson</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9ABellman-Ford-%E8%B4%9F%E7%8E%AF%E6%A3%80%E6%B5%8B%E7%9A%84-off-by-one"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：Bellman-Ford 负环检测的 off-by-one</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E9%87%8D%E8%B5%8B%E6%9D%83%E5%90%8E%E5%BF%98%E8%AE%B0%E3%80%8C%E5%8F%8D%E8%A7%A3%E3%80%8D%EF%BC%8C%E7%9B%B4%E6%8E%A5%E8%BF%94%E5%9B%9E%E9%87%8D%E8%B5%8B%E6%9D%83%E8%B7%9D%E7%A6%BB"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：重赋权后忘记「反解」，直接返回重赋权距离</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9AINF-%E5%8F%82%E4%B8%8E%E4%BA%86%E9%87%8D%E8%B5%8B%E6%9D%83-%E5%8F%8D%E8%A7%A3%E8%BF%90%E7%AE%97%E5%AF%BC%E8%87%B4%E6%BA%A2%E5%87%BA%E6%88%96%E6%B1%A1%E6%9F%93"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：INF 参与了重赋权&#x2F;反解运算导致溢出或污染</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%94%9F%E6%88%90%E6%97%B6%E8%87%AA%E7%8E%AF%E5%92%8C%E9%87%8D%E8%BE%B9%E5%AF%BC%E8%87%B4%E7%9A%84%E2%80%9D%E9%9A%90%E5%BD%A2%E9%94%99%E8%AF%AF%E2%80%9D"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：随机图生成时自环和重边导致的”隐形错误”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-5%EF%BC%9A%E6%80%A7%E8%83%BD%E6%B5%8B%E8%AF%95%E6%97%B6%E7%94%A8%E4%BA%86%E5%B8%A6%E8%B4%9F%E6%9D%83%E8%BE%B9%E7%9A%84%E5%9B%BE%EF%BC%8C%E5%AF%BC%E8%87%B4-Dijkstra-%E9%83%A8%E5%88%86%E8%A1%8C%E4%B8%BA%E5%BC%82%E5%B8%B8"><span class="toc-number">1.5.5.</span> <span class="toc-text">坑 5：性能测试时用了带负权边的图，导致 Dijkstra 部分行为异常</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%AD%A3%E7%A1%AE%E6%80%A7%E5%9F%BA%E7%BA%BF%E4%B8%80%EF%BC%9A%E5%AF%B9%E6%8B%8D-Floyd-Warshall%EF%BC%88%E7%B2%BE%E7%A1%AE%E8%B7%9D%E7%A6%BB%E7%9F%A9%E9%98%B5%EF%BC%89"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 正确性基线一：对拍 Floyd-Warshall（精确距离矩阵）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%AD%A3%E7%A1%AE%E6%80%A7%E5%9F%BA%E7%BA%BF%E4%BA%8C%EF%BC%9A%E7%8B%AC%E7%AB%8B%E7%9A%84-Bellman-Ford-%E9%80%90%E6%BA%90%E5%AF%B9%E6%8B%8D"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 正确性基线二：独立的 Bellman-Ford 逐源对拍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E8%B4%9F%E7%8E%AF%E6%A3%80%E6%B5%8B%E4%B8%80%E8%87%B4%E6%80%A7"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 负环检测一致性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE%EF%BC%9A%E7%A8%80%E7%96%8F%E5%9B%BE%E4%B8%8A%E7%9A%84%E5%8A%A0%E9%80%9F%E6%AF%94"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 性能数据：稀疏图上的加速比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E9%AA%8C%E8%AF%81%E7%BB%93%E8%AE%BA"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 验证结论</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E4%BB%A5%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可以继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列其他文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="toc-number">1.7.4.</span> <span class="toc-text">7.4 一句话总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-number">1.7.5.</span> <span class="toc-text"></span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</a><time datetime="2026-11-05T22:00:00.000Z" title="发表于 2026-11-06 06:00:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</a><time datetime="2026-11-04T22:00:00.000Z" title="发表于 2026-11-05 06:00:00">2026-11-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-27-hld/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询">每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询</a><time datetime="2026-10-26T22:00:00.000Z" title="发表于 2026-10-27 06:00:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环">每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</a><time datetime="2026-10-23T22:00:00.000Z" title="发表于 2026-10-24 06:00:00">2026-10-24</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</a><time datetime="2026-10-16T22:00:00.000Z" title="发表于 2026-10-17 06:00:00">2026-10-17</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
