@@ -1,0 +1,485 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: Tarjan 割点与桥算法 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践：Tarjan 割点与桥算法 今天的每日编程实践主题是 图论中的割点（Articulation Points &#x2F; Cut Vertices）与桥（Bridges &#x2F; Cut Edges），使用经典而优雅的 Tarjan 算法 在单次深度优先搜索（DFS）中以 O(V + E) 的时间复杂度一次性求出所有割点与桥，并通过与暴力删除法的逐点、逐边对比完成严格量化验证。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: Tarjan 割点与桥算法">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践：Tarjan 割点与桥算法 今天的每日编程实践主题是 图论中的割点（Articulation Points &#x2F; Cut Vertices）与桥（Bridges &#x2F; Cut Edges），使用经典而优雅的 Tarjan 算法 在单次深度优先搜索（DFS）中以 O(V + E) 的时间复杂度一次性求出所有割点与桥，并通过与暴力删除法的逐点、逐边对比完成严格量化验证。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png">
+<meta property="article:published_time" content="2026-11-07T21:35:00.000Z">
+<meta property="article:modified_time" content="2026-11-07T21:33:46.247Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="Tarjan">
+<meta property="article:tag" content="图算法">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="连通性">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: Tarjan 割点与桥算法",
+  "url": "https://chiuhoukazusa.github.io/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png",
+  "datePublished": "2026-11-07T21:35:00.000Z",
+  "dateModified": "2026-11-07T21:33:46.247Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: Tarjan 割点与桥算法',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: Tarjan 割点与桥算法</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: Tarjan 割点与桥算法</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-11-07T21:35:00.000Z" title="发表于 2026-11-08 05:35:00">2026-11-08</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-11-07T21:33:46.247Z" title="更新于 2026-11-08 05:33:46">2026-11-08</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践：Tarjan-割点与桥算法"><a href="#每日编程实践：Tarjan-割点与桥算法" class="headerlink" title="每日编程实践：Tarjan 割点与桥算法"></a>每日编程实践：Tarjan 割点与桥算法</h1><blockquote>
+<p>今天的每日编程实践主题是 <strong>图论中的割点（Articulation Points &#x2F; Cut Vertices）与桥（Bridges &#x2F; Cut Edges）</strong>，使用经典而优雅的 <strong>Tarjan 算法</strong> 在单次深度优先搜索（DFS）中以 <code>O(V + E)</code> 的时间复杂度一次性求出所有割点与桥，并通过与暴力删除法的逐点、逐边对比完成严格量化验证。</p>
+</blockquote>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在图论和网络科学中，<strong>连通性</strong> 是最基础也最重要的性质之一。给定一个无向图，我们往往不仅关心”这个图是否连通”，更关心”它脆不脆弱”——即 <strong>删除哪些节点或边会导致整张图分裂成多个互不连通的碎片</strong>。</p>
+<p>想象一个真实场景：一家互联网公司的机房网络由若干路由器和光纤连接构成。作为一名网络工程师，你最需要知道的是——<strong>哪一台路由器一旦宕机，就会让部分区域的用户彻底断网？</strong> 哪一条光纤一旦被施工队挖断，就会让两个机房失去唯一的连接通道？前者对应的就是 <strong>割点（Articulation Point）</strong>，后者对应的就是 <strong>桥（Bridge &#x2F; Cut Edge）</strong>。</p>
+<p>这些概念在工业界和工程实践中有大量真实应用，远不止”算法竞赛的板子题”这么简单：</p>
+<ol>
+<li><p><strong>网络拓扑容灾设计</strong>：通信网络（包括互联网骨干网、电力电网、交通路网）中，割点与桥就是单点故障（SPOF, Single Point of Failure）。识别出它们，才能针对性地做冗余备份（redundancy），比如在桥的位置额外铺设一条平行线路。</p>
+</li>
+<li><p><strong>社交网络分析</strong>：在社交关系图中，割点常常是”关键意见领袖”或”结构洞”（structural hole）占据者——一旦这个人离开，原本紧密的社群就会分裂成两个互不往来的小圈子。桥则对应唯一维系两个社群联系的”弱关系”（weak tie），社会学家 Granovetter 的经典理论指出，恰恰是这些弱关系（桥边）在信息传播中扮演关键角色。</p>
+</li>
+<li><p><strong>程序分析与编译器</strong>：在控制流图（CFG, Control Flow Graph）中，割点对应”必经节点”（dominator）的调度问题；在数据流分析、寄存器分配、以及某些反汇编&#x2F;反混淆技术中，识别关键的”咽喉”节点和边也依赖于类似的连通性分析。</p>
+</li>
+<li><p><strong>算法竞赛与面试</strong>：割点与桥是图论、强连通分量（SCC）、双连通分量（Biconnected Components）这一整条知识链的基石。理解了 Tarjan 的 DFS-tree + low-link 思想，才能真正掌握后面 Tarjan 求强连通分量、离线 LCA、双连通分量分解等内容。</p>
+</li>
+</ol>
+<p>那么，<strong>如何高效地求出所有割点与桥呢？</strong></p>
+<p>一个最朴素的想法是”暴力删除法”：对每个节点 <code>u</code>，把它从图中临时删去，然后用 BFS&#x2F;DFS 检查连通分量数量是否增加了；若增加，则 <code>u</code> 是割点。对每条边同理。但这样做的时间复杂度是：</p>
+<ul>
+<li>找割点：对每个节点跑一次 BFS，共 <code>O(V · (V + E))</code></li>
+<li>找桥：对每条边跑一次 BFS，共 <code>O(E · (V + E))</code></li>
+</ul>
+<p>当图的规模达到数万节点、数十万边时，这个开销是完全不可接受的（平方级甚至立方级）。<strong>Tarjan 算法</strong> 把这个问题优雅地压缩到了单次 DFS 的 <strong><code>O(V + E)</code></strong> 线性时间——这也是今天我们要深入研究并量化验证的核心内容。</p>
+<p>今天的目标很明确：</p>
+<ol>
+<li>实现 Tarjan 求割点与桥的线性算法；</li>
+<li>用暴力删除法作为”基准真理”（ground truth），在多种图结构上逐一对比，证明 Tarjan 结果的 100% 正确；</li>
+<li>验证割点与桥的关键数学性质（树的边全为桥、环无割点无桥、桥两端必为割点等）；</li>
+<li>测量大规模图上的性能优势。</li>
+</ol>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-先厘清基本概念"><a href="#2-1-先厘清基本概念" class="headerlink" title="2.1 先厘清基本概念"></a>2.1 先厘清基本概念</h3><p>在无向连通图中（不连通则分别对每个连通块处理）：</p>
+<ul>
+<li><p><strong>割点（Articulation Point &#x2F; Cut Vertex）</strong>：删除该节点（连同其所有关联边）后，图的连通分量数量增加。也就是说，原本连通的图会因为这个节点的移除而变得不连通。</p>
+</li>
+<li><p><strong>桥（Bridge &#x2F; Cut Edge）</strong>：删除该边后，图的连通分量数量增加。</p>
+</li>
+</ul>
+<p>注意一个容易混淆的点：<strong>割点与桥是两个独立的概念，二者并无必然的包含关系</strong>。一个节点是割点，不代表它关联的边是桥；一条边是桥，也不代表某端点是割点（例如整张图只有一条边 <code>u—v</code> 时，这条边是桥，但 <code>u</code> 和 <code>v</code> 都不是割点，因为删除任意一个节点后图还是连通的——只剩一个孤立节点，连通分量数不变，都为 1）。</p>
+<h3 id="2-2-深度优先搜索树（DFS-Tree）"><a href="#2-2-深度优先搜索树（DFS-Tree）" class="headerlink" title="2.2 深度优先搜索树（DFS Tree）"></a>2.2 深度优先搜索树（DFS Tree）</h3><p>Tarjan 算法的核心思想，是<strong>用一次 DFS 对图进行遍历，并利用 DFS 搜索树的结构性质</strong>来判定割点与桥。</p>
+<p>对无向图做 DFS 时，每条边会被分为两类：</p>
+<ul>
+<li><strong>树边（Tree Edge）</strong>：DFS 过程中第一次访问一个新节点时经过的边，它们构成了 DFS 搜索森林（对连通图则是搜索树）。</li>
+<li><strong>回边（Back Edge）</strong>：连接一个节点与其祖先（而非父节点）的边。在无向图中，回边一定指向祖先，因为无向图的 DFS 不会产生”前向边”和”交叉边”（这是一个关键性质）。</li>
+</ul>
+<p><strong>为什么无向图 DFS 只产生树边和回边？</strong> 因为在无向图中，边是双向的。当你访问节点 <code>u</code>，它的某个邻居 <code>v</code>：</p>
+<ul>
+<li>如果 <code>v</code> 未被访问，<code>(u, v)</code> 成为树边；</li>
+<li>如果 <code>v</code> 已被访问且是 <code>u</code> 的祖先，<code>(u, v)</code> 是回边；</li>
+<li>如果 <code>v</code> 已被访问且不是祖先，那么 <code>v</code> 一定也是 <code>(u, v)</code> 这条边的另一端——由于无向边会被 <code>u</code> 先访问到 <code>v</code>，此时 <code>v</code> 已经在 <code>u</code> 的子树中，<code>(u, v)</code> 实际上是一条从 <code>v</code> 指向祖先 <code>u</code> 的回边。</li>
+</ul>
+<p>正是”无向图 DFS 只有树边和回边”这个简洁的性质，让整个割点&#x2F;桥判定变得异常干净。</p>
+<h3 id="2-3-low-link-值的定义与直觉"><a href="#2-3-low-link-值的定义与直觉" class="headerlink" title="2.3 low-link 值的定义与直觉"></a>2.3 low-link 值的定义与直觉</h3><p>Tarjan 算法的关键，是给每个节点维护两个时间戳：</p>
+<ol>
+<li><p><strong><code>disc[u]</code>（discovery time，发现时间）</strong>：节点 <code>u</code> 在 DFS 中被首次访问的顺序编号（从 0 开始递增）。</p>
+</li>
+<li><p><strong><code>low[u]</code>（low-link 值）</strong>：从节点 <code>u</code> 出发，<strong>通过零或多条树边（向下走到子树）再至多走一条回边</strong>，所能到达的节点中 <code>disc</code> 最小的值。</p>
+</li>
+</ol>
+<p>形式化地说：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">low[u] = min( disc[u],</span><br><span class="line">              min&#123; low[w] : w 是 u 的子节点（树边 u→w） &#125;,</span><br><span class="line">              min&#123; disc[v] : (u, v) 是回边 &#125; )</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个 low-link 值到底在说什么？</strong> 它的直觉是：它告诉你”从 <code>u</code> 的子树出发，能不能绕开 <code>u</code> 自己、通过一条回边重新跳回 <code>u</code> 的某个祖先”。</p>
+<ul>
+<li>如果 <code>low[u]</code> 很小（比如等于某个祖先的 <code>disc</code>），说明 <code>u</code> 的子树里存在一条”逃生通道”，能绕回祖先，此时把 <code>u</code> 拿走，子树里的节点依然能通过这条回边与其他部分连通，<code>u</code> 就不是割点。</li>
+<li>如果 <code>low[u] == disc[u]</code>，说明 <code>u</code> 的子树”逃不出去”，只能从 <code>u</code> 这里进出。</li>
+</ul>
+<h3 id="2-4-桥（Bridge）的判定条件"><a href="#2-4-桥（Bridge）的判定条件" class="headerlink" title="2.4 桥（Bridge）的判定条件"></a>2.4 桥（Bridge）的判定条件</h3><p>对于一条树边 <code>(parent, child)</code>（即 <code>child</code> 是 <code>parent</code> 的子节点），<strong><code>(parent, child)</code> 是桥，当且仅当 <code>low[child] &gt; disc[parent]</code></strong>。</p>
+<p><strong>为什么是这个条件？</strong> 让我们仔细推导：</p>
+<p>一条树边 <code>(u, v)</code>（<code>v</code> 是子节点）不是桥，意味着删掉它之后，<code>v</code> 所在的子树依然能通过别的方式连回 <code>u</code> 这一侧。在无向图 DFS 中，”别的方式”只能是回边——即 <code>v</code> 的子树里存在某条回边，指向 <code>u</code> 或 <code>u</code> 的祖先。而 <code>low[v]</code> 恰好刻画了”<code>v</code> 的子树能通过回边到达的最上层节点”。</p>
+<ul>
+<li>若 <code>low[v] &lt;= disc[u]</code>：说明 <code>v</code> 的子树能到达 <code>u</code> 本身（甚至 <code>u</code> 的祖先），那么删掉 <code>(u, v)</code> 后，<code>v</code> 子树依然能绕回来，<code>(u, v)</code> <strong>不是桥</strong>。</li>
+<li>若 <code>low[v] &gt; disc[u]</code>：说明 <code>v</code> 的子树”最远”也只能到达 <code>v</code> 自己的子树内部，完全够不着 <code>u</code>。此时 <code>(u, v)</code> 是 <code>v</code> 子树与外界唯一的连接，删掉它整张图就断了，因此 <code>(u, v)</code> <strong>是桥</strong>。</li>
+</ul>
+<p>注意这里是 <strong>严格大于</strong>（<code>&gt;</code>），不是大于等于。等于 <code>disc[u]</code> 的情况意味着 <code>v</code> 子树能恰好连回 <code>u</code>（通过回边 <code>(v, u)</code> 或某个指向 <code>u</code> 的回边），此时删掉 <code>(u, v)</code> 这条树边后，<code>v</code> 子树还能通过那条回边到达 <code>u</code>，所以不是桥。这个 <code>&gt;</code> 的边界条件是初学者最常见的错误点之一（详见踩坑实录）。</p>
+<h3 id="2-5-割点（Articulation-Point）的判定条件"><a href="#2-5-割点（Articulation-Point）的判定条件" class="headerlink" title="2.5 割点（Articulation Point）的判定条件"></a>2.5 割点（Articulation Point）的判定条件</h3><p>割点的判定比桥稍微复杂，需要分两种情况——因为<strong>根节点没有父节点</strong>，判定规则不同：</p>
+<p><strong>情况一：非根节点 <code>u</code></strong></p>
+<p><code>u</code> 是割点，当且仅当 <strong>存在一个子节点 <code>v</code>，满足 <code>low[v] &gt;= disc[u]</code></strong>。</p>
+<p><strong>为什么？</strong> 考虑 <code>u</code> 的某个子节点 <code>v</code>。如果 <code>low[v] &gt;= disc[u]</code>，意味着 <code>v</code> 的子树（连同 <code>v</code> 自己）即使借助回边，最高也只能到达 <code>u</code> 这一层（<code>low[v] == disc[u]</code>）或更低（<code>low[v] &gt; disc[u]</code>），而<strong>无法越过 <code>u</code> 到达 <code>u</code> 的祖先</strong>。</p>
+<p>那么把 <code>u</code> 删掉之后，<code>v</code> 的子树就彻底失去了与其他部分的连接——因为：</p>
+<ul>
+<li>通往祖先的树边必须经过 <code>u</code>；</li>
+<li>回边最高只能到 <code>u</code>（而 <code>u</code> 已被删除）。</li>
+</ul>
+<p>因此 <code>v</code> 的子树会成为一个独立的连通分量，连通分量数增加，<code>u</code> 是割点。</p>
+<p>反之，如果对所有子节点 <code>v</code> 都有 <code>low[v] &lt; disc[u]</code>，说明每个子树都能通过回边绕到 <code>u</code> 的祖先，删掉 <code>u</code> 后大家依然连通，<code>u</code> 不是割点。</p>
+<p>注意这里用的是 <strong>大于等于</strong>（<code>&gt;=</code>），与桥的严格大于（<code>&gt;</code>）不同——这又是一个容易搞混的边界，稍后会在踩坑实录里展开。</p>
+<p><strong>情况二：根节点 <code>root</code></strong></p>
+<p>根节点比较特殊：它没有父节点，也没有”祖先”可以绕。根节点 <code>root</code> 是割点，当且仅当 <strong>它在 DFS 搜索树中拥有至少 2 个子节点（children &gt;&#x3D; 2）</strong>。</p>
+<p><strong>为什么？</strong> 根节点的两个不同子树之间，唯一可能的连接路径就是经过根节点本身——因为在无向图 DFS 中，两个不同子树之间不可能存在回边（否则它们早就在 DFS 中合并成一棵子树了）。所以删掉根节点后，每个子树都各自变成一个独立的连通分量。只有一个子节点时，删掉根节点剩下的部分依然是一个整体（连通分量数不变），根节点不是割点。</p>
+<h3 id="2-6-为什么-Tarjan-是线性时间"><a href="#2-6-为什么-Tarjan-是线性时间" class="headerlink" title="2.6 为什么 Tarjan 是线性时间"></a>2.6 为什么 Tarjan 是线性时间</h3><p>整个算法只做了一次 DFS，对每条边每个节点都只处理常数次：</p>
+<ul>
+<li>每个节点被访问一次（<code>disc</code> 只赋值一次）；</li>
+<li>每条边被检查至多两次（无向边从两端各看一次）；</li>
+<li>每个子节点返回时做一次 <code>min</code> 合并。</li>
+</ul>
+<p>因此总时间复杂度为 <strong><code>O(V + E)</code></strong>，空间复杂度为 <code>O(V)</code>（存储 <code>disc</code>、<code>low</code>、<code>parent</code> 三个数组以及递归栈）。</p>
+<p>对比暴力删除法的 <code>O(V·(V+E)) + O(E·(V+E))</code>，Tarjan 的提升是<strong>数量级</strong>的：当 <code>V = 5000</code> 时，暴力法至少要跑 5000 次 BFS（每次 O(V+E)），而 Tarjan 一次 DFS 搞定，性能差距可达数千倍（实测数据见第六节）。</p>
+<h3 id="2-7-与相关算法的对比"><a href="#2-7-与相关算法的对比" class="headerlink" title="2.7 与相关算法的对比"></a>2.7 与相关算法的对比</h3><table>
+<thead>
+<tr>
+<th>算法</th>
+<th>解决的问题</th>
+<th>时间复杂度</th>
+<th>关系</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Tarjan（本文）</strong></td>
+<td>割点、桥</td>
+<td>O(V+E)</td>
+<td>单次 DFS + low-link，本篇主题</td>
+</tr>
+<tr>
+<td>Tarjan 求 SCC</td>
+<td>有向图强连通分量</td>
+<td>O(V+E)</td>
+<td>同样用 disc + low-link，但针对<strong>有向图</strong>，且有栈辅助</td>
+</tr>
+<tr>
+<td>Kosaraju</td>
+<td>强连通分量</td>
+<td>O(V+E)</td>
+<td>两次 DFS，原理不同但同样线性</td>
+</tr>
+<tr>
+<td>双连通分量分解</td>
+<td>边双连通&#x2F;点双连通</td>
+<td>O(V+E)</td>
+<td>直接建立在”求桥”和”求割点”之上</td>
+</tr>
+</tbody></table>
+<p>可以看到，理解了本文的割点&#x2F;桥，就为后续的双连通分量分解、以及有向图的 SCC 打下了坚实的地基——它们的底层思想（DFS 树 + low-link）是相通的。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>本次实现的整体结构可以分为三层，职责划分清晰：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│  输入层：Graph 结构体                                     │</span><br><span class="line">│  - n：节点数                                              │</span><br><span class="line">│  - adj[V]：邻接表（无向图，每边存两条有向记录）          │</span><br><span class="line">│  - edges：边列表（用于暴力基准对比）                      │</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br><span class="line">                          │</span><br><span class="line">                          ▼</span><br><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│  核心层：Tarjan 算法                                     │</span><br><span class="line">│  - DFS 遍历，维护 disc[] / low[] / parent[]              │</span><br><span class="line">│  - 树边捕获：计算 low，判定桥、非根割点                   │</span><br><span class="line">│  - 根节点特判：children &gt;= 2 则为割点                    │</span><br><span class="line">│  输出：articulation（割点集）+ bridges（桥集）           │</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br><span class="line">                          │</span><br><span class="line">                          ▼</span><br><span class="line">┌─────────────────────────────────────────────────────────┐</span><br><span class="line">│  验证层：暴力基准 + 性质检查                             │</span><br><span class="line">│  - bruteArticulation：删节点测连通分量变化               │</span><br><span class="line">│  - bruteBridges：删边测连通分量变化                       │</span><br><span class="line">│  - 对比 Tarjan 结果，验证正确性                          │</span><br><span class="line">└─────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><ol>
+<li><p><strong>邻接表 <code>vector&lt;vector&lt;int&gt;&gt; adj</code></strong>：用于 DFS 和 BFS。选择邻接表而非邻接矩阵，是因为图通常是稀疏的，邻接表能保证 <code>O(V+E)</code> 的空间与遍历复杂度。</p>
+</li>
+<li><p><strong>边列表 <code>vector&lt;pair&lt;int,int&gt;&gt; edges</code></strong>：冗余存储所有真实边。它的唯一用途是供 <strong>暴力找桥</strong> 遍历——因为暴力法需要对”每一条边”各做一次删除测试，而邻接表里每条无向边存了两条有向记录，直接遍历会重复。单独维护边列表让暴力基准更清晰。</p>
+</li>
+<li><p><strong>三个并行数组</strong>：</p>
+<ul>
+<li><code>vector&lt;int&gt; disc(n, -1)</code>：发现时间，<code>-1</code> 兼作”未访问”标记；</li>
+<li><code>vector&lt;int&gt; low(n, -1)</code>：low-link 值；</li>
+<li><code>vector&lt;int&gt; parent(n, -1)</code>：DFS 树中的父节点，根节点为 <code>-1</code>，同时用于区分”回边”（<code>v != parent[u]</code>）。</li>
+</ul>
+</li>
+<li><p><strong><code>vector&lt;bool&gt; isArt(n, false)</code></strong>：割点标记，最后统一收集输出，避免重复判定时反复插入。</p>
+</li>
+</ol>
+<h3 id="3-3-递归-DFS-与栈深度的权衡"><a href="#3-3-递归-DFS-与栈深度的权衡" class="headerlink" title="3.3 递归 DFS 与栈深度的权衡"></a>3.3 递归 DFS 与栈深度的权衡</h3><p>本实现使用<strong>递归 DFS</strong>（C++ 的 <code>std::function</code> + lambda）。因为测试图的规模（最大 N&#x3D;5000）在默认 8MB 栈下递归深度约 5000 层，完全安全，且代码可读性最佳。</p>
+<p>但在<strong>生产环境</strong>处理百万级节点的图时，递归 DFS 可能触发栈溢出，此时需要：</p>
+<ul>
+<li>要么增大栈空间（<code>ulimit -s unlimited</code>）；</li>
+<li>要么改为<strong>显式栈的迭代式 DFS</strong>，手动模拟”发现时间戳 + 访问状态”。</li>
+</ul>
+<p>这是一个工程上的取舍。本文聚焦于算法正确性的讲解，采用递归版本追求清晰；读者若需处理超大图，可将递归改写为显式栈。</p>
+<h3 id="3-4-DFS-内部的职责划分"><a href="#3-4-DFS-内部的职责划分" class="headerlink" title="3.4 DFS 内部的职责划分"></a>3.4 DFS 内部的职责划分</h3><p>单次 DFS 函数内部完成了所有判定逻辑，流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">dfs(u):</span><br><span class="line">    disc[u] = low[u] = timer++     # ① 记录发现时间</span><br><span class="line">    children = 0                   # ① 根节点的子树计数</span><br><span class="line">    for v in adj[u]:</span><br><span class="line">        if disc[v] == -1:          # ② 树边（v 未访问）</span><br><span class="line">            parent[v] = u</span><br><span class="line">            children++</span><br><span class="line">            dfs(v)                 # ③ 先递归进入子树</span><br><span class="line">            low[u] = min(low[u], low[v])   # ④ 用子树的 low 更新自己</span><br><span class="line"></span><br><span class="line">            if low[v] &gt; disc[u]:            # ⑤ 桥判定</span><br><span class="line">                bridges.add((u, v))</span><br><span class="line">            if parent[u] != -1 and low[v] &gt;= disc[u]:  # ⑥ 非根割点</span><br><span class="line">                isArt[u] = true</span><br><span class="line">        elif v != parent[u]:       # ⑦ 回边</span><br><span class="line">            low[u] = min(low[u], disc[v])   # ⑧ 回边更新 low</span><br><span class="line"></span><br><span class="line">    if parent[u] == -1 and children &gt; 1:   # ⑨ 根节点割点</span><br><span class="line">        isArt[u] = true</span><br></pre></td></tr></table></figure>
+
+<p><strong>值得注意的细节</strong>：桥判定（⑤）和割点判定（⑥）都必须在 <code>dfs(v)</code> 递归返回<strong>之后</strong>、<code>low[u]</code> 用 <code>low[v]</code> 更新<strong>之后</strong>进行——因为判定依赖完整的 <code>low[v]</code>。这个”先递归、后判定、再合并 low”的顺序是算法正确性的保证，颠倒了就会得到错误结果（详见踩坑实录）。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>下面把核心代码逐段拆解，解释”每一行为什么这样写”。</p>
+<h3 id="4-1-Graph-结构体与建边"><a href="#4-1-Graph-结构体与建边" class="headerlink" title="4.1 Graph 结构体与建边"></a>4.1 Graph 结构体与建边</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Graph</span> &#123;</span><br><span class="line">    <span class="type">int</span> n;</span><br><span class="line">    vector&lt;vector&lt;<span class="type">int</span>&gt;&gt; adj;            <span class="comment">// 邻接表</span></span><br><span class="line">    vector&lt;pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt;&gt; edges;        <span class="comment">// 边列表（用于暴力基准）</span></span><br><span class="line"></span><br><span class="line">    <span class="built_in">Graph</span>(<span class="type">int</span> n_) : <span class="built_in">n</span>(n_), <span class="built_in">adj</span>(n_) &#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">addEdge</span><span class="params">(<span class="type">int</span> u, <span class="type">int</span> v)</span> </span>&#123;</span><br><span class="line">        adj[u].<span class="built_in">push_back</span>(v);            <span class="comment">// 无向图：两边各存一次</span></span><br><span class="line">        adj[v].<span class="built_in">push_back</span>(u);</span><br><span class="line">        edges.<span class="built_in">push_back</span>(&#123;u, v&#125;);        <span class="comment">// 记录真实边</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>adj[u].push_back(v)</code> 和 <code>adj[v].push_back(u)</code> 是标准的无向图建边方式。<code>edges</code> 的冗余存储看似浪费，但让后续暴力找桥能准确枚举”每条唯一的无向边”，避免把同一条边当作两条去重复测试。</p>
+<h3 id="4-2-Tarjan-核心：disc-与-low-的初始化与-DFS-框架"><a href="#4-2-Tarjan-核心：disc-与-low-的初始化与-DFS-框架" class="headerlink" title="4.2 Tarjan 核心：disc 与 low 的初始化与 DFS 框架"></a>4.2 Tarjan 核心：disc 与 low 的初始化与 DFS 框架</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">TarjanResult <span class="title">findArticulationAndBridges</span><span class="params">(<span class="type">const</span> Graph&amp; g)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = g.n;</span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">disc</span><span class="params">(n, <span class="number">-1</span>)</span>, <span class="title">low</span><span class="params">(n, <span class="number">-1</span>)</span></span>;  <span class="comment">// -1 表示&quot;未访问&quot;</span></span><br><span class="line">    <span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">parent</span><span class="params">(n, <span class="number">-1</span>)</span></span>;</span><br><span class="line">    <span class="function">vector&lt;<span class="type">bool</span>&gt; <span class="title">isArt</span><span class="params">(n, <span class="literal">false</span>)</span></span>;</span><br><span class="line">    <span class="type">int</span> timer = <span class="number">0</span>;</span><br><span class="line">    vector&lt;pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt;&gt; bridges;</span><br><span class="line"></span><br><span class="line">    function&lt;<span class="type">void</span>(<span class="type">int</span>)&gt; dfs = [&amp;](<span class="type">int</span> u) &#123;</span><br><span class="line">        disc[u] = low[u] = timer++;       <span class="comment">// 发现时间戳递增</span></span><br><span class="line">        <span class="type">int</span> children = <span class="number">0</span>;</span><br><span class="line">        <span class="comment">// ... 遍历邻居（见下）</span></span><br><span class="line">    &#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++)</span><br><span class="line">        <span class="keyword">if</span> (disc[i] == <span class="number">-1</span>) <span class="built_in">dfs</span>(i);        <span class="comment">// 处理多个连通块</span></span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>disc</code> 初始化为 -1？</strong> 因为 <code>disc</code> 同时承担了”访问标记”的职责——<code>disc[v] == -1</code> 等价于”<code>v</code> 尚未被访问”。这是用时间戳兼任 visit 标记的常见技巧，省去了单独的 <code>visited</code> 数组。</p>
+<p><strong>为什么最外层要 <code>for</code> 循环遍历所有节点？</strong> 因为图可能不连通，需要保证每个连通块都被 DFS 覆盖。对连通图，这个循环只会真正进入一次（其余节点 <code>disc</code> 已非 -1）。</p>
+<h3 id="4-3-树边处理：桥判定与割点判定"><a href="#4-3-树边处理：桥判定与割点判定" class="headerlink" title="4.3 树边处理：桥判定与割点判定"></a>4.3 树边处理：桥判定与割点判定</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> v : g.adj[u]) &#123;</span><br><span class="line">    <span class="keyword">if</span> (disc[v] == <span class="number">-1</span>) &#123;                 <span class="comment">// v 未访问 -&gt; 这是一条树边</span></span><br><span class="line">        parent[v] = u;                   <span class="comment">// 记录父节点</span></span><br><span class="line">        children++;                      <span class="comment">// 根节点的子树计数</span></span><br><span class="line"></span><br><span class="line">        <span class="built_in">dfs</span>(v);                          <span class="comment">// ① 先递归，得到完整的 low[v]</span></span><br><span class="line">        low[u] = <span class="built_in">min</span>(low[u], low[v]);    <span class="comment">// ② 用子树 low 更新自己</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (low[v] &gt; disc[u]) &#123;          <span class="comment">// ③ 桥判定（严格大于）</span></span><br><span class="line">            bridges.<span class="built_in">push_back</span>(&#123;<span class="built_in">min</span>(u,v), <span class="built_in">max</span>(u,v)&#125;);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (parent[u] != <span class="number">-1</span> &amp;&amp; low[v] &gt;= disc[u]) &#123; <span class="comment">// ④ 非根割点（大于等于）</span></span><br><span class="line">            isArt[u] = <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> (v != parent[u]) &#123;           <span class="comment">// ⑤ 回边（跳过父节点）</span></span><br><span class="line">        low[u] = <span class="built_in">min</span>(low[u], disc[v]);   <span class="comment">// ⑥ 回边只能更新到 disc[v]</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这 6 个关键点逐一解释”为什么”：</strong></p>
+<ul>
+<li><p><strong>① 先递归后合并</strong>：<code>low[v]</code> 只有在 <code>dfs(v)</code> 完整返回后才代表”<code>v</code> 子树的最远可达位置”。如果颠倒顺序（先合并再递归），<code>low[u]</code> 就会提前用”尚未完成的 <code>low[v]</code>“更新，导致结果错误。这是最隐蔽的 bug 来源。</p>
+</li>
+<li><p><strong>② <code>low[u] = min(low[u], low[v])</code></strong>：子树的 low 值继承到父节点——因为从父节点出发，可以先下到子树，再借子树里的回边”跳出去”，所以父节点的 <code>low</code> 不应大于任何子节点的 <code>low</code>。</p>
+</li>
+<li><p><strong>③ 桥判定用 <code>&gt;</code>（严格大于）</strong>：如上文推导，<code>low[v] == disc[u]</code> 时说明子树能通过回边恰好绕回 <code>u</code>，删掉树边后依然连通，因此<strong>只有严格大于才是桥</strong>。</p>
+</li>
+<li><p><strong>④ 割点判定用 <code>&gt;=</code>（大于等于）</strong>：与桥不同，割点判定要求子树”无法越过 <code>u</code>“。<code>low[v] == disc[u]</code> 时，子树最高只能到 <code>u</code>，一旦 <code>u</code> 被删，子树就被孤立——所以<strong>等于也算割点</strong>。这是割点与桥在判定符号上最关键的区别。</p>
+</li>
+<li><p><strong>⑤ <code>v != parent[u]</code> 区分回边</strong>：在无向图中，<code>u</code> 的邻居 <code>v</code> 如果已被访问且 <code>v</code> 是 <code>u</code> 的父节点，那么 <code>(u, v)</code> 是”指向父节点的树边”，必须跳过；否则 <code>(v, u)</code> 才是真正的回边。<strong>如果把父节点也算作回边去更新 low，会导致 low 值被错误地拉低，进而漏判割点和桥</strong>。</p>
+</li>
+<li><p><strong>⑥ 回边只能更新到 <code>disc[v]</code> 而非 <code>low[v]</code></strong>：这是另一个高频易错点。回边直接连接祖先 <code>v</code>，从 <code>u</code> 出发可以一步到达 <code>v</code>，所以 <code>low[u]</code> 最多更新到 <code>disc[v]</code>。<strong>不能用 <code>low[v]</code> 更新</strong>，因为那样会”借道”祖先 <code>v</code> 再继续往上绕，跨越了”至多一条回边”的约束，虽然结果可能碰巧正确，但严格来说不符合 low 的定义，在多条回边交织的复杂图中可能产生错误。</p>
+</li>
+</ul>
+<h3 id="4-4-根节点的特殊判定"><a href="#4-4-根节点的特殊判定" class="headerlink" title="4.4 根节点的特殊判定"></a>4.4 根节点的特殊判定</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (parent[u] == <span class="number">-1</span> &amp;&amp; children &gt; <span class="number">1</span>) &#123;   <span class="comment">// 根节点且子树数 &gt; 1</span></span><br><span class="line">    isArt[u] = <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>根节点（<code>parent[u] == -1</code>）没有祖先，不能用 <code>low[v] &gt;= disc[u]</code> 判定，只能看 DFS 子树数量。<strong>为什么是 <code>&gt; 1</code> 而不是 <code>&gt;= 1</code>？</strong> 因为只有一个子树时，删掉根节点剩下的还是一整棵连通的子树，分量数不变，不是割点。</p>
+<h3 id="4-5-暴力基准：删节点-删边测连通性"><a href="#4-5-暴力基准：删节点-删边测连通性" class="headerlink" title="4.5 暴力基准：删节点&#x2F;删边测连通性"></a>4.5 暴力基准：删节点&#x2F;删边测连通性</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 统计连通分量数；exclude 节点视为已删除</span></span><br><span class="line"><span class="function"><span class="type">int</span> <span class="title">countComponentsExcluding</span><span class="params">(<span class="type">int</span> n, <span class="type">const</span> vector&lt;vector&lt;<span class="type">int</span>&gt;&gt;&amp; adj, <span class="type">int</span> exclude)</span> </span>&#123;</span><br><span class="line">    <span class="function">vector&lt;<span class="type">bool</span>&gt; <span class="title">vis</span><span class="params">(n, <span class="literal">false</span>)</span></span>;</span><br><span class="line">    <span class="keyword">if</span> (exclude &gt;= <span class="number">0</span>) vis[exclude] = <span class="literal">true</span>;  <span class="comment">// ★ 关键：标记已访问，避免计为孤立分量</span></span><br><span class="line">    <span class="type">int</span> comp = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!vis[i]) &#123;</span><br><span class="line">            comp++;</span><br><span class="line">            queue&lt;<span class="type">int</span>&gt; q; q.<span class="built_in">push</span>(i); vis[i] = <span class="literal">true</span>;</span><br><span class="line">            <span class="keyword">while</span> (!q.<span class="built_in">empty</span>()) &#123;</span><br><span class="line">                <span class="type">int</span> u = q.<span class="built_in">front</span>(); q.<span class="built_in">pop</span>();</span><br><span class="line">                <span class="keyword">for</span> (<span class="type">int</span> v : adj[u]) <span class="keyword">if</span> (!vis[v]) &#123; vis[v] = <span class="literal">true</span>; q.<span class="built_in">push</span>(v); &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> comp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>这一行 <code>if (exclude &gt;= 0) vis[exclude] = true;</code> 是整个暴力基准最关键也最容易踩坑的一行</strong>（详见踩坑实录）。它的作用是：当我们要测试”删除节点 <code>u</code> 后连通分量是否增加”时，必须把 <code>u</code> 标记为”已访问”，这样 BFS 就不会把 <code>u</code> 当成一个孤立的、大小为 1 的连通分量去计数——否则<strong>每删除一个节点都会凭空多出一个分量，导致所有节点都被误判为割点</strong>。</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 暴力找割点：删除节点 u，若连通分量数增加，则 u 是割点</span></span><br><span class="line"><span class="function">vector&lt;<span class="type">int</span>&gt; <span class="title">bruteArticulation</span><span class="params">(<span class="type">const</span> Graph&amp; g)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> base = <span class="built_in">countComponents</span>(n, g.adj);   <span class="comment">// 基准分量数</span></span><br><span class="line">    vector&lt;<span class="type">int</span>&gt; art;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> u = <span class="number">0</span>; u &lt; n; u++) &#123;</span><br><span class="line">        <span class="keyword">auto</span> adj2 = <span class="comment">/* 构建删掉 u 的邻接表 */</span>;</span><br><span class="line">        <span class="type">int</span> c = <span class="built_in">countComponentsExcluding</span>(n, adj2, u);</span><br><span class="line">        <span class="keyword">if</span> (c &gt; base) art.<span class="built_in">push_back</span>(u);     <span class="comment">// 分量增加 -&gt; 割点</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> art;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>暴力找桥同理：删掉每条边，若分量数增加说明是桥。这个 <code>O(V·(V+E) + E·(V+E))</code> 的暴力法虽然在 TSP、大规模图上不可行，但作为中小规模图的”基准真理”（ground truth）是完全可信的——它做的事就是割点&#x2F;桥的<strong>定义本身</strong>。</p>
+<h3 id="4-6-结果归一化与对比"><a href="#4-6-结果归一化与对比" class="headerlink" title="4.6 结果归一化与对比"></a>4.6 结果归一化与对比</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">bool</span> <span class="title">sameVector</span><span class="params">(vector&lt;<span class="type">int</span>&gt; a, vector&lt;<span class="type">int</span>&gt; b)</span> </span>&#123;</span><br><span class="line">    <span class="built_in">sort</span>(a.<span class="built_in">begin</span>(), a.<span class="built_in">end</span>()); <span class="built_in">sort</span>(b.<span class="built_in">begin</span>(), b.<span class="built_in">end</span>());</span><br><span class="line">    <span class="keyword">return</span> a == b;    <span class="comment">// 割点集合：顺序无关，排序后逐元素对比</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="type">bool</span> <span class="title">sameEdges</span><span class="params">(vector&lt;pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt;&gt; a, vector&lt;pair&lt;<span class="type">int</span>,<span class="type">int</span>&gt;&gt; b)</span> </span>&#123;</span><br><span class="line">    <span class="built_in">sort</span>(a.<span class="built_in">begin</span>(), a.<span class="built_in">end</span>()); <span class="built_in">sort</span>(b.<span class="built_in">begin</span>(), b.<span class="built_in">end</span>());</span><br><span class="line">    <span class="keyword">return</span> a == b;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>由于割点&#x2F;桥的发现顺序取决于 DFS 遍历顺序（不唯一），直接对比结果集合时必须<strong>先排序</strong>，把”集合”语义从”序列”语义中独立出来。这是验证代码里容易忽略的细节——不排序的话，两个”内容相同但顺序不同”的容器会被误判为”不一致”。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这次开发过程并非一帆风顺，一共遇到了 <strong>3 个真实 Bug</strong>，每一个都值得记录成册，供读者避坑。</p>
+<h3 id="Bug-1：暴力基准把所有节点都误判为割点（最隐蔽的一坑）"><a href="#Bug-1：暴力基准把所有节点都误判为割点（最隐蔽的一坑）" class="headerlink" title="Bug 1：暴力基准把所有节点都误判为割点（最隐蔽的一坑）"></a>Bug 1：暴力基准把所有节点都误判为割点（最隐蔽的一坑）</h3><p><strong>症状</strong>：<code>Test 1</code>（路径图）中 <code>Tarjan vs Brute match: FAIL</code>，且暴力的割点列表异常庞大。而 Tarjan 算法自身的结果（桥数量、割点数量）其实是对的。四个测试里凡是”Tarjan vs Brute 对比”全部 FAIL。<br><strong>错误假设</strong>：我最初认为暴力法”删除节点 <code>u</code> 后重新 BFS 计数”天然正确，问题一定出在 Tarjan 算法上，于是花时间反复检查 Tarjan 的 low-link 逻辑——但 Tarjan 其实没错。<br><strong>真实原因</strong>：暴力法里，删除节点 <code>u</code> 后重新 BFS 时，<code>u</code> 自己会成为一个”孤立节点”，被 <code>countComponents</code> 当成一个大小为 1 的独立连通分量。于是<strong>每删除任意一个节点，分量数都必然 +1</strong>（哪怕删除的是一个毫无关键作用的节点），导致暴力法把<strong>所有节点</strong>都判定为割点。<br><strong>修复方式</strong>：引入 <code>countComponentsExcluding</code>，在计数前先把被删除的节点 <code>exclude</code> 标记为”已访问”（<code>vis[exclude] = true</code>），让它不参与分量计数。修复后 <code>Tarjan vs Brute</code> 立即变为 PASS。</p>
+<blockquote>
+<p><strong>教训</strong>：暴力基准是”对的”，但”删除节点”这个操作的语义要精确到”把该节点连同它和所有邻居的边一并移除，且该节点本身不再作为一个分量存在”。差一行 <code>vis[exclude]=true</code>，整个基准就荒谬地失效了。</p>
+</blockquote>
+<h3 id="Bug-2：随机图生成时引入了重边和自环，导致-6-50-组不匹配"><a href="#Bug-2：随机图生成时引入了重边和自环，导致-6-50-组不匹配" class="headerlink" title="Bug 2：随机图生成时引入了重边和自环，导致 6&#x2F;50 组不匹配"></a>Bug 2：随机图生成时引入了重边和自环，导致 6&#x2F;50 组不匹配</h3><p><strong>症状</strong>：修复 Bug 1 后，<code>Test 4</code>（50 组随机连通图）显示 <code>44/50</code> 匹配，仍有 6 组不一致。手工测试、环、双环图全都 PASS，令人困惑。<br><strong>错误假设</strong>：以为是 Tarjan 算法在处理某些边界时仍有 bug。<br><strong>真实原因</strong>：随机图生成代码里只校验了 <code>u != v</code>（避免自环），却<strong>没有校验边是否已存在</strong>（避免重边）。于是随机加边时可能产生：</p>
+<ol>
+<li><strong>重边</strong>（平行边）：<code>addEdge</code> 被调用两次，<code>adj[u]</code> 里出现两个相同的 <code>v</code>。Tarjan 的 <code>v != parent[u]</code> 回边判定会把这条”重复的树边”误当成回边，进而错误更新 low，漏判&#x2F;错判割点或桥；而暴力法的 <code>edges</code> 列表也存了重复边，删边测试时 <code>find</code> 只删掉第一条，导致结果错乱。</li>
+<li><strong>自环</strong>：虽然加了 <code>u != v</code> 的检查，但逻辑上仍可能因其他路径产生，同样破坏简单图假设。</li>
+</ol>
+<p><strong>修复方式</strong>：用 <code>set&lt;pair&lt;int,int&gt;&gt; existing</code> 记录已存在的边（以 <code>{min,max}</code> 归一化），每次加边前先查重，保证生成的图是<strong>简单图</strong>（无重边、无自环）。修复后 <code>Test 4</code> 变为 <code>50/50</code> 全 PASS。</p>
+<blockquote>
+<p><strong>教训</strong>：Tarjan 求割点&#x2F;桥的经典算法<strong>假设输入是简单无向图</strong>。带重边或自环的图需要额外处理（例如改用”边编号”而非”父节点”来区分回边）。生成测试数据时，先保证符合算法前提，再去谈正确性对比。</p>
+</blockquote>
+<h3 id="Bug-3：编译警告——未使用变量与误导性缩进"><a href="#Bug-3：编译警告——未使用变量与误导性缩进" class="headerlink" title="Bug 3：编译警告——未使用变量与误导性缩进"></a>Bug 3：编译警告——未使用变量与误导性缩进</h3><p><strong>症状</strong>：第一次编译时 <code>g++ -Wall -Wextra</code> 报出 3 个警告（1 个 <code>unused variable</code>，2 个 <code>misleading-indentation</code>），虽然程序能跑，但 skill 要求”0 errors, 0 warnings”。<br><strong>错误假设</strong>：无——这是纯代码卫生问题。<br><strong>真实原因</strong>：</p>
+<ol>
+<li><code>cycleProp</code> 变量在重构后不再使用，成了死变量；</li>
+<li><code>if (ok) passed++; if (noArt) passed++;</code> 这种一行多语句的写法，<code>-Wmisleading-indentation</code> 认为第二个 <code>if</code> 的缩进会误导人以为是嵌套在第一个 <code>if</code> 里。<br><strong>修复方式</strong>：删除死变量；把一行多语句拆成每行一条，明确各自的缩进层级。修复后实现 <strong>0 warnings</strong> 编译通过。</li>
+</ol>
+<blockquote>
+<p><strong>教训</strong>：<code>-Wall -Wextra</code> 是免费的静态分析工具，别让任何警告留在代码里——它们往往预示着逻辑上的含糊（比如误导性缩进确实反映了我当时对控制流的犹豫）。</p>
+</blockquote>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>本次全部采用 <strong>量化验证</strong>，没有一处依赖”看起来对”的主观判断。</p>
+<h3 id="6-1-测试矩阵与结果"><a href="#6-1-测试矩阵与结果" class="headerlink" title="6.1 测试矩阵与结果"></a>6.1 测试矩阵与结果</h3><p>共设计了 <strong>5 组测试、11 项量化检查</strong>，全部 PASS：</p>
+<table>
+<thead>
+<tr>
+<th>测试</th>
+<th>场景</th>
+<th>验证点</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Test 1</td>
+<td>路径图（树，N&#x3D;20）</td>
+<td>Tarjan vs 暴力一致；19 条边全为桥；割点数&#x3D;18（内部节点）</td>
+<td>✅ 3&#x2F;3 PASS</td>
+</tr>
+<tr>
+<td>Test 2</td>
+<td>环图（N&#x3D;15）</td>
+<td>Tarjan vs 暴力一致；无割点；无桥</td>
+<td>✅ 3&#x2F;3 PASS</td>
+</tr>
+<tr>
+<td>Test 3</td>
+<td>双环 + 单桥连接</td>
+<td>割点&#x3D;{3,4}；桥&#x3D;{(3,4)}</td>
+<td>✅ 3&#x2F;3 PASS</td>
+</tr>
+<tr>
+<td>Test 4</td>
+<td>50 组随机连通图</td>
+<td>Tarjan vs 暴力 100% 一致</td>
+<td>✅ 50&#x2F;50 PASS</td>
+</tr>
+<tr>
+<td>Test 5</td>
+<td>大图（N&#x3D;5000, E&#x3D;5049）</td>
+<td>性能 &lt; 1000ms</td>
+<td>✅ 0.23ms PASS</td>
+</tr>
+</tbody></table>
+<p><strong>最终结果：<code>RESULT: PASS</code>（11&#x2F;11）</strong>。</p>
+<h3 id="6-2-关键性质验证（数学不变量）"><a href="#6-2-关键性质验证（数学不变量）" class="headerlink" title="6.2 关键性质验证（数学不变量）"></a>6.2 关键性质验证（数学不变量）</h3><ul>
+<li><p><strong>树的全桥性质</strong>：N 个节点的树，其 N-1 条边<strong>全部是桥</strong>（因为树中任意一条边都是唯一的连接通路）。实测路径图 19 条边 <code>Bridges found = 19</code>，完全吻合。</p>
+</li>
+<li><p><strong>环的无割点无桥性质</strong>：一个简单环（cycle）删掉任意节点仍是连通的链，删掉任意边仍是连通的链，所以<strong>既无割点也无桥</strong>。实测 15 节点的环图 <code>Articulation found = 0</code>、<code>Bridges found = 0</code>，完全吻合。</p>
+</li>
+<li><p><strong>桥梁结构性质</strong>：两个环通过一条桥边相连时，桥的两端节点必然都是割点（因为桥一旦移除，两端各自所在的环子图就彻底分离）。实测 <code>Test 3</code> 精确命中 <code>割点 = {3, 4}</code>、<code>桥 = {(3,4)}</code>。</p>
+</li>
+</ul>
+<h3 id="6-3-性能数据"><a href="#6-3-性能数据" class="headerlink" title="6.3 性能数据"></a>6.3 性能数据</h3><p>在大规模测试（N&#x3D;5000，E&#x3D;5049，链式主干 + 周期环边）上：</p>
+<ul>
+<li>Tarjan 算法耗时：<strong>0.23 ms</strong>（单次 DFS）</li>
+<li>识别结果：49 座桥、98 个割点</li>
+<li>暴力基准若跑同样规模的割点对比，需要 5000 次 BFS，每次 O(V+E)，总耗时预计数千毫秒量级，<strong>性能差距超过 1000 倍</strong>。</li>
+</ul>
+<p>这一数据实证了 Tarjan 算法从平方级到线性的巨大跨越。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><ol>
+<li><p><strong>假设简单无向图</strong>：经典 Tarjan 割点&#x2F;桥算法天然假设输入是无重边、无自环的简单无向图。遇到多重图（multi-graph）时，需要用”边编号”来区分回边与父边，否则 <code>v != parent[u]</code> 的判定会失效（这正是本次踩坑实录 Bug 2 的根源）。</p>
+</li>
+<li><p><strong>不区分”割点的重要性”</strong>：算法只告诉你”哪些节点是割点”，但不量化”删除后分裂出的分量规模”。如果要评估每个割点删除后的”破坏力”，还需要额外统计删除后各分量的实际大小。</p>
+</li>
+<li><p><strong>静态快照</strong>：本算法针对的是某一时刻的静态图。在边&#x2F;节点动态增删的动态图中，割点和桥会不断变化，需要用动态连通性数据结构（如动态树 Link-Cut Tree、欧拉回路树 ETT）配合维护，复杂度远高于静态版本。</p>
+</li>
+<li><p><strong>递归深度</strong>：递归 DFS 在极深图上可能栈溢出，需切换为显式栈迭代版本。</p>
+</li>
+</ol>
+<h3 id="7-2-可继续优化的方向"><a href="#7-2-可继续优化的方向" class="headerlink" title="7.2 可继续优化的方向"></a>7.2 可继续优化的方向</h3><ol>
+<li><p><strong>边双连通分量（Edge-Biconnected Components, eBCC）分解</strong>：求出所有桥后，把桥逐条删去，剩下的每个连通块就是一个 eBCC。这是”把图缩成桥森林”的关键一步，在 2-SAT、网络可靠性分析中大有用处。</p>
+</li>
+<li><p><strong>点双连通分量（Vertex-Biconnected Components, vBCC）分解</strong>：配合一个栈维护当前 DFS 路径，在遇到割点时弹出形成一个 vBCC。vBCC 是很多进阶图算法（如 cactus 图、双连通图的哈密顿路径）的基础。</p>
+</li>
+<li><p><strong>Tarjan 离线 LCA</strong>：本文的 DFS 树 + 时间戳思想，可以直接推广到 LCA（最近公共祖先）问题，通过并查集在单次 DFS 内离线求解所有查询。</p>
+</li>
+<li><p><strong>并行化与分布式</strong>：在超大规模图上（如真实互联网拓扑、社交媒体图），单机 DFS 可能内存不足，需要把图分区后在各分区并行求割点&#x2F;桥，再用跨分区的一致性校验合并结果。</p>
+</li>
+</ol>
+<h3 id="7-3-与本系列的关联"><a href="#7-3-与本系列的关联" class="headerlink" title="7.3 与本系列的关联"></a>7.3 与本系列的关联</h3><p>本文是图论连通性系列的起点。回顾本系列已经完成的文章：</p>
+<ul>
+<li>强连通分量（08-23 Tarjan SCC &#x2F; Kosaraju）；</li>
+<li>最小生成树（07-19 Prim vs Kruskal）；</li>
+<li>最大流（08-22 Dinic）、最小割（10-26 Stoer-Wagner）；</li>
+<li>欧拉回路（10-25 Hierholzer）。</li>
+</ul>
+<p>割点与桥正是连接”连通性”与”网络可靠性”两座知识高地的桥梁。理解了它，再去看有向图的 SCC、边&#x2F;点双连通分量分解，会有一种”原来如此、一脉相承”的通透感。</p>
+<hr>
+<h2 id="附：完整输出日志"><a href="#附：完整输出日志" class="headerlink" title="附：完整输出日志"></a>附：完整输出日志</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">=== Articulation Points &amp; Bridges (Tarjan) ===</span><br><span class="line"></span><br><span class="line">[Test 1] Path graph (tree, N=20)</span><br><span class="line">  Tarjan vs Brute match: PASS</span><br><span class="line">  All 19 edges are bridges: PASS</span><br><span class="line">  Articulation count = 18 (expected 18 interior nodes): PASS</span><br><span class="line"></span><br><span class="line">[Test 2] Cycle graph (N=15)</span><br><span class="line">  Tarjan vs Brute match: PASS</span><br><span class="line">  No articulation points: PASS</span><br><span class="line">  No bridges: PASS</span><br><span class="line"></span><br><span class="line">[Test 3] Two cycles joined by a bridge</span><br><span class="line">  Tarjan vs Brute match: PASS</span><br><span class="line">  Articulation = &#123;3,4&#125;: PASS</span><br><span class="line">  Bridge = (3,4): PASS</span><br><span class="line"></span><br><span class="line">[Test 4] Random connected graphs (50 sets)</span><br><span class="line">  Tarjan vs Brute match: 50/50 -&gt; PASS</span><br><span class="line"></span><br><span class="line">[Test 5] Performance (N=5000, E=5049)</span><br><span class="line">  Tarjan time: 0.23 ms</span><br><span class="line">  Bridges found: 49</span><br><span class="line">  Articulation found: 98</span><br><span class="line">  Within budget (&lt;1000ms): PASS</span><br><span class="line"></span><br><span class="line">=== SUMMARY ===</span><br><span class="line">Passed 11/11 checks</span><br><span class="line">RESULT: PASS</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>完整的 C++ 源码位于 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/11-08-articulation-bridges">daily-coding-practice 仓库</a>，读者可以直接 <code>g++ main.cpp -o output -std=c++17 -O2</code> 编译运行，亲自体验 Tarjan 算法与暴力基准确凿的对比结果。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/">https://chiuhoukazusa.github.io/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E5%9B%BE%E7%AE%97%E6%B3%95/">图算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Tarjan/">Tarjan</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%BF%9E%E9%80%9A%E6%80%A7/">连通性</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</div></div><div class="info-2"><div class="info-item-1">Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)① 背景与动机在计算机的世界里，整数并不是无限的。一个 int 只有 32 位，最多表示到约 21 亿；一个 long long（或者说 int64）有 64 位，最多表示到约 9.2×10¹⁸。对于绝大多数日常计算来说，这些已经完全够用了——你很少需要去算一个超过 19 位十进制的整数乘法。 但现实里确实存在这样一类问题，它们的数值会巨大到突破任何原生整数类型的上限：密码学里的 RSA 需要处理 2048 位甚至 4096 位的大素数相乘；高精度科学计算里，双精度浮点数的小数部分精度不够，需要用到几千位甚至几万位的定点整型；还有程序员们津津乐道的「求 10000 的阶乘」「求第 100000 个斐波那契数」，这些数字动辄几万位十进制，用原生类型根本无法表示。 要表示一个几千位的整数，业界通用的做法是「分段存储」：用一个数组（或者 vector）来存放这个大整数的每一位（或者每若干位作为一个「limb」）。比如底数取 10⁹，那么一个 32000 位的十进制数，就只需要拆成约 3556 个 limb...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/23/daily-coding-tarjan-scc-2026-08-23/" title="每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-23-tarjan-scc/tarjan_scc_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-23</div><div class="info-item-2">每日编程实践: 强连通分量——Tarjan算法的单次DFS与缩点DAG</div></div><div class="info-2"><div class="info-item-1">一、背景与动机有向图的世界里，存在一种比”连通”更微妙、也更重要得多的结构关系：强连通分量（Strongly Connected Component，简称 SCC）。 什么叫”强连通”？在一个无向图里，我们说的”连通”是很直观的——只要任意两个节点之间存在一条路径（无论方向，因为无向图的边本来就没有方向），它们就属于同一个连通块，一次 BFS 或 DFS 就能解决。但在有向图里，”有路径”这件事变成了单向的：节点 u 能到达 v，并不意味着 v 能到达 u。于是我们引入一个更强的定义：  在有向图中，若节点 u 能到达 v，且 v 也能到达 u，则称 u 与 v 强连通。一个”极大强连通子图”就叫做一个强连通分量，SCC。  注意”极大”两个字——它意味着不能再往这个子图里加入任何一个节点而不破坏”两两互相可达”的性质。这跟无向图的”连通分量”是同一个思想，但出发点不同：无向图用”存在路径”划分，有向图用”互相可达”划分。 这个结构为什么值得单独写一篇博客、甚至值得花一整天去实现和验证？因为它几乎出现在所有需要分析**有向图”骨架结构”**的场景里：  编译器的循环检测与优化：在...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/26/daily-coding-topological-sort-kahn-dfs-2026-08-26/" title="每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-26-topological-sort/topological_sort_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-26</div><div class="info-item-2">每日编程实践: 拓扑排序——Kahn算法与DFS后序的双路实现与环检测</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在上一篇文章里，我们花大力气搞定了强连通分量（SCC），把一张有向图里「两两互相可达」的抱团结构精准地切分出来，并缩点成一张有向无环图（DAG）。当时我们埋了一个伏笔：缩点之后得到的 DAG，正好可以用拓扑排序来给这些分量排一个「先后顺序」。 拓扑排序（Topological Sort）正是这篇的主角。它回答的问题非常朴素：如果一件事必须在另一件事之前完成，我该怎么排出一个总体的执行顺序？ 先讲清楚定义，避免歧义。拓扑排序只对一种特殊的图有意义——有向无环图（Directed Acyclic Graph，DAG）。给定一张 DAG，一个拓扑排序就是把所有顶点排成一个线性序列，使得对于图中每一条有向边 u → v，u 在这个序列里都出现在 v 的前面。 注意一个关键词：「无环」。这其实是一个「充分必要条件」——一张有向图存在拓扑排序，当且仅当它没有环。这个等价关系极其重要，因为它给我们提供了一个检测有向环的利器：只要尝试去做拓扑排序，如果做不出来，就说明图里一定有一个环。 那么这个「看起来很理论化」的东西，到底有什么真实的用武之地？它比你想象的要日常得多：  编译器的...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/22/daily-coding-dinic-max-flow-2026-08-22/" title="每日编程实践: 最大流——Dinic算法的分层图与阻塞流"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-22-dinic-max-flow/dinic_maxflow_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-22</div><div class="info-item-2">每日编程实践: 最大流——Dinic算法的分层图与阻塞流</div></div><div class="info-2"><div class="info-item-1">一、背景与动机最大流（Maximum Flow） 是网络流理论里最基础、也最有现实意义的问题之一。它的定义极其朴素：给定一张有向图，每条边有一个容量上限，问从源点 s 到汇点 t，最多能”流过”多少单位的量。 这个问题听起来抽象，但它背后的建模能力超乎想象。举几个真实的工业场景：  交通调度：城市路网里，每条道路有通行能力上限，问从 A 区到 B 区高峰期最多能通过多少辆车。这里的”车”就是流，”道路容量”就是边容量。 网络带宽分配：在数据中心里，服务器之间有一堆链路，每条链路的带宽是有限的，问两个机房之间理论上的最大传输速率是多少。 二分图匹配：求职者和职位的匹配、广告和广告位的分配，都可以归约成最大流问题——在二分图两侧各加一个虚拟源点和汇点，把所有边容量设为 1，最大流值就是最大匹配数。 图像分割：计算机视觉里的 graph cut（图割）算法，把图像分割问题建模成最大流&#x2F;最小割问题，是早期交互式抠图的经典方案。 棒球淘汰问题、世界杯赛程安排：经典运筹学问题里，判断一支球队是否还有出线可能，就能用最大流来判定。  这么多问题都能归到同一个抽象上，这本身就说明最大流...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/16/daily-coding-bezier-surface-2026-07-16/" title="每日编程实践: 贝塞尔曲面渲染器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-16-bezier-surface/bezier_surface.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-16</div><div class="info-item-2">每日编程实践: 贝塞尔曲面渲染器</div></div><div class="info-2"><div class="info-item-1">每日编程实践：贝塞尔曲面渲染器 (Bicubic Bezier Surface)① 背景与动机在计算机图形学中，表示光滑曲面的能力是几乎所有三维建模工具的基础。从 Maya 和 Blender 中的曲面建模，到汽车外形的工业设计，再到角色动画中的皮肤变形，光滑曲面无处不在。 没有曲面表示时的痛点：如果只用三角形网格，要表达一个光滑的曲面（比如汽车引擎盖）需要成千上万个三角形。这不仅浪费内存，也让编辑修改变得极其困难——移动一个顶点可能破坏光滑性，需要手动调整几十个相邻顶点来恢复形体的流畅感。 贝塞尔曲面的优势：仅需 16 个控制点（4×4 网格），就定义了任意精细程度的光滑曲面。这解决了三个核心问题：  紧凑表示：数据量极小，16 个点 vs 数千个三角面 直觉编辑：设计师拖动控制点即可直观地改变曲面形状——曲面会”跟随”控制点运动，但不一定穿过所有控制点 数学保证光滑：由于 Bernstein 多项式的 C^∞ 连续性，曲面在任意位置都是无限可微的  工业界使用场景：  汽车工业：Pierre Bézier 本人在雷诺汽车公司工作时发明了贝塞尔曲线和曲面，用于汽车外形设计。至今...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/02/23/daily-coding-normal-mapping-2026-02-23/" title="每日编程实践: Normal Mapping - 法线贴图"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/02/02-23-Normal-Mapping/normal_mapping_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-02-23</div><div class="info-item-2">每日编程实践: Normal Mapping - 法线贴图</div></div><div class="info-2"><div class="info-item-1">Normal Mapping - 法线贴图项目目标实现法线贴图（Normal Mapping）技术，在光线追踪器中渲染带有法线贴图的球体，展示如何在不增加几何复杂度的情况下增加表面细节。   实现过程技术背景法线贴图（Normal Mapping） 是一种重要的图形学技术，通过扰动表面法线方向来模拟凹凸细节，而不需要增加几何复杂度。这项技术广泛应用于游戏和电影 CG 中，能够在保持高性能的同时大幅提升视觉效果。 核心技术 程序化法线贴图生成 - 生成砖块图案的法线贴图 切线空间（Tangent Space） - TBN 矩阵的构建 法线变换 - 从切线空间到世界空间 Phong 光照模型 - 使用扰动后的法线计算光照 球面 UV 映射 - 将 2D 纹理映射到 3D 球体  迭代历史迭代 1: 初始实现创建基础框架，实现法线贴图的加载、切线空间变换和光照计算。 迭代 2: 修复编译错误问题: Vec3 operator* 类型不匹配 1error: no match for &#x27;operator*&#x27; (operand types are &#x27;Vec3&#...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/04/21/daily-coding-bloom-lens-flare-2026-04-21/" title="每日编程实践: Physically Based Bloom &amp; Lens Flare"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/04/04-21-bloom-lens-flare/bloom_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-04-21</div><div class="info-item-2">每日编程实践: Physically Based Bloom &amp; Lens Flare</div></div><div class="info-2"><div class="info-item-1">背景与动机打开任何一款现代 3A 游戏或商业级渲染器，你都会看到两种无处不在的视觉效果：泛光（Bloom）和镜头光晕（Lens Flare）。它们乍看像是”装饰”，但实际上背后有严肃的物理基础——前者模拟相机传感器在曝光高亮区域时的光散射，后者模拟真实镜头组内部的多次反射与衍射。 没有 Bloom 的画面往往让人感觉”假”或”干燥”。原因在于：人眼对高亮度区域存在生理散射（视网膜光晕），相机胶片&#x2F;传感器在高曝光下也会发生光渗（halation &#x2F; blooming）。当我们渲染的场景里存在远比周围亮 10 倍乃至 100 倍的光源时，如果没有 Bloom，光源只是一个亮像素，缺乏”炽热感”。 Lens Flare 的动机同样来自物理。任何由多片透镜组成的光学系统（相机、望远镜、人眼）在面对强光源时都会产生：  鬼影（Ghosts）：光在镜片间的内部反射，沿光轴对称出现 光晕（Halo）：大气&#x2F;镜片微粒散射形成的圆环 星芒（Starburst）：光圈叶片边缘的衍射，产生辐射状光刺  这些效果在电影摄影中是刻意保留甚至增强的，因为它们传达了”通过相机&#...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">203</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">209</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5%EF%BC%9ATarjan-%E5%89%B2%E7%82%B9%E4%B8%8E%E6%A1%A5%E7%AE%97%E6%B3%95"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践：Tarjan 割点与桥算法</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%85%88%E5%8E%98%E6%B8%85%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 先厘清基本概念</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E6%B7%B1%E5%BA%A6%E4%BC%98%E5%85%88%E6%90%9C%E7%B4%A2%E6%A0%91%EF%BC%88DFS-Tree%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 深度优先搜索树（DFS Tree）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-low-link-%E5%80%BC%E7%9A%84%E5%AE%9A%E4%B9%89%E4%B8%8E%E7%9B%B4%E8%A7%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 low-link 值的定义与直觉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%A1%A5%EF%BC%88Bridge%EF%BC%89%E7%9A%84%E5%88%A4%E5%AE%9A%E6%9D%A1%E4%BB%B6"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 桥（Bridge）的判定条件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%89%B2%E7%82%B9%EF%BC%88Articulation-Point%EF%BC%89%E7%9A%84%E5%88%A4%E5%AE%9A%E6%9D%A1%E4%BB%B6"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 割点（Articulation Point）的判定条件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E4%B8%BA%E4%BB%80%E4%B9%88-Tarjan-%E6%98%AF%E7%BA%BF%E6%80%A7%E6%97%B6%E9%97%B4"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 为什么 Tarjan 是线性时间</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E4%B8%8E%E7%9B%B8%E5%85%B3%E7%AE%97%E6%B3%95%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">1.2.7.</span> <span class="toc-text">2.7 与相关算法的对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E9%80%92%E5%BD%92-DFS-%E4%B8%8E%E6%A0%88%E6%B7%B1%E5%BA%A6%E7%9A%84%E6%9D%83%E8%A1%A1"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 递归 DFS 与栈深度的权衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-DFS-%E5%86%85%E9%83%A8%E7%9A%84%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 DFS 内部的职责划分</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Graph-%E7%BB%93%E6%9E%84%E4%BD%93%E4%B8%8E%E5%BB%BA%E8%BE%B9"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 Graph 结构体与建边</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Tarjan-%E6%A0%B8%E5%BF%83%EF%BC%9Adisc-%E4%B8%8E-low-%E7%9A%84%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%8E-DFS-%E6%A1%86%E6%9E%B6"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Tarjan 核心：disc 与 low 的初始化与 DFS 框架</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%A0%91%E8%BE%B9%E5%A4%84%E7%90%86%EF%BC%9A%E6%A1%A5%E5%88%A4%E5%AE%9A%E4%B8%8E%E5%89%B2%E7%82%B9%E5%88%A4%E5%AE%9A"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 树边处理：桥判定与割点判定</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%A0%B9%E8%8A%82%E7%82%B9%E7%9A%84%E7%89%B9%E6%AE%8A%E5%88%A4%E5%AE%9A"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 根节点的特殊判定</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E6%9A%B4%E5%8A%9B%E5%9F%BA%E5%87%86%EF%BC%9A%E5%88%A0%E8%8A%82%E7%82%B9-%E5%88%A0%E8%BE%B9%E6%B5%8B%E8%BF%9E%E9%80%9A%E6%80%A7"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 暴力基准：删节点&#x2F;删边测连通性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E7%BB%93%E6%9E%9C%E5%BD%92%E4%B8%80%E5%8C%96%E4%B8%8E%E5%AF%B9%E6%AF%94"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 结果归一化与对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-1%EF%BC%9A%E6%9A%B4%E5%8A%9B%E5%9F%BA%E5%87%86%E6%8A%8A%E6%89%80%E6%9C%89%E8%8A%82%E7%82%B9%E9%83%BD%E8%AF%AF%E5%88%A4%E4%B8%BA%E5%89%B2%E7%82%B9%EF%BC%88%E6%9C%80%E9%9A%90%E8%94%BD%E7%9A%84%E4%B8%80%E5%9D%91%EF%BC%89"><span class="toc-number">1.5.1.</span> <span class="toc-text">Bug 1：暴力基准把所有节点都误判为割点（最隐蔽的一坑）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-2%EF%BC%9A%E9%9A%8F%E6%9C%BA%E5%9B%BE%E7%94%9F%E6%88%90%E6%97%B6%E5%BC%95%E5%85%A5%E4%BA%86%E9%87%8D%E8%BE%B9%E5%92%8C%E8%87%AA%E7%8E%AF%EF%BC%8C%E5%AF%BC%E8%87%B4-6-50-%E7%BB%84%E4%B8%8D%E5%8C%B9%E9%85%8D"><span class="toc-number">1.5.2.</span> <span class="toc-text">Bug 2：随机图生成时引入了重边和自环，导致 6&#x2F;50 组不匹配</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Bug-3%EF%BC%9A%E7%BC%96%E8%AF%91%E8%AD%A6%E5%91%8A%E2%80%94%E2%80%94%E6%9C%AA%E4%BD%BF%E7%94%A8%E5%8F%98%E9%87%8F%E4%B8%8E%E8%AF%AF%E5%AF%BC%E6%80%A7%E7%BC%A9%E8%BF%9B"><span class="toc-number">1.5.3.</span> <span class="toc-text">Bug 3：编译警告——未使用变量与误导性缩进</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E6%B5%8B%E8%AF%95%E7%9F%A9%E9%98%B5%E4%B8%8E%E7%BB%93%E6%9E%9C"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 测试矩阵与结果</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%85%B3%E9%94%AE%E6%80%A7%E8%B4%A8%E9%AA%8C%E8%AF%81%EF%BC%88%E6%95%B0%E5%AD%A6%E4%B8%8D%E5%8F%98%E9%87%8F%EF%BC%89"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 关键性质验证（数学不变量）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 性能数据</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列的关联</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%99%84%EF%BC%9A%E5%AE%8C%E6%95%B4%E8%BE%93%E5%87%BA%E6%97%A5%E5%BF%97"><span class="toc-number">1.8.</span> <span class="toc-text">附：完整输出日志</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Tarjan 割点与桥算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法">每日编程实践: Tarjan 割点与桥算法</a><time datetime="2026-11-07T21:35:00.000Z" title="发表于 2026-11-08 05:35:00">2026-11-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</a><time datetime="2026-11-05T22:00:00.000Z" title="发表于 2026-11-06 06:00:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</a><time datetime="2026-11-04T22:00:00.000Z" title="发表于 2026-11-05 06:00:00">2026-11-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-27-hld/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询">每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询</a><time datetime="2026-10-26T22:00:00.000Z" title="发表于 2026-10-27 06:00:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-24-floyd-cycle-detection/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/24/daily-coding-floyd-cycle-detection-2026-10-24/" title="每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环">每日编程实践: Floyd 判圈算法 —— 快慢指针如何在 O(1) 空间里揪出链表环</a><time datetime="2026-10-23T22:00:00.000Z" title="发表于 2026-10-24 06:00:00">2026-10-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
