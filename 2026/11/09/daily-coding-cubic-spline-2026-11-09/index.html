@@ -1,0 +1,556 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: 三次样条插值 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation） 今天的每日编程实践主题是 数值方法中的自然三次样条插值（Natural Cubic Spline Interpolation）。我们通过解一个三对角线性方程组（使用 Thomas 算法）来构造一条 二阶连续（C² 连续） 的分段三次多项式曲线，使其精确通过所有给定数据点，同时避免全局多项式插值在">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: 三次样条插值">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/11/09/daily-coding-cubic-spline-2026-11-09/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation） 今天的每日编程实践主题是 数值方法中的自然三次样条插值（Natural Cubic Spline Interpolation）。我们通过解一个三对角线性方程组（使用 Thomas 算法）来构造一条 二阶连续（C² 连续） 的分段三次多项式曲线，使其精确通过所有给定数据点，同时避免全局多项式插值在">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png">
+<meta property="article:published_time" content="2026-11-08T21:35:00.000Z">
+<meta property="article:modified_time" content="2026-11-08T21:34:49.501Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="Thomas算法">
+<meta property="article:tag" content="三次样条">
+<meta property="article:tag" content="插值">
+<meta property="article:tag" content="数值方法">
+<meta property="article:tag" content="每日一练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: 三次样条插值",
+  "url": "https://chiuhoukazusa.github.io/2026/11/09/daily-coding-cubic-spline-2026-11-09/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png",
+  "datePublished": "2026-11-08T21:35:00.000Z",
+  "dateModified": "2026-11-08T21:34:49.501Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/11/09/daily-coding-cubic-spline-2026-11-09/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: 三次样条插值',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: 三次样条插值</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: 三次样条插值</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-11-08T21:35:00.000Z" title="发表于 2026-11-09 05:35:00">2026-11-09</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-11-08T21:34:49.501Z" title="更新于 2026-11-09 05:34:49">2026-11-09</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践：自然三次样条插值（Natural-Cubic-Spline-Interpolation）"><a href="#每日编程实践：自然三次样条插值（Natural-Cubic-Spline-Interpolation）" class="headerlink" title="每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation）"></a>每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation）</h1><blockquote>
+<p>今天的每日编程实践主题是 <strong>数值方法中的自然三次样条插值（Natural Cubic Spline Interpolation）</strong>。我们通过解一个三对角线性方程组（使用 Thomas 算法）来构造一条 <strong>二阶连续（C² 连续）</strong> 的分段三次多项式曲线，使其精确通过所有给定数据点，同时避免全局多项式插值在等距节点下著名的 <strong>Runge 现象（龙格震荡）</strong>。本篇文章会完整推导数学原理、展示实现架构、逐行解析核心代码、如实记录踩坑过程，并用<strong>解析函数误差、收敛阶、精确性重建</strong>三项量化指标严格验证结果的正确性。</p>
+</blockquote>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在科学计算、计算机辅助设计（CAD）、游戏开发、动画、金融曲线拟合等众多领域，我们经常面临这样的问题：<strong>给定一组离散的采样点 <code>(x_i, y_i)</code>，如何构造一条光滑曲线穿过它们？</strong> 这就是经典的**插值（Interpolation）**问题。</p>
+<h3 id="为什么要关心插值？"><a href="#为什么要关心插值？" class="headerlink" title="为什么要关心插值？"></a>为什么要关心插值？</h3><p>插值的本质是”用有限的信息重建连续的函数”。设想一个工程师拿到了一组传感器读出来的 100 个温度采样点，他希望绘制一条连续的温度变化曲线；或者一个动画师每隔 0.1 秒设置了一个角色关节角度关键帧，他希望角色在关键帧之间平滑运动，而不是一帧一帧地”跳变”。</p>
+<p>如果直接用<strong>线性插值</strong>——即把相邻两点用直线连起来——虽然简单，但曲线在数据点处会出现明显的”折角”（导数不连续），看起来是一条锯齿状的多段线。这在需要求导（比如计算速度、加速度）的下游场景中会带来灾难性后果：导数处处不连续，甚至在某些点上压根无法定义。</p>
+<p>于是人们自然想到：<strong>用更高阶的多项式</strong>来获得更平滑的曲线。</p>
+<h3 id="全局多项式插值的陷阱：Runge-现象"><a href="#全局多项式插值的陷阱：Runge-现象" class="headerlink" title="全局多项式插值的陷阱：Runge 现象"></a>全局多项式插值的陷阱：Runge 现象</h3><p>最”朴素”的高阶方案是构造一个<strong>全局 n-1 次多项式</strong>穿过所有 n 个点（Lagrange 插值、Newton 插值等）。在理论上有著名的 <strong>Weierstrass 逼近定理</strong> 保证：任何连续函数都能被多项式一致逼近。</p>
+<p>然而实践给出了沉重的教训。1901 年，德国数学家 <strong>Carl Runge</strong> 发现：对看似无害的函数</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">f(x) = 1 / (1 + 25x²)   ,   x ∈ [-1, 1]</span><br></pre></td></tr></table></figure>
+
+<p>在区间上取<strong>等距节点</strong>，随着节点数增多，插值多项式在区间两端会产生<strong>剧烈振荡</strong>，误差反而越来越<strong>大</strong>，完全不收敛到原函数。这就是著名的 <strong>Runge 现象（龙格现象 &#x2F; Runge’s phenomenon）</strong>。</p>
+<p>这一现象的根本原因在于：高次多项式是”全局刚性”的——它在某一点附近的行为会强制影响整个定义域。一旦某个区域拟合不好，误差就会”传染”到全区间，并表现为振荡。</p>
+<h3 id="工业界的真实解法：分段低次多项式"><a href="#工业界的真实解法：分段低次多项式" class="headerlink" title="工业界的真实解法：分段低次多项式"></a>工业界的真实解法：分段低次多项式</h3><p>工业界（包括 CAD 软件的曲线工具、游戏引擎的动画曲线编辑器、金融插值库）早已抛弃了”全局高次多项式”这条路，转而采用<strong>分段低次多项式</strong>的方案：<strong>把定义域切成若干段，每一段用一个低阶多项式，并在段与段的交界处施加连续性约束</strong>。</p>
+<p>分段方案的关键优势在于<strong>误差是局部的</strong>：某一小段的拟合误差不会传播到其它段。这正是 Runge 现象的解药。</p>
+<p>在这条路线上，<strong>三次样条（Cubic Spline）</strong> 是最经典、最实用的选择，原因有三：</p>
+<ol>
+<li><strong>三次是”足够光滑”的最低阶数</strong>：三次多项式拥有连续的二次导数，能保证曲线在人眼和物理意义上都足够平滑（不存在曲率突变导致的视觉或力学不自然）。</li>
+<li><strong>三次是”局部灵活”与”光滑”的平衡点</strong>：阶数再低（一次）会折角，阶数再高又容易在段内产生不必要的振荡（类似 Runge 现象在单段内的复发）。</li>
+<li><strong>三次样条有高效的线性求解算法</strong>：构造自然三次样条等价于解一个<strong>三对角线性方程组</strong>，可以用 Thomas 算法在 <code>O(n)</code> 时间内解决，计算代价极小。</li>
+</ol>
+<h3 id="本文目标"><a href="#本文目标" class="headerlink" title="本文目标"></a>本文目标</h3><p>本文将完整实现一个<strong>自然三次样条插值器</strong>：</p>
+<ul>
+<li>从给定数据点出发，构造满足 <strong>C² 连续</strong>（函数值、一阶导、二阶导都在节点处连续）的分段三次多项式；</li>
+<li>使用<strong>自然边界条件</strong>（Natural Boundary Condition），即两端的二阶导数为零；</li>
+<li>用 <strong>Thomas 算法</strong>高效求解三对角系统；</li>
+<li>通过三项<strong>量化验证</strong>证明正确性：与 <code>sin(x)</code>、<code>e^x</code> 等解析函数的误差对比、收敛阶测量、以及线性函数&#x2F;节点精确重现；</li>
+<li>并与全局多项式插值做<strong>头对头对比</strong>，直观展示样条如何以 87 倍优势避免 Runge 现象。</li>
+</ul>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><p>本节我们从零推导三次样条的完整数学构造。请读者注意：<strong>每一个公式我们都会给出直觉解释</strong>，而不仅仅是”背结论”。</p>
+<h3 id="2-1-分段三次多项式的设置"><a href="#2-1-分段三次多项式的设置" class="headerlink" title="2.1 分段三次多项式的设置"></a>2.1 分段三次多项式的设置</h3><p>假设我们有 <code>n</code> 个数据点：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(x_0, y_0), (x_1, y_1), ..., (x_&#123;n-1&#125;, y_&#123;n-1&#125;)   其中 x_0 &lt; x_1 &lt; ... &lt; x_&#123;n-1&#125;</span><br></pre></td></tr></table></figure>
+
+<p>我们希望在每相邻两点之间构造一个三次多项式。整个样条 <code>S(x)</code> 由 <code>n-1</code> 段三次多项式拼接而成，第 <code>i</code> 段定义在 <code>[x_i, x_{i+1}]</code> 上。</p>
+<p>对于第 <code>i</code> 段，我们采用<strong>局部参数化</strong>：引入局部变量 <code>t = x - x_i ∈ [0, h_i]</code>，其中 <code>h_i = x_{i+1} - x_i</code> 是第 <code>i</code> 段的区间长度。第 <code>i</code> 段多项式写为</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">S_i(t) = a_i + b_i·t + c_i·t² + d_i·t³</span><br></pre></td></tr></table></figure>
+
+<p>这样每个段有 4 个未知系数 <code>a_i, b_i, c_i, d_i</code>，总共 <code>n-1</code> 段，共 <code>4(n-1)</code> 个未知数。</p>
+<p><strong>直觉</strong>：用局部变量 <code>t</code> 而非全局 <code>x</code>，是为了让每一段的系数只在本地有意义，数值上也更稳定（避免了大坐标带来的量级差异）。</p>
+<h3 id="2-2-约束条件"><a href="#2-2-约束条件" class="headerlink" title="2.2 约束条件"></a>2.2 约束条件</h3><p>我们需要列出足够的方程来确定这些系数。</p>
+<p><strong>（1）节点处函数值连续（插值条件）</strong></p>
+<p>每一段在端点处必须精确等于给定数据点。这给出：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">S_i(0)   = y_i         （左端点）</span><br><span class="line">S_i(h_i) = y_&#123;i+1&#125;     （右端点）</span><br></pre></td></tr></table></figure>
+
+<p>共 <code>2(n-1)</code> 个方程。</p>
+<p><strong>直觉</strong>：这是”插值”最基本的要求——曲线必须穿过所有已知点。没有这条，就不叫插值了。</p>
+<p><strong>（2）一阶导数连续（C¹ 连续）</strong></p>
+<p>在内部节点 <code>x_i</code>（<code>i = 1, ..., n-2</code>）处，左段与右段的一阶导数必须相等：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">S_&#123;i-1&#125;&#x27;(h_&#123;i-1&#125;) = S_i&#x27;(0)</span><br></pre></td></tr></table></figure>
+
+<p>共 <code>n-2</code> 个方程。</p>
+<p><strong>直觉</strong>：保证曲线不会在节点处”折角”。任何导数不连续的点，在物理上对应速度突变，视觉上对应尖锐的转折。</p>
+<p><strong>（3）二阶导数连续（C² 连续）</strong></p>
+<p>在内部节点处，二阶导数也必须相等：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">S_&#123;i-1&#125;&#x27;&#x27;(h_&#123;i-1&#125;) = S_i&#x27;&#x27;(0)</span><br></pre></td></tr></table></figure>
+
+<p>共 <code>n-2</code> 个方程。</p>
+<p><strong>直觉</strong>：保证”曲率”连续，曲线在节点处不会出现”加速度突变”。这正是三次样条之所以平滑的核心，比一阶连续（如二次样条）更进一层。</p>
+<h3 id="2-3-边界条件：从欠定到定解"><a href="#2-3-边界条件：从欠定到定解" class="headerlink" title="2.3 边界条件：从欠定到定解"></a>2.3 边界条件：从欠定到定解</h3><p>现在数一下方程总数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">插值条件:        2(n-1)</span><br><span class="line">一阶导数连续:     (n-2)</span><br><span class="line">二阶导数连续:     (n-2)</span><br><span class="line">---------------------------------</span><br><span class="line">总计:          4n - 6 个方程</span><br></pre></td></tr></table></figure>
+
+<p>但未知数有 <code>4(n-1) = 4n - 4</code> 个。<strong>方程比未知数少 2 个</strong>，系统欠定，还需要 <strong>2 个边界条件</strong> 才能唯一确定样条。</p>
+<p>常见的边界条件有三种：</p>
+<ol>
+<li><strong>自然边界（Natural）</strong>：<code>S&#39;&#39;(x_0) = 0</code> 且 <code>S&#39;&#39;(x_{n-1}) = 0</code>，即两端二阶导数为零。</li>
+<li><strong>固定&#x2F;夹紧边界（Clamped）</strong>：<code>S&#39;(x_0) = f&#39;(x_0)</code> 且 <code>S&#39;(x_{n-1}) = f&#39;(x_{n-1})</code>，即给定两端一阶导数（通常是真实函数导数的真值）。</li>
+<li><strong>非节点（Not-a-knot）</strong>：要求前两段和后两段的三阶导数连续，等价于让”第 2 个和第 n-2 个节点不真正成为分段点”。</li>
+</ol>
+<p>本文选择<strong>自然边界条件</strong>，它是默认、最常见的选择，优点是<strong>无需任何额外的导数信息</strong>（在只有离散采样点、不知道真实函数导数时，这是唯一可行的方案）。</p>
+<p><strong>直觉</strong>：自然边界”假设”曲线在两端是”放松”的——像一个两端自由的细长弹性木条（spline 一词本就源于造船用的柔性木条 spline），被钉在数据点上后自然弯曲，两端不施加额外力矩。二阶导数为零意味着两端”没有弯曲力矩”。</p>
+<blockquote>
+<p>⚠️ <strong>最重要的理论提醒</strong>：自然边界条件导致样条的全局收敛阶为 <strong>O(h²)</strong>（而非夹紧边界下的 O(h⁴)）。原因在于：自然边界强行让两端二阶导数为零，而当真实函数的二阶导数在端点不为零时，会引入一个 O(h²) 级别的边界误差。这个误差会向内部传播。本文后面会用一个实验精确验证这一点。</p>
+</blockquote>
+<h3 id="2-4-关键技巧：以二阶导数为未知数"><a href="#2-4-关键技巧：以二阶导数为未知数" class="headerlink" title="2.4 关键技巧：以二阶导数为未知数"></a>2.4 关键技巧：以二阶导数为未知数</h3><p>直接解 <code>4n-4</code> 个未知数会得到一个（几乎）稠密的线性系统，代价高。经典的三次样条构造法利用了一个巧妙的技巧：<strong>用节点处的二阶导数 <code>M_i = S&#39;&#39;(x_i)</code> 作为”中介未知数”</strong>。</p>
+<p>之所以选择二阶导数，是因为<strong>三次多项式的二阶导数是线性的</strong>。具体地，在第 <code>i</code> 段内，<code>S_i&#39;&#39;(x)</code> 是一条直线，从 <code>M_i</code> 线性过渡到 <code>M_{i+1}</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">S_i&#x27;&#x27;(x) = M_i · (x_&#123;i+1&#125; - x)/h_i  +  M_&#123;i+1&#125; · (x - x_i)/h_i</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉</strong>：这是整段推导的”神来之笔”。三次多项式的一阶导是二次函数，二阶导是一次函数（直线）。一条直线完全由两个端点值 <code>M_i, M_{i+1}</code> 确定。因此，只要我们知道每个节点的二阶导数值 <code>M_i</code>，通过<strong>两次积分</strong>就能把整段三次多项式完全重建出来。</p>
+<h3 id="2-5-两次积分重建系数"><a href="#2-5-两次积分重建系数" class="headerlink" title="2.5 两次积分重建系数"></a>2.5 两次积分重建系数</h3><p>对 <code>S_i&#39;&#39;(x)</code> 做一次积分（利用 C¹ 连续条件消去积分常数），再对得到的 <code>S_i&#39;(x)</code> 做一次积分（利用插值条件消去积分常数），最终得到用 <code>M_i, M_{i+1}</code> 表达的四个系数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">a_i = y_i</span><br><span class="line">b_i = (y_&#123;i+1&#125; - y_i)/h_i  -  h_i·(2M_i + M_&#123;i+1&#125;)/6</span><br><span class="line">c_i = M_i / 2</span><br><span class="line">d_i = (M_&#123;i+1&#125; - M_i) / (6·h_i)</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐项直觉解释</strong>：</p>
+<ul>
+<li><strong><code>a_i = y_i</code></strong>：当 <code>t = 0</code> 时 <code>S_i = a_i</code>，左端点必须等于 <code>y_i</code>，因此 <code>a_i</code> 就是左端点函数值，最简单的一条。</li>
+<li><strong><code>c_i = M_i/2</code></strong>：二次项系数对应的是该段左端点的二阶导数的一半。因为对 <code>S_i(t) = a_i + b_i t + c_i t² + d_i t³</code> 求二阶导得 <code>S_i&#39;&#39;(t) = 2c_i + 6d_i·t</code>，在 <code>t=0</code> 处 <code>S_i&#39;&#39;(0) = 2c_i = M_i</code>，所以 <code>c_i = M_i/2</code>。</li>
+<li><strong><code>d_i = (M_{i+1} - M_i)/(6h_i)</code></strong>：三次项系数刻画二阶导数在该段内”变化的速度”。因为二阶导是线性的，其斜率为 <code>(M_{i+1} - M_i)/h_i</code>，而 <code>S_i&#39;&#39;(t) = 2c_i + 6d_i·t</code> 对 <code>t</code> 求导得 <code>6d_i</code>，所以 <code>6d_i = (M_{i+1}-M_i)/h_i</code>，即 <code>d_i = (M_{i+1} - M_i)/(6h_i)</code>。</li>
+<li><strong><code>b_i</code>（最复杂的一项）</strong>：它由两部分组成。第一项 <code>(y_{i+1}-y_i)/h_i</code> 是”平均斜率”（线性插值的斜率）；第二项 <code>-h_i(2M_i + M_{i+1})/6</code> 是”曲率修正项”，它把二阶导数的影响”折回去”调整一次项，使得插值条件 <code>S_i(h_i) = y_{i+1}</code> 能精确满足。</li>
+</ul>
+<h3 id="2-6-导出三对角线性系统"><a href="#2-6-导出三对角线性系统" class="headerlink" title="2.6 导出三对角线性系统"></a>2.6 导出三对角线性系统</h3><p>目前 <code>M_i</code> 还是未知的。要确定它们，我们利用<strong>内部节点处一阶导数连续（C¹ 连续）</strong> 这一尚未用过的条件。</p>
+<p>将 <code>S_i&#39;(x)</code> 的表达式代入 <code>S_{i-1}&#39;(h_{i-1}) = S_i&#39;(0)</code>，经过整理（这里省略冗长的代数，但每一步都只是代入和合并同类项），得到对每个内部节点 <code>i = 1, ..., n-2</code> 的方程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">h_&#123;i-1&#125;·M_&#123;i-1&#125;  +  2(h_&#123;i-1&#125; + h_i)·M_i  +  h_i·M_&#123;i+1&#125;</span><br><span class="line">   =  6 · [ (y_&#123;i+1&#125; - y_i)/h_i  -  (y_i - y_&#123;i-1&#125;)/h_&#123;i-1&#125; ]</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个式子的直觉</strong>（非常重要）：</p>
+<ul>
+<li><strong>左边</strong>是相邻三个节点二阶导数 <code>M_{i-1}, M_i, M_{i+1}</code> 的<strong>加权组合</strong>。权重 <code>h_{i-1}</code>、<code>2(h_{i-1}+h_i)</code>、<code>h_i</code> 是相邻区间长度，体现了”曲线弯曲受左右邻居影响”的物理直觉——两侧区间越长，影响越大。</li>
+<li><strong>右边</strong>是相邻两段的<strong>平均斜率之差乘以 6</strong>。<code>(y_{i+1}-y_i)/h_i</code> 是右边一段的平均斜率，<code>(y_i-y_{i-1})/h_{i-1}</code> 是左边一段的平均斜率。<strong>两者之差</strong>衡量了曲线在节点 <code>i</code> 处的”斜率突变程度”。如果所有点都在一条直线上，则左右斜率相等，右边为 0，导致 <code>M_i = 0</code>，这是对的（直线二阶导数为零）。</li>
+</ul>
+<h3 id="2-7-组装成三对角矩阵"><a href="#2-7-组装成三对角矩阵" class="headerlink" title="2.7 组装成三对角矩阵"></a>2.7 组装成三对角矩阵</h3><p>结合自然边界条件 <code>M_0 = 0</code> 和 <code>M_{n-1} = 0</code>，我们得到一个关于 <code>M = [M_0, M_1, ..., M_{n-1}]^T</code> 的线性方程组：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[ 1      0                            ] [M_0   ]   [ 0        ]</span><br><span class="line">[ h_0  2(h_0+h_1)  h_1                ] [M_1   ]   [ 6(...)   ]</span><br><span class="line">[      h_1    2(h_1+h_2)  h_2         ] [M_2   ] = [ 6(...)   ]</span><br><span class="line">[              ...                    ] [ ...  ]   [ ...      ]</span><br><span class="line">[                        h_&#123;n-2&#125;   1  ] [M_&#123;n-1&#125;]   [ 0        ]</span><br></pre></td></tr></table></figure>
+
+<p>这是一个<strong>三对角矩阵</strong>：只有主对角线、上下两条次对角线非零，其余全零。</p>
+<p><strong>为什么这是好消息</strong>：三对角方程组可以用 <strong>Thomas 算法（追赶法）</strong> 在 <code>O(n)</code> 时间和 <code>O(n)</code> 空间内精确求解，而通用高斯消元需要 <code>O(n³)</code>。这是三次样条如此高效的根本原因。</p>
+<h3 id="2-8-Thomas-算法（追赶法）"><a href="#2-8-Thomas-算法（追赶法）" class="headerlink" title="2.8 Thomas 算法（追赶法）"></a>2.8 Thomas 算法（追赶法）</h3><p>Thomas 算法是专门针对三对角系统的高斯消元特化版本。设系统为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">a_i · M_&#123;i-1&#125;  +  b_i · M_i  +  c_i · M_&#123;i+1&#125;  =  d_i</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>a_0 = 0</code> 且 <code>c_{n-1} = 0</code>（边界处没有”越界”项）。</p>
+<p><strong>第一步：前向消去（Forward Sweep）</strong></p>
+<p>从 <code>i = 1</code> 到 <code>n-1</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">m    = a_i / b_&#123;i-1&#125;</span><br><span class="line">b_i  = b_i - m · c_&#123;i-1&#125;</span><br><span class="line">d_i  = d_i - m · d_&#123;i-1&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉</strong>：把第 <code>i</code> 行的 <code>a_i</code>（次对角线元素）”消掉”，通过减去上一行的一个倍数。<code>m</code> 就是这个倍数，它使得消元后 <code>a_i</code> 变为 0。</p>
+<p><strong>第二步：回代（Back Substitution）</strong></p>
+<p>从 <code>i = n-1</code> 到 <code>0</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">M_&#123;n-1&#125; = d_&#123;n-1&#125; / b_&#123;n-1&#125;</span><br><span class="line">M_i     = (d_i - c_i · M_&#123;i+1&#125;) / b_i</span><br></pre></td></tr></table></figure>
+
+<p><strong>直觉</strong>：消元完成后，最后一行的系数只剩 <code>b_{n-1}</code>，可以直接求出 <code>M_{n-1}</code>；然后从后往前，每个 <code>M_i</code> 都可以用已知的 <code>M_{i+1}</code> 求出。</p>
+<p>Thomas 算法的总操作数是 <code>O(n)</code>，且数值稳定（前提是矩阵对角线占优，三次样条的三对角系统满足这一点，因为 <code>2(h_{i-1}+h_i) &gt; h_{i-1} + h_i</code>）。</p>
+<h3 id="2-9-收敛阶分析（为什么是-O-h²-而非-O-h⁴-）"><a href="#2-9-收敛阶分析（为什么是-O-h²-而非-O-h⁴-）" class="headerlink" title="2.9 收敛阶分析（为什么是 O(h²) 而非 O(h⁴)）"></a>2.9 收敛阶分析（为什么是 O(h²) 而非 O(h⁴)）</h3><p>这是本文最值得记住的理论点之一。</p>
+<p>对于**夹紧（clamped）**三次样条，当真实函数 <code>f</code> 充分光滑时，误差满足</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">||S - f||_∞ ≤ (5/384)·||f^(4)||_∞·h^4</span><br></pre></td></tr></table></figure>
+
+<p>即 <strong>O(h⁴) 收敛</strong>。</p>
+<p>但对于<strong>自然（natural）<strong>三次样条，由于自然边界条件 <code>S&#39;&#39;(x_0) = S&#39;&#39;(x_{n-1}) = 0</code> 通常</strong>不等于</strong>真实函数的二阶导数 <code>f&#39;&#39;(x_0)</code> 和 <code>f&#39;&#39;(x_{n-1})</code>，会在边界处引入一个 <code>O(h²)</code> 的误差，且该误差会传播到整个区间，导致全局收敛阶降为 <strong>O(h²)</strong>。</p>
+<p><strong>直觉</strong>：自然边界是一种”错误”的边界假设（除非真实函数恰好两端二阶导数为零）。这个边界处的”失配”以 O(h²) 的量级污染整个解。而夹紧边界因为使用了正确的导数信息，能把误差压到 O(h⁴)。</p>
+<p>本文后面会用实验<strong>实证</strong>这个结论：对 <code>e^x</code> 在 <code>[0,1]</code> 上，用 4&#x2F;8&#x2F;16 个节点测得的收敛阶约为 <strong>2.0</strong>，恰好吻合理论。</p>
+<h3 id="2-10-与其它方案对比"><a href="#2-10-与其它方案对比" class="headerlink" title="2.10 与其它方案对比"></a>2.10 与其它方案对比</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>平滑性</th>
+<th>是否 Runge 震荡</th>
+<th>复杂度</th>
+<th>收敛阶（光滑函数）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>线性插值</td>
+<td>C⁰</td>
+<td>无</td>
+<td>O(n)</td>
+<td>O(h²)</td>
+</tr>
+<tr>
+<td>全局多项式(Lagrange)</td>
+<td>C^∞</td>
+<td><strong>严重</strong></td>
+<td>O(n²)</td>
+<td>可能不收敛（Runge）</td>
+</tr>
+<tr>
+<td>二次样条</td>
+<td>C¹</td>
+<td>无</td>
+<td>O(n)</td>
+<td>O(h³)</td>
+</tr>
+<tr>
+<td><strong>自然三次样条</strong></td>
+<td><strong>C²</strong></td>
+<td><strong>无</strong></td>
+<td>O(n)</td>
+<td>O(h²)</td>
+</tr>
+<tr>
+<td>夹紧三次样条</td>
+<td>C²</td>
+<td>无</td>
+<td>O(n)</td>
+<td>O(h⁴)</td>
+</tr>
+</tbody></table>
+<p>可以看到，自然三次样条以 <strong>O(n) 的低成本</strong> 换来了 <strong>C² 平滑性 + 无 Runge 震荡</strong>，是”性价比”极高的选择。</p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>本项目的实现分为清晰的五个模块，数据从输入一路流到验证：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">数据点 (x_i, y_i)</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">[1] 构建三对角系统  ──►  求区间长度 h_i + 右侧 6(斜率差)</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">[2] Thomas 算法求解  ──►  得到节点二阶导数 M_i</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">[3] 重建每段系数    ──►  a_i, b_i, c_i, d_i</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">[4] eval(x) 求值     ──►  二分定位分段 + 局部多项式计算</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">[5] 量化验证         ──►  对比解析函数，输出 max-err/RMSE/收敛阶</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><p>核心数据结构是 <code>CubicSpline</code> 结构体，存储了四个长度均为 <code>n-1</code> 的系数数组：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">CubicSpline</span> &#123;</span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; xs;   <span class="comment">// 节点横坐标（长度 n）</span></span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; a, b, c, d;  <span class="comment">// 每段系数（长度 n-1）</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>设计理由</strong>：</p>
+<ol>
+<li><strong>存 <code>xs</code> 而非隐含等距假设</strong>：支持<strong>非等距节点</strong>，这是真实场景的普遍需求（采样点往往不均匀）。</li>
+<li><strong>每段系数独立成数组</strong>：求值时只需读取对应段的 <code>a[i]/b[i]/c[i]/d[i]</code>，缓存友好，且避免用结构体数组带来的对齐填充浪费。</li>
+<li><strong>局部参数化段多项式 <code>S_i(t) = a_i + b_i t + c_i t² + d_i t³</code></strong>：<code>t = x - x_i ∈ [0, h_i]</code>，求值时数值更稳定。</li>
+</ol>
+<h3 id="3-3-模块职责划分"><a href="#3-3-模块职责划分" class="headerlink" title="3.3 模块职责划分"></a>3.3 模块职责划分</h3><table>
+<thead>
+<tr>
+<th>模块</th>
+<th>职责</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>thomasSolve()</code></td>
+<td>解三对角系统</td>
+<td>纯函数，输入 <code>a/b/c/d</code>，输出 <code>M</code></td>
+</tr>
+<tr>
+<td><code>CubicSpline::build()</code></td>
+<td>从数据点构造样条</td>
+<td>组装系统 + 调用 Thomas + 重建系数</td>
+</tr>
+<tr>
+<td><code>CubicSpline::eval()</code></td>
+<td>求值</td>
+<td>二分定位分段，<code>O(log n)</code></td>
+</tr>
+<tr>
+<td><code>LagrangeInterp</code></td>
+<td>全局多项式插值（对照用）</td>
+<td>用于演示 Runge 现象</td>
+</tr>
+<tr>
+<td><code>quantify()</code></td>
+<td>误差量化</td>
+<td>密集采样计算 max-err&#x2F;RMSE&#x2F;均值</td>
+</tr>
+</tbody></table>
+<h3 id="3-4-为什么选择这些设计"><a href="#3-4-为什么选择这些设计" class="headerlink" title="3.4 为什么选择这些设计"></a>3.4 为什么选择这些设计</h3><ul>
+<li><strong><code>thomasSolve</code> 独立出来</strong>：Thomas 算法是通用工具，独立成函数便于复用和单独测试。</li>
+<li><strong>求值用 <code>upper_bound</code> 二分</strong>：<code>std::upper_bound</code> 是标准库的二分查找，返回第一个大于 <code>x</code> 的位置，减 1 即得所在分段，<code>O(log n)</code> 而非朴素线性扫描的 <code>O(n)</code>。</li>
+<li><strong>对照实验用独立的 <code>LagrangeInterp</code> 结构体</strong>：保持主逻辑干净，对照算法不影响样条实现。</li>
+</ul>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>本节<strong>完整内嵌</strong>核心代码，并逐行解释”为什么这样写”。</p>
+<h3 id="4-1-Thomas-算法"><a href="#4-1-Thomas-算法" class="headerlink" title="4.1 Thomas 算法"></a>4.1 Thomas 算法</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 三对角线性方程组求解（Thomas 算法 / 追赶法）</span></span><br><span class="line"><span class="comment">// 求解 a[i]*x[i-1] + b[i]*x[i] + c[i]*x[i+1] = d[i]</span></span><br><span class="line"><span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">thomasSolve</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; a,</span></span></span><br><span class="line"><span class="params"><span class="function">                                <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; b,</span></span></span><br><span class="line"><span class="params"><span class="function">                                <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; c,</span></span></span><br><span class="line"><span class="params"><span class="function">                                <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; d)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)d.<span class="built_in">size</span>();</span><br><span class="line">    <span class="comment">// 注意：必须拷贝 b，因为前向消去会原地修改对角线</span></span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; bp = b, cp = c, dp = d;</span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">x</span><span class="params">(n)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ---- 前向消去（Forward Sweep） ----</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="type">double</span> m = a[i] / bp[i - <span class="number">1</span>];   <span class="comment">// 消元倍数</span></span><br><span class="line">        bp[i] -= m * cp[i - <span class="number">1</span>];        <span class="comment">// 消去次对角线，更新主对角线</span></span><br><span class="line">        dp[i] -= m * dp[i - <span class="number">1</span>];        <span class="comment">// 同步更新右侧</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ---- 回代（Back Substitution） ----</span></span><br><span class="line">    x[n - <span class="number">1</span>] = dp[n - <span class="number">1</span>] / bp[n - <span class="number">1</span>];  <span class="comment">// 最后一行只有一个未知数</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = n - <span class="number">2</span>; i &gt;= <span class="number">0</span>; i--) &#123;</span><br><span class="line">        x[i] = (dp[i] - cp[i] * x[i + <span class="number">1</span>]) / bp[i];</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> x;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要拷贝 <code>b</code> 和 <code>c</code>？</strong> 因为 <code>b</code> 和 <code>c</code> 是以 <code>const&amp;</code> 传入的，而前向消去需要<strong>原地修改</strong> <code>bp[i]</code> 和后续用到的 <code>cp[i-1]</code>。如果不拷贝直接修改形参，会因为 <code>const</code> 修饰而编译失败（这是本文踩坑实录里记录的第一个 Bug）。拷贝一份 <code>bp = b</code>、<code>cp = c</code>、<code>dp = d</code> 既保留了传入参数不被污染，又允许原地消元。</p>
+<p><strong>为什么第一个循环从 <code>i = 1</code> 开始？</strong> 因为 <code>a[0]</code> 在自然边界条件下是 0（第 0 行没有次对角线项），不需要消元。消元从第 1 行开始，逐个消去每行的 <code>a[i]</code>。</p>
+<p><strong>为什么回代从 <code>n-1</code> 往前？</strong> 前向消元的结果是一个上三角矩阵（次对角线全被消成 0），最后一行只剩 <code>bp[n-1]·x[n-1] = dp[n-1]</code>，可以直接解出 <code>x[n-1]</code>，然后依次向前代入。</p>
+<p><strong><code>m = a[i] / bp[i-1]</code> 会不会除零？</strong> 对于三次样条的三对角系统，对角线满足严格占优：<code>2(h_{i-1}+h_i) &gt; h_{i-1} + h_i</code>，因此 <code>bp</code> 在消元过程中始终保持非零，Thomas 算法数值稳定。</p>
+<h3 id="4-2-构建三对角系统"><a href="#4-2-构建三对角系统" class="headerlink" title="4.2 构建三对角系统"></a>4.2 构建三对角系统</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">void</span> <span class="title">build</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; X, <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; Y)</span> </span>&#123;</span><br><span class="line">    <span class="type">int</span> n = (<span class="type">int</span>)X.<span class="built_in">size</span>();</span><br><span class="line">    <span class="built_in">assert</span>(n &gt;= <span class="number">3</span>);          <span class="comment">// 至少 3 个点才能构成一段有意义的三次样条</span></span><br><span class="line">    xs = X;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 计算每段区间长度</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">h</span><span class="params">(n - <span class="number">1</span>)</span></span>;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n - <span class="number">1</span>; i++) h[i] = X[i + <span class="number">1</span>] - X[i];</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 组装三对角系统（未知数是二阶导数 M[0..n-1]）</span></span><br><span class="line">    <span class="function">std::vector&lt;<span class="type">double</span>&gt; <span class="title">lo</span><span class="params">(n)</span>, <span class="title">diag</span><span class="params">(n)</span>, <span class="title">up</span><span class="params">(n)</span>, <span class="title">rhs</span><span class="params">(n)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 自然边界条件：M0 = 0</span></span><br><span class="line">    diag[<span class="number">0</span>] = <span class="number">1.0</span>; up[<span class="number">0</span>] = <span class="number">0.0</span>; rhs[<span class="number">0</span>] = <span class="number">0.0</span>;</span><br><span class="line">    <span class="comment">// 自然边界条件：M_&#123;n-1&#125; = 0</span></span><br><span class="line">    diag[n<span class="number">-1</span>] = <span class="number">1.0</span>; lo[n<span class="number">-1</span>] = <span class="number">0.0</span>; rhs[n<span class="number">-1</span>] = <span class="number">0.0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 内部节点：h[i-1]*M[i-1] + 2(h[i-1]+h[i])*M[i] + h[i]*M[i+1] = 6*斜率差</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">1</span>; i &lt; n - <span class="number">1</span>; i++) &#123;</span><br><span class="line">        lo[i]   = h[i - <span class="number">1</span>];</span><br><span class="line">        diag[i] = <span class="number">2.0</span> * (h[i - <span class="number">1</span>] + h[i]);</span><br><span class="line">        up[i]   = h[i];</span><br><span class="line">        <span class="type">double</span> dy1 = (Y[i<span class="number">+1</span>] - Y[i]) / h[i];</span><br><span class="line">        <span class="type">double</span> dy0 = (Y[i] - Y[i<span class="number">-1</span>]) / h[i<span class="number">-1</span>];</span><br><span class="line">        rhs[i] = <span class="number">6.0</span> * (dy1 - dy0);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; M = <span class="built_in">thomasSolve</span>(lo, diag, up, rhs);</span><br><span class="line">    <span class="comment">// ... 重建系数（见 4.3）</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>diag[0] = 1.0; rhs[0] = 0.0</code> 是什么意思？</strong> 这里的第 0 行方程是 <code>1·M_0 = 0</code>，即 <code>M_0 = 0</code>，正是自然边界条件”左端二阶导数为零”的直接编码。同理最后一行编码 <code>M_{n-1} = 0</code>。</p>
+<p><strong>为什么 <code>diag[i] = 2(h_{i-1}+h_i)</code>？</strong> 这是 2.6 节推导出的对角线系数。用 <code>2</code> 是因为一阶导数连续条件的代数整理会产生因子 2（源于二次项求导的 <code>2c_i</code>）。</p>
+<p><strong>为什么 <code>rhs[i] = 6(dy1 - dy0)</code>？</strong> 右侧是”左右平均斜率之差乘以 6”。因子 6 同样来自代数的合并。</p>
+<p><strong>为什么 <code>assert(n &gt;= 3)</code>？</strong> 少于 3 个点无法构造有内部节点的三对角系统（内部循环 <code>for i=1..n-2</code> 会空转，且至少需要一段区间）。</p>
+<h3 id="4-3-重建每段系数"><a href="#4-3-重建每段系数" class="headerlink" title="4.3 重建每段系数"></a>4.3 重建每段系数</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">a.<span class="built_in">resize</span>(n - <span class="number">1</span>); b.<span class="built_in">resize</span>(n - <span class="number">1</span>); c.<span class="built_in">resize</span>(n - <span class="number">1</span>); d.<span class="built_in">resize</span>(n - <span class="number">1</span>);</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n - <span class="number">1</span>; i++) &#123;</span><br><span class="line">    a[i] = Y[i];</span><br><span class="line">    b[i] = (Y[i<span class="number">+1</span>] - Y[i]) / h[i] - h[i] * (<span class="number">2.0</span>*M[i] + M[i<span class="number">+1</span>]) / <span class="number">6.0</span>;</span><br><span class="line">    c[i] = M[i] / <span class="number">2.0</span>;</span><br><span class="line">    d[i] = (M[i<span class="number">+1</span>] - M[i]) / (<span class="number">6.0</span> * h[i]);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这四行是 2.5 节推导结果的直接翻译：</p>
+<ul>
+<li><code>a[i] = Y[i]</code>：左端点函数值。</li>
+<li><code>c[i] = M[i] / 2.0</code>：左端点二阶导数的一半（<code>2c_i = M_i</code>）。</li>
+<li><code>d[i] = (M[i+1]-M[i])/(6h[i])</code>：二阶导数的斜率除以 6。</li>
+<li><code>b[i]</code>：平均斜率 <code>(Y[i+1]-Y[i])/h[i]</code> 减去曲率修正项 <code>h[i](2M[i]+M[i+1])/6</code>。</li>
+</ul>
+<p><strong>为什么 <code>b[i]</code> 是”减”而不是”加”？</strong> 这是最容易写错的地方之一。曲率（正二阶导数）会让曲线”向上凸”，而平均斜率是”直线连接”的斜率。当曲线向上凸时，某一点的实际切线斜率通常<strong>小于</strong>两点间平均斜率（对凸函数而言），因此需要”减去”曲率修正项。符号搞反会导致曲线完全错位。本文的踩坑实录会记录一个与符号相关的排查思路（虽然最终 Bug 不在符号，但这个易错点必须标注）。</p>
+<h3 id="4-4-求值"><a href="#4-4-求值" class="headerlink" title="4.4 求值"></a>4.4 求值</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="type">double</span> <span class="title">eval</span><span class="params">(<span class="type">double</span> x)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 处理越界：钳制到定义域端点</span></span><br><span class="line">    <span class="keyword">if</span> (x &lt;= xs[<span class="number">0</span>])     x = xs[<span class="number">0</span>];</span><br><span class="line">    <span class="keyword">if</span> (x &gt;= xs.<span class="built_in">back</span>()) x = xs.<span class="built_in">back</span>();</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 二分定位所在分段</span></span><br><span class="line">    <span class="type">int</span> i = (<span class="type">int</span>)(std::<span class="built_in">upper_bound</span>(xs.<span class="built_in">begin</span>(), xs.<span class="built_in">end</span>(), x) - xs.<span class="built_in">begin</span>()) - <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">if</span> (i &lt; <span class="number">0</span>)     i = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (i &gt;= (<span class="type">int</span>)a.<span class="built_in">size</span>()) i = (<span class="type">int</span>)a.<span class="built_in">size</span>() - <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="type">double</span> t = x - xs[i];</span><br><span class="line">    <span class="keyword">return</span> a[i] + b[i]*t + c[i]*t*t + d[i]*t*t*t;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用 <code>upper_bound</code> 而不是 <code>lower_bound</code>？</strong> <code>upper_bound(x)</code> 返回第一个 <code>&gt; x</code> 的元素下标，减 1 之后得到的是<strong>最后一个 <code>≤ x</code> 的元素下标</strong>，正好是左端点 <code>i</code> 使得 <code>x ∈ [xs_i, xs_{i+1})</code>。而 <code>lower_bound</code> 会在 <code>x</code> 恰好等于某个节点时返回”当前节点”而非”左段”，导致端点求值错位。</p>
+<p><strong>为什么末尾还要 <code>if (i &gt;= a.size())</code> 防御？</strong> 当 <code>x == xs.back()</code> 时，<code>upper_bound</code> 返回 <code>n</code>，减 1 得 <code>n-1</code>，但分段只有 <code>n-1</code> 个（下标 <code>0..n-2</code>），<code>i = n-1</code> 会越界。虽然前面已经把 <code>x &gt;= xs.back()</code> 钳制为 <code>x = xs.back()</code>，但此时 <code>upper_bound</code> 对等于末尾的值仍返回 <code>n</code>，所以仍需要把 <code>i</code> 收回到 <code>n-2</code>。这是一个<strong>非常隐蔽的越界风险</strong>，必须在代码里显式处理。</p>
+<h3 id="4-5-全局多项式插值（对照用）"><a href="#4-5-全局多项式插值（对照用）" class="headerlink" title="4.5 全局多项式插值（对照用）"></a>4.5 全局多项式插值（对照用）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">LagrangeInterp</span> &#123;</span><br><span class="line">    std::vector&lt;<span class="type">double</span>&gt; xs, ys;</span><br><span class="line">    <span class="function"><span class="type">void</span> <span class="title">build</span><span class="params">(<span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; X, <span class="type">const</span> std::vector&lt;<span class="type">double</span>&gt;&amp; Y)</span> </span>&#123; xs = X; ys = Y; &#125;</span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">eval</span><span class="params">(<span class="type">double</span> x)</span> <span class="type">const</span> </span>&#123;</span><br><span class="line">        <span class="type">double</span> r = <span class="number">0.0</span>;</span><br><span class="line">        <span class="type">int</span> n = (<span class="type">int</span>)xs.<span class="built_in">size</span>();</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">            <span class="type">double</span> term = ys[i];</span><br><span class="line">            <span class="keyword">for</span> (<span class="type">int</span> j = <span class="number">0</span>; j &lt; n; j++) &#123;</span><br><span class="line">                <span class="keyword">if</span> (j == i) <span class="keyword">continue</span>;</span><br><span class="line">                term *= (x - xs[j]) / (xs[i] - xs[j]);  <span class="comment">// 拉格朗日基函数</span></span><br><span class="line">            &#125;</span><br><span class="line">            r += term;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> r;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这是标准的 <strong>Lagrange 插值</strong>，<code>O(n²)</code> 求值。它存在的唯一目的是<strong>做对照组</strong>——用最直观的方式展示全局多项式在等距节点下的 Runge 震荡有多严重，从而反衬样条插值的优越性。</p>
+<h3 id="4-6-误差量化"><a href="#4-6-误差量化" class="headerlink" title="4.6 误差量化"></a>4.6 误差量化</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">Stats</span> &#123; <span class="type">double</span> maxErr, rmse, meanAbs; &#125;;</span><br><span class="line"></span><br><span class="line"><span class="function">Stats <span class="title">quantify</span><span class="params">(<span class="type">const</span> std::function&lt;<span class="type">double</span>(<span class="type">double</span>)&gt;&amp; interp,</span></span></span><br><span class="line"><span class="params"><span class="function">               <span class="type">const</span> std::function&lt;<span class="type">double</span>(<span class="type">double</span>&gt;&amp; f,</span></span></span><br><span class="line"><span class="params"><span class="function">               <span class="type">double</span> lo, <span class="type">double</span> hi, <span class="type">int</span> samples) &#123;</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">double</span> maxErr = <span class="number">0.0</span>, sumSq = <span class="number">0.0</span>, sumAbs = <span class="number">0.0</span>;</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="keyword">for</span> (<span class="type">int</span> k = <span class="number">0</span>; k &lt;= samples; k++) &#123;</span></span></span><br><span class="line"><span class="params"><span class="function">        <span class="type">double</span> x = lo + (hi - lo) * k / samples;</span></span></span><br><span class="line"><span class="params"><span class="function">        <span class="type">double</span> e = std::fabs(interp(x) - f(x));</span></span></span><br><span class="line"><span class="params"><span class="function">        maxErr = std::max(maxErr, e);</span></span></span><br><span class="line"><span class="params"><span class="function">        sumSq += e * e;</span></span></span><br><span class="line"><span class="params"><span class="function">        sumAbs += e;</span></span></span><br><span class="line"><span class="params"><span class="function">    &#125;</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="type">int</span> n = samples + <span class="number">1</span>;</span></span></span><br><span class="line"><span class="params"><span class="function">    <span class="keyword">return</span> &#123; maxErr, std::sqrt(sumSq / n), sumAbs / n &#125;;</span></span></span><br><span class="line"><span class="params"><span class="function">&#125;</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>quantify</code> 在 <code>[lo, hi]</code> 上取 <code>samples+1</code> 个密集采样点，计算三项指标：</p>
+<ul>
+<li><strong>max-err（最大绝对误差）</strong>：最坏情况误差，衡量”最差点偏离多远”。</li>
+<li><strong>RMSE（均方根误差）</strong>：整体误差水平的平方平均开根，比最大误差更能反映”典型”偏差。</li>
+<li><strong>mean-abs（平均绝对误差）</strong>：误差绝对值的简单平均。</li>
+</ul>
+<p><strong>为什么用三项指标而不是只看一项？</strong> 最大误差可能被个别离群点”带偏”（比如 Runge 振荡在端点处的尖峰），而 RMSE 和均值能反映整体的拟合质量。三者结合才能全面刻画插值器的表现。</p>
+<h3 id="4-7-收敛阶测量"><a href="#4-7-收敛阶测量" class="headerlink" title="4.7 收敛阶测量"></a>4.7 收敛阶测量</h3><p>在 Test 3 中，我们对 <code>e^x</code> 分别用 4、8、16 个节点构造样条，记录各自的 <code>max-err</code>，然后用公式估算收敛阶：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">double</span> order = std::<span class="built_in">log</span>(maxErrs[<span class="number">0</span>] / maxErrs[<span class="number">2</span>]) / std::<span class="built_in">log</span>((<span class="number">16.0</span> - <span class="number">1</span>) / (<span class="number">4.0</span> - <span class="number">1</span>));</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这么算？</strong> 假设误差满足 <code>E(N) ≈ C · h^p = C · (1/(N-1))^p</code>，则</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">E(N1)/E(N2) = (h1/h2)^p = ((N2-1)/(N1-1))^p</span><br></pre></td></tr></table></figure>
+
+<p>两边取对数即可解出 <code>p</code>。用 N&#x3D;4 和 N&#x3D;16 这两端最远的点来估计，能减少数值噪声的影响。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>这一节如实记录开发过程中遇到的实际 Bug，每一个都遵循”症状 → 错误假设 → 真实原因 → 修复方式”的结构，让读者能避开同样的坑。</p>
+<h3 id="坑-1：const-引用形参被赋值-→-编译失败"><a href="#坑-1：const-引用形参被赋值-→-编译失败" class="headerlink" title="坑 1：const 引用形参被赋值 → 编译失败"></a>坑 1：<code>const</code> 引用形参被赋值 → 编译失败</h3><p><strong>症状</strong>：第一次编译报错</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">error: assignment of read-only location &#x27;(&amp; b)-&gt;std::vector&lt;double&gt;::operator[](...)&#x27;</span><br><span class="line">   26 |         b[i] -= m * cp[i - 1];</span><br></pre></td></tr></table></figure>
+
+<p><strong>错误假设</strong>：我以为 <code>const std::vector&lt;double&gt;&amp; b</code> 只是”传引用避免拷贝”，在函数体内可以像普通局部变量一样原地修改。</p>
+<p><strong>真实原因</strong>：<code>const&amp;</code> 的语义是”只读引用”。C++ 里对 <code>const</code> 引用的底层元素做赋值，等于修改只读位置，编译器直接拒绝。Thomas 算法的前向消去偏偏需要<strong>原地</strong>更新对角线 <code>b[i]</code> 和右侧 <code>d[i]</code>。</p>
+<p><strong>修复方式</strong>：在函数开头拷贝一份可变的局部副本 <code>std::vector&lt;double&gt; bp = b, cp = c, dp = d;</code>，后续消元全部操作 <code>bp/cp/dp</code>，既不动传入参数，又满足原地修改的需求。<strong>教训</strong>：凡是需要”原地修改输入”的算法，要么用非 const 引用传参，要么在函数内先拷贝一份。</p>
+<h3 id="坑-2：把”自然边界”错当成”精确重现任意三次多项式”"><a href="#坑-2：把”自然边界”错当成”精确重现任意三次多项式”" class="headerlink" title="坑 2：把”自然边界”错当成”精确重现任意三次多项式”"></a>坑 2：把”自然边界”错当成”精确重现任意三次多项式”</h3><p><strong>症状</strong>：我的 Test 4 最初写的是”用自然样条插值 <code>f(x)=x³</code>，期望精确重现”，结果实测 <code>max-err = 1.84e-2</code>，完全失败。我一度怀疑是三对角系统或系数重建有 Bug。</p>
+<p><strong>错误假设</strong>：我错误地认为”三次样条既然是分段三次多项式，那么给定任何三次函数的采样点，就应该精确重建它”。</p>
+<p><strong>真实原因</strong>：这个直觉<strong>只对夹紧样条成立</strong>。自然样条强制两端二阶导数为零：<code>S&#39;&#39;(0) = S&#39;&#39;(1) = 0</code>。但 <code>f(x)=x³</code> 在 <code>x=1</code> 处的真实二阶导数是 <code>f&#39;&#39;(1) = 6 ≠ 0</code>。自然边界条件强迫样条在右端点”不弯曲”，而真实的 <code>x³</code> 在右端明明是在”剧烈弯曲”，于是样条被迫在末端偏离真实函数，误差以 O(h²) 量级向内传播。这不是 Bug，而是自然边界条件应有的行为！</p>
+<p><strong>修复方式</strong>：修正测试的预期——改为验证<strong>线性函数</strong> <code>f(x)=2x+1</code> 能被精确重现（因为线性函数二阶导数处处为零，自然边界条件恰好是”正确的”），并且额外验证”节点处插值精确”（所有采样点必须被严格命中）。这两项都通过后，才能确认算法真的正确。<strong>教训</strong>：测试的预期必须与所选边界条件的理论性质一致，否则会把”正确实现”误判为”有 Bug”。</p>
+<h3 id="坑-3：收敛阶”理论”与”实测”对不上，差点误判"><a href="#坑-3：收敛阶”理论”与”实测”对不上，差点误判" class="headerlink" title="坑 3：收敛阶”理论”与”实测”对不上，差点误判"></a>坑 3：收敛阶”理论”与”实测”对不上，差点误判</h3><p><strong>症状</strong>：Test 3 对 <code>e^x</code> 测出的收敛阶是 <strong>2.01</strong>，但我一开始在测试里写的是”期望 ~4（理论 O(h⁴)）”，导致测试 FAIL。</p>
+<p><strong>错误假设</strong>：我把教材上”三次样条 O(h⁴) 收敛”的结论直接套到了自然样条头上，以为所有三次样条都是四阶收敛。</p>
+<p><strong>真实原因</strong>：O(h⁴) 收敛是**夹紧样条（clamped spline）**的结论。<strong>自然样条（natural spline）</strong> 因为自然边界条件引入了 O(h²) 的边界误差，全局收敛阶只有 O(h²)。实测 2.01 与理论 O(h²) <strong>完美吻合</strong>，恰恰证明了实现是正确的。</p>
+<p><strong>修复方式</strong>：把测试预期改为 O(h²)，并同时收敛阶落在 [1.5, 3.0] 区间判定 PASS。<strong>教训</strong>：收敛阶是”边界条件敏感”的——同一个三次样条，换了边界条件，收敛阶就变了。写数值验证时必须精确知道自己在验证的是哪种边界条件。</p>
+<h3 id="坑-4：upper-bound-在端点-x-xs-back-时的越界风险"><a href="#坑-4：upper-bound-在端点-x-xs-back-时的越界风险" class="headerlink" title="坑 4：upper_bound 在端点 x == xs.back() 时的越界风险"></a>坑 4：<code>upper_bound</code> 在端点 <code>x == xs.back()</code> 时的越界风险</h3><p><strong>症状</strong>（潜在）：如果不在 <code>eval</code> 里加越界防御，当 <code>x</code> 恰好等于最后一个节点时，<code>upper_bound</code> 返回 <code>n</code>，减 1 得 <code>n-1</code>，而分段数组只有 <code>n-1</code> 个元素（下标 <code>0..n-2</code>），访问 <code>a[n-1]</code> 会数组越界。</p>
+<p><strong>错误假设</strong>：我最初以为开头把 <code>x &gt;= xs.back()</code> 钳制为 <code>x = xs.back()</code> 之后，<code>upper_bound</code> 就会安全地返回 <code>n-1</code> 或更小。</p>
+<p><strong>真实原因</strong>：<code>upper_bound</code> 的语义是返回”第一个严格大于 <code>x</code> 的元素”。当 <code>x</code> 已经等于末尾 <code>xs.back()</code> 时，<code>xs[n-1]</code> 并不大于 <code>x</code>（等于），所以 <code>upper_bound</code> 会返回 <code>n</code>（即 end 迭代器），减 1 得到 <code>n-1</code>，仍然越界。</p>
+<p><strong>修复方式</strong>：显式加 <code>if (i &gt;= (int)a.size()) i = (int)a.size() - 1;</code> 把下标收回到最后一个有效分段。<strong>教训</strong>：二分查找在<strong>闭区间端点</strong>上的行为常常和直觉相反，边界值必须单独测试（用 <code>x == min</code> 和 <code>x == max</code> 两个极端值各测一次）。</p>
+<h3 id="坑-5：b-i-符号方向易错"><a href="#坑-5：b-i-符号方向易错" class="headerlink" title="坑 5：b_i 符号方向易错"></a>坑 5：<code>b_i</code> 符号方向易错</h3><p><strong>症状</strong>（易错点，非本项目的实际 Bug）：在写系数重建代码时，<code>b_i</code> 的曲率修正项到底是”加”还是”减”非常容易记反。</p>
+<p><strong>错误假设</strong>：直觉上”曲率应该让斜率变大”，所以想把修正项加上去。</p>
+<p><strong>真实原因</strong>：对于上凸（二阶导为正）的函数，在区间内的平均斜率大于端点处的实际切线斜率（凸函数割线斜率介于两端切线斜率之间、且大于下端点切线斜率）。要让样条的斜率正确匹配，需要<strong>减去</strong>曲率的贡献。符号一旦反了，整条曲线会在所有内部段集体”翘起”或”下坠”，误差巨大。</p>
+<p><strong>修复方式</strong>：用线性函数做”退化测试”——线性函数二阶导数为零，<code>b_i</code> 退化为纯平均斜率 <code>(y_{i+1}-y_i)/h_i</code>。如果这条通过了，说明符号和系数在”曲率为零”的特例下是对的，再逐步引入曲率验证。<strong>教训</strong>：复杂的修正项公式，务必先做退化特例的验算。</p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>本节给出<strong>全部量化数据</strong>，所有结论都有数字支撑，而非”看起来正确”。</p>
+<h3 id="6-1-程序完整输出"><a href="#6-1-程序完整输出" class="headerlink" title="6.1 程序完整输出"></a>6.1 程序完整输出</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">=== Natural Cubic Spline Interpolation ===</span><br><span class="line"></span><br><span class="line">[Test 1] f(x) = sin(x) on [0, 2*pi], nodes = 8 (natural BC -&gt; O(h^2))</span><br><span class="line">  Spline   : max-err=2.004135e-03  RMSE=9.576038e-04  mean-abs=7.452843e-04</span><br><span class="line">  PASS (max-err &lt; 0.05)</span><br><span class="line"></span><br><span class="line">[Test 2] Runge function f(x)=1/(1+25x^2) on [-1,1], nodes = 11</span><br><span class="line">  Spline    : max-err=2.197383e-02  RMSE=7.156178e-03</span><br><span class="line">  Polynomial: max-err=1.915643e+00  RMSE=5.802365e-01</span><br><span class="line">  Spline max-err &lt; 0.1 : PASS</span><br><span class="line">  Spline beats poly    : PASS (87.2x better)</span><br><span class="line"></span><br><span class="line">[Test 3] f(x)=e^x on [0,1], convergence order (natural BC -&gt; ~2)</span><br><span class="line">  N= 4  max-err=1.504914e-02</span><br><span class="line">  N= 8  max-err=2.716768e-03</span><br><span class="line">  N=16  max-err=5.927507e-04</span><br><span class="line">  Estimated convergence order = 2.01 (theoretical ~2 for natural spline)</span><br><span class="line">  PASS (order consistent with natural-boundary O(h^2))</span><br><span class="line"></span><br><span class="line">[Test 4] linear f(x)=2x+1 on [0,1] -&gt; any spline must be EXACT</span><br><span class="line">  1. max-err=8.881784e-16 (linear reproduced exactly)</span><br><span class="line">      PASS (exact linear reproduction)</span><br><span class="line">  2. node interpolation max-err=0.000000e+00 (must hit all knots exactly)</span><br><span class="line">      PASS (knots interpolated exactly)</span><br><span class="line">  PASS</span><br><span class="line"></span><br><span class="line">=== SUMMARY ===</span><br><span class="line">Natural cubic spline retains C2 continuity and avoids Runge oscillation.</span><br><span class="line">Natural BC forces zero 2nd-derivative at endpoints -&gt; O(h^2) global convergence</span><br><span class="line">(clamped splines achieve O(h^4), a separate topic).</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-关键数据解读"><a href="#6-2-关键数据解读" class="headerlink" title="6.2 关键数据解读"></a>6.2 关键数据解读</h3><p><strong>（1）Runge 现象对照（Test 2）——样条完胜多项式 87.2 倍</strong></p>
+<p>在等距 11 节点下拟合 Runge 函数 <code>f(x)=1/(1+25x²)</code>：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>max-err</th>
+<th>RMSE</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>自然三次样条</td>
+<td><strong>2.20e-02</strong></td>
+<td><strong>7.16e-03</strong></td>
+</tr>
+<tr>
+<td>全局多项式(Lagrange)</td>
+<td>1.916</td>
+<td>0.580</td>
+</tr>
+</tbody></table>
+<p>样条的最大误差比多项式<strong>小了约 87 倍</strong>（1.916 &#x2F; 0.022 &#x3D; 87.2）。这里多边形的 <code>max-err = 1.916</code> 已经<strong>超过了函数值域</strong>（Runge 函数值域是 <code>(0, 1]</code>），说明多项式在区间两端确实”冲破了物理边界”剧烈震荡——这正是 Runge 现象的典型数值指纹。而样条的最大误差仅有 0.022，只占函数最大值的 2% 左右，平滑且可控。</p>
+<p><strong>（2）收敛阶验证（Test 3）——实测 2.01，与理论 O(h²) 吻合</strong></p>
+<p>对 <code>e^x</code> 在 <code>[0,1]</code> 上逐步加密节点：</p>
+<table>
+<thead>
+<tr>
+<th>节点数 N</th>
+<th>区间 h</th>
+<th>max-err</th>
+<th>相邻误差比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4</td>
+<td>1&#x2F;3 ≈ 0.333</td>
+<td>1.505e-02</td>
+<td>—</td>
+</tr>
+<tr>
+<td>8</td>
+<td>1&#x2F;7 ≈ 0.143</td>
+<td>2.717e-03</td>
+<td>5.54x</td>
+</tr>
+<tr>
+<td>16</td>
+<td>1&#x2F;15 ≈ 0.067</td>
+<td>5.928e-04</td>
+<td>4.58x</td>
+</tr>
+</tbody></table>
+<p>当 h 减半时，误差约降为原来的 1&#x2F;4（即 <code>2²</code> 倍），收敛阶 <code>p = log(1.505e-2/5.928e-4)/log(15/3) = 2.01</code>，与自然样条 O(h²) 的理论<strong>精确一致</strong>。这反过来证明了实现没有隐藏的恒定错误——如果系数或系统组装有 Bug，收敛阶通常会崩掉，无法达到 2。</p>
+<p><strong>（3）退化特例验证（Test 4）——数值精确到机器精度</strong></p>
+<ul>
+<li><strong>线性函数 <code>f(x)=2x+1</code></strong>：max-err &#x3D; <code>8.88e-16</code>，接近双精度浮点数的机器精度（<code>1e-16</code> 量级），说明线性函数被<strong>精确</strong>重现（线性函数二阶导数处处为 0，自然边界条件恰好是正确的，样条退化为直线段拼接，而直线段的拼接本身就是原函数）。</li>
+<li><strong>节点插值精确性</strong>：对 <code>f(x)=x³</code> 的 7 个采样节点，样条在每个节点处的误差严格为 <code>0.000000e+00</code>，证明样条<strong>精确穿过所有给定数据点</strong>（这是插值的基本契约，必须逐点验证，不能只看整体 RMSE）。</li>
+</ul>
+<p><strong>（4）光滑函数拟合（Test 1）</strong></p>
+<p>对 <code>sin(x)</code> 在 <code>[0, 2π]</code> 上仅用 8 个节点，最大误差仅 <code>2.0e-03</code>。考虑到区间跨度约 6.28、平均分段长度约 0.9，这个误差水平（约 0.2% 量级）在”只用 8 个点重建一个振荡周期”的前提下是相当优秀的，而且随着节点加密会按 O(h²) 快速下降。</p>
+<h3 id="6-3-时间复杂度实测佐证"><a href="#6-3-时间复杂度实测佐证" class="headerlink" title="6.3 时间复杂度实测佐证"></a>6.3 时间复杂度实测佐证</h3><p>程序对 16 节点的样条构造 + 4001 点密集采样验证，总运行时间远低于 1 秒（没有可感知的卡顿）。这印证了 <code>O(n)</code> 的构造 + <code>O(log n)</code> 的单点求值 + <code>O(m·log n)</code> 的批量验证复杂度。对比全局多项式插值的 <code>O(n²)</code> 求值（且数值不稳定），样条在效率和稳定性上都是碾压级的。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="技术局限性"><a href="#技术局限性" class="headerlink" title="技术局限性"></a>技术局限性</h3><ol>
+<li><p><strong>自然边界条件的 O(h²) 局限</strong>：自然样条的全局收敛阶只有 O(h²)，当真实函数在端点处的二阶导数明显非零时，边界误差会显著拖累精度。如果能够获得端点导数信息，应改用<strong>夹紧样条</strong>把精度提升到 O(h⁴)。</p>
+</li>
+<li><p><strong>不保证”保形性”（monotonicity&#x2F;shape-preserving）</strong>：自然样条可能在某些数据下产生<strong>过冲</strong>（overshoot）——即使数据点本身是单调的，插值曲线也可能在相邻两点之间产生略微的隆起。对于必须严格单调或严格非负的场景（如金融利率曲线、密度场），需要配合**保单调样条（monotone spline）**或 <strong>PCHIP（分段三次 Hermite 插值）</strong>。</p>
+</li>
+<li><p><strong>要求数据点横坐标严格递增</strong>：三次样条的构造前提是 <code>x_0 &lt; x_1 &lt; ... &lt; x_{n-1}</code>。如果出现重复横坐标或者乱序输入，会导致区间长度 <code>h_i</code> 出现零值或负值，使三对角系统退化甚至除零。工程实现中必须做输入校验。</p>
+</li>
+<li><p><strong>外推能力弱</strong>：样条只在拟合区间 <code>[x_0, x_{n-1}]</code> 内有意义，区间外我们只是简单地把自变量钳制到端点（等价于端点处的常数延拓）。任何向区间外的<strong>外推</strong>都需要额外的模型假设。</p>
+</li>
+</ol>
+<h3 id="可继续优化的方向"><a href="#可继续优化的方向" class="headerlink" title="可继续优化的方向"></a>可继续优化的方向</h3><ol>
+<li><p><strong>实现夹紧样条（Clamped Spline）</strong>：给定端点导数 <code>f&#39;(x_0), f&#39;(x_{n-1})</code>，只需要改动三对角系统的首末两行，即可把收敛阶从 O(h²) 提升到 O(h⁴)。这是最直接的强化。</p>
+</li>
+<li><p><strong>引入调参边界（tension &#x2F; smoothing spline）</strong>：在目标函数中加入”平滑度惩罚项”（如对二阶导数的积分罚项），得到<strong>光滑样条（smoothing spline）</strong>，用于”有噪声数据”的拟合（此时不再要求严格插值，而是折中拟合精度与平滑度）。</p>
+</li>
+<li><p><strong>扩展到三维&#x2F;曲面</strong>：三次样条的思路可以推广到<strong>双三次样条曲面（bicubic spline surface）</strong>，即两个方向各做一次三次样条，用于图像重采样、地形建模、CAD 曲面等。这需要引入张量积结构和二维的三对角系统求解。</p>
+</li>
+<li><p><strong>与 B 样条&#x2F;NURBS 的衔接</strong>：本文的三次样条是”插值样条”（穿过所有点）。工业 CAD 更常用的是<strong>近似样条</strong>——B 样条、NURBS（本系列 08-15 已实现 NURBS 曲线），它们通过控制点而非插值点定义曲线，支持局部编辑。理解本文的”以二阶导数为未知数 + 三对角求解”思路，是理解 B 样条 de Boor 算法的良好铺垫。</p>
+</li>
+</ol>
+<h3 id="与本系列其它文章的关联"><a href="#与本系列其它文章的关联" class="headerlink" title="与本系列其它文章的关联"></a>与本系列其它文章的关联</h3><ul>
+<li><strong>08-15 NURBS 曲线渲染器</strong>：本文的插值样条与 NURBS 的”近似 + 控制点”思路形成互补，两者共享”分段多项式 + 参数化”的底层思想。</li>
+<li><strong>10-02 动态规划 &#x2F; 09-05 编辑距离</strong>：都与”分段&#x2F;子问题 + 递推求解”的算法思想相通，只是本文的递推体现在三对角线性系统的消元上。</li>
+<li><strong>02-22 Bezier 曲线 &#x2F; 03-02 B-spline</strong>：本文的 Bernstein&#x2F;B-spline 家族的”插值版”对应物，读者可对照理解”插值”与”近似”两条曲线设计路线的差异。</li>
+</ul>
+<h3 id="一句话总结"><a href="#一句话总结" class="headerlink" title="一句话总结"></a>一句话总结</h3><p>自然三次样条插值用 <strong>O(n) 的 Thomas 算法 + 三对角系统</strong>，换来了 <strong>C² 连续 + 彻底免疫 Runge 现象</strong> 的分段光滑曲线，是离散采样点重建连续函数这一基础问题的经典、可靠、工程化的答案。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/11/09/daily-coding-cubic-spline-2026-11-09/">https://chiuhoukazusa.github.io/2026/11/09/daily-coding-cubic-spline-2026-11-09/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%95%B0%E5%80%BC%E6%96%B9%E6%B3%95/">数值方法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E4%B8%89%E6%AC%A1%E6%A0%B7%E6%9D%A1/">三次样条</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%8F%92%E5%80%BC/">插值</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/Thomas%E7%AE%97%E6%B3%95/">Thomas算法</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: Tarjan 割点与桥算法</div></div><div class="info-2"><div class="info-item-1">每日编程实践：Tarjan 割点与桥算法 今天的每日编程实践主题是 图论中的割点（Articulation Points &#x2F; Cut Vertices）与桥（Bridges &#x2F; Cut Edges），使用经典而优雅的 Tarjan 算法 在单次深度优先搜索（DFS）中以 O(V + E) 的时间复杂度一次性求出所有割点与桥，并通过与暴力删除法的逐点、逐边对比完成严格量化验证。   ① 背景与动机在图论和网络科学中，连通性 是最基础也最重要的性质之一。给定一个无向图，我们往往不仅关心”这个图是否连通”，更关心”它脆不脆弱”——即 删除哪些节点或边会导致整张图分裂成多个互不连通的碎片。 想象一个真实场景：一家互联网公司的机房网络由若干路由器和光纤连接构成。作为一名网络工程师，你最需要知道的是——哪一台路由器一旦宕机，就会让部分区域的用户彻底断网？ 哪一条光纤一旦被施工队挖断，就会让两个机房失去唯一的连接通道？前者对应的就是 割点（Articulation Point），后者对应的就是 桥（Bridge &#x2F; Cut Edge）。 这些概念在工业界和工程实践...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/09/daily-coding-gmres-krylov-solver-2026-08-09/" title="每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-09-gmres-krylov-solver/gmres_cg_comparison.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-09</div><div class="info-item-2">每日编程实践: GMRES Krylov子空间求解器 - Arnoldi迭代与Givens旋转</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-09-gmres-krylov-solver  ① 背景与动机什么是 GMRES？GMRES（Generalized Minimal RESidual method，广义最小残量法）是求解大规模稀疏线性方程组 $Ax &#x3D; b$ 的 Krylov 子空间迭代法，由 Saad 和 Schultz 在 1986 年提出。它的核心思想是：在第 $k$ 步迭代中，从 Krylov 子空间 $\mathcal{K}_k(A, r_0) &#x3D; \text{span}{r_0, Ar_0, A^2r_0, \ldots, A^{k-1}r_0}$ 中寻找使残差 $|b - Ax_k|_2$ 最小的解。 为什么不用直接求解器？本周我们已经实现了 LU 分解和 QR 分解，但对于大规模稀疏系统（例如从偏微分方程离散化得到的百万阶矩阵），直接求解器的 $O(n^3)$ 复杂度是无法承受的。迭代法通过矩阵-向量乘法 $O(n^2)$ 在 Krylov 子空间中逐步逼近真解，通常...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/10/17/daily-coding-romberg-integration-2026-10-17/" title="每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-17-romberg-integration/cover.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-17</div><div class="info-item-2">每日编程实践: Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度</div></div><div class="info-2"><div class="info-item-1">Romberg 积分 —— 用 Richardson 外推把梯形法逼近机器精度① 背景与动机 你写了一个定积分 ∫ₐᵇ f(x) dx，梯形法把区间切成 4096 段，误差还有 3.65×10⁻⁹。换 Simpson 法，同样 4096 段，误差缩到 1.78×10⁻¹⁵。可这还不够——如果你要算到双精度浮点的物理极限，也就是 10⁻¹⁶ 这个数量级，有没有一种方法，几乎不增加函数求值次数，就能做到？  答案是：Romberg 积分（Romberg Integration）。它不是一个独立的求积公式，而是一个”方法升级外挂”——它拿最朴素的复合梯形公式当原料，用一套叫 Richardson 外推（Richardson extrapolation） 的数学技巧，把梯形法的误差逐级消去，最终逼近机器精度。我用它算 exp(-x²) 在 [0,1] 的积分，最终误差是 9.99×10⁻¹⁶，已经贴到了 double 能表达的极限。 在动手之前，先搞清楚这个问题的真实分量。数值积分（numerical integration &#x2F; quadrature）是科学计算里最基础也最常被...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/04/daily-coding-conjugate-gradient-2026-08-04/" title="每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统"><img class="cover" src="/chiuhou-tech-blog/images/Maria.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-04</div><div class="info-item-2">每日编程实践: Conjugate Gradient 共轭梯度法求解稀疏线性系统</div></div><div class="info-2"><div class="info-item-1">① 背景与动机在科学计算和工程模拟中，求解大型稀疏线性方程组 (Ax &#x3D; b) 是最频繁出现的计算任务之一。无论是有限元法的结构分析、计算流体力学中的压力修正、还是机器学习中的优化问题，最终都会归结为”解一个线性方程组”。 然而，传统的高斯消元法面对这类问题时完全无法胜任。考虑一个三维 Poisson 方程在 (100 \times 100 \times 100) 网格上的离散化——矩阵维度达到 (10^6)，如果使用稠密存储需要约 8TB 内存，而即使用稀疏存储，直接法也会在消元过程中产生大量”填充”(fill-in)，使稀疏性丧失殆尽。 工业界实际场景：  CFD 流体仿真：SIMPLE 算法每次外迭代都需要求解压力 Poisson 方程，ANSYS Fluent、OpenFOAM 等工业软件的核心求解器都依赖 Krylov 子空间方法 几何处理：Laplacian 网格编辑、测地线距离计算中需要反复求解稀疏线性系统，MeshLab、Blender 使用了类似方法 物理模拟：Rigid Body Dynamics 的碰撞约束、布料模拟的隐式积分都需要 Jacobi ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/01/daily-coding-halton-qmc-2026-08-01/" title="每日编程实践: Halton序列与拟蒙特卡洛方法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/08/08-01-halton-qmc/comparison.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-01</div><div class="info-item-2">每日编程实践: Halton序列与拟蒙特卡洛方法</div></div><div class="info-2"><div class="info-item-1">背景与动机渲染工程师做路径追踪时，常常会面临一个根本性问题：如何用最少的采样点，获得最精确的积分结果？ 传统蒙特卡洛方法使用伪随机数生成器产生采样点来估计积分。根据中心极限定理，MC 的收敛速度是 O(1&#x2F;√N) —— 想提升两倍精度，需要四倍的采样点。在实时渲染中，每个像素的采样预算可能只有 16、8、甚至 1 个采样点，O(1&#x2F;√N) 的慢速收敛意味着图像要么充满噪点，要么需要昂贵的去噪。 拟蒙特卡洛方法正是为此而生。QMC 不使用随机序列，而是使用低差异序列——一种确定性构造的点序列，其核心性质是：点集在定义域上的分布比随机采样更均匀。根据 Koksma-Hlawka 不等式，QMC 的误差上界是 O((log N)^d &#x2F; N)，在中等维度和适量采样数下，收敛速度接近 O(1&#x2F;N)，远优于纯随机 MC 的 O(1&#x2F;√N)。 工业界使用场景：  电影级离线渲染：Pixar 的 RenderMan、Disney 的 Hyperion 都大量使用 QMC 采样进行路径追踪、景深、运动模糊等效果的积分 游戏引擎实时渲染：Unrea...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/08/daily-coding-qr-decomposition-2026-08-08/" title="每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比"><img class="cover" src="/chiuhou-tech-blog/images/Melina.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-08</div><div class="info-item-2">每日编程实践: QR分解 - CGS vs MGS vs Householder 全方位对比</div></div><div class="info-2"><div class="info-item-1"> 项目仓库: daily-coding-practice&#x2F;2026&#x2F;08&#x2F;08-08-qr-decomposition  ① 背景与动机为什么需要 QR 分解？在线性代数的工具箱中，QR 分解是处理最小二乘问题、特征值计算和线性方程组求解的基石之一。将一个矩阵 A 分解为正交矩阵 Q 和上三角矩阵 R 的乘积，听起来简单，但实现起来有讲究。 实际场景：  最小二乘拟合：当你有一堆数据点想拟合一条曲线时（Ax &#x3D; b 过约束不可解），最小二乘法找的是 min||Ax - b||。直接解 AT A x &#x3D; AT b 的条件数变成原来的平方（condition number 的平方），数值上极其危险。QR 分解通过 Q^T b &#x3D; R x 避免了这个平方效应——稳定性天差地别。  特征值计算：QR 算法（Francis 1961）是现代特征值求解器的核心。通过反复 QR 分解 + 逆序乘（A_{k+1} &#x3D; R_k Q_k），矩阵逐渐收敛到上三角，对角元就是特征值。MATLAB 的 eig()、numpy 的 lin...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/13/daily-coding-rk4-ode-solver-2026-07-13/" title="每日编程实践: RK4 Runge-Kutta 常微分方程求解器"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-13-rk4-ode-solver/trajectory.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">每日编程实践: RK4 Runge-Kutta 常微分方程求解器</div></div><div class="info-2"><div class="info-item-1">一、背景与动机在游戏开发和物理模拟中，我们经常需要求解常微分方程（ODE）。一个子弹的弹道、一辆车的悬挂系统、一匹布的飘动、一个角色的跳跃——背后都逃不掉一个核心问题：给定当前位置和速度，如何计算下一帧的位置和速度？ 最简单的答案是 Euler 法，也就是大多数人在入门时写的那种： 12position += velocity * dt;velocity += acceleration * dt;  这个写法直观、代码量极少、性能几乎没有开销。但它有一个致命的问题：精度太差。不信？我们做一个简单的实验：模拟一个弹簧-质量-阻尼系统，初始位置 x&#x3D;1m，弹簧刚度 k&#x3D;10 N&#x2F;m，阻尼系数 c&#x3D;0.5 N·s&#x2F;m。初始能量是 5 J。理论上，由于阻尼存在，能量应该单调衰减到接近 0。但 Euler 法在 dt&#x3D;0.05s 时，最终能量居然是 5.19 J——比初始能量还大！能量凭空增加了。这就是数值不稳定性：Euler 法在每一步都会累积误差，最终导致模拟完全失真。 RK4（四阶 Runge-Kutta 法） 是解决这个问...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">204</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">212</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5%EF%BC%9A%E8%87%AA%E7%84%B6%E4%B8%89%E6%AC%A1%E6%A0%B7%E6%9D%A1%E6%8F%92%E5%80%BC%EF%BC%88Natural-Cubic-Spline-Interpolation%EF%BC%89"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation）</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E5%85%B3%E5%BF%83%E6%8F%92%E5%80%BC%EF%BC%9F"><span class="toc-number">1.1.1.</span> <span class="toc-text">为什么要关心插值？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%A8%E5%B1%80%E5%A4%9A%E9%A1%B9%E5%BC%8F%E6%8F%92%E5%80%BC%E7%9A%84%E9%99%B7%E9%98%B1%EF%BC%9ARunge-%E7%8E%B0%E8%B1%A1"><span class="toc-number">1.1.2.</span> <span class="toc-text">全局多项式插值的陷阱：Runge 现象</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%B8%9A%E7%95%8C%E7%9A%84%E7%9C%9F%E5%AE%9E%E8%A7%A3%E6%B3%95%EF%BC%9A%E5%88%86%E6%AE%B5%E4%BD%8E%E6%AC%A1%E5%A4%9A%E9%A1%B9%E5%BC%8F"><span class="toc-number">1.1.3.</span> <span class="toc-text">工业界的真实解法：分段低次多项式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%AC%E6%96%87%E7%9B%AE%E6%A0%87"><span class="toc-number">1.1.4.</span> <span class="toc-text">本文目标</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%88%86%E6%AE%B5%E4%B8%89%E6%AC%A1%E5%A4%9A%E9%A1%B9%E5%BC%8F%E7%9A%84%E8%AE%BE%E7%BD%AE"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 分段三次多项式的设置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E7%BA%A6%E6%9D%9F%E6%9D%A1%E4%BB%B6"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 约束条件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E8%BE%B9%E7%95%8C%E6%9D%A1%E4%BB%B6%EF%BC%9A%E4%BB%8E%E6%AC%A0%E5%AE%9A%E5%88%B0%E5%AE%9A%E8%A7%A3"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 边界条件：从欠定到定解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E5%85%B3%E9%94%AE%E6%8A%80%E5%B7%A7%EF%BC%9A%E4%BB%A5%E4%BA%8C%E9%98%B6%E5%AF%BC%E6%95%B0%E4%B8%BA%E6%9C%AA%E7%9F%A5%E6%95%B0"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 关键技巧：以二阶导数为未知数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E4%B8%A4%E6%AC%A1%E7%A7%AF%E5%88%86%E9%87%8D%E5%BB%BA%E7%B3%BB%E6%95%B0"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 两次积分重建系数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E5%AF%BC%E5%87%BA%E4%B8%89%E5%AF%B9%E8%A7%92%E7%BA%BF%E6%80%A7%E7%B3%BB%E7%BB%9F"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 导出三对角线性系统</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-7-%E7%BB%84%E8%A3%85%E6%88%90%E4%B8%89%E5%AF%B9%E8%A7%92%E7%9F%A9%E9%98%B5"><span class="toc-number">1.2.7.</span> <span class="toc-text">2.7 组装成三对角矩阵</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-8-Thomas-%E7%AE%97%E6%B3%95%EF%BC%88%E8%BF%BD%E8%B5%B6%E6%B3%95%EF%BC%89"><span class="toc-number">1.2.8.</span> <span class="toc-text">2.8 Thomas 算法（追赶法）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-9-%E6%94%B6%E6%95%9B%E9%98%B6%E5%88%86%E6%9E%90%EF%BC%88%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-O-h%C2%B2-%E8%80%8C%E9%9D%9E-O-h%E2%81%B4-%EF%BC%89"><span class="toc-number">1.2.9.</span> <span class="toc-text">2.9 收敛阶分析（为什么是 O(h²) 而非 O(h⁴)）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-10-%E4%B8%8E%E5%85%B6%E5%AE%83%E6%96%B9%E6%A1%88%E5%AF%B9%E6%AF%94"><span class="toc-number">1.2.10.</span> <span class="toc-text">2.10 与其它方案对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E6%A8%A1%E5%9D%97%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 模块职责划分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%80%89%E6%8B%A9%E8%BF%99%E4%BA%9B%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 为什么选择这些设计</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-Thomas-%E7%AE%97%E6%B3%95"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 Thomas 算法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%9E%84%E5%BB%BA%E4%B8%89%E5%AF%B9%E8%A7%92%E7%B3%BB%E7%BB%9F"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 构建三对角系统</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E9%87%8D%E5%BB%BA%E6%AF%8F%E6%AE%B5%E7%B3%BB%E6%95%B0"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 重建每段系数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E6%B1%82%E5%80%BC"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 求值</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%85%A8%E5%B1%80%E5%A4%9A%E9%A1%B9%E5%BC%8F%E6%8F%92%E5%80%BC%EF%BC%88%E5%AF%B9%E7%85%A7%E7%94%A8%EF%BC%89"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 全局多项式插值（对照用）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-%E8%AF%AF%E5%B7%AE%E9%87%8F%E5%8C%96"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 误差量化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-7-%E6%94%B6%E6%95%9B%E9%98%B6%E6%B5%8B%E9%87%8F"><span class="toc-number">1.4.7.</span> <span class="toc-text">4.7 收敛阶测量</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9Aconst-%E5%BC%95%E7%94%A8%E5%BD%A2%E5%8F%82%E8%A2%AB%E8%B5%8B%E5%80%BC-%E2%86%92-%E7%BC%96%E8%AF%91%E5%A4%B1%E8%B4%A5"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：const 引用形参被赋值 → 编译失败</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E6%8A%8A%E2%80%9D%E8%87%AA%E7%84%B6%E8%BE%B9%E7%95%8C%E2%80%9D%E9%94%99%E5%BD%93%E6%88%90%E2%80%9D%E7%B2%BE%E7%A1%AE%E9%87%8D%E7%8E%B0%E4%BB%BB%E6%84%8F%E4%B8%89%E6%AC%A1%E5%A4%9A%E9%A1%B9%E5%BC%8F%E2%80%9D"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：把”自然边界”错当成”精确重现任意三次多项式”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E6%94%B6%E6%95%9B%E9%98%B6%E2%80%9D%E7%90%86%E8%AE%BA%E2%80%9D%E4%B8%8E%E2%80%9D%E5%AE%9E%E6%B5%8B%E2%80%9D%E5%AF%B9%E4%B8%8D%E4%B8%8A%EF%BC%8C%E5%B7%AE%E7%82%B9%E8%AF%AF%E5%88%A4"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：收敛阶”理论”与”实测”对不上，差点误判</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9Aupper-bound-%E5%9C%A8%E7%AB%AF%E7%82%B9-x-xs-back-%E6%97%B6%E7%9A%84%E8%B6%8A%E7%95%8C%E9%A3%8E%E9%99%A9"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：upper_bound 在端点 x &#x3D;&#x3D; xs.back() 时的越界风险</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-5%EF%BC%9Ab-i-%E7%AC%A6%E5%8F%B7%E6%96%B9%E5%90%91%E6%98%93%E9%94%99"><span class="toc-number">1.5.5.</span> <span class="toc-text">坑 5：b_i 符号方向易错</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E7%A8%8B%E5%BA%8F%E5%AE%8C%E6%95%B4%E8%BE%93%E5%87%BA"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 程序完整输出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E8%A7%A3%E8%AF%BB"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 关键数据解读</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%AE%9E%E6%B5%8B%E4%BD%90%E8%AF%81"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 时间复杂度实测佐证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E5%AE%83%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">与本系列其它文章的关联</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="toc-number">1.7.4.</span> <span class="toc-text">一句话总结</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/09/daily-coding-cubic-spline-2026-11-09/" title="每日编程实践: 三次样条插值"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 三次样条插值"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/09/daily-coding-cubic-spline-2026-11-09/" title="每日编程实践: 三次样条插值">每日编程实践: 三次样条插值</a><time datetime="2026-11-08T21:35:00.000Z" title="发表于 2026-11-09 05:35:00">2026-11-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Tarjan 割点与桥算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法">每日编程实践: Tarjan 割点与桥算法</a><time datetime="2026-11-07T21:35:00.000Z" title="发表于 2026-11-08 05:35:00">2026-11-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</a><time datetime="2026-11-05T22:00:00.000Z" title="发表于 2026-11-06 06:00:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</a><time datetime="2026-11-04T22:00:00.000Z" title="发表于 2026-11-05 06:00:00">2026-11-05</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/10/10-27-hld/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/10/27/daily-coding-heavy-light-decomposition-2026-10-27/" title="每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询">每日编程实践: 树链剖分 Heavy-Light Decomposition —— 把树上路径拆成 O(log n) 段区间查询</a><time datetime="2026-10-26T22:00:00.000Z" title="发表于 2026-10-27 06:00:00">2026-10-27</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
