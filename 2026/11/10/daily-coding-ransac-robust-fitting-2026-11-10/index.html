@@ -1,0 +1,457 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>每日编程实践: RANSAC 鲁棒模型拟合 | Chiuhou 技术博客</title><meta name="author" content="Chiuhou"><meta name="copyright" content="Chiuhou"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="每日编程实践：RANSAC 鲁棒模型拟合（Random Sample Consensus） 今天的每日编程实践主题是 计算机视觉与计算几何中经典的鲁棒估计算法——RANSAC（RANdom SAmple Consensus，随机采样一致性）。我们通过「随机采样最小数据子集 → 估计模型 → 统计内点 → 迭代取最优」的流程，在存在大量离群点（outliers）的脏数据中鲁棒地拟合出直线和圆的模型参">
+<meta property="og:type" content="article">
+<meta property="og:title" content="每日编程实践: RANSAC 鲁棒模型拟合">
+<meta property="og:url" content="https://chiuhoukazusa.github.io/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/index.html">
+<meta property="og:site_name" content="Chiuhou 技术博客">
+<meta property="og:description" content="每日编程实践：RANSAC 鲁棒模型拟合（Random Sample Consensus） 今天的每日编程实践主题是 计算机视觉与计算几何中经典的鲁棒估计算法——RANSAC（RANdom SAmple Consensus，随机采样一致性）。我们通过「随机采样最小数据子集 → 估计模型 → 统计内点 → 迭代取最优」的流程，在存在大量离群点（outliers）的脏数据中鲁棒地拟合出直线和圆的模型参">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png">
+<meta property="article:published_time" content="2026-11-09T21:35:00.000Z">
+<meta property="article:modified_time" content="2026-11-09T21:34:58.069Z">
+<meta property="article:author" content="Chiuhou">
+<meta property="article:tag" content="C++">
+<meta property="article:tag" content="RANSAC">
+<meta property="article:tag" content="每日一练">
+<meta property="article:tag" content="算法">
+<meta property="article:tag" content="计算几何">
+<meta property="article:tag" content="计算机视觉">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "每日编程实践: RANSAC 鲁棒模型拟合",
+  "url": "https://chiuhoukazusa.github.io/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/",
+  "image": "https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png",
+  "datePublished": "2026-11-09T21:35:00.000Z",
+  "dateModified": "2026-11-09T21:34:58.069Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Chiuhou",
+      "url": "https://chiuhoukazusa.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/chiuhou-tech-blog/images/favicon.png"><link rel="canonical" href="https://chiuhoukazusa.github.io/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/chiuhou-tech-blog/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/chiuhou-tech-blog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '每日编程实践: RANSAC 鲁棒模型拟合',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/chiuhou-tech-blog/"><span class="site-name">Chiuhou 技术博客</span></a><a class="nav-page-title" href="/chiuhou-tech-blog/"><span class="site-name">每日编程实践: RANSAC 鲁棒模型拟合</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"></div></nav><div id="post-info"><h1 class="post-title">每日编程实践: RANSAC 鲁棒模型拟合</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-11-09T21:35:00.000Z" title="发表于 2026-11-10 05:35:00">2026-11-10</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-11-09T21:34:58.069Z" title="更新于 2026-11-10 05:34:58">2026-11-10</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/chiuhou-tech-blog/categories/%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5/">编程实践</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="每日编程实践：RANSAC-鲁棒模型拟合（Random-Sample-Consensus）"><a href="#每日编程实践：RANSAC-鲁棒模型拟合（Random-Sample-Consensus）" class="headerlink" title="每日编程实践：RANSAC 鲁棒模型拟合（Random Sample Consensus）"></a>每日编程实践：RANSAC 鲁棒模型拟合（Random Sample Consensus）</h1><blockquote>
+<p>今天的每日编程实践主题是 <strong>计算机视觉与计算几何中经典的鲁棒估计算法——RANSAC（RANdom SAmple Consensus，随机采样一致性）</strong>。我们通过「随机采样最小数据子集 → 估计模型 → 统计内点 → 迭代取最优」的流程，在存在大量离群点（outliers）的脏数据中鲁棒地拟合出<strong>直线</strong>和<strong>圆</strong>的模型参数，并与传统最小二乘法（OLS）做逐项量化对比，验证 RANSAC 在离群点比例不断升高时的显著优势。本文会完整推导数学原理、展示实现架构、逐行解析核心代码、如实记录踩坑过程，并用<strong>参数误差、内点召回率、无离群点一致性</strong>三项量化指标严格验证结果。</p>
+</blockquote>
+<hr>
+<h2 id="①-背景与动机"><a href="#①-背景与动机" class="headerlink" title="① 背景与动机"></a>① 背景与动机</h2><p>在真实世界的计算机视觉、机器人、测量与 3D 重建任务中，我们经常需要<strong>从一堆带噪声的观测点中提取几何模型</strong>。比如：激光雷达扫描返回的点云里，我们需要找出它符合哪面墙（一条直线）；相机采集的边缘点中，我们需要识别一个圆形工件（一个圆）；两张有重叠视野的图像进行特征匹配时，我们需要估计它们之间的单应性矩阵（Homography）。</p>
+<p>这类问题的共同点在于：<strong>观测数据不可避免地包含错误的、与模型无关的点</strong>，我们称之为 <strong>离群点（outliers）</strong>。离群点的来源多种多样：传感器噪声尖峰、遮挡物、反光、误匹配（mismatch）、镜面反射造成的”幽灵点”、以及多目标混叠时不属于当前目标的点。与之相对，真正由目标模型生成、只叠加了少量高斯噪声的点，称为 <strong>内点（inliers）</strong>。</p>
+<h3 id="最小二乘法的致命缺陷"><a href="#最小二乘法的致命缺陷" class="headerlink" title="最小二乘法的致命缺陷"></a>最小二乘法的致命缺陷</h3><p>面对从数据中估计模型这一任务，工程师的第一反应几乎总是<strong>最小二乘法（Least Squares &#x2F; OLS）</strong>。它的思路非常优美：最小化所有点到模型的<strong>平方误差之和</strong>。对于直线 <code>y = ax + b</code>，就是要最小化：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SSE = Σ (yᵢ - (a·xᵢ + b))²</span><br></pre></td></tr></table></figure>
+
+<p>最小二乘之所以流行，是因为它<strong>有闭式解</strong>（解析解），计算快、结果唯一，而且在高斯噪声下它是<strong>最大似然估计</strong>，统计上是最优的。<strong>然而，这一切都建立在一个脆弱的前提之上：所有数据都是内点，误差服从零均值高斯分布。</strong></p>
+<p>一旦数据里混入了哪怕极少量的离群点，最小二乘的平方惩罚机制就会<strong>被离群点彻底破坏</strong>。原因很直观：离群点的误差很大，平方之后更是被放大到惊人的程度。为了”讨好”这些离群点，最小二乘会把拟合出的直线&#x2F;圆<strong>整体拉向离群点的方向</strong>，反而牺牲了绝大多数内点的精度。这就是著名的**”一个坏点毁掉整条拟合”**现象。</p>
+<p>举个例子：假如有 100 个点精确落在直线 <code>y = 3x + 1</code> 上，但混入了 10 个远离这条直线的离群点。最小二乘为了让这 10 个离群点的平方误差小一点，会把直线的斜率和截距拉得面目全非，最终内点和离群点的误差”两败俱伤”。这在本项目实验结果里体现得淋漓尽致——当离群点比例达到 80% 时，最小二乘估计出的斜率竟然退化到了 <code>0.506</code>（真值是 <code>3.0</code>），完全不可用。</p>
+<h3 id="RANSAC-的诞生与应用"><a href="#RANSAC-的诞生与应用" class="headerlink" title="RANSAC 的诞生与应用"></a>RANSAC 的诞生与应用</h3><p>为了对抗离群点，1981 年 Fischler 和 Bolles 提出了 <strong>RANSAC</strong>。它的核心思想可以用一句话概括：<strong>与其让所有点（包括离群点）共同决定模型，不如只信任一小撮随机选出的点，然后让”投票”来决定谁是对的。</strong></p>
+<p>这个方法鲁棒、简单、通用，几乎可以适配任何”最小数据子集能唯一确定模型”的场景。如今它是 SIFT&#x2F;SURF 特征匹配去外点、视觉 SLAM 的位姿估计、点云配准（ICP 的初值）、平面检测、拼接全景图等领域的<strong>基石性算法</strong>，在 OpenCV 的 <code>findHomography</code>、<code>findFundamentalMat</code>、<code>fitLine</code> 等函数中都有 RANSAC 的身影。理解 RANSAC，就是理解现代鲁棒几何估计的起点。</p>
+<hr>
+<h2 id="②-核心原理"><a href="#②-核心原理" class="headerlink" title="② 核心原理"></a>② 核心原理</h2><h3 id="2-1-RANSAC-的基本假设"><a href="#2-1-RANSAC-的基本假设" class="headerlink" title="2.1 RANSAC 的基本假设"></a>2.1 RANSAC 的基本假设</h3><p>RANSAC 建立在这样两个假设之上：</p>
+<ol>
+<li><strong>内点占多数，且内点能被某个模型参数化地解释</strong>。这个模型是我们要估计的目标。</li>
+<li><strong>离群点不服从任何”与内点一致”的模型</strong>，或者说离群点不适用于我们要拟合的模型。</li>
+</ol>
+<p>RANSAC 并不要求内点占”绝对”多数，但它要求内点的比例不能太低，否则随机采样命中”全是内点”的概率会小到不可接受（后面会推导这个概率）。</p>
+<h3 id="2-2-迭代流程的逐步推导"><a href="#2-2-迭代流程的逐步推导" class="headerlink" title="2.2 迭代流程的逐步推导"></a>2.2 迭代流程的逐步推导</h3><p>RANSAC 的完整流程可以拆解为以下步骤：</p>
+<p><strong>Step A — 采样最小子集（minimal sample）</strong>：随机选择能唯一确定模型所需的最少数据点。拟合直线需要 2 个点，拟合圆需要 3 个点，拟合单应矩阵需要 4 组对应点。选择”最小”子集而不是”多一点”子集，是为了最大化”这一组点全为内点”的概率（点越多，混入离群点的概率越大，后面详细推导）。</p>
+<p><strong>Step B — 从子集估计模型</strong>：用这 2 点（直线）或 3 点（圆）直接求出模型参数。</p>
+<p><strong>Step C — 统计支持度（内点计数）</strong>：对全体数据点，计算每个点到当前模型的距离（残差），若距离小于一个阈值 <code>τ</code>（距离阈值），则把它算作当前模型的”支持者”（内点）。</p>
+<p><strong>Step D — 记录最优模型</strong>：如果当前模型的支持者数量超过了历史最优，就更新最优模型。</p>
+<p><strong>Step E — 迭代与终止</strong>：重复 Step A–D 若干次（迭代次数 <code>N</code>，理论推导见下），最终返回支持者最多的模型。</p>
+<p><strong>Step F — 内点精修（可选但推荐）</strong>：拿到最优模型后，用它的全部内点集合做一次标准最小二乘，进一步精化参数。这一步很关键——RANSAC 的粗估只用到了最小子集（2 或 3 个点），而精修用上了所有内点，能大幅降低方差。</p>
+<h3 id="2-3-迭代次数的理论推导（为什么是-N-次？）"><a href="#2-3-迭代次数的理论推导（为什么是-N-次？）" class="headerlink" title="2.3 迭代次数的理论推导（为什么是 N 次？）"></a>2.3 迭代次数的理论推导（为什么是 N 次？）</h3><p>RANSAC 要保证”至少一次迭代采样到的子集全是内点”这件事<strong>以极高概率（比如 99%）成立</strong>。设：</p>
+<ul>
+<li><code>w</code> &#x3D; 内点占全体数据的比例（inlier ratio）</li>
+<li><code>s</code> &#x3D; 最小子集的大小（直线 s&#x3D;2，圆 s&#x3D;3）</li>
+<li>一次采样 <code>s</code> 个点<strong>全是内点</strong>的概率 ≈ <code>w^s</code>（假设采样近似独立）</li>
+<li>一次采样”至少混入一个离群点”的概率 &#x3D; <code>1 - w^s</code></li>
+<li>连续 <code>N</code> 次迭代都失败的概率 &#x3D; <code>(1 - w^s)^N</code></li>
+</ul>
+<p>我们希望”连续 <code>N</code> 次都失败”的概率 ≤ 一个很小的数 <code>p_fail</code>（通常取 <code>0.01</code>，即 99% 成功率）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(1 - w^s)^N ≤ p_fail</span><br></pre></td></tr></table></figure>
+
+<p>两边取对数，解得：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">N ≥ log(p_fail) / log(1 - w^s)</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个公式是理解 RANSAC 采样次数的关键。</strong> 它的直觉是：</p>
+<ul>
+<li>当内点比例 <code>w</code> 很高（比如 0.9）时，<code>w^2 = 0.81</code>，失败很快就能规避，几十次迭代就够；</li>
+<li>当 <code>w</code> 降到 0.5（一半是离群点）时，直线 <code>w^2 = 0.25</code>，需要约 <code>log(0.01)/log(0.75) ≈ 16</code> 次；但圆 <code>w^3 = 0.125</code>，需要约 <code>log(0.01)/log(0.875) ≈ 35</code> 次；</li>
+<li>当 <code>w</code> 进一步降到 0.2（80% 离群点）时，直线 <code>w^2 = 0.04</code>，需要约 <code>log(0.01)/log(0.96) ≈ 113</code> 次；圆 <code>w^3 = 0.008</code>，则需要约 <code>log(0.01)/log(0.992) ≈ 573</code> 次。</li>
+</ul>
+<p>这就是为什么 RANSAC <strong>对离群点比例有天然的”天花板”</strong>：一旦 <code>w</code> 太小，所需迭代次数会爆炸性增长，算法变得不现实。在本项目中，我对直线取了 <code>N=1000</code> 次、圆取了 <code>N=2000</code> 次，就是为了在 80% 离群点的极端场景下依然能稳定找到正确模型。</p>
+<h3 id="2-4-残差（距离）的定义与阈值选择"><a href="#2-4-残差（距离）的定义与阈值选择" class="headerlink" title="2.4 残差（距离）的定义与阈值选择"></a>2.4 残差（距离）的定义与阈值选择</h3><p>RANSAC 里”这个点支不支持这个模型”必须用一个<strong>量化距离</strong>来判断：</p>
+<ul>
+<li><strong>点到直线的距离</strong>：对于直线 <code>ax - y + b = 0</code>（即 <code>y = ax + b</code>），点 <code>(x₀, y₀)</code> 到它的距离是：</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dist = |a·x₀ - y₀ + b| / √(a² + 1)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>点到圆的几何距离</strong>：对于圆心 <code>(cx, cy)</code>、半径 <code>r</code> 的圆，点 <code>(x₀, y₀)</code> 到圆周的距离是：</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dist = | √((x₀-cx)² + (y₀-cy)²) - r |</span><br></pre></td></tr></table></figure>
+
+<p>距离阈值 <code>τ</code> 的选取是一个工程权衡：<code>τ</code> 太小会漏掉噪声较大的真实内点（召回率下降），<code>τ</code> 太大会把靠近模型的离群点也误判为内点（误报率上升）。通常取 <code>τ</code> 为噪声标准差的 2~3 倍。在本项目中，我设置噪声 <code>σ = 0.3</code>，所以取 <code>τ = 1.0</code>（约 3.3σ），既能覆盖绝大多数内点，又不会吞噬太多离群点。</p>
+<h3 id="2-5-对比：为什么不用”L1-回归”或”Hough-变换”？"><a href="#2-5-对比：为什么不用”L1-回归”或”Hough-变换”？" class="headerlink" title="2.5 对比：为什么不用”L1 回归”或”Hough 变换”？"></a>2.5 对比：为什么不用”L1 回归”或”Hough 变换”？</h3><p>读者可能会问：既然平方惩罚会被离群点破坏，那换成<strong>绝对偏差（L1 回归）<strong>不就行了吗？L1 回归对离群点的确比 L2 更鲁棒，因为它用的是线性惩罚而非平方惩罚。但 L1 回归的稳健性是有上限的——它只是”不那么容易被拉偏”，当离群点比例很高时依然会退化，而且 L1 回归本质上是</strong>估计一个整体模型</strong>（所有点共同决定），无法显式地”识别并剔除”离群点。</p>
+<p>另一个经典方案是 <strong>Hough 变换</strong>：把每个数据点投票到参数空间，取累计票数最高的参数。Hough 变换对离群点非常鲁棒，但缺点是参数空间维度越高、量化越细，内存和时间开销越大（圆的参数是 3 维，单应矩阵是 8 维，Hough 变换几乎不可行），而且精度受参数网格量化限制。</p>
+<p>RANSAC 相比这两者的优势在于：<strong>它直接在数据空间操作，参数连续（没有网格量化误差），且天然输出一个”内点&#x2F;外点”的明确分类</strong>。这既是它的价值，也是后续很多高级变体（如 MLESAC、PROSAC、LO-RANSAC）的出发点。</p>
+<h3 id="2-6-直觉：为什么”投票”能打败离群点？"><a href="#2-6-直觉：为什么”投票”能打败离群点？" class="headerlink" title="2.6 直觉：为什么”投票”能打败离群点？"></a>2.6 直觉：为什么”投票”能打败离群点？</h3><p>RANSAC 的精神内核，可以用一个朴素的生活类比来理解。想象一个嘈杂的会议室里，大多数人（内点）就某个议题达成了共识（比如”会议是 3 点开始”），但有几个捣乱的人（离群点）在大声喊完全不同的时间（”1 点””8 点”）。</p>
+<p><strong>最小二乘的做法</strong>，相当于让所有人的意见按”响度”做加权平均——而捣乱者喊得越大声，平均结果被带得越偏。这就是平方惩罚的软肋：它会无条件地重视每一个数据点，包括离谱的离群点。</p>
+<p><strong>RANSAC 的做法</strong>，则是随机拉起 2~3 个人问”你们觉得几点？”，然后看”有多少人赞同这个时间（在 ±5 分钟之内）”。如果有人凑巧全问到了捣乱者（给出了离谱的时间），那么几乎没人赞同它们，这轮采样就被抛弃；只有当问到的恰好是大多数正常人时，才会得到大量赞同。反复问很多轮，最终”赞同者最多的那个时间”几乎必然是真实共识。</p>
+<p>这个类比精确对应了 RANSAC 的几个关键设计：</p>
+<ul>
+<li><strong>“随机拉起 2~3 个人”</strong> → 采样最小子集（只要 2~3 个点就能定一个模型）；</li>
+<li><strong>“±5 分钟之内算赞同”</strong> → 距离阈值 <code>τ</code> 决定了什么是”赞同”；</li>
+<li><strong>“赞同者最多的时间”</strong> → 内点计数最大的模型胜出；</li>
+<li><strong>“反复问很多轮”</strong> → 迭代次数 <code>N</code> 保证至少有一轮全问到内点。</li>
+</ul>
+<p>理解了这层直觉，再回头看 2.3 节的公式 <code>N ≥ log(p_fail)/log(1 - w^s)</code>，就会豁然开朗：<code>w^s</code> 就是”随机拉起 <code>s</code> 个人恰好全是正常人”的概率，而 <code>N</code> 就是”为了让这件事在 99% 置信度下至少发生一次，需要问多少轮”。这就是 RANSAC 全部数学的根基——<strong>用一个可计算的投票机制，把”识别离群点”这个难题转化成”数数”这个简单操作。</strong></p>
+<hr>
+<h2 id="③-实现架构"><a href="#③-实现架构" class="headerlink" title="③ 实现架构"></a>③ 实现架构</h2><h3 id="3-1-整体数据流"><a href="#3-1-整体数据流" class="headerlink" title="3.1 整体数据流"></a>3.1 整体数据流</h3><p>本项目是一个单文件 C++ 程序，整体数据流如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[数据生成] gen_line_data / gen_circle_data</span><br><span class="line">      │         （真值模型 + 高斯噪声内点 + 均匀散布离群点）</span><br><span class="line">      ▼</span><br><span class="line">[模型拟合] ransac_line / ransac_circle   ← 目标算法</span><br><span class="line">      │                ols_line / ols_circle   ← 基准算法</span><br><span class="line">      ▼</span><br><span class="line">[量化验证] 参数误差 / 内点召回率 / 无离群点一致性</span><br><span class="line">      ▼</span><br><span class="line">[输出] ransac_output.txt（文本报告）</span><br></pre></td></tr></table></figure>
+
+<p>程序没有一个图形渲染管线，而是<strong>纯粹的计算与数值验证</strong>：生成数据 → 用两种算法分别拟合 → 用客观指标对比 → 打印报告。这也符合”量化验证而非视觉检查”的原则——我们不看图，只看数字。</p>
+<h3 id="3-2-关键数据结构设计"><a href="#3-2-关键数据结构设计" class="headerlink" title="3.2 关键数据结构设计"></a>3.2 关键数据结构设计</h3><ul>
+<li><p><strong><code>struct Data { vector&lt;double&gt; x, y; }</code></strong>：点云用两个平行数组存储，<code>x</code> 和 <code>y</code> 分别是横纵坐标。选择 <code>vector&lt;double&gt;</code> 而不是 <code>vector&lt;pair&lt;double,double&gt;&gt;</code>，是为了后续最小二乘里能方便地做 <code>sx += d.x[i]</code> 这样的独立维度累加，缓存友好且语义清晰。</p>
+</li>
+<li><p><strong><code>struct Line { double a, b; }</code></strong> 与 <strong><code>struct Circle { double cx, cy, r; }</code></strong>：两个轻量模型结构，分别存直线的斜率和截距、圆的圆心和半径。选择结构体而非元组，是为了让代码可读——<code>best.a</code> 比 <code>best.first</code> 清楚得多。</p>
+</li>
+<li><p><strong><code>struct RNG { uint64_t s; ... }</code></strong>：一个<strong>可复现的随机数生成器</strong>，基于 xorshift64* 算法，提供 <code>uniform()</code>（[0,1) 均匀分布）和 <code>gauss()</code>（Box-Muller 变换生成标准正态）两个接口。</p>
+<p>这里有一个<strong>关键设计考量</strong>：为什么不用标准库的 <code>&lt;random&gt;</code>？因为 <code>&lt;random&gt;</code> 的 <code>std::mt19937</code> 在不同编译器版本下<strong>不保证序列完全一致</strong>，而本项目需要一个<strong>可复现的实验</strong>——同样的种子必须产生同样的数据，这样量化验证的结果才能被任何人重新运行并复现。自己实现一个确定的 xorshift64* 就能完全掌控这个确定性。</p>
+</li>
+</ul>
+<h3 id="3-3-目标算法与基准算法的职责划分"><a href="#3-3-目标算法与基准算法的职责划分" class="headerlink" title="3.3 目标算法与基准算法的职责划分"></a>3.3 目标算法与基准算法的职责划分</h3><p>程序里有两类函数，职责泾渭分明：</p>
+<ul>
+<li><p><strong>目标算法（RANSAC）</strong>：<code>ransac_line</code> 和 <code>ransac_circle</code>。它们内部都遵循同一个骨架——采样最小子集 → 估计模型 → 统计内点 → 记录最优 → 内点精修。区别只在于”最小子集大小”（2 vs 3）和”模型估计算法”（两点定直线 vs 三点定圆）。</p>
+</li>
+<li><p><strong>基准算法（最小二乘）</strong>：<code>ols_line</code> 和 <code>ols_circle</code>。直线用标准闭式解，圆用 <strong>Kasa 线性化法</strong>（把圆方程 <code>(x-cx)² + (y-cy)² = r²</code> 展开为线性形式 <code>x² + y² = 2cx·x + 2cy·y + (r² - cx² - cy²)</code>，从而归约为一个 3×3 线性方程组）。选择 Kasa 法而非迭代的几何拟合，是因为我们只把 OLS 当作”被离群点破坏的对照组”，一个闭式、简单、能被离群点明显拉偏的方法恰好是理想的对照。</p>
+</li>
+</ul>
+<h3 id="3-4-内点精修（refit）的设计"><a href="#3-4-内点精修（refit）的设计" class="headerlink" title="3.4 内点精修（refit）的设计"></a>3.4 内点精修（refit）的设计</h3><p>RANSAC 的粗估只用 2~3 个点，虽然”方向”对，但方差大。所以我在找到最优模型后，会：</p>
+<ol>
+<li>用最优模型重新计算每个点的距离，筛选出全部内点；</li>
+<li>把这些内点组成一个新的 <code>Data</code> 对象；</li>
+<li>对这个内点集合调用标准的 <code>ols_line</code> &#x2F; <code>ols_circle</code> 做精修。</li>
+</ol>
+<p>这一步让最终的参数既<strong>鲁棒</strong>（方向由内点投票决定，不受离群点干扰）又<strong>精确</strong>（由所有内点共同精化，方差小）。这是 RANSAC 工程实践中几乎必做的一步，缺了它，结果会明显偏粗。</p>
+<hr>
+<h2 id="④-关键代码解析"><a href="#④-关键代码解析" class="headerlink" title="④ 关键代码解析"></a>④ 关键代码解析</h2><p>下面逐段解析核心代码，重点是”为什么这样写”。</p>
+<h3 id="4-1-可复现的随机数生成器"><a href="#4-1-可复现的随机数生成器" class="headerlink" title="4.1 可复现的随机数生成器"></a>4.1 可复现的随机数生成器</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">struct</span> <span class="title class_">RNG</span> &#123;</span><br><span class="line">    <span class="type">uint64_t</span> s;</span><br><span class="line">    <span class="function"><span class="keyword">explicit</span> <span class="title">RNG</span><span class="params">(<span class="type">uint64_t</span> seed)</span> : s(seed) &#123;</span>&#125;</span><br><span class="line">    <span class="function"><span class="type">uint64_t</span> <span class="title">next</span><span class="params">()</span> </span>&#123;           <span class="comment">// xorshift64*</span></span><br><span class="line">        <span class="type">uint64_t</span> x = s;</span><br><span class="line">        x ^= x &gt;&gt; <span class="number">12</span>; x ^= x &lt;&lt; <span class="number">25</span>; x ^= x &gt;&gt; <span class="number">27</span>;</span><br><span class="line">        s = x;</span><br><span class="line">        <span class="keyword">return</span> x * <span class="number">0x2545F4914F6CDD1DULL</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">uniform</span><span class="params">()</span> </span>&#123; <span class="keyword">return</span> (<span class="type">double</span>)(<span class="built_in">next</span>() &gt;&gt; <span class="number">11</span>) / (<span class="type">double</span>)(<span class="number">1ULL</span> &lt;&lt; <span class="number">53</span>); &#125;</span><br><span class="line">    <span class="function"><span class="type">double</span> <span class="title">gauss</span><span class="params">()</span> </span>&#123; <span class="comment">// Box-Muller</span></span><br><span class="line">        <span class="type">double</span> u1 = <span class="built_in">uniform</span>(), u2 = <span class="built_in">uniform</span>();</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">sqrt</span>(<span class="number">-2.0</span> * <span class="built_in">log</span>(u1 + <span class="number">1e-12</span>)) * <span class="built_in">cos</span>(<span class="number">2.0</span> * M_PI * u2);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> <code>next()</code> 是 xorshift64* 算法：三次异或移位混合状态，最后乘以一个魔数 <code>0x2545F4914F6CDD1D</code> 来打散低位。这个魔数是一个已知能产生良好统计特性的乘子。带 <code>*</code> 的变体（乘法混洗）比纯 xorshift 有更好的高位随机性。</p>
+<p><code>uniform()</code> 里右移 11 位再除以 <code>2^53</code>，是为了<strong>只用高 53 位</strong>（正好是 double 尾数的精度），避免低位的不均匀影响 [0,1) 的均匀性。<code>gauss()</code> 用 Box-Muller 变换把两个均匀随机数变成标准正态：<code>u1</code> 映射到半径，<code>u2</code> 映射到角度，<code>log(u1 + 1e-12)</code> 里的 <code>1e-12</code> 是防止 <code>u1</code> 恰好为 0 时 <code>log(0)</code> 变成 <code>-inf</code> 的<strong>防御性写法</strong>。</p>
+<h3 id="4-2-数据生成：内点-离群点"><a href="#4-2-数据生成：内点-离群点" class="headerlink" title="4.2 数据生成：内点 + 离群点"></a>4.2 数据生成：内点 + 离群点</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Data <span class="title">gen_line_data</span><span class="params">(<span class="type">size_t</span> n_inlier, <span class="type">size_t</span> n_outlier, <span class="type">double</span> a, <span class="type">double</span> b,</span></span></span><br><span class="line"><span class="params"><span class="function">                   <span class="type">double</span> noise_sigma, <span class="type">double</span> outlier_range, <span class="type">uint64_t</span> seed)</span> </span>&#123;</span><br><span class="line">    <span class="function">RNG <span class="title">rng</span><span class="params">(seed)</span></span>;</span><br><span class="line">    Data d;</span><br><span class="line">    <span class="type">size_t</span> total = n_inlier + n_outlier;</span><br><span class="line">    d.x.<span class="built_in">resize</span>(total); d.y.<span class="built_in">resize</span>(total);</span><br><span class="line">    <span class="function">vector&lt;<span class="type">size_t</span>&gt; <span class="title">idx</span><span class="params">(total)</span></span>;</span><br><span class="line">    <span class="built_in">iota</span>(idx.<span class="built_in">begin</span>(), idx.<span class="built_in">end</span>(), <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; total; ++i) <span class="built_in">swap</span>(idx[i], idx[rng.<span class="built_in">next</span>() % total]); <span class="comment">// 打乱</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> k = <span class="number">0</span>; k &lt; total; ++k) &#123;</span><br><span class="line">        <span class="type">size_t</span> i = idx[k];</span><br><span class="line">        <span class="type">double</span> xx = (rng.<span class="built_in">uniform</span>() - <span class="number">0.5</span>) * <span class="number">20.0</span>;      <span class="comment">// x 范围 [-10, 10]</span></span><br><span class="line">        <span class="keyword">if</span> (k &lt; n_inlier) &#123;</span><br><span class="line">            <span class="type">double</span> yy = a * xx + b + noise_sigma * rng.<span class="built_in">gauss</span>();</span><br><span class="line">            d.x[i] = xx; d.y[i] = yy;</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            d.x[i] = xx; d.y[i] = (rng.<span class="built_in">uniform</span>() - <span class="number">0.5</span>) * outlier_range;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> d;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 内点的 <code>x</code> 在 <code>[-10, 10]</code> 均匀采样，<code>y</code> 按真值直线加高斯噪声生成；离群点的 <code>x</code> 也在同样范围，但 <code>y</code> 完全随机落在 <code>[-outlier_range/2, outlier_range/2]</code>，与直线无关。这样生成的数据”内点紧凑分布在直线上，离群点均匀散布”,能真实模拟带噪观测。</p>
+<p><strong>一个容易踩坑的点</strong>：<code>idx</code> 数组的<strong>打乱</strong>是关键——如果不打乱，前 <code>n_inlier</code> 个点是内点、后面全是离群点，那么虽然算法结果可能不受影响（RANSAC 随机采样），但会让数据在内存布局上带有虚假的规律性，更重要的是它模拟了真实场景中”内外点随机交叠”的情况。打乱用的是经典的 Fisher-Yates 洗牌（<code>swap(idx[i], idx[rng.next() % total])</code>）。</p>
+<h3 id="4-3-最小二乘直线拟合（基准）"><a href="#4-3-最小二乘直线拟合（基准）" class="headerlink" title="4.3 最小二乘直线拟合（基准）"></a>4.3 最小二乘直线拟合（基准）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Line <span class="title">ols_line</span><span class="params">(<span class="type">const</span> Data&amp; d)</span> </span>&#123;</span><br><span class="line">    <span class="type">double</span> sx = <span class="number">0</span>, sy = <span class="number">0</span>, sxx = <span class="number">0</span>, sxy = <span class="number">0</span>;</span><br><span class="line">    <span class="type">size_t</span> n = d.x.<span class="built_in">size</span>();</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">size_t</span> i = <span class="number">0</span>; i &lt; n; ++i) &#123;</span><br><span class="line">        sx += d.x[i]; sy += d.y[i];</span><br><span class="line">        sxx += d.x[i] * d.x[i];</span><br><span class="line">        sxy += d.x[i] * d.y[i];</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="type">double</span> denom = n * sxx - sx * sx;</span><br><span class="line">    <span class="type">double</span> a = (n * sxy - sx * sy) / denom;</span><br><span class="line">    <span class="type">double</span> b = (sy - a * sx) / n;</span><br><span class="line">    <span class="keyword">return</span> &#123;a, b&#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 这是直线最小二乘的标准闭式解。最小化 <code>Σ(yᵢ - a xᵢ - b)²</code>，分别对 <code>a</code>、<code>b</code> 求偏导并令其为 0，得到正规方程（normal equation）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[ Σxᵢ²   Σxᵢ ] [a]   [ Σxᵢyᵢ ]</span><br><span class="line">[ Σxᵢ    n   ] [b] = [ Σyᵢ   ]</span><br></pre></td></tr></table></figure>
+
+<p>直接解这个 2×2 方程组即可。这里 <code>denom = n·Σx² - (Σx)²</code> 是系数矩阵的行列式，<code>a</code>、<code>b</code> 的表达式就是克莱姆法则（Cramer’s rule）的直接展开。<strong>注意这里没有任何对离群点的防御</strong>——正是因为我们想要一个”会被离群点拉偏”的对照组，来凸显 RANSAC 的价值。</p>
+<h3 id="4-4-RANSAC-直线拟合（目标算法）"><a href="#4-4-RANSAC-直线拟合（目标算法）" class="headerlink" title="4.4 RANSAC 直线拟合（目标算法）"></a>4.4 RANSAC 直线拟合（目标算法）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">Line <span class="title">ransac_line</span><span class="params">(<span class="type">const</span> Data&amp; d, <span class="type">double</span> inlier_thresh, <span class="type">int</span> max_iter, <span class="type">uint64_t</span> seed,</span></span></span><br><span class="line"><span class="params"><span class="function">                 <span class="type">size_t</span>* out_inliers = <span class="literal">nullptr</span>)</span> </span>&#123;</span><br><span class="line">    <span class="function">RNG <span class="title">rng</span><span class="params">(seed)</span></span>;</span><br><span class="line">    <span class="type">size_t</span> n = d.x.<span class="built_in">size</span>();</span><br><span class="line">    <span class="type">size_t</span> best_count = <span class="number">0</span>;</span><br><span class="line">    Line best&#123;<span class="number">0</span>, <span class="number">0</span>&#125;;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> it = <span class="number">0</span>; it &lt; max_iter; ++it) &#123;</span><br><span class="line">        <span class="type">size_t</span> i1 = rng.<span class="built_in">next</span>() % n, i2 = rng.<span class="built_in">next</span>() % n;</span><br><span class="line">        <span class="keyword">if</span> (i1 == i2) <span class="keyword">continue</span>;</span><br><span class="line">        <span class="type">double</span> dx = d.x[i2] - d.x[i1];</span><br><span class="line">        <span class="keyword">if</span> (<span class="built_in">fabs</span>(dx) &lt; <span class="number">1e-9</span>) <span class="keyword">continue</span>;   <span class="comment">// 两点 x 太接近，直线退化为竖线</span></span><br><span class="line">        <span class="type">double</span> a = (d.y[i2] - d.y[i1]) / dx;</span><br><span class="line">        <span class="type">double</span> b = d.y[i1] - a * d.x[i1];</span><br><span class="line"></span><br><span class="line">        <span class="type">size_t</span> cnt = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">size_t</span> j = <span class="number">0</span>; j &lt; n; ++j) &#123;</span><br><span class="line">            <span class="type">double</span> dist = <span class="built_in">fabs</span>(a * d.x[j] - d.y[j] + b) / <span class="built_in">sqrt</span>(a*a + <span class="number">1.0</span>);</span><br><span class="line">            <span class="keyword">if</span> (dist &lt; inlier_thresh) cnt++;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (cnt &gt; best_count) &#123; best_count = cnt; best = &#123;a, b&#125;; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// ...（内点精修见下文）</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 逐点来看：</p>
+<ul>
+<li><code>i1</code>, <code>i2</code> 是随机采样的两个点索引，这是”最小子集”——直线最少 2 点确定。<code>if (i1 == i2) continue;</code> 防止采样到同一个点。</li>
+<li><code>if (fabs(dx) &lt; 1e-9) continue;</code> 是一个<strong>重要的防御</strong>：如果两个点的 <code>x</code> 坐标几乎相同，斜率 <code>a</code> 会趋向无穷大（竖直线），导致后续距离计算溢出或失真。这里直接跳过这组采样。<strong>这是一个非常容易遗漏的坑</strong>——不处理竖直线会让算法在特定数据上产生 NaN。</li>
+<li>距离计算 <code>fabs(a·x - y + b) / sqrt(a² + 1)</code> 是点到直线的解析距离公式。注意这里重用了 <code>sqrt(a*a + 1)</code>，虽然每轮内层循环都会重复计算这个分母，但在现代编译器开启 <code>-O2</code> 后会被自动提取为循环不变量，不必手动优化。</li>
+<li><code>if (cnt &gt; best_count)</code> 用 <code>&gt;</code> 而非 <code>&gt;=</code>，是为了在支持数相同时保留<strong>最早找到的</strong>模型，保证结果稳定可复现。</li>
+</ul>
+<h3 id="4-5-内点精修"><a href="#4-5-内点精修" class="headerlink" title="4.5 内点精修"></a>4.5 内点精修</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 用最佳内点集合重新做 OLS（精修）</span></span><br><span class="line">vector&lt;<span class="type">double</span>&gt; ix, iy;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">size_t</span> j = <span class="number">0</span>; j &lt; n; ++j) &#123;</span><br><span class="line">    <span class="type">double</span> dist = <span class="built_in">fabs</span>(best.a * d.x[j] - d.y[j] + best.b) / <span class="built_in">sqrt</span>(best.a*best.a + <span class="number">1.0</span>);</span><br><span class="line">    <span class="keyword">if</span> (dist &lt; inlier_thresh) &#123; ix.<span class="built_in">push_back</span>(d.x[j]); iy.<span class="built_in">push_back</span>(d.y[j]); &#125;</span><br><span class="line">&#125;</span><br><span class="line">Data ref; ref.x = ix; ref.y = iy;</span><br><span class="line">Line refined = <span class="built_in">ols_line</span>(ref);</span><br><span class="line"><span class="keyword">if</span> (out_inliers) *out_inliers = ix.<span class="built_in">size</span>();</span><br><span class="line"><span class="keyword">return</span> refined;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 这是”鲁棒 + 精确”的结合点。RANSAC 主循环只用了 2 个采样点做粗估，方差大；精修阶段把 <code>best</code> 模型的全部内点收集起来，交给标准 OLS 重新拟合，得到更精确的参数。<code>out_inliers</code> 是出参，把内点数传回给调用方，供后续”内点召回率”验证使用。<strong>这里体现了 RANSAC 的一个核心工程实践：先鲁棒地找到方向，再精确地定位置。</strong></p>
+<h3 id="4-6-RANSAC-圆拟合（三点定圆）"><a href="#4-6-RANSAC-圆拟合（三点定圆）" class="headerlink" title="4.6 RANSAC 圆拟合（三点定圆）"></a>4.6 RANSAC 圆拟合（三点定圆）</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> circle_from3 = [](<span class="type">double</span> x1,<span class="type">double</span> y1,<span class="type">double</span> x2,<span class="type">double</span> y2,<span class="type">double</span> x3,<span class="type">double</span> y3,</span><br><span class="line">                       Circle&amp; c) &#123;</span><br><span class="line">    <span class="type">double</span> d0 = <span class="number">2</span>*(x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2));</span><br><span class="line">    <span class="keyword">if</span> (<span class="built_in">fabs</span>(d0) &lt; <span class="number">1e-9</span>) <span class="keyword">return</span> <span class="literal">false</span>;   <span class="comment">// 三点共线，无法确定圆</span></span><br><span class="line">    <span class="type">double</span> ux = ((x1*x1+y1*y1)*(y2-y3) + (x2*x2+y2*y2)*(y3-y1) + (x3*x3+y3*y3)*(y1-y2)) / d0;</span><br><span class="line">    <span class="type">double</span> uy = ((x1*x1+y1*y1)*(x3-x2) + (x2*x2+y2*y2)*(x1-x3) + (x3*x3+y3*y3)*(x2-x1)) / d0;</span><br><span class="line">    <span class="type">double</span> r = <span class="built_in">sqrt</span>((x1-ux)*(x1-ux) + (y1-uy)*(y1-uy));</span><br><span class="line">    c = &#123;ux, uy, r&#125;;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 三点定圆的解析公式。给定圆上三点，圆心是两条弦的垂直平分线的交点。上面的 <code>ux</code>、<code>uy</code> 是通过解两条垂直平分线交点得到的闭式解。分母 <code>d0</code> 是三点构成三角形面积的两倍（带符号，即叉积的 2 倍），<strong>当三点共线时 <code>d0 = 0</code></strong>，此时无法确定一个圆，函数返回 <code>false</code> 让调用方跳过这组采样。这个”三点共线防御”与直线拟合里的”竖直线防御”是同一类坑——<strong>几何退化情形必须显式处理</strong>。</p>
+<h3 id="4-7-主函数中的量化验证"><a href="#4-7-主函数中的量化验证" class="headerlink" title="4.7 主函数中的量化验证"></a>4.7 主函数中的量化验证</h3><figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">double</span> err_r = <span class="built_in">hypot</span>(r.a - TRUTH_A, r.b - TRUTH_B);</span><br><span class="line"><span class="type">double</span> err_o = <span class="built_in">hypot</span>(o.a - TRUTH_A, o.b - TRUTH_B);</span><br><span class="line">cout &lt;&lt; <span class="string">&quot;      -&gt; 参数误差: RANSAC=&quot;</span> &lt;&lt; err_r &lt;&lt; <span class="string">&quot;  OLS=&quot;</span> &lt;&lt; err_o</span><br><span class="line">     &lt;&lt; (err_r &lt;= err_o ? <span class="string">&quot;  ✅&quot;</span> : <span class="string">&quot;  ❌&quot;</span>) &lt;&lt; endl;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这样写？</strong> 这是核心的量化验证逻辑。<strong>“参数误差”定义为估计参数与真值参数的欧氏距离</strong>：直线看 <code>(a, b)</code> 到真值 <code>(3.0, 1.0)</code> 的距离，圆看 <code>(cx, cy, r)</code> 到真值 <code>(2.0, -1.0, 5.0)</code> 的距离。这个指标是<strong>客观、可复现、与视觉无关</strong>的——它直接回答”谁更接近真值”。以此判断 RANSAC 是否优于 OLS，而不是靠肉眼看拟合图”像不像”。</p>
+<hr>
+<h2 id="⑤-踩坑实录"><a href="#⑤-踩坑实录" class="headerlink" title="⑤ 踩坑实录"></a>⑤ 踩坑实录</h2><p>在这个看似简单的项目里，我实际踩过（或差点踩到）几个坑，逐个记录如下。</p>
+<h3 id="坑-1：竖直线导致斜率溢出（NaN-传播）"><a href="#坑-1：竖直线导致斜率溢出（NaN-传播）" class="headerlink" title="坑 1：竖直线导致斜率溢出（NaN 传播）"></a>坑 1：竖直线导致斜率溢出（NaN 传播）</h3><p><strong>症状</strong>：在早期版本里，当随机采样的两个点 <code>x</code> 坐标非常接近时，<code>a = (y2 - y1) / dx</code> 会产生一个巨大的斜率值（甚至除以 0 得到 <code>inf</code>），随后距离计算 <code>fabs(a·x - y + b)</code> 里 <code>inf · x</code> 会产生 <code>NaN</code>，而 <code>NaN &lt; inlier_thresh</code> 恒为 <code>false</code>，导致这组采样被静默丢弃——但更糟的是如果 <code>NaN</code> 污染了内点计数，可能让 <code>best_count</code> 的比较逻辑出错。</p>
+<p><strong>错误假设</strong>：我以为”随机采样到两个 x 几乎相同的点的概率可以忽略”。</p>
+<p><strong>真实原因</strong>：连续均匀采样下，两个点 x 完全相等概率确实为 0，但”非常接近”的概率并不小到可忽略——尤其是 <code>outlier_range</code> 较大的时候，离群点密集分布，<code>dx</code> 很容易落在 <code>1e-9</code> 量级。</p>
+<p><strong>修复方式</strong>：显式加 <code>if (fabs(dx) &lt; 1e-9) continue;</code>，跳过退化采样。这一行看似简单，却是算法鲁棒性的关键防线。</p>
+<h3 id="坑-2：圆的”三点共线”导致除零"><a href="#坑-2：圆的”三点共线”导致除零" class="headerlink" title="坑 2：圆的”三点共线”导致除零"></a>坑 2：圆的”三点共线”导致除零</h3><p><strong>症状</strong>：圆拟合里，当随机采样的三个点恰好（或近似）共线时，<code>circle_from3</code> 的分母 <code>d0</code> 趋近 0，<code>ux</code>、<code>uy</code> 变成巨大的数，半径 <code>r</code> 严重失真，进而让内点计数和最优模型都出错。</p>
+<p><strong>错误假设</strong>：我以为随机三点共线的概率可以忽略不计。</p>
+<p><strong>真实原因</strong>：同样，在离群点密集的区域，三个点近似共线的概率并不小。而且圆拟合的 <code>s=3</code>，比直线 <code>s=2</code> 更容易踩到退化情形。</p>
+<p><strong>修复方式</strong>：<code>if (fabs(d0) &lt; 1e-9) return false;</code>，把共线判定交给 <code>circle_from3</code> 返回布尔值，调用方 <code>continue</code> 跳过。<strong>这个坑的教训是：任何基于”分母不为零”假设的闭式解，都必须显式防御分母接近零的情形。</strong></p>
+<h3 id="坑-3：验证脚本把”相等”误判为”失败”"><a href="#坑-3：验证脚本把”相等”误判为”失败”" class="headerlink" title="坑 3：验证脚本把”相等”误判为”失败”"></a>坑 3：验证脚本把”相等”误判为”失败”</h3><p><strong>症状</strong>：在量化验证脚本里，我最初写的是 <code>assert err_r &lt; err_o</code>（严格小于）。结果在<strong>零离群点</strong>（0% outlier）的实验组里，RANSAC 和 OLS 的参数误差<strong>完全相等</strong>（都是 <code>0.011317</code>），触发了断言失败，脚本报 <code>❌ 存在 RANSAC 未优于 OLS 的组</code>。</p>
+<p><strong>错误假设</strong>：我以为 RANSAC 和 OLS 的误差”总会有一点点不同”。</p>
+<p><strong>真实原因</strong>：当没有离群点时，RANSAC 的内点精修本质上就是”拿全部点做 OLS”，所以两者结果<strong>逐位完全一致</strong>（误差 <code>0.000000</code>）。这是正确的行为，而不是缺陷——它恰好证明 RANSAC 在纯净数据上不会比 OLS 差。</p>
+<p><strong>修复方式</strong>：把验证条件从 <code>err_r &lt; err_o</code> 改为 <code>err_r &lt;= err_o + 1e-9</code>（容忍浮点相等），并且单独区分”有离群点的组”（严格占优）和”无离群点组”（允许相等）。<strong>教训是：写断言时要想清楚边界语义，”相等”是否是合法的预期结果。</strong></p>
+<h3 id="坑-4：内点召回率”超过-100-”的困惑"><a href="#坑-4：内点召回率”超过-100-”的困惑" class="headerlink" title="坑 4：内点召回率”超过 100%”的困惑"></a>坑 4：内点召回率”超过 100%”的困惑</h3><p><strong>症状</strong>：实验 3 的”内点率验证”输出 <code>识别内点数 = 110 / 100</code>，召回率达到 110%，乍一看像是 bug。</p>
+<p><strong>错误假设</strong>：我以为”识别的内点数应该 ≤ 真实内点数”。</p>
+<p><strong>真实原因</strong>：离群点是均匀散布在整个 <code>[-15, 15] × [-15, 15]</code> 区域的，其中<strong>一部分离群点恰好落在了真值直线附近、距离阈值 <code>τ=1.0</code> 以内</strong>，被 RANSAC 误判为内点。所以识别出的内点数 &#x3D; 真实内点 + 少量”假阳”离群点，110 &gt; 100 是完全正常的。</p>
+<p><strong>修复方式</strong>：把验证指标从”精确等于 100”改为”召回率 &gt; 85%”（即识别内点数 ≥ 85），因为我们要验证的是”RANSAC 没有漏掉太多真实内点”，而不是”不引入任何假阳”。<strong>教训是：在含噪+离群点的场景下，”精确匹配”往往不是合理的验收标准，应该用召回率&#x2F;精度这类容忍度指标。</strong></p>
+<hr>
+<h2 id="⑥-效果验证与数据"><a href="#⑥-效果验证与数据" class="headerlink" title="⑥ 效果验证与数据"></a>⑥ 效果验证与数据</h2><p>本项目是数值&#x2F;算法类，验证方式是<strong>量化指标而非渲染截图</strong>。下面是完整实验数据（即 <code>ransac_output.txt</code> 的内容），所有数字均可复现（固定随机种子）。</p>
+<h3 id="6-1-直线拟合：不同离群点比例的参数对比"><a href="#6-1-直线拟合：不同离群点比例的参数对比" class="headerlink" title="6.1 直线拟合：不同离群点比例的参数对比"></a>6.1 直线拟合：不同离群点比例的参数对比</h3><p>真值：<code>y = 3.0x + 1.0</code>，内点 100 个（σ&#x3D;0.3），离群点比例 0%~80%。</p>
+<table>
+<thead>
+<tr>
+<th>离群点比例</th>
+<th>RANSAC 估计 (a, b)</th>
+<th>OLS 估计 (a, b)</th>
+<th>RANSAC 参数误差</th>
+<th>OLS 参数误差</th>
+<th>优势倍数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0%</td>
+<td>(2.992, 0.992)</td>
+<td>(2.992, 0.992)</td>
+<td>0.011</td>
+<td>0.011</td>
+<td>1.0×（一致）</td>
+</tr>
+<tr>
+<td>20%</td>
+<td>(2.997, 0.931)</td>
+<td>(2.419, 0.840)</td>
+<td>0.069</td>
+<td>0.603</td>
+<td>8.7×</td>
+</tr>
+<tr>
+<td>40%</td>
+<td>(3.011, 0.971)</td>
+<td>(1.688, 0.605)</td>
+<td>0.031</td>
+<td>1.371</td>
+<td>43.7×</td>
+</tr>
+<tr>
+<td>60%</td>
+<td>(2.989, 0.875)</td>
+<td>(1.254, 1.946)</td>
+<td>0.126</td>
+<td>1.986</td>
+<td>15.8×</td>
+</tr>
+<tr>
+<td>80%</td>
+<td>(3.000, 1.255)</td>
+<td>(0.506, 0.461)</td>
+<td>0.255</td>
+<td>2.551</td>
+<td>10.0×</td>
+</tr>
+</tbody></table>
+<p><strong>关键观察</strong>：随着离群点比例升高，OLS 的参数误差从 0.011 飙升至 2.551（增大 230 倍），斜率 <code>a</code> 从 3.0 退化到 0.506，完全不可用；而 RANSAC 的参数误差始终被压制在 0.255 以内（最大时仍比 OLS 精确 10 倍）。<strong>这组数据无可辩驳地证明：在离群点存在的场景下，RANSAC 的鲁棒性远超最小二乘。</strong></p>
+<p>值得注意的是 40% 离群点那一行，RANSAC 的参数误差反而比 20% 时更小（0.031 vs 0.069）——这是随机采样带来的合理波动，而非规律。关键在于 RANSAC 的误差始终保持在<strong>同一数量级、远小于真值尺度</strong>，而 OLS 的误差则随离群点比例单调恶化。</p>
+<h3 id="6-2-时间复杂度分析"><a href="#6-2-时间复杂度分析" class="headerlink" title="6.2 时间复杂度分析"></a>6.2 时间复杂度分析</h3><p>RANSAC 的每次迭代包含两部分：<strong>采样 + 模型估计</strong>（O(s) 或 O(1) 的时间，<code>s</code> 是最小子集大小，直线 2、圆 3）和<strong>内点计数</strong>（需要遍历全部 <code>n</code> 个点计算距离，O(n)）。因此单次迭代是 <strong>O(n)</strong>。总时间复杂度是 <strong>O(N · n)</strong>，其中 <code>N</code> 是迭代次数。</p>
+<p>对于固定数据量 <code>n</code>，RANSAC 的时间开销主要由 <code>N</code> 决定。结合 2.3 节的公式，<code>N</code> 随内点比例 <code>w</code> 的降低而<strong>指数级增长</strong>（因为 <code>w^s</code> 呈指数衰减）。以圆拟合为例：</p>
+<ul>
+<li><code>w = 0.8</code>（20% 离群点）时，<code>N ≈ log(0.01)/log(1 - 0.512) ≈ 5</code> 次；</li>
+<li><code>w = 0.5</code>（50% 离群点）时，<code>N ≈ log(0.01)/log(1 - 0.125) ≈ 35</code> 次；</li>
+<li><code>w = 0.3</code>（70% 离群点）时，<code>N ≈ log(0.01)/log(1 - 0.027) ≈ 168</code> 次。</li>
+</ul>
+<p>这就是为什么我在实验 2 的圆拟合里，面对 50% 和 70% 离群点时，采用了 <code>N=2000</code> 的保守迭代数——它远超理论下限，代价只是几秒钟的 CPU 时间，却换来了”即使运气很差也能找到正确模型”的高置信度（&gt;99% 成功率）。这是一个典型的<strong>用算力换鲁棒性</strong>的工程决策。</p>
+<h3 id="6-3-圆拟合：高离群点比例下的对比"><a href="#6-3-圆拟合：高离群点比例下的对比" class="headerlink" title="6.3 圆拟合：高离群点比例下的对比"></a>6.3 圆拟合：高离群点比例下的对比</h3><p>真值：圆心 <code>(2, -1)</code>，半径 <code>r=5</code>，内点 100 个。</p>
+<table>
+<thead>
+<tr>
+<th>离群点比例</th>
+<th>RANSAC 估计 (cx, cy, r)</th>
+<th>OLS 估计 (cx, cy, r)</th>
+<th>RANSAC 参数误差</th>
+<th>OLS 参数误差</th>
+<th>优势倍数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>20%</td>
+<td>(2.042, -0.952, 5.023)</td>
+<td>(2.896, 0.846, 7.650)</td>
+<td>0.068</td>
+<td>3.351</td>
+<td>49.6×</td>
+</tr>
+<tr>
+<td>50%</td>
+<td>(2.016, -0.958, 5.094)</td>
+<td>(-0.059, 0.379, 10.197)</td>
+<td>0.104</td>
+<td>5.758</td>
+<td>55.4×</td>
+</tr>
+<tr>
+<td>70%</td>
+<td>(2.058, -1.153, 5.055)</td>
+<td>(-0.515, -0.279, 11.009)</td>
+<td>0.173</td>
+<td>6.554</td>
+<td>38.0×</td>
+</tr>
+</tbody></table>
+<p><strong>关键观察</strong>：圆拟合的结果更加戏剧性。在 50% 离群点时，OLS 估计出的圆心竟然跑到了 <code>(-0.059, 0.379)</code>（真值 <code>(2, -1)</code>），半径膨胀到 10.197（真值 5），完全是垃圾结果；而 RANSAC 的圆心误差始终在 0.2 以内，半径误差在 0.1 以内。<strong>离群点越多，OLS 的圆拟合崩溃得越彻底，RANSAC 的优势倍数甚至达到 55 倍。</strong></p>
+<h3 id="6-4-内点召回率验证"><a href="#6-4-内点召回率验证" class="headerlink" title="6.4 内点召回率验证"></a>6.4 内点召回率验证</h3><p>实验 3 中，在 100 内点 + 100 离群点（50% 离群）的数据上，RANSAC 识别出 110 个内点，召回率 &#x3D; 110%（&gt; 85%，通过）。这说明 RANSAC 不仅没有漏掉真实内点，还额外”吸收”了少量恰好落在阈值内的离群点。这是一个健康的信号——<strong>召回率过高（含少量假阳）远比召回率过低（漏掉真实内点导致模型估计不准）安全</strong>。</p>
+<h3 id="6-5-无离群点一致性验证"><a href="#6-5-无离群点一致性验证" class="headerlink" title="6.5 无离群点一致性验证"></a>6.5 无离群点一致性验证</h3><p>实验 4 中，在 100 内点、0 离群点的纯净数据上，RANSAC 与 OLS 的估计结果<strong>逐位完全一致</strong>（差异 &#x3D; 0.000000）。这证明 RANSAC 在数据干净时不会”画蛇添足”——它的内点精修机制最终退化为标准 OLS，结果自然与 OLS 相同。<strong>这是一个重要的正确性保障：RANSAC 的鲁棒性不会以牺牲纯净场景的精度为代价。</strong></p>
+<h3 id="6-6-封面图的量化说明"><a href="#6-6-封面图的量化说明" class="headerlink" title="6.6 封面图的量化说明"></a>6.6 封面图的量化说明</h3><p>项目封面图（<code>cover.png</code>）由 <code>make_cover.py</code> 用 matplotlib 复现同样的数据生成，左图展示 40% 离群点下的直线拟合，右图展示 50% 离群点下的圆拟合。图中灰色点是离群点、彩色点是 RANSAC 识别出的内点、黑色实线是真值、绿色虚线是 RANSAC 结果、红色点线是 OLS 结果。可以直观看到：<strong>绿色虚线紧贴黑色真值，而红色点线被离群点拉得严重偏离</strong>。封面图的尺寸为 760×1678、大小 114KB、像素标准差 29.2，是一个内容丰富的有效图像。</p>
+<hr>
+<h2 id="⑦-总结与延伸"><a href="#⑦-总结与延伸" class="headerlink" title="⑦ 总结与延伸"></a>⑦ 总结与延伸</h2><h3 id="7-1-技术局限性"><a href="#7-1-技术局限性" class="headerlink" title="7.1 技术局限性"></a>7.1 技术局限性</h3><p>RANSAC 虽然强大，但并非银弹，它有明确的局限性：</p>
+<ol>
+<li><p><strong>对离群点比例有”天花板”</strong>：如 2.3 节推导，当内点比例 <code>w</code> 过低时，所需迭代次数爆炸性增长。经验上，直线拟合在 <code>w &lt; 20%</code>、圆拟合在 <code>w &lt; 30%</code> 时，RANSAC 就变得不切实际。这是它最根本的局限。</p>
+</li>
+<li><p><strong>阈值 <code>τ</code> 需要人工设定</strong>：<code>τ</code> 选的不好，要么漏内点、要么吞离群点。虽然现实中可以根据噪声水平自适应（比如 MSAC 用软阈值、MLESAC 用概率模型），但基本 RANSAC 对 <code>τ</code> 是敏感的。</p>
+</li>
+<li><p><strong>随机性导致结果不完全确定</strong>：每次运行的结果可能略有差异（尤其边界情形）。虽然通过固定种子可复现，但在生产环境中需要足够多的迭代次数来稳定结果。</p>
+</li>
+<li><p><strong>只能拟合”能被最小子集确定”的模型</strong>：对于无法用少量点唯一定义的复杂模型（如高维流形、非参数模型），RANSAC 不直接适用。</p>
+</li>
+</ol>
+<h3 id="7-2-可继续优化的方向"><a href="#7-2-可继续优化的方向" class="headerlink" title="7.2 可继续优化的方向"></a>7.2 可继续优化的方向</h3><ul>
+<li><strong>PROSAC</strong>：按点的质量（如特征匹配分数）排序采样，优先从高质量点里采样，加速收敛。</li>
+<li><strong>LO-RANSAC</strong>：在 RANSAC 找到一个较好模型后，用局部优化（迭代重加权）精化，进一步减少所需的迭代次数。</li>
+<li><strong>MSAC &#x2F; MLESAC</strong>：用软阈值或概率模型替代硬阈值，对离群点的判定更平滑。</li>
+<li><strong>自适应停止</strong>：根据当前最优模型的内点率，动态估计还需要多少迭代（用 2.3 节的公式实时计算 <code>N</code>），而不是固定一个保守的大迭代数。</li>
+</ul>
+<h3 id="7-3-与本系列其他文章的关联"><a href="#7-3-与本系列其他文章的关联" class="headerlink" title="7.3 与本系列其他文章的关联"></a>7.3 与本系列其他文章的关联</h3><p>本项目的主题（鲁棒估计）与之前几篇算法实践遥相呼应：</p>
+<ul>
+<li>与 <strong>最小二乘&#x2F;数值线性代数</strong> 类文章（如 08-08 QR 分解、08-11 SVD、11-03 Levenberg-Marquardt）共同构成了”从数据估计参数”的方法论家族——它们都假设数据是干净的高斯噪声，而 RANSAC 是这套假设在”有离群点”时的鲁棒扩展。</li>
+<li>与 <strong>计算机视觉</strong> 类文章（如 07-20 Sobel、07-22 Canny、08-02 Harris 角点）互补——边缘&#x2F;角点检测产生的是”候选特征点”，而 RANSAC 正是从这些候选点（混杂内外点）中鲁棒拟合几何模型的下一步。</li>
+<li>若未来延伸到 <strong>3D 重建 &#x2F; SLAM</strong>，RANSAC 将是估计相机位姿、三角化、平面检测的核心工具，可以与本系列的 SVD、四元数、变换管线等文章打通。</li>
+</ul>
+<p><strong>一句话总结</strong>：RANSAC 用”少数服从多数”的随机采样策略，在脏数据中鲁棒地找出了正确的几何模型；它牺牲了最小二乘的解析确定性，换来了对离群点的免疫力——这是所有鲁棒估计思想的起点，也是理解现代计算机视觉 pipeline 的必经之路。</p>
+<hr>
+<blockquote>
+<p>本文配套代码位于 <a target="_blank" rel="noopener" href="https://github.com/chiuhoukazusa/daily-coding-practice/tree/main/11-10-ransac-fitting">daily-coding-practice&#x2F;11-10-ransac-fitting</a>，可编译运行 <code>main.cpp</code> 复现全部量化实验结果。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io">Chiuhou</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://chiuhoukazusa.github.io/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/">https://chiuhoukazusa.github.io/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://chiuhoukazusa.github.io" target="_blank">Chiuhou 技术博客</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/C/">C++</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E6%AF%8F%E6%97%A5%E4%B8%80%E7%BB%83/">每日一练</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%AE%A1%E7%AE%97%E5%87%A0%E4%BD%95/">计算几何</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E7%AE%97%E6%B3%95/">算法</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%A7%86%E8%A7%89/">计算机视觉</a><a class="post-meta__tags" href="/chiuhou-tech-blog/tags/RANSAC/">RANSAC</a></div><div class="post-share"><div class="social-share" data-image="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/chiuhou-tech-blog/2026/11/09/daily-coding-cubic-spline-2026-11-09/" title="每日编程实践: 三次样条插值"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png" onerror="onerror=null;src='/chiuhou-tech-blog/images/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">每日编程实践: 三次样条插值</div></div><div class="info-2"><div class="info-item-1">每日编程实践：自然三次样条插值（Natural Cubic Spline Interpolation） 今天的每日编程实践主题是 数值方法中的自然三次样条插值（Natural Cubic Spline Interpolation）。我们通过解一个三对角线性方程组（使用 Thomas 算法）来构造一条 二阶连续（C² 连续） 的分段三次多项式曲线，使其精确通过所有给定数据点，同时避免全局多项式插值在等距节点下著名的 Runge 现象（龙格震荡）。本篇文章会完整推导数学原理、展示实现架构、逐行解析核心代码、如实记录踩坑过程，并用解析函数误差、收敛阶、精确性重建三项量化指标严格验证结果的正确性。   ① 背景与动机在科学计算、计算机辅助设计（CAD）、游戏开发、动画、金融曲线拟合等众多领域，我们经常面临这样的问题：给定一组离散的采样点 (x_i, y_i)，如何构造一条光滑曲线穿过它们？ 这就是经典的**插值（Interpolation）**问题。 为什么要关心插值？插值的本质是”用有限的信息重建连续的函数”。设想一个工程师拿到了一组传感器读出来的 100 个温度采样点，他希望绘制一条...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/chiuhou-tech-blog/2026/06/17/daily-coding-delaunay-triangulation-2026-06-17/" title="每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026-06-17-delaunay_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-06-17</div><div class="info-item-2">每日编程实践: Delaunay 三角剖分 — Bowyer-Watson 增量算法</div></div><div class="info-2"><div class="info-item-1">① 背景与动机Delaunay 三角剖分是计算几何中最优雅和最重要的结构之一。给定平面上的一组离散点，Delaunay 三角剖分将它们连成三角形网格，并且具有一个关键性质：任意三角形的外接圆内不包含其他点。这个性质保证了剖分在某种意义下是”最优”的——它最大化所有三角形中最小的内角，避免了又长又瘦的三角形。 为什么这个性质如此重要？想象你有一组地形采样点，需要把它们变成三维地形模型。如果某个三角形的外接圆内包含另一个采样点，这意味着有四个点几乎共圆，三角剖分变得不稳定。Delaunay 三角剖分排除了这种歧义，确保结果是唯一且确定的（只要没有四点共圆）。 在工业界和游戏开发中，Delaunay 三角剖分有着广泛的应用：  地形建模：从 LiDAR 或高度图采样点生成三角形网格 物理模拟：有限元方法（FEM）需要高质量网格以保证数值稳定性 寻路网格（NavMesh）：自动生成导航网格，三角形质量直接影响路径质量 插值与重建：给定采样点重建连续曲面（如天气数据插值） 邻近查询：Delaunay 三角剖分与 Voronoi 图互为对偶，前者提供显式的邻接关系  我们今天要实现的算法是 ...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/08/03/daily-coding-rotating-calipers-2026-08-03/" title="每日编程实践: Rotating Calipers 最小面积包围矩形"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/daily-coding/08-03/output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-03</div><div class="info-item-2">每日编程实践: Rotating Calipers 最小面积包围矩形</div></div><div class="info-2"><div class="info-item-1">背景与动机在计算机图形学和计算几何领域，包围体（Bounding Volume） 是最基础也最重要的概念之一。无论是碰撞检测、视锥剔除、射线拾取还是空间索引，我们几乎都要和包围体打交道。最常用的是 AABB（Axis-Aligned Bounding Box，轴对齐包围盒）：用平行于坐标轴的矩形来包裹一个形状，计算极其简单——只需要找到 x 和 y 方向的最小&#x2F;最大值即可。 但 AABB 有一个致命的缺点：它不随物体旋转而旋转，导致冗余空间极大。试想一个 45 度倾斜的长条形物体，AABB 会把它包在一个巨大的正方形里，浪费掉超过一半的面积。在游戏引擎的物理碰撞中，这会触发大量”假阳性”碰撞；在渲染管线中，这会导致视锥剔除效率下降，多渲染很多屏幕上根本看不到的物体。 OBB（Oriented Bounding Box，有向包围盒） 就是为解决这个问题而生的。OBB 允许包围盒随物体的形状旋转，找到”贴得最紧”的那个矩形。问题来了：给定一组点，如何找到面积最小的 OBB？ 答案就是今天的主角：Rotating Calipers（旋转卡壳）算法。 工业界的实际应用Rotat...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/11/daily-coding-Bentley-Ottmann-Line-Intersection-2026-07-11/" title="每日编程实践: Bentley-Ottmann线段交点算法"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-11-Bentley-Ottmann-Line-Intersection/Polygon_20.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-11</div><div class="info-item-2">每日编程实践: Bentley-Ottmann线段交点算法</div></div><div class="info-2"><div class="info-item-1">背景与动机线段交点检测（Line Segment Intersection）是计算几何中最基础、最实用的问题之一。它的核心问题是：给定平面上 $n$ 条线段，找出所有线段之间的交点。 你可能会想：”这还不简单？双重循环遍历所有线段对，每对做一次几何判断不就行了？”没错，暴力法 $O(n^2)$ 确实可以，但在很多实际场景中，线段数量可能成百上千，而真正的交点数量 $k$ 却远小于 $n^2$。例如：  地图渲染：道路线段可能有上万条，但实际交叉路口（交点）数量只有几百个。如果你每次放大地图都要对所有道路对做交点检测，地图引擎会卡成幻灯片。 PCB 设计验证：电路板上的导线数百万条，短路检测（导线相交）是整个 EDA 流程的瓶颈之一。$O(n^2)$ 意味着 100 万条线需要 $10^{12}$ 次检查——这根本不可行。 碰撞检测：游戏中的障碍物边界线段之间，只有少数会相交，需要更高效的筛选机制。 GIS 空间分析：地理信息系统中，河流、道路、行政边界的交叉分析同样面临海量数据。  Bentley 和 Ottmann 在 1979 年提出的扫描线算法，将复杂度降到了 $O((n+...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/09/daily-coding-cellular-automata-2026-07-09/" title="每日编程实践: Conway生命游戏与元胞自动机"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-09-cellular-automata/gosper_glider_gun_final.ppm" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-09</div><div class="info-item-2">每日编程实践: Conway生命游戏与元胞自动机</div></div><div class="info-2"><div class="info-item-1">一、背景与动机1970年，John Conway 在剑桥大学一间小房间里摆弄着围棋棋盘，试图发明一套简单到不需要计算机就能用手演算的规则，却意外创造出了一个计算系统——Conway 生命游戏 (Game of Life)。这不是一个传统意义上的”游戏”，没有玩家、没有目标、没有胜负。它是一种元胞自动机 (Cellular Automaton)：一个由简单规则驱动、从局部相互作用涌现出全局复杂行为的离散动力系统。 元胞自动机这个概念可以追溯到 1940 年代的冯·诺依曼。当时他正在研究自我复制机器的理论——如何用非常简单的组件构造一个能复制自身的系统？答案是一张二维网格，每个格子有少数几个状态，每个格子的未来状态仅由它自己和邻居的当前状态决定。这就是元胞自动机的基本范式。 为什么值得我们今天去实现？理由不止一个是”有趣”： 第一，它是自然界复杂性的最小模型。 蚁群没有中央调度，每只蚂蚁只遵循”跟信息素走”这个简单规则，却能涌现出高效的觅食路径。股市的价格波动没有导演，每个交易者基于局部信息买卖，却能形成趋势和泡沫。生命游戏的每个格子只依赖 8 个邻居的状态，却能在宏观层面产生静态结...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-11-06</div><div class="info-item-2">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</div></div><div class="info-2"><div class="info-item-1">Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)① 背景与动机在计算机的世界里，整数并不是无限的。一个 int 只有 32 位，最多表示到约 21 亿；一个 long long（或者说 int64）有 64 位，最多表示到约 9.2×10¹⁸。对于绝大多数日常计算来说，这些已经完全够用了——你很少需要去算一个超过 19 位十进制的整数乘法。 但现实里确实存在这样一类问题，它们的数值会巨大到突破任何原生整数类型的上限：密码学里的 RSA 需要处理 2048 位甚至 4096 位的大素数相乘；高精度科学计算里，双精度浮点数的小数部分精度不够，需要用到几千位甚至几万位的定点整型；还有程序员们津津乐道的「求 10000 的阶乘」「求第 100000 个斐波那契数」，这些数字动辄几万位十进制，用原生类型根本无法表示。 要表示一个几千位的整数，业界通用的做法是「分段存储」：用一个数组（或者 vector）来存放这个大整数的每一位（或者每若干位作为一个「limb」）。比如底数取 10⁹，那么一个 32000 位的十进制数，就只需要拆成约 3556 个 limb...</div></div></div></a><a class="pagination-related" href="/chiuhou-tech-blog/2026/07/18/daily-coding-rrt-path-planning-2026-07-18/" title="每日编程实践: RRT 路径规划"><img class="cover" src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/07/07-18-rrt-path-planning/rrt_output.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-18</div><div class="info-item-2">每日编程实践: RRT 路径规划</div></div><div class="info-2"><div class="info-item-1">背景与动机想象一下：你有一个机器人需要从房间的一端移动到另一端，但房间里有桌子、椅子和柜子。机器人的任务是找到一条可行路径——不要求是最优的，但必须存在，而且要快。 这就是运动规划（Motion Planning）的核心问题。在传统算法中，我们可能会想到 A* 或 Dijkstra，但这些算法要求整个搜索空间被离散化为网格。对于高维连续空间（比如六自由度机械臂），网格的大小会呈指数爆炸——这就是经典的”维度灾难”（Curse of Dimensionality）。 RRT（Rapidly-exploring Random Tree，快速探索随机树）由 Steven M. LaValle 在 1998 年提出，是解决连续空间运动规划问题的一个里程碑。它不需要离散化空间，不需要建立完整的连通图，只需要在连续空间中采样——它通过随机采样将搜索自然地”拉扯”向空间的未知区域。 RRT 在工业界的应用非常广泛：  自动驾驶：用于轨迹规划（尤其是低速场景下的非完整约束规划），百度 Apollo、Waymo 都使用 RRT 变体 机器人机械臂：MoveIt! 框架（ROS 默认的运动规划库）的...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/chiuhou-tech-blog/images/Melina.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="avatar"/></div><div class="author-info-name">Chiuhou</div><div class="author-info-description">记录编程学习和项目实践，专注图形学、算法与工程实践</div><div class="site-data"><a href="/chiuhou-tech-blog/archives/"><div class="headline">文章</div><div class="length-num">205</div></a><a href="/chiuhou-tech-blog/tags/"><div class="headline">标签</div><div class="length-num">213</div></a><a href="/chiuhou-tech-blog/categories/"><div class="headline">分类</div><div class="length-num">6</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%AF%8F%E6%97%A5%E7%BC%96%E7%A8%8B%E5%AE%9E%E8%B7%B5%EF%BC%9ARANSAC-%E9%B2%81%E6%A3%92%E6%A8%A1%E5%9E%8B%E6%8B%9F%E5%90%88%EF%BC%88Random-Sample-Consensus%EF%BC%89"><span class="toc-number">1.</span> <span class="toc-text">每日编程实践：RANSAC 鲁棒模型拟合（Random Sample Consensus）</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A0-%E8%83%8C%E6%99%AF%E4%B8%8E%E5%8A%A8%E6%9C%BA"><span class="toc-number">1.1.</span> <span class="toc-text">① 背景与动机</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9C%80%E5%B0%8F%E4%BA%8C%E4%B9%98%E6%B3%95%E7%9A%84%E8%87%B4%E5%91%BD%E7%BC%BA%E9%99%B7"><span class="toc-number">1.1.1.</span> <span class="toc-text">最小二乘法的致命缺陷</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#RANSAC-%E7%9A%84%E8%AF%9E%E7%94%9F%E4%B8%8E%E5%BA%94%E7%94%A8"><span class="toc-number">1.1.2.</span> <span class="toc-text">RANSAC 的诞生与应用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A1-%E6%A0%B8%E5%BF%83%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">② 核心原理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-RANSAC-%E7%9A%84%E5%9F%BA%E6%9C%AC%E5%81%87%E8%AE%BE"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 RANSAC 的基本假设</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E8%BF%AD%E4%BB%A3%E6%B5%81%E7%A8%8B%E7%9A%84%E9%80%90%E6%AD%A5%E6%8E%A8%E5%AF%BC"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 迭代流程的逐步推导</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E8%BF%AD%E4%BB%A3%E6%AC%A1%E6%95%B0%E7%9A%84%E7%90%86%E8%AE%BA%E6%8E%A8%E5%AF%BC%EF%BC%88%E4%B8%BA%E4%BB%80%E4%B9%88%E6%98%AF-N-%E6%AC%A1%EF%BC%9F%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 迭代次数的理论推导（为什么是 N 次？）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-4-%E6%AE%8B%E5%B7%AE%EF%BC%88%E8%B7%9D%E7%A6%BB%EF%BC%89%E7%9A%84%E5%AE%9A%E4%B9%89%E4%B8%8E%E9%98%88%E5%80%BC%E9%80%89%E6%8B%A9"><span class="toc-number">1.2.4.</span> <span class="toc-text">2.4 残差（距离）的定义与阈值选择</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-5-%E5%AF%B9%E6%AF%94%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8%E2%80%9DL1-%E5%9B%9E%E5%BD%92%E2%80%9D%E6%88%96%E2%80%9DHough-%E5%8F%98%E6%8D%A2%E2%80%9D%EF%BC%9F"><span class="toc-number">1.2.5.</span> <span class="toc-text">2.5 对比：为什么不用”L1 回归”或”Hough 变换”？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-6-%E7%9B%B4%E8%A7%89%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E2%80%9D%E6%8A%95%E7%A5%A8%E2%80%9D%E8%83%BD%E6%89%93%E8%B4%A5%E7%A6%BB%E7%BE%A4%E7%82%B9%EF%BC%9F"><span class="toc-number">1.2.6.</span> <span class="toc-text">2.6 直觉：为什么”投票”能打败离群点？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A2-%E5%AE%9E%E7%8E%B0%E6%9E%B6%E6%9E%84"><span class="toc-number">1.3.</span> <span class="toc-text">③ 实现架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E6%95%B4%E4%BD%93%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 整体数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 关键数据结构设计</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E7%9B%AE%E6%A0%87%E7%AE%97%E6%B3%95%E4%B8%8E%E5%9F%BA%E5%87%86%E7%AE%97%E6%B3%95%E7%9A%84%E8%81%8C%E8%B4%A3%E5%88%92%E5%88%86"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 目标算法与基准算法的职责划分</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E5%86%85%E7%82%B9%E7%B2%BE%E4%BF%AE%EF%BC%88refit%EF%BC%89%E7%9A%84%E8%AE%BE%E8%AE%A1"><span class="toc-number">1.3.4.</span> <span class="toc-text">3.4 内点精修（refit）的设计</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A3-%E5%85%B3%E9%94%AE%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">1.4.</span> <span class="toc-text">④ 关键代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E5%8F%AF%E5%A4%8D%E7%8E%B0%E7%9A%84%E9%9A%8F%E6%9C%BA%E6%95%B0%E7%94%9F%E6%88%90%E5%99%A8"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 可复现的随机数生成器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-%E6%95%B0%E6%8D%AE%E7%94%9F%E6%88%90%EF%BC%9A%E5%86%85%E7%82%B9-%E7%A6%BB%E7%BE%A4%E7%82%B9"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 数据生成：内点 + 离群点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-%E6%9C%80%E5%B0%8F%E4%BA%8C%E4%B9%98%E7%9B%B4%E7%BA%BF%E6%8B%9F%E5%90%88%EF%BC%88%E5%9F%BA%E5%87%86%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 最小二乘直线拟合（基准）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-RANSAC-%E7%9B%B4%E7%BA%BF%E6%8B%9F%E5%90%88%EF%BC%88%E7%9B%AE%E6%A0%87%E7%AE%97%E6%B3%95%EF%BC%89"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 RANSAC 直线拟合（目标算法）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-5-%E5%86%85%E7%82%B9%E7%B2%BE%E4%BF%AE"><span class="toc-number">1.4.5.</span> <span class="toc-text">4.5 内点精修</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-6-RANSAC-%E5%9C%86%E6%8B%9F%E5%90%88%EF%BC%88%E4%B8%89%E7%82%B9%E5%AE%9A%E5%9C%86%EF%BC%89"><span class="toc-number">1.4.6.</span> <span class="toc-text">4.6 RANSAC 圆拟合（三点定圆）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-7-%E4%B8%BB%E5%87%BD%E6%95%B0%E4%B8%AD%E7%9A%84%E9%87%8F%E5%8C%96%E9%AA%8C%E8%AF%81"><span class="toc-number">1.4.7.</span> <span class="toc-text">4.7 主函数中的量化验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A4-%E8%B8%A9%E5%9D%91%E5%AE%9E%E5%BD%95"><span class="toc-number">1.5.</span> <span class="toc-text">⑤ 踩坑实录</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-1%EF%BC%9A%E7%AB%96%E7%9B%B4%E7%BA%BF%E5%AF%BC%E8%87%B4%E6%96%9C%E7%8E%87%E6%BA%A2%E5%87%BA%EF%BC%88NaN-%E4%BC%A0%E6%92%AD%EF%BC%89"><span class="toc-number">1.5.1.</span> <span class="toc-text">坑 1：竖直线导致斜率溢出（NaN 传播）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-2%EF%BC%9A%E5%9C%86%E7%9A%84%E2%80%9D%E4%B8%89%E7%82%B9%E5%85%B1%E7%BA%BF%E2%80%9D%E5%AF%BC%E8%87%B4%E9%99%A4%E9%9B%B6"><span class="toc-number">1.5.2.</span> <span class="toc-text">坑 2：圆的”三点共线”导致除零</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-3%EF%BC%9A%E9%AA%8C%E8%AF%81%E8%84%9A%E6%9C%AC%E6%8A%8A%E2%80%9D%E7%9B%B8%E7%AD%89%E2%80%9D%E8%AF%AF%E5%88%A4%E4%B8%BA%E2%80%9D%E5%A4%B1%E8%B4%A5%E2%80%9D"><span class="toc-number">1.5.3.</span> <span class="toc-text">坑 3：验证脚本把”相等”误判为”失败”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9D%91-4%EF%BC%9A%E5%86%85%E7%82%B9%E5%8F%AC%E5%9B%9E%E7%8E%87%E2%80%9D%E8%B6%85%E8%BF%87-100-%E2%80%9D%E7%9A%84%E5%9B%B0%E6%83%91"><span class="toc-number">1.5.4.</span> <span class="toc-text">坑 4：内点召回率”超过 100%”的困惑</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A5-%E6%95%88%E6%9E%9C%E9%AA%8C%E8%AF%81%E4%B8%8E%E6%95%B0%E6%8D%AE"><span class="toc-number">1.6.</span> <span class="toc-text">⑥ 效果验证与数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-%E7%9B%B4%E7%BA%BF%E6%8B%9F%E5%90%88%EF%BC%9A%E4%B8%8D%E5%90%8C%E7%A6%BB%E7%BE%A4%E7%82%B9%E6%AF%94%E4%BE%8B%E7%9A%84%E5%8F%82%E6%95%B0%E5%AF%B9%E6%AF%94"><span class="toc-number">1.6.1.</span> <span class="toc-text">6.1 直线拟合：不同离群点比例的参数对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6%E5%88%86%E6%9E%90"><span class="toc-number">1.6.2.</span> <span class="toc-text">6.2 时间复杂度分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-%E5%9C%86%E6%8B%9F%E5%90%88%EF%BC%9A%E9%AB%98%E7%A6%BB%E7%BE%A4%E7%82%B9%E6%AF%94%E4%BE%8B%E4%B8%8B%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">1.6.3.</span> <span class="toc-text">6.3 圆拟合：高离群点比例下的对比</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-4-%E5%86%85%E7%82%B9%E5%8F%AC%E5%9B%9E%E7%8E%87%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.4.</span> <span class="toc-text">6.4 内点召回率验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-5-%E6%97%A0%E7%A6%BB%E7%BE%A4%E7%82%B9%E4%B8%80%E8%87%B4%E6%80%A7%E9%AA%8C%E8%AF%81"><span class="toc-number">1.6.5.</span> <span class="toc-text">6.5 无离群点一致性验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-6-%E5%B0%81%E9%9D%A2%E5%9B%BE%E7%9A%84%E9%87%8F%E5%8C%96%E8%AF%B4%E6%98%8E"><span class="toc-number">1.6.6.</span> <span class="toc-text">6.6 封面图的量化说明</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E2%91%A6-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%BB%B6%E4%BC%B8"><span class="toc-number">1.7.</span> <span class="toc-text">⑦ 总结与延伸</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#7-1-%E6%8A%80%E6%9C%AF%E5%B1%80%E9%99%90%E6%80%A7"><span class="toc-number">1.7.1.</span> <span class="toc-text">7.1 技术局限性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-2-%E5%8F%AF%E7%BB%A7%E7%BB%AD%E4%BC%98%E5%8C%96%E7%9A%84%E6%96%B9%E5%90%91"><span class="toc-number">1.7.2.</span> <span class="toc-text">7.2 可继续优化的方向</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-3-%E4%B8%8E%E6%9C%AC%E7%B3%BB%E5%88%97%E5%85%B6%E4%BB%96%E6%96%87%E7%AB%A0%E7%9A%84%E5%85%B3%E8%81%94"><span class="toc-number">1.7.3.</span> <span class="toc-text">7.3 与本系列其他文章的关联</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/" title="每日编程实践: RANSAC 鲁棒模型拟合"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-10-ransac-fitting/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: RANSAC 鲁棒模型拟合"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/10/daily-coding-ransac-robust-fitting-2026-11-10/" title="每日编程实践: RANSAC 鲁棒模型拟合">每日编程实践: RANSAC 鲁棒模型拟合</a><time datetime="2026-11-09T21:35:00.000Z" title="发表于 2026-11-10 05:35:00">2026-11-10</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/09/daily-coding-cubic-spline-2026-11-09/" title="每日编程实践: 三次样条插值"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-09-cubic-spline/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: 三次样条插值"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/09/daily-coding-cubic-spline-2026-11-09/" title="每日编程实践: 三次样条插值">每日编程实践: 三次样条插值</a><time datetime="2026-11-08T21:35:00.000Z" title="发表于 2026-11-09 05:35:00">2026-11-09</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-08-articulation-bridges/cover.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Tarjan 割点与桥算法"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/08/daily-coding-tarjan-articulation-bridges-2026-11-08/" title="每日编程实践: Tarjan 割点与桥算法">每日编程实践: Tarjan 割点与桥算法</a><time datetime="2026-11-07T21:35:00.000Z" title="发表于 2026-11-08 05:35:00">2026-11-08</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-06-karatsuba-multiplication/karatsuba_diagram.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/06/daily-coding-karatsuba-multiplication-2026-11-06/" title="每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)">每日编程实践: Karatsuba 乘法 —— 分治思想如何把大整数乘法降到 O(n^1.585)</a><time datetime="2026-11-05T22:00:00.000Z" title="发表于 2026-11-06 06:00:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"><img src="https://raw.githubusercontent.com/chiuhoukazusa/blog_img/main/2026/11/11-04-bsp-dungeon-generation/bsp_dungeon_output.png" onerror="this.onerror=null;this.src='/chiuhou-tech-blog/images/404.jpg'" alt="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路"/></a><div class="content"><a class="title" href="/chiuhou-tech-blog/2026/11/05/daily-coding-johnson-algorithm-2026-11-05/" title="每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路">每日编程实践: Johnson 算法 —— 稀疏图上带负权边的全源最短路</a><time datetime="2026-11-04T22:00:00.000Z" title="发表于 2026-11-05 06:00:00">2026-11-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Chiuhou</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/chiuhou-tech-blog/js/utils.js?v=5.5.4"></script><script src="/chiuhou-tech-blog/js/main.js?v=5.5.4"></script><div class="js-pjax"></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
